@@ -18,6 +18,8 @@ It has opinions. Take them, or fork off.
   means. (A wrong input type is a bug, and it does raise.)
 - **Code checks. The model proposes.** Validators have the last word. Pipelines are plain async Python, with no graph
   language to learn.
+- **You own the orchestration.** Order, loops, branching, when to stop: your code. `micro` runs your agents and keeps what
+  they returned. It is not a workflow engine, and it won't pretend to be one.
 - **Everything is on record.** Every attempt, in sqlite, tied to the agent that launched it.
 
 
