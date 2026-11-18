@@ -1,9 +1,9 @@
 # Example pipeline: `doclearn`
 
-[`src/doclearn`](../src/doclearn) is a worked example of a pipeline on top of `micro`: learn the template of a document
+[`examples/doclearn`](../examples/doclearn) is a worked example of a pipeline on top of `micro`: learn the template of a document
 family from a few examples, then write a new document from a few facts. It is a demonstration of what the harness makes
 easy, not a finished product, and it is not specific to any domain. The sample documents (project proposals and
-incident reports) are in [`examples/`](../examples).
+incident reports) are in [`examples/doclearn/samples`](../examples/doclearn/samples).
 
 - [What it does](#what-it-does)
 - [Running it](#running-it)
@@ -35,10 +35,10 @@ Four rules shaped it:
 ```
 cp .env.example .env     # set GOOGLE_API_KEY
 make build
-make pipeline ARGS="examples/project_proposals --category project_proposals"
+make pipeline ARGS="examples/doclearn/samples/project_proposals --category project_proposals"
 ```
 
-Without Docker: `uv sync`, then `PYTHONPATH=src uv run python -m doclearn.cli examples/project_proposals --category project_proposals`.
+Without Docker: `uv sync`, then `PYTHONPATH=src:examples/doclearn uv run python -m doclearn.cli examples/doclearn/samples/project_proposals --category project_proposals`.
 
 It learns from the documents, shows what it learned (the tree, the template, the inputs, and how well each source
 document conforms to the tree), then fills the form: **manual** opens the inputs in `$EDITOR`, **auto** has an agent
@@ -51,11 +51,11 @@ before generating.
 
 | Agent | Model | Calls | Task |
 |---|---|---|---|
-| Document Analyzer ([analyzer.py](../src/doclearn/analyzer.py)) | `gemini-3.8-flash`, low | one per document, in parallel | Read a document into typed blocks, mark the case-specific values as `{{spans}}`, record the markdown style of each element type |
-| Reconciliation Agent ([reconciler.py](../src/doclearn/reconciler.py)) | `gemini-3.8-flash`, medium | one for the set | Give every element type and field name one standard name, because documents name the same thing differently |
-| Semantic Alignment ([alignment.py](../src/doclearn/alignment.py)) | `gemini-3.8-flash`, low | one per section, in parallel | Learn one subtree from the same section of every document: which blocks are fixed, which are slots, which are generated, which are conditional |
-| Generator ([generation.py](../src/doclearn/generation.py)) | `gemini-3.8-flash`, low | one, with tool rounds | Write the document from the compiled tree, the facts and optional guidance. Tools: `calculate`, the date tools, `check_document` |
-| Form Filler ([autofill.py](../src/doclearn/autofill.py)) | `gemini-3.5-flash-lite`, low | one, retried on problems | Invent a coherent case for a learned template, for demos and tests |
+| Document Analyzer ([analyzer.py](../examples/doclearn/doclearn/analyzer.py)) | `gemini-3.8-flash`, low | one per document, in parallel | Read a document into typed blocks, mark the case-specific values as `{{spans}}`, record the markdown style of each element type |
+| Reconciliation Agent ([reconciler.py](../examples/doclearn/doclearn/reconciler.py)) | `gemini-3.8-flash`, medium | one for the set | Give every element type and field name one standard name, because documents name the same thing differently |
+| Semantic Alignment ([alignment.py](../examples/doclearn/doclearn/alignment.py)) | `gemini-3.8-flash`, low | one per section, in parallel | Learn one subtree from the same section of every document: which blocks are fixed, which are slots, which are generated, which are conditional |
+| Generator ([generation.py](../examples/doclearn/doclearn/generation.py)) | `gemini-3.8-flash`, low | one, with tool rounds | Write the document from the compiled tree, the facts and optional guidance. Tools: `calculate`, the date tools, `check_document` |
+| Form Filler ([autofill.py](../examples/doclearn/doclearn/autofill.py)) | `gemini-3.5-flash-lite`, low | one, retried on problems | Invent a coherent case for a learned template, for demos and tests |
 
 ## The learning pipeline
 

@@ -112,8 +112,8 @@ Set `GOOGLE_API_KEY` first. `runner.run_many(Agent, inputs, job_id=...)` runs on
 ```
 cp .env.example .env          # set GOOGLE_API_KEY
 make build
-make example-skills           # an agent with three skills (examples/skills_agent.py); add ARGS="your request"
-make pipeline ARGS="examples/project_proposals --category project_proposals"   # the example pipeline
+make example-skills           # an agent with three skills (examples/skills); add ARGS="your request"
+make pipeline ARGS="examples/doclearn/samples/project_proposals --category project_proposals"   # an example pipeline (examples/doclearn)
 ```
 
 ## Limits
@@ -135,11 +135,11 @@ places a production system would plug in (`AgentRunner(model_factory=...)` for a
 | `make example-skills` | Run the skills example agent |
 
 ```
-src/micro/      the harness
-src/doclearn/   the example pipeline
-examples/       sample documents, skills, and an agent that uses them
-docs/           documentation
-tests/          mocked tests; tests/e2e uses the real model
+src/micro/            the harness
+examples/skills/      an agent that uses skills, with three skills (make example-skills)
+examples/doclearn/    an example pipeline: its package, sample documents and tests (make pipeline)
+docs/                 documentation
+tests/                the harness's tests; tests/e2e uses the real model
 ```
 
 Issues and pull requests are welcome; run `make test` first.

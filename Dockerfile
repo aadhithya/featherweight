@@ -6,7 +6,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.9.26 /uv /uvx /bin/
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
     UV_LINK_MODE=copy \
     PATH="/opt/venv/bin:$PATH" \
-    PYTHONPATH=/app/src \
+    PYTHONPATH=/app/src:/app/examples/doclearn \
     PYTHONUNBUFFERED=1
 
 WORKDIR /app

@@ -1,9 +1,9 @@
 """An agent with skills, to run: it reads a skill only when a request needs it.
 
-    python examples/skills_agent.py                 # three sample requests, one for each skill
-    python examples/skills_agent.py "your request"  # your own request
+    python examples/skills/agent.py                 # three sample requests, one for each skill
+    python examples/skills/agent.py "your request"  # your own request
 
-Needs GOOGLE_API_KEY. The agent is told the name and description of its three skills (examples/skills); when a
+Needs GOOGLE_API_KEY. The agent is told the name and description of its three skills (the folders next to this file); when a
 request fits one, it reads that skill with `get_skill`, and then the files the skill points to, and follows them.
 The script prints each skill the agent read.
 """
@@ -15,14 +15,14 @@ from pathlib import Path
 from typing import ClassVar
 
 HERE = Path(__file__).parent
-sys.path.insert(0, str(HERE.parent / "src"))  # so that this runs without installing anything
+sys.path.insert(0, str(HERE.parent.parent / "src"))  # so that this runs without installing anything
 
 from micro.db import Database, default_db_path  # noqa: E402
 from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus  # noqa: E402
 from micro.runner import AgentRunner  # noqa: E402
 from micro.skills import Skill  # noqa: E402
 
-SKILLS = [Skill.from_directory(path) for path in sorted((HERE / "skills").iterdir()) if path.is_dir()]
+SKILLS = [Skill.from_directory(path) for path in sorted(HERE.iterdir()) if (path / "SKILL.md").is_file()]
 
 
 class AssistantInput(AgentInput):

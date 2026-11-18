@@ -138,7 +138,7 @@ def test_the_example_skill_loads_with_its_reference_file():
     assert s.instructions.startswith("# Meeting notes")
 
 
-EXAMPLE_SKILLS = sorted(path for path in EXAMPLE.parent.iterdir() if path.is_dir())
+EXAMPLE_SKILLS = sorted(path for path in EXAMPLE.parent.iterdir() if (path / "SKILL.md").is_file())
 
 
 @pytest.mark.parametrize("path", EXAMPLE_SKILLS, ids=lambda p: p.name)

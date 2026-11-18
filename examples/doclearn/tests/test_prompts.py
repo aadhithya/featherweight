@@ -36,7 +36,7 @@ def test_no_prompt_quotes_a_heading_of_the_fixture_documents(agent):
 def fixture_labels() -> set[str]:
     """Every `**Label:**` of the fixture and example documents, without the marks."""
     labels = set()
-    for folder in (FIXTURES, FIXTURES.parent.parent / "examples"):
+    for folder in (FIXTURES, FIXTURES.parent.parent / "samples"):
         for path in folder.rglob("*.md"):
             labels |= set(re.findall(r"\*\*([^*\n]+?):\*\*", path.read_text(encoding="utf-8")))
     return labels

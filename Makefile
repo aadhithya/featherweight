@@ -25,14 +25,14 @@ test:
 e2e:
 	docker compose run --rm micro pytest -m e2e -s -v $(ARGS)
 
-# Learn, fill the form and generate (real Gemini calls). E.g. `make pipeline ARGS="examples/project_proposals --category project_proposals"`;
+# Learn, fill the form and generate (real Gemini calls). E.g. `make pipeline ARGS="examples/doclearn/samples/project_proposals --category project_proposals"`;
 # see `make pipeline ARGS=--help`. Run folders go to ./runs.
 pipeline:
 	docker compose run --rm micro python -m doclearn.cli $(ARGS)
 
 # An agent that uses skills (real Gemini calls). `make example-skills ARGS="your request"` for your own request.
 example-skills:
-	docker compose run --rm micro python examples/skills_agent.py $(ARGS)
+	docker compose run --rm micro python examples/skills/agent.py $(ARGS)
 
 shell:
 	docker compose exec micro bash

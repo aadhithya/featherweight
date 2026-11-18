@@ -1,5 +1,5 @@
 """End-to-end test of the one-command CLI with the real agents against real Gemini: learn the incident report examples
-(`examples/incident_reports`), let the Form Filler invent a case, generate. Run with `make e2e ARGS="-k cli"` (needs GOOGLE_API_KEY in
+(`samples/incident_reports`), let the Form Filler invent a case, generate. Run with `make e2e ARGS="-k cli"` (needs GOOGLE_API_KEY in
 .env). Not part of `make test`. The terminal is scripted (the user accepts the invented case); the run folder is
 written under pytest's tmp dir and the test prints its path.
 """
@@ -10,7 +10,7 @@ import pytest
 
 from doclearn import cli
 
-SAMPLES = Path(__file__).parent.parent.parent / "examples" / "incident_reports"
+SAMPLES = Path(__file__).parent.parent.parent / "samples" / "incident_reports"
 CATEGORY = "incident_reports"
 
 

@@ -27,9 +27,9 @@ from learned_checks import shared_sections, structural_problems
 
 CATEGORY = "project_proposals"
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "proposals"
-EXAMPLES = Path(__file__).parent.parent.parent / "examples" / "project_proposals"
+EXAMPLES = Path(__file__).parent.parent.parent / "samples" / "project_proposals"
 INCIDENT_CATEGORY = "incident_reports"
-INCIDENT_EXAMPLES = Path(__file__).parent.parent.parent / "examples" / "incident_reports"
+INCIDENT_EXAMPLES = Path(__file__).parent.parent.parent / "samples" / "incident_reports"
 MIN_UNITS = 4  # the fixture proposals have 6 sections (title, client, vendor, proposal, supporting material, closing)
 MAX_UNITS = 20  # a flat Analyzer output once gave 76 units; units are sections now, so far fewer
 MIN_SCHEMA_FIELDS = 5  # and about 30 fillable values each

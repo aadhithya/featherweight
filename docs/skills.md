@@ -28,8 +28,8 @@ Skill(name="release-notes", description="Turns changes into release notes. Use w
       instructions="1. Start with the version.\n2. ...")
 ```
 
-[`examples/skills_agent.py`](../examples/skills_agent.py) is an agent with three skills to run
-(`make example-skills`); the skills are in [`examples/skills`](../examples/skills).
+[`examples/skills`](../examples/skills) is an agent with three skills to run (`make example-skills`): the agent is
+`agent.py`, and each other folder is a skill.
 
 ## How an agent uses its skills
 
@@ -152,4 +152,4 @@ Not built yet:
 - **Name the files** in the instructions ("the tags are in `references/tags.md`; read it first"). The agent is told
   which files exist, but not what is in them.
 - **Write steps an agent can follow**, with the rules it must keep (a word limit, a format) stated plainly. Test the skill
-  by running an agent on a few requests and reading the output, as `examples/skills_agent.py` does.
+  by running an agent on a few requests and reading the output, as `examples/skills/agent.py` does.
