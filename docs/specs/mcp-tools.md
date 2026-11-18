@@ -111,29 +111,45 @@ An internal class, built by the runner for each attempt. It holds every tool the
   failure, because it is usually a typo.
 - **Binding.** The direct entries are what the model is bound to. `tool_names` in the run log lists them.
 
-## Connections and lifecycle
+## Separation of concerns
+
+Two parts, with different lifetimes:
+
+| | Scope | Owns | Does not know |
+|---|---|---|---|
+| **`MCPConnections`** (`mcp_connections.py`) | One per runner, shared by agents, runs and retries | The server processes and sessions | An agent's names for servers, filters, timeouts, caps, modes |
+| **`ToolRegistry`** (`registry.py`, with `mcp_tools.py`) | One per attempt of one agent | Nothing live: the tools it was given | Whether a server is shared, or when it stops |
+
+Rule: what can differ between two agents that share a server is on the registry side; what cannot is on the connection
+side. The connection key holds only connection settings, so `name`, `tools`, `timeout_s`, `max_result_chars` (and later
+`discover`) never reach it.
 
 ```python
-async with AgentRunner(db) as runner:  # or: runner = AgentRunner(db) ... await runner.aclose()
-    await runner.run(Triager, ...)
+lease = Lease(connections)  # one per run, from its first attempt to its last
+await lease.list_tools(server)  # the server's own tool list, unprefixed and unfiltered
+await lease.session(server)  # the session the tools call through
+await registry.add_mcp(server, lease)  # the agent's view: allow-list, prefix, timeout, cap, failures as text
+await lease.release()  # the run is done
 ```
 
-- Nothing connects when the runner is created. A server opens on first use, in the first attempt that needs it.
+## Connections and lifecycle
+
+- Nothing connects when the runner is created. A server opens when a run first needs it.
 - Each server is held by an **owner task**: it opens the session, publishes it, and waits for a stop signal. Calls from
   any task share the session.
 - Concurrent first uses open one connection (a lock per server).
 - **Connections are shared** between agents whose connection settings are equal: the command, args, cwd and environment
-  names for stdio; the URL and header names for HTTP. The agent's own name for the server, its description, its tool
-  filter and its timeout are not part of that key.
-- An attempt opens its servers before it takes a concurrency slot, so a slow start (`npx`) does not hold one.
-- `__aexit__` and `aclose()` signal every owner task and wait for it. For stdio that ends the subprocess. `aclose()` can
-  be called twice.
-- **A dead connection is replaced.** When an owner task ends because the server crashed or the connection dropped, its
-  entry is cleared, and the next attempt that needs the server opens a new one. The runner's retries therefore cover a
-  crashed server.
-- A runner with no MCP agents never needs `async with`. **An MCP agent run on a runner that was not opened with
-  `async with` (or whose `aclose()` has been called) raises a `RuntimeError`** that says to use `async with
-  AgentRunner(...)`. It is a programming error, so it raises and is not a failed result, and no server is started.
+  names for stdio; the URL and header names for HTTP.
+- **A run holds a lease** on its servers from its first attempt to its last, so a retry does not start a server again. A
+  server is stopped when its last lease is released.
+- **The context manager is optional.** `async with AgentRunner(db)` (or `aclose()` at the end) keeps servers up between
+  runs and stops them at the end of the block. Without it, each run starts what it needs and stops it when it is done,
+  unless another run still holds it. Nothing raises either way, and a runner needs no setup to run an agent with MCP
+  servers, also when the agent is launched by another agent.
+- An attempt gets its servers before it takes a concurrency slot, so a slow start (`npx`) does not hold one.
+- `aclose()` stops every server, whatever holds it, and can be called twice. A later run starts them again.
+- **A dead connection is replaced.** When a call finds the connection broken, or its owner task ends, it is forgotten,
+  and the next attempt that needs the server opens a new one. The runner's retries therefore cover a crashed server.
 
 ## Failures are values
 
@@ -188,13 +204,15 @@ A real stdio fake server (FastMCP, about 0.3s to start) with a scripted fake cha
 
 - Tools appear named `server_tool` and are bound; a local tool and an MCP tool work in one attempt.
 - Concurrent calls share one session and one process.
+- A retry does not start the server again.
 - Two agents with equal connection settings share a process; with different settings, they do not.
 - A server that dies mid-call gives text to the model, and the next attempt gets a new connection.
 - A call over `timeout_s` gives text.
 - Each setup failure fails at once, with one attempt.
 - A name collision is refused. A typo in an allow-list is refused.
 - A secret's value is in no log line, run row or exception message.
-- `aclose()` leaves no child process; closing twice is fine.
+- A server stops when the run ends without `async with`, and when the block ends with it; two runs share a server inside
+  the block, and parallel runs share one outside it. `aclose()` leaves no child process; closing twice is fine.
 - An MCP agent on a runner that is not open raises, and starts no process.
 - A resource link reaches the model as text, with no fetch. Audio becomes a text note.
 - An image and a PDF returned by the server reach the real model and are read (e2e, `gemini-3.5-flash-lite`).
@@ -210,7 +228,11 @@ A real stdio fake server (FastMCP, about 0.3s to start) with a scripted fake cha
 ## Open points
 
 Decided:
-- An MCP agent on a runner that is not open **raises**.
+- The runner's context manager is **optional**: a server starts when a run needs it and stops when the last run using it
+  ends, unless the runner is inside `async with`. (First decided the other way, that an MCP agent on a runner that was not
+  open raises. That made the rule depend on the whole tree of launched agents, and it was dropped.)
+- Connections are shared and per runner; the registry is per attempt and owns nothing. The agent's declaration is applied on
+  the registry side.
 - `tools` not given means every tool of the server; given, only those. An allow-list is therefore optional per server.
 - Images and embedded files pass through; resource links become text (see the check above).
 - Text results are capped, per server, at `max_result_chars` (default 20,000).

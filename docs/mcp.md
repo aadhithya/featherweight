@@ -54,15 +54,23 @@ A server that stdio starts gets a default environment (`PATH`, `HOME` and the li
 
 ## Running an agent that uses MCP
 
-The runner holds the connections, so it must be open:
+Nothing special: run it like any agent.
 
 ```python
-async with AgentRunner(db) as runner:
-    result = await runner.run(Triager, TriageInput(...), job_id=job_id)
+result = await AgentRunner(db).run(Triager, TriageInput(...), job_id=job_id)
 ```
 
-Running an agent with `mcp_servers` on a runner that is not open raises a `RuntimeError` and starts nothing. A runner
-whose agents have no servers needs no `async with`. Without the block, call `await runner.aclose()` when you are done.
+A server is started when a run needs it and **stopped when the last run using it ends**, so nothing is left running.
+Starting costs time (`npx` can take seconds), so when you run agents with the same servers more than once, keep them up
+with `async with`:
+
+```python
+async with AgentRunner(db) as runner:  # the servers stay up between runs, and stop when the block ends
+    await runner.run(Triager, ...)
+    await runner.run(Triager, ...)
+```
+
+`await runner.aclose()` does the same as leaving the block. The block is optional and changes only how long servers live.
 
 ## What the model gets
 
@@ -98,14 +106,23 @@ Nothing an MCP server does raises into the agent's run.
 
 ## Connections
 
-- **Nothing connects when the runner is created.** A server starts the first time an attempt needs it, before the attempt
-  takes a concurrency slot, so a slow start (`npx` downloading) holds none.
-- **One connection per distinct server, shared.** Agents whose servers have equal connection settings (the command, args,
-  cwd and variable names, or the URL and header names) share one process. Their names for the server, tool filters,
-  timeouts and caps can differ. Calls from many runs share the connection at the same time.
+Two parts, with different jobs:
+
+| | Is shared? | Does |
+|---|---|---|
+| **Connections** (`micro/mcp_connections.py`) | Yes: one per runner, across agents, runs and retries | Starts, shares and stops servers. Hands out a server's own tool list and its session. Knows nothing about an agent's names, filters, timeouts or caps |
+| **The agent's tools** (`micro/mcp_tools.py`, added to the attempt's registry) | No: one per attempt of one agent | Applies the agent's declaration to the server's tools: the `tools` filter, the `<server>_` prefix, the timeout and cap, and turning failures into text |
+
+What can differ between two agents that share a server is on the agent's side. What cannot is on the connection's side.
+
+- **Nothing connects when the runner is created.** A server starts when a run first needs it, before its attempt takes a
+  concurrency slot, so a slow start (`npx` downloading) holds none.
+- **A run holds a lease** on its servers, from its first attempt to its last, so a retry does not start a server again. A
+  server stops when its last lease is released, or, inside `async with`, when the block ends.
+- **One connection per distinct server.** Agents whose servers have equal connection settings (the command, args, cwd and
+  variable names, or the URL and header names) share one process, also while they run at the same time.
 - **Each connection has an owner task** that opens and closes it, because the MCP library requires one task to do both.
-  `async with`, or `aclose()`, stops every server the runner started.
-- **A launched agent** uses the servers it declares itself, through the same runner.
+- **A launched agent** uses the servers it declares itself, through the same runner, and holds its own lease.
 
 ## Logging
 

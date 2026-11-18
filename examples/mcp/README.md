@@ -49,8 +49,9 @@ GITHUB = HttpMCPServer(
   six of the dozens that are left, and the token itself can only read public data.
 - **The tools arrive named after the server:** `github_list_releases`, and so on. They are bound to the model next to
   any tools the agent has of its own, with the schemas the server publishes.
-- **The runner connects on first use**, before the model is called, and shares the connection between requests. That is
-  why the script runs the agent inside `async with AgentRunner(db) as runner`, which closes it at the end.
+- **The runner connects on first use**, before the model is called. The script runs the agent inside
+  `async with AgentRunner(db) as runner` so that the connection stays up for the second question instead of starting
+  again, and closes at the end. Without the block it works the same, and each request starts and stops the connection.
 - **A tool that errors is text for the model.** If GitHub says a repository does not exist, the agent reads that and
   answers accordingly. It does not crash the run.
 

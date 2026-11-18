@@ -5,7 +5,7 @@
 
 Needs GOOGLE_API_KEY and GITHUB_TOKEN, a read-only token (see examples/mcp/README.md). The agent declares one server,
 GitHub's remote one, and an allow-list of six read-only tools out of the dozens it offers. The runner connects when the
-first request needs it, and `async with` closes the connection at the end.
+first request needs it, and `async with` keeps it up between the requests and closes it at the end.
 """
 
 import asyncio
