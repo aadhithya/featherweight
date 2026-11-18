@@ -145,6 +145,11 @@ Issues and pull requests are welcome. Run `make hooks` once: commit messages fol
 [Conventional Commits](https://www.conventionalcommits.org) (`feat(runner): ...`, `fix: ...`), and `make check` and
 `make test` must pass.
 
+## How it's built
+
+Designed by a human. Implemented by [Claude](https://claude.com/claude-code). Every decision here was the human's, and
+the typing was Claude's. The specs in [docs/specs](docs/specs) are what the human signed off before any code was written.
+
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE).
