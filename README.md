@@ -2,6 +2,8 @@
 
 **An opinionated agent harness. Pydantic is the spec. Everything else follows.**
 
+Designed by a human. Implemented by Claude.
+
 An agent is a typed class. Its input, output, skills and sub-agents are declared right there and enforced by Pydantic,
 not by convention, and not by hoping the model behaves. The boilerplate every agent project ends up writing (retries,
 limits, failures, tracing, tools, delegation) is already written. You write the pipeline. That's the part that's yours.
@@ -144,10 +146,6 @@ tests/                the harness's tests; tests/e2e uses the real model
 Issues and pull requests are welcome. Run `make hooks` once: commit messages follow
 [Conventional Commits](https://www.conventionalcommits.org) (`feat(runner): ...`, `fix: ...`), and `make check` and
 `make test` must pass.
-
-## How it's built
-
-Designed by a human. Implemented by Claude.
 
 ## License
 
