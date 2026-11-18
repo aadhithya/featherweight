@@ -127,8 +127,8 @@ ADAPTING = LearnedTree(
            node("**Name:** {{client_name}}", "slot"), node("**Date:** {{filed}}", "slot")],
     fields=[info("client_name"), info("filed", "date")],
 )
-ADAPTING_FACTS = {"client_name": "Nora Whitfield", "filed": "March 15, 2024"}
-ADAPTED = "- Introduce her as the project lead for this engagement.\n**Name:** Nora Whitfield\n**Date:** March 15, 2024\n"
+ADAPTING_FACTS = {"client_name": "Nora Whitfield", "filed": "May 6, 2025"}
+ADAPTED = "- Introduce her as the project lead for this engagement.\n**Name:** Nora Whitfield\n**Date:** May 6, 2025\n"
 WITH_DATE = {**FACTS, "due_date": "March 20, 2024"}
 DATED = GOOD.replace("- Payment is due at the standard rate.", "- Payment is due from March 20, 2024.")
 
@@ -162,8 +162,8 @@ REWRITTEN = ADAPTED.replace("- Introduce her as the project lead for this engage
         pytest.param(FACTS, DATED, None, [("",)], id="a wording the facts cannot fill"),
         pytest.param(FLAG_ON, GOOD, None, [("missing or too different", "Training")], id="a block whose condition holds is missing"),
         pytest.param({}, "Text with --- inside.\nKind regards,\n", SHORT_LINES, [("'---'",)], id="a short fixed line only inside other text"),
-        pytest.param(ADAPTING_FACTS, ADAPTED.replace("March 15, 2024", "March 16, 2024"), ADAPTING,
-                     [("a fact was changed", "March 15, 2024")], id="a fact is never changed"),
+        pytest.param(ADAPTING_FACTS, ADAPTED.replace("May 6, 2025", "May 7, 2025"), ADAPTING,
+                     [("a fact was changed", "May 6, 2025")], id="a fact is never changed"),
         pytest.param(ADAPTING_FACTS, REWRITTEN, ADAPTING, [("missing or too different",)], id="a rewritten fixed line"),
     ],
 )

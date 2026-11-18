@@ -5,7 +5,7 @@ from doclearn.facts import MappingError, apply_mappings, derive_template, find_s
 from doclearn.models import DocumentFacts
 
 
-def proposal_facts(document_id="cfd_002", case_span="proposal_no", date_span="date_filed") -> DocumentFacts:
+def proposal_facts(document_id="proposal_002", case_span="proposal_no", date_span="date_issued") -> DocumentFacts:
     """A header block, parties, then a proposal with numbered items and bullets."""
     return DocumentFacts(
         document_id=document_id,
@@ -14,26 +14,26 @@ def proposal_facts(document_id="cfd_002", case_span="proposal_no", date_span="da
             fnode(
                 "metadata",
                 "**Proposal No.:** {{%s}}" % case_span,
-                fnode("metadata_line", "**Date Filed:** {{%s}}" % date_span),
+                fnode("metadata_line", "**Issued:** {{%s}}" % date_span),
             ),
             fnode("party_client", "## CLIENT", fnode("statement", "**Name:** {{client_name}}")),
             fnode("party_vendor", "## VENDOR", fnode("statement", "**Name:** {{vendor_name}}")),
             fnode(
                 "section",
-                "### I. FACTUAL BACKGROUND",
+                "### I. BACKGROUND",
                 fnode(
                     "numbered_item",
-                    "1. **Supply Agreement**",
-                    fnode("bullet", "- On {{agreement_date}}, parties executed a Materials Supply Agreement."),
-                    fnode("bullet", "- Total contract value: {{contract_value}}."),
+                    "1. **Current Situation**",
+                    fnode("bullet", "- On {{agreement_date}}, the client approved the discovery workshop."),
+                    fnode("bullet", "- Budget approved for the project: {{contract_value}}."),
                 ),
-                fnode("numbered_item", "2. **Breach of Contract**", fnode("bullet", "- Vendor delivered late.")),
+                fnode("numbered_item", "2. **Objective**", fnode("bullet", "- Replace the manual process.")),
             ),
             fnode("section", "### II. TECHNICAL APPROACH"),
         ],
         fields={
             case_span: "PRP-2024-002",
-            date_span: "April 12, 2024",
+            date_span: "May 6, 2025",
             "client_name": "Alder Robotics Ltd",
             "vendor_name": "Birch Analytics Inc",
             "agreement_date": "February 1, 2024",
@@ -103,7 +103,7 @@ def test_derive_template_needs_a_style_for_every_used_type():
 
 
 TYPE_MAPPING = {"party_client": ["client", "party_client"], "bullet": ["bullet_point"]}
-FIELD_MAPPING = {"proposal_no": ["proposal_num", "proposal_number", "proposal_no"], "date_filed": ["filing_date"]}
+FIELD_MAPPING = {"proposal_no": ["proposal_num", "proposal_number", "proposal_no"], "date_issued": ["filing_date"]}
 
 
 def test_apply_mappings_renames_types_spans_and_fields_and_makes_documents_consistent():
@@ -119,8 +119,8 @@ def test_apply_mappings_renames_types_spans_and_fields_and_makes_documents_consi
     assert out.nodes[3].type == "party_client"
     assert out.nodes[4].children[0].children[0].type == "bullet"
     assert out.nodes[1].text == "**Proposal No.:** {{proposal_no}}"
-    assert out.nodes[1].children[0].text == "**Date Filed:** {{date_filed}}"
-    assert set(out.fields) == {"proposal_no", "date_filed", "client_name", "vendor_name", "agreement_date", "contract_value"}
+    assert out.nodes[1].children[0].text == "**Issued:** {{date_issued}}"
+    assert set(out.fields) == {"proposal_no", "date_issued", "client_name", "vendor_name", "agreement_date", "contract_value"}
     assert out.fields["proposal_no"] == "PRP-2024-002"
 
     other = apply_mappings(proposal_facts("b", case_span="proposal_number"), TYPE_MAPPING, FIELD_MAPPING)  # another raw name
