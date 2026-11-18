@@ -87,6 +87,8 @@ Set `GOOGLE_API_KEY` first. `runner.run_many(Agent, inputs, job_id=...)` runs on
 - **Tools** per agent, with a few ready-made ones: exact arithmetic, dates, and a store shared within a job.
 - **Agents launching agents.** `subagents = [Researcher, Writer]` is an allow-list of classes; depth and breadth limits;
   every launch traced under its parent.
+- **MCP tools.** Declare the servers on the agent (`mcp_servers`): typed, secrets by name, an allow-list of tools. One
+  shared connection per server, and a dead server is text for the model, not a crash.
 - **Skills.** Instructions in the [Agent Skills](https://agentskills.io/specification) format, as a Pydantic model that
   checks the specification's rules: names and descriptions in the prompt, the rest read on demand with `get_skill`.
 
@@ -96,6 +98,7 @@ Set `GOOGLE_API_KEY` first. `runner.run_many(Agent, inputs, job_id=...)` runs on
 |---|---|
 | [Agents](docs/agents.md) | Defining and running an agent, results, retries, checks, tools, jobs and tracing, configuration |
 | [Launching agents](docs/launching-agents.md) | The `subagents` allow-list, the two tools, depth and breadth limits, concurrency, tracing |
+| [MCP tools](docs/mcp.md) | Declaring servers, the runner's connections, what the model gets, failures |
 | [Skills](docs/skills.md) | The skill model, how an agent reads its skills, loading, and which parts of the specification are supported |
 | [Example pipeline](docs/example-pipeline.md) | `doclearn`: two pipelines and five agents built on `micro`, and their limits |
 
@@ -106,6 +109,7 @@ cp .env.example .env          # set GOOGLE_API_KEY
 make build
 make example-skills           # an agent with three skills (examples/skills); add ARGS="your request"
 make example-launching        # an agent that launches two other agents (examples/launching)
+make example-mcp              # an agent that uses GitHub's MCP server (examples/mcp; needs GITHUB_TOKEN)
 make pipeline ARGS="examples/doclearn/samples/project_proposals --category project_proposals"   # an example pipeline (examples/doclearn)
 ```
 
@@ -121,11 +125,13 @@ make pipeline ARGS="examples/doclearn/samples/project_proposals --category proje
 | `make pipeline ARGS="..."` | Run the example pipeline |
 | `make example-skills` | Run the skills example agent |
 | `make example-launching` | Run the example agent that launches agents |
+| `make example-mcp` | Run the example agent that uses an MCP server |
 
 ```
 src/micro/            the harness
 examples/launching/   an agent that launches other agents (make example-launching)
 examples/skills/      an agent that uses skills, with three skills (make example-skills)
+examples/mcp/         an agent that uses GitHub's MCP server (make example-mcp)
 examples/doclearn/    an example pipeline: its package, sample documents and tests (make pipeline)
 docs/                 documentation
 tests/                the harness's tests; tests/e2e uses the real model

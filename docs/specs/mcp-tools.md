@@ -1,7 +1,7 @@
 # Spec: MCP tools
 
-Status: draft. This is the design for [issue #1](https://github.com/aadhithya/micro/issues/1). Nothing here is built yet.
-It was checked against `langchain-mcp-adapters` 0.3.2 (see [Findings](#findings-from-the-adapter)).
+Status: implemented. This is the design for [issue #1](https://github.com/aadhithya/micro/issues/1); how to use it is in
+[mcp.md](../mcp.md). It was checked against `langchain-mcp-adapters` 0.3.2 (see [Findings](#findings-from-the-adapter)).
 
 - [Goal and scope](#goal-and-scope)
 - [Findings from the adapter](#findings-from-the-adapter)
@@ -75,6 +75,7 @@ class StdioMCPServer(MCPServer):
 
 class HttpMCPServer(MCPServer):  # streamable HTTP
     url: str
+    bearer_from: str | None = None  # name of a variable; sent as `Authorization: Bearer <value>`
     headers_from: dict[str, str] = {}  # header name -> name of an environment variable
 
 

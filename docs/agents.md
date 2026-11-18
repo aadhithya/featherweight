@@ -1,7 +1,7 @@
 # Agents
 
 How to define an agent, run it, and what to expect back. Agents that launch other agents are in
-[launching-agents.md](launching-agents.md), and skills in [skills.md](skills.md).
+[launching-agents.md](launching-agents.md), skills in [skills.md](skills.md), and MCP tools in [mcp.md](mcp.md).
 
 - [Defining an agent](#defining-an-agent)
 - [Running an agent](#running-an-agent)
@@ -57,6 +57,7 @@ defaults, so that a model that wants to ask a question is not forced to invent a
 | `raise_conflicts` | `False` | The same, for conflicts it finds in the input |
 | `subagents` | none | Agents this agent may launch. See [launching-agents.md](launching-agents.md) |
 | `skills` | none | Skills this agent can read. See [skills.md](skills.md) |
+| `mcp_servers` | none | MCP servers whose tools this agent may use. See [mcp.md](mcp.md) |
 | `input_model`, `output_model` | `AgentInput`, `AgentOutput` | Class attributes (`ClassVar`) |
 
 `AgentInput` forbids extra fields. `AgentOutput` always carries `open_questions: list[str]`, where a model reports
@@ -176,6 +177,7 @@ The store is `RunStore`: state per job, in memory (`fakeredis`). Any `redis.asyn
 `await store.set(job_id, "key", value)` and `await store.get(job_id, "key")`.
 
 Agents that can launch agents, and agents with skills, get their extra tools from the runner; they are not in `tools`.
+The tools of MCP servers are added the same way (see [mcp.md](mcp.md)).
 
 ## Jobs and tracing
 
