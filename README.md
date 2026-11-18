@@ -5,10 +5,11 @@ A tiny wrapper for writing agents, and one way to build a pipeline of them.
 Writing agents is still fuzzy: there is no obvious, simple way to define one and know it behaves. `micro` is a small
 answer. An agent is a Pydantic class (prompt, model, tools, input and output schemas), so **type checks and the agent's
 specification are enforced for free**: Pydantic validates what goes in and what comes out. The runner adds retries,
-a concurrency limit, failures returned as results, and a trace of every attempt in sqlite.
+a concurrency limit, failures returned as results, a trace of every attempt in sqlite, and agents that can launch
+other agents, with depth and breadth limits.
 
 If you want to build a pipeline of agents, this is one way to start with the boring parts already done. It is about
-1,000 lines, built on langchain and langgraph, async throughout, Gemini models for now.
+1,200 lines, built on langchain and langgraph, async throughout, Gemini models for now.
 
 > A small, quick, vibe coded project: a few days of work. A prototype with limited scope, not production software.
 
@@ -67,6 +68,29 @@ asyncio.run(main())
 
 Set `GOOGLE_API_KEY` first. `runner.run_many(Agent, inputs, job_id=...)` runs one agent over many inputs at once.
 
+## Agents that launch agents
+
+List the agents an agent may launch, as classes. The runner gives it two tools, `launch_agent` and `get_agent_schema`,
+and puts the allowed agents (name and description) in its prompt. The input schema of an agent is not in the prompt:
+the model asks for it with `get_agent_schema` when it needs it.
+
+```python
+class Planner(AgentBase):
+    ...
+    subagents: list[type] = [PeopleExtractor]   # the only agents Planner can launch; not itself
+```
+
+- `launch_agent(agent_name, input_json)` validates the input, runs the child to completion and returns its output as
+  JSON. A refusal, an invalid input or a failed child comes back as text, so the parent can read it and carry on.
+- The child shares the job, and its rows record `parent_agent_run_id` and `depth`, so a whole tree is one query.
+- **Depth:** `MAX_AGENT_DEPTH` (default 3) is the most agents in a chain: A launches B launches C, and C cannot
+  launch. At the limit an agent gets no launch tools and no mention of them in its prompt.
+- **Breadth:** `MAX_AGENT_LAUNCHES` (default 10) is the most launches one attempt of one agent may make.
+  Both can be set per runner: `AgentRunner(db, max_depth=..., max_launches=...)`.
+- A parent gives up its concurrency slot while its children run, so waiting parents cannot starve their children.
+- A retried parent attempt launches its children again. The tokens of a child are in its own rows; the parent's include
+  the child's output, which it reads as a tool result.
+
 ## What you get
 
 - **Typed, static agents.** Input, output, tools and prompt are declared; Pydantic enforces them.
@@ -74,6 +98,8 @@ Set `GOOGLE_API_KEY` first. `runner.run_many(Agent, inputs, job_id=...)` runs on
   failure means. Wrong input types and unknown job ids are programming errors and do raise.
 - **Retries** (3 attempts by default), except for errors that cannot succeed, such as a bad key. A retry resamples with
   the same input; the error is logged but not sent back to the model.
+- **Agents launching agents.** An allow-list of sub-agents, two tools, depth and breadth limits, and every launch
+  traced under its parent (see above).
 - **Output checks:** pydantic validators on the output model, plus `check_output` against the input.
 - **Concurrency limit** (`MAX_CONCURRENT_AGENT_RUNS`, default 10) so fan-out stays within rate limits.
 - **Tracing.** Every attempt is a row in sqlite (input, output, status, error, tokens, latency, model, agent version,
@@ -85,7 +111,7 @@ Set `GOOGLE_API_KEY` first. `runner.run_many(Agent, inputs, job_id=...)` runs on
 
 **Why sqlite for tracing, and not OpenTelemetry or Langfuse?** To keep it as small and simple as possible: two tables,
 no collector, no account. A real deployment will want a proper backend; every attempt passes through one loop in
-`AgentRunner.run` and every pipeline through `run_job`, so that is a change in two places.
+`AgentRunner` and every pipeline through `run_job`, so that is a change in two places.
 
 ## An example pipeline: `doclearn`
 

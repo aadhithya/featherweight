@@ -27,6 +27,14 @@ CONFLICTS_FORBIDDEN = (
 )
 
 
+SUBAGENTS = (
+    "You can launch other agents to do part of the work. You may launch only these agents:\n{agents}\n"
+    "Before you launch an agent, call `get_agent_schema` with its name to see the input it expects. Then call "
+    "`launch_agent` with its name and that input as a JSON string. The result is the agent's output as JSON, or an "
+    "error that says what went wrong; read it, and fix the input or carry on without that agent."
+)
+
+
 class RunStatus(StrEnum):
     INIT = "INIT"
     RUNNING = "RUNNING"
@@ -74,9 +82,25 @@ class AgentBase(BaseModel):
     # Not enforced: they only add an instruction to the system prompt.
     allow_user_questions: bool = False
     raise_conflicts: bool = False
+    # The only agents this agent may launch (classes, not names; an agent cannot launch its own class). When this is
+    # not empty, the runner gives the agent `launch_agent` and `get_agent_schema`, and the prompt lists them.
+    subagents: list[type] = Field(default_factory=list)
 
     input_model: ClassVar[type[AgentInput]] = AgentInput
     output_model: ClassVar[type[AgentOutput]] = AgentOutput
+
+    @model_validator(mode="after")
+    def _check_subagents(self):
+        names = []
+        for sub in self.subagents:
+            if not (isinstance(sub, type) and issubclass(sub, AgentBase)):
+                raise ValueError(f"subagents must be AgentBase classes, got {sub!r}")
+            if sub is type(self):
+                raise ValueError(f"{self.name} lists itself in subagents: an agent can only launch other agents")
+            names.append(sub().name)
+        if len(set(names)) != len(names):
+            raise ValueError(f"subagents of {self.name} have duplicate names: {names}")
+        return self
 
     def check_output(self, agent_input: AgentInput, output: AgentOutput) -> None:
         """Check the output against the input, for rules the output schema alone cannot express.
@@ -95,15 +119,30 @@ class AgentBase(BaseModel):
         """SHA-256 of the assembled system prompt; what the run log records."""
         return hashlib.sha256(self.build_system_prompt().encode()).hexdigest()
 
-    def build_system_prompt(self) -> str:
-        """The prompt plus the conditional instructions derived from the two flags."""
-        return "\n\n".join(
-            [
-                self.prompt,
-                ASK_ALLOWED if self.allow_user_questions else ASK_FORBIDDEN,
-                CONFLICTS_ALLOWED if self.raise_conflicts else CONFLICTS_FORBIDDEN,
-            ]
-        )
+    def subagent_instance(self, name: str) -> "AgentBase | None":
+        """The allowed sub-agent called `name`, as a fresh instance, or None."""
+        for sub in self.subagents:
+            agent = sub()
+            if agent.name == name:
+                return agent
+        return None
+
+    def build_system_prompt(self, *, can_launch: bool = True) -> str:
+        """The prompt plus the conditional instructions derived from the two flags.
+
+        With sub-agents, and unless `can_launch` is False (the runner sets it where the depth limit leaves the agent
+        no launch tool), the prompt also lists the agents it may launch, by name and description. Their input
+        schemas are not in the prompt: the agent asks for them with `get_agent_schema`.
+        """
+        parts = [
+            self.prompt,
+            ASK_ALLOWED if self.allow_user_questions else ASK_FORBIDDEN,
+            CONFLICTS_ALLOWED if self.raise_conflicts else CONFLICTS_FORBIDDEN,
+        ]
+        if self.subagents and can_launch:
+            listed = "\n".join(f"- {a.name}: {a.description}" for a in (sub() for sub in self.subagents))
+            parts.append(SUBAGENTS.format(agents=listed))
+        return "\n\n".join(parts)
 
 
 OutT = TypeVar("OutT", bound=AgentOutput)

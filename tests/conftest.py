@@ -27,4 +27,5 @@ def no_real_llm_calls(request, monkeypatch):
         return
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.delenv("MAX_CONCURRENT_AGENT_RUNS", raising=False)  # tests start from the default
+    for name in ("MAX_CONCURRENT_AGENT_RUNS", "MAX_AGENT_DEPTH", "MAX_AGENT_LAUNCHES"):
+        monkeypatch.delenv(name, raising=False)  # tests start from the defaults

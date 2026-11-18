@@ -45,12 +45,20 @@ CREATE TABLE IF NOT EXISTS agent_runs (
     error               TEXT,
     latency_ms          REAL,
     created_at          TEXT NOT NULL,
-    completed_at        TEXT
+    completed_at        TEXT,
+    parent_agent_run_id TEXT,
+    depth               INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE INDEX IF NOT EXISTS idx_agent_runs_job ON agent_runs(job_id);
 CREATE INDEX IF NOT EXISTS idx_agent_runs_invocation ON agent_runs(invocation_id);
 """
+
+# Columns added after the first version of the table: an older database gets them when it is opened.
+ADDED_COLUMNS = {
+    "parent_agent_run_id": "TEXT",  # the attempt of the agent that launched this one; NULL for a top-level run
+    "depth": "INTEGER NOT NULL DEFAULT 1",  # 1 for a top-level run, 2 for the agent it launched, and so on
+}
 
 
 def new_id() -> str:
@@ -103,6 +111,8 @@ class AgentRunRow(BaseModel):
     latency_ms: float | None
     created_at: str
     completed_at: str | None
+    parent_agent_run_id: str | None = None
+    depth: int = 1
 
 
 class Database:
@@ -116,8 +126,18 @@ class Database:
         self._conn.row_factory = aiosqlite.Row
         await self._conn.execute("PRAGMA foreign_keys = ON")
         await self._conn.executescript(SCHEMA)
+        await self._migrate()
         await self._conn.commit()
         logger.info("db_connected path=%s", self.path)
+
+    async def _migrate(self) -> None:
+        async with self._conn.execute("PRAGMA table_info(agent_runs)") as cur:
+            existing = {row["name"] for row in await cur.fetchall()}
+        for column, definition in ADDED_COLUMNS.items():
+            if column not in existing:
+                await self._conn.execute(f"ALTER TABLE agent_runs ADD COLUMN {column} {definition}")
+                logger.info("db_migrated column=%s", column)
+        await self._conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_runs_parent ON agent_runs(parent_agent_run_id)")
 
     async def close(self) -> None:
         if self._conn is not None:
@@ -188,22 +208,27 @@ class Database:
         tool_names: list[str],
         system_prompt_hash: str,
         input: BaseModel | dict[str, Any],
+        parent_agent_run_id: str | None = None,
+        depth: int = 1,
     ) -> str:
         await self.conn.execute(
             """INSERT INTO agent_runs (
                    agent_run_id, invocation_id, attempt, job_id, agent_name, agent_version,
-                   model_name, reasoning, tool_names, system_prompt_hash, status, input, created_at
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   model_name, reasoning, tool_names, system_prompt_hash, status, input, created_at,
+                   parent_agent_run_id, depth
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 agent_run_id, invocation_id, attempt, job_id, agent_name, agent_version,
                 model_name, reasoning, json.dumps(tool_names), system_prompt_hash,
-                RunStatus.INIT.value, _dump(input), _now(),
+                RunStatus.INIT.value, _dump(input), _now(), parent_agent_run_id, depth,
             ),
         )
         await self.conn.commit()
         logger.info(
-            "run_created agent_run_id=%s invocation_id=%s attempt=%d job_id=%s agent=%s version=%s model=%s",
+            "run_created agent_run_id=%s invocation_id=%s attempt=%d job_id=%s agent=%s version=%s model=%s "
+            "parent_agent_run_id=%s depth=%d",
             agent_run_id, invocation_id, attempt, job_id, agent_name, agent_version, model_name,
+            parent_agent_run_id, depth,
         )
         return agent_run_id
 
