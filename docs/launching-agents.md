@@ -12,6 +12,9 @@ that is declared, what the model sees, what is limited, and how it is traced. De
 - [Tracing](#tracing)
 - [What is not supported](#what-is-not-supported)
 
+To see it run: [`examples/launching`](../examples/launching) is an `Editor` that may launch a summariser and a
+translator (`make example-launching`). It prints the runs of each request as a tree.
+
 ## Declaring it
 
 ```python

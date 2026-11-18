@@ -113,6 +113,7 @@ Set `GOOGLE_API_KEY` first. `runner.run_many(Agent, inputs, job_id=...)` runs on
 cp .env.example .env          # set GOOGLE_API_KEY
 make build
 make example-skills           # an agent with three skills (examples/skills); add ARGS="your request"
+make example-launching        # an agent that launches two other agents (examples/launching)
 make pipeline ARGS="examples/doclearn/samples/project_proposals --category project_proposals"   # an example pipeline (examples/doclearn)
 ```
 
@@ -133,9 +134,11 @@ places a production system would plug in (`AgentRunner(model_factory=...)` for a
 | `make e2e` | Tests against the real model (costs money) |
 | `make pipeline ARGS="..."` | Run the example pipeline |
 | `make example-skills` | Run the skills example agent |
+| `make example-launching` | Run the example agent that launches agents |
 
 ```
 src/micro/            the harness
+examples/launching/   an agent that launches other agents (make example-launching)
 examples/skills/      an agent that uses skills, with three skills (make example-skills)
 examples/doclearn/    an example pipeline: its package, sample documents and tests (make pipeline)
 docs/                 documentation
