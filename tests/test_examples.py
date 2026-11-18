@@ -28,7 +28,16 @@ def test_the_skills_example_has_an_assistant_with_the_three_skills():
     assert assistant.model_name == "gemini-3.5-flash-lite"
 
 
-@pytest.mark.parametrize("name", ["launching", "skills"])
+@pytest.mark.parametrize("name", ["launching", "skills", "mcp"])
 def test_the_examples_ask_for_a_request_or_use_their_samples(name):
     module = load(name)
     assert module.SAMPLES and all(isinstance(sample, str) and sample for sample in module.SAMPLES)
+
+
+def test_the_mcp_example_reads_github_with_a_token_by_name_and_six_read_only_tools():
+    agent = load("mcp").RepoReader()
+    (server,) = agent.mcp_servers
+    assert server.url == "https://api.githubcopilot.com/mcp/readonly" and server.bearer_from == "GITHUB_TOKEN"
+    assert server.tools is not None and len(server.tools) == 6
+    assert not any(word in tool for tool in server.tools for word in ("create", "update", "delete", "merge", "push"))
+    assert agent.model_name == "gemini-3.5-flash-lite"

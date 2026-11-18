@@ -1,4 +1,4 @@
-.PHONY: build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching shell
+.PHONY: build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching example-mcp shell
 
 build:
 	docker compose build
@@ -54,6 +54,11 @@ example-skills:
 # An agent that launches other agents (real Gemini calls). `make example-launching ARGS="your request"` for your own request.
 example-launching:
 	docker compose run --rm micro python examples/launching/agent.py $(ARGS)
+
+# An agent that uses MCP tools: GitHub's MCP server (real Gemini and GitHub calls; needs GITHUB_TOKEN in .env, see examples/mcp).
+# `make example-mcp ARGS="your question"` for your own question.
+example-mcp:
+	docker compose run --rm micro python examples/mcp/agent.py $(ARGS)
 
 shell:
 	docker compose exec micro bash
