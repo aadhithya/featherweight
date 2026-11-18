@@ -11,21 +11,27 @@ and both are enforced. No guessing.
 
 It has opinions. Take them, or fork off.
 
-- **Everything is declared.** An agent is a class. So is a skill. Input, output, tools, skills, sub-agents, MCP servers:
-  all written on it, all settled before anything runs. You never build the instance. The runner does. That's its job.
-- **Pydantic is the contract.** In, out, on skill load, on sub-agent list. Break a rule and you get retried. Nobody gets a
-  pass.
-- **Failures are values.** A failed run returns `FAILED` and the error. It doesn't throw. Deal with it. Retries, output
-  checks, a concurrency limit and `run_many` fan-out come free. (A wrong input type is a bug, and that does raise.)
-- **Code checks. The model proposes.** Validators get the last word. Pipelines are plain async Python. Order, loops, when
-  to stop: yours. This is not a workflow engine, and it won't pretend to be one.
-- **Everything is on record.** Every attempt, in sqlite, tied to the agent that launched it. OpenTelemetry? Too big. (See
-  [agents](docs/agents.md#jobs-and-tracing).)
+```
+the definition   what an agent is. A class. Static. Checked before anything runs.
+the runner       runs it. Retries, limits, delegation, the trace. Written once. Not your problem.
+your code        the pipeline. Order, loops, when to stop. Plain async Python.
+```
 
-Agents launch agents. MCP servers are named, not wired. Skills use the
-[Agent Skills](https://agentskills.io/specification) format. The model is a typed class too: Gemini, Gemma, Claude or OpenAI, and a small subclass adds
-another. All of it is in the declaration.
-
+- **Separation of concerns.** Agents are static classes. The runner runs them. Your code decides what happens next.
+  Nothing leaks across the line, and nobody gets to be clever.
+- **Typed contracts.** Pydantic checks what goes in and what comes out. `check_output` checks what a schema can't. Break
+  a contract and the attempt fails. Nobody gets a pass.
+- **Failures are values.** A failed run returns `FAILED` and the error. It doesn't throw. Deal with it. Retries, a
+  concurrency limit and `run_many` fan-out come free. (A wrong input type is a bug, and that does raise.)
+- **Plain Python pipelines.** No graph DSL. No workflow magic. Order, loops and branching are `if` and `for`. Validators
+  get the last word, and the model only proposes. This is not a workflow engine, and it won't pretend to be one.
+- **Delegation on a leash.** Agents launch agents, from an allow-list, within depth and breadth limits. A parent that
+  waits hands its slot over, so nothing deadlocks. A runaway recursion dies. It doesn't get a vote.
+- **Everything is on record.** Every attempt, in sqlite: prompt hash, tokens, error, and the agent that launched it.
+  OpenTelemetry? Too big. (See [agents](docs/agents.md#jobs-and-tracing).)
+- **Plug things in, declare them.** The model is a typed class: Gemini, Gemma, Claude or OpenAI, and a small subclass adds
+  any other. MCP servers are named, not wired, and their tools are found by search. Skills use the
+  [Agent Skills](https://agentskills.io/specification) format. Tool schemas and skill bodies stay out of the context until the agent reaches for them.
 
 ## An agent
 
@@ -80,7 +86,8 @@ async def main():
 asyncio.run(main())
 ```
 
-Set `GOOGLE_API_KEY` first (the default model is Gemini; the [other providers](docs/models.md) take their own key). `runner.run_many(Agent, inputs, job_id=...)` runs one agent over many inputs at once.
+Set `GOOGLE_API_KEY` first. The default model is Gemini, and the [other providers](docs/models.md) take their own key.
+`runner.run_many(Agent, inputs, job_id=...)` runs one agent over many inputs at once.
 
 ## Why does this exist? Pydantic AI and LangGraph are right there.
 
@@ -109,7 +116,7 @@ planned here, just not yet. Until then, if a run dies, it starts over.
 ## Try it
 
 ```
-cp .env.example .env          # set GOOGLE_API_KEY
+cp .env.example .env          # set GOOGLE_API_KEY (the other keys only for Claude or OpenAI agents)
 make build
 make example-skills           # an agent with three skills (examples/skills); add ARGS="your request"
 make example-launching        # an agent that launches two other agents (examples/launching)
