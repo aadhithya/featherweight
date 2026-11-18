@@ -97,16 +97,9 @@ planned here, just not yet. Until then, if a run dies, it starts over.
 
 ## Documentation
 
-| | |
-|---|---|
-| [**Start here**](docs/README.md) | How the docs fit together: guides, specs and examples, and where to begin |
-| [Agents](docs/agents.md) | Defining and running an agent, results, retries, checks, tools, jobs and tracing, configuration |
-| [Launching agents](docs/launching-agents.md) | The `subagents` allow-list, the two tools, depth and breadth limits, concurrency, tracing |
-| [Models and providers](docs/models.md) | `Gemini`, `Gemma`, `Claude`, `OpenAI`, what is checked, adding GPT-5.x or Ollama |
-| [MCP tools](docs/mcp.md) | Declaring servers, the runner's connections, what the model gets, failures |
-| [Skills](docs/skills.md) | The skill model, how an agent reads its skills, loading, and which parts of the specification are supported |
-| [Specs](docs/specs) | What each part is supposed to do and why: agents, the runner (with launching), jobs and tracing, skills, tools and the store, MCP |
-| [Example pipeline](docs/example-pipeline.md) | `doclearn`: two pipelines and five agents built on `micro`, and their limits |
+- [**Docs**](docs/README.md): guides for using it, and where to begin
+- [**Specs**](docs/specs/README.md): what each part does, and why
+- [**Examples**](examples/README.md): code you can run
 
 ## Try it
 
