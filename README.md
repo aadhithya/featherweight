@@ -2,6 +2,8 @@
 
 **An opinionated agent harness. Pydantic is the spec. Everything else follows.**
 
+Designed by a human. Implemented by Claude.
+
 An agent is a typed class. Its input, output, skills and sub-agents are declared right there and enforced by Pydantic,
 not by convention, and not by hoping the model behaves. The boilerplate every agent project ends up writing (retries,
 limits, failures, tracing, tools, delegation) is already written. You write the pipeline. That's the part that's yours.
@@ -124,7 +126,7 @@ make pipeline ARGS="examples/doclearn/samples/project_proposals --category proje
 | `make build` | Build the image |
 | `make test` | Unit tests (the model is mocked, no key needed); or `uv run pytest` |
 | `make check` | Lint and format check (ruff) and types (ty); `make lint`, `make format`, `make typecheck` run one |
-| `make hooks` | Install the git hooks: conventional commit messages, ruff and ty |
+| `make hooks` | Install the git hooks: conventional commit messages, ruff, ty and the unit tests. CI only lints and type checks, so the tests run here, on commit |
 | `make e2e` | Tests against the real model (costs money) |
 | `make pipeline ARGS="..."` | Run the example pipeline |
 | `make example-skills` | Run the skills example agent |

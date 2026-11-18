@@ -36,3 +36,16 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+
+  # Unit tests, in the Docker container. They never call a real model: the e2e tests are excluded and the container gets
+  # blank API keys, so an accidental call fails at once and costs nothing. They run here and not in CI, which only
+  # lints and type checks. Needs Docker running and the image built (`make build`; rebuild after a dependency change).
+  # Skipped when a commit changes only docs.
+  - repo: local
+    hooks:
+      - id: pytest
+        name: unit tests (docker)
+        entry: docker compose run --rm -e GOOGLE_API_KEY= -e ANTHROPIC_API_KEY= -e OPENAI_API_KEY= micro pytest -q -m "not e2e"
+        language: system
+        files: ^(src|tests|examples)/|^pyproject\.toml$|^uv\.lock$
+        pass_filenames: false
