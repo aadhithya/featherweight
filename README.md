@@ -6,6 +6,9 @@ An agent is a typed class. Its input, output, skills and sub-agents are declared
 not by convention, and not by hoping the model behaves. The boilerplate every agent project ends up writing (retries,
 limits, failures, tracing, tools, delegation) is already written. You write the pipeline. That's the part that's yours.
 
+A malformed agent never reaches the model. A running one has a known input and a known output, because both are typed
+and both are enforced. No guessing.
+
 It has opinions. Take them, or fork off.
 
 - **Agents are specs, not scripts.** Static, typed, versioned like any class. Nothing about them is decided at run time.
