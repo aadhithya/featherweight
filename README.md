@@ -5,8 +5,8 @@ A tiny wrapper for writing agents, and one way to build a pipeline of them.
 Writing agents is still fuzzy: there is no obvious, simple way to define one and know it behaves. `micro` is a small
 answer. An agent is a Pydantic class (prompt, model, tools, input and output schemas), so **type checks and the agent's
 specification are enforced for free**: Pydantic validates what goes in and what comes out. The runner adds retries,
-a concurrency limit, failures returned as results, a trace of every attempt in sqlite, and agents that can launch
-other agents, with depth and breadth limits.
+a concurrency limit, failures returned as results, a trace of every attempt in sqlite, agents that can launch other
+agents, and skills.
 
 If you want to build a pipeline of agents, this is one way to start with the boring parts already done. It is about
 1,400 lines, built on langchain and langgraph, async throughout, Gemini models for now.
@@ -68,115 +68,44 @@ asyncio.run(main())
 
 Set `GOOGLE_API_KEY` first. `runner.run_many(Agent, inputs, job_id=...)` runs one agent over many inputs at once.
 
-## Agents that launch agents
-
-List the agents an agent may launch, as classes. The runner gives it two tools, `launch_agent` and `get_agent_schema`,
-and puts the allowed agents (name and description) in its prompt. The input schema of an agent is not in the prompt:
-the model asks for it with `get_agent_schema` when it needs it.
-
-```python
-class Planner(AgentBase):
-    ...
-    subagents: list[type] = [PeopleExtractor]   # the only agents Planner can launch; not itself
-```
-
-- `launch_agent(agent_name, input_json)` validates the input, runs the child to completion and returns its output as
-  JSON. A refusal, an invalid input or a failed child comes back as text, so the parent can read it and carry on.
-- The child shares the job, and its rows record `parent_agent_run_id` and `depth`, so a whole tree is one query.
-- **Depth:** `MAX_AGENT_DEPTH` (default 3) is the most agents in a chain: A launches B launches C, and C cannot
-  launch. At the limit an agent gets no launch tools and no mention of them in its prompt.
-- **Breadth:** `MAX_AGENT_LAUNCHES` (default 10) is the most launches one attempt of one agent may make.
-  Both can be set per runner: `AgentRunner(db, max_depth=..., max_launches=...)`.
-- A parent gives up its concurrency slot while its children run, so waiting parents cannot starve their children.
-- A retried parent attempt launches its children again. The tokens of a child are in its own rows; the parent's include
-  the child's output, which it reads as a tool result.
-
-## Skills
-
-A skill is a set of instructions an agent reads when it needs them, in the
-[Agent Skills format](https://agentskills.io/specification): a directory with a `SKILL.md` (YAML frontmatter with a
-`name` and a `description`, then Markdown) and, optionally, other files such as `references/`. In `micro` a skill is a
-typed Pydantic model, `Skill`, that checks the specification's rules (name, description and field limits).
-
-```python
-from micro.skills import Skill
-
-class Writer(AgentBase):
-    ...
-    skills: list[Skill] = [Skill.from_directory("examples/skills/meeting-notes")]
-```
-
-- The prompt gets each skill's name and description, and nothing else, so a skill costs little until it is used.
-- The agent gets `get_skill(name, resource="")`. It returns the instructions, and lists the skill's other files; with
-  `resource` it returns one of those files. The agent reads only its own skills.
-- Skills can also be written in code: `Skill(name="...", description="...", instructions="...")`.
-- Scripts in a skill are text for the agent to read; nothing runs them. `allowed-tools` is kept but not enforced.
-
-Try it: [`examples/skills_agent.py`](examples/skills_agent.py) is an `Assistant` agent with three skills
-(meeting notes, email replies, release notes). `make example-skills` runs it on three sample requests and shows which
-skills it read; `make example-skills ARGS="your request"` runs your own. Without Docker:
-`uv run python examples/skills_agent.py` (needs `GOOGLE_API_KEY`).
-
 ## What you get
 
 - **Typed, static agents.** Input, output, tools and prompt are declared; Pydantic enforces them.
-- **Failures are results.** `AgentResult(status=FAILED, error=...)`, not exceptions, so the pipeline decides what a
-  failure means. Wrong input types and unknown job ids are programming errors and do raise.
-- **Retries** (3 attempts by default), except for errors that cannot succeed, such as a bad key. A retry resamples with
-  the same input; the error is logged but not sent back to the model.
-- **Skills.** Instructions in the Agent Skills format, listed in the prompt and read on demand with `get_skill`.
-- **Agents launching agents.** An allow-list of sub-agents, two tools, depth and breadth limits, and every launch
-  traced under its parent (see above).
-- **Output checks:** pydantic validators on the output model, plus `check_output` against the input.
-- **Concurrency limit** (`MAX_CONCURRENT_AGENT_RUNS`, default 10) so fan-out stays within rate limits.
-- **Tracing.** Every attempt is a row in sqlite (input, output, status, error, tokens, latency, model, agent version,
-  system prompt hash), grouped by job. Pipelines run as jobs with `run_job`, which records `SUCCESS` or `FAILED` with
-  the error. Query a run with `sqlite3 micro.db "select agent_name, attempt, status, error from agent_runs where job_id='...'"`.
-- **Tools** per agent, and a few ready-made ones: `calculate` (exact arithmetic), date tools, and `store_get` /
-  `store_set` for state shared between the agents of a job (`RunStore`, in memory; any Redis client can replace it).
-- **Open questions:** an agent can report questions and conflicts instead of guessing (`allow_user_questions`).
+- **Failures are results,** not exceptions, so the pipeline decides what a failure means.
+- **Retries, output checks and a concurrency limit,** with fan-out over many inputs.
+- **Tracing.** Every attempt is a row in sqlite, grouped by job. Pipelines run as jobs. (Why sqlite and not
+  OpenTelemetry? To keep it small; see [agents](docs/agents.md#jobs-and-tracing).)
+- **Tools** per agent, with a few ready-made ones: exact arithmetic, dates, and a store shared within a job.
+- **Agents launching agents.** `subagents = [Researcher, Writer]` is an allow-list; depth and breadth limits; every
+  launch traced under its parent.
+- **Skills.** Instructions in the [Agent Skills](https://agentskills.io/specification) format: names and descriptions
+  in the prompt, the rest read on demand with `get_skill`.
 
-**Why sqlite for tracing, and not OpenTelemetry or Langfuse?** To keep it as small and simple as possible: two tables,
-no collector, no account. A real deployment will want a proper backend; every attempt passes through one loop in
-`AgentRunner` and every pipeline through `run_job`, so that is a change in two places.
+## Documentation
 
-## An example pipeline: `doclearn`
+| | |
+|---|---|
+| [Agents](docs/agents.md) | Defining and running an agent, results, retries, checks, tools, jobs and tracing, configuration |
+| [Launching agents](docs/launching-agents.md) | The `subagents` allow-list, the two tools, depth and breadth limits, concurrency, tracing |
+| [Skills](docs/skills.md) | The skill model, how an agent reads its skills, loading, and which parts of the specification are supported |
+| [Example pipeline](docs/example-pipeline.md) | `doclearn`: two pipelines and five agents built on `micro`, and their limits |
 
-[`src/doclearn`](src/doclearn) is a worked example on top of the harness: learn the template of a document family from a
-few examples, then write a new document from a few facts. It has two pipelines and five agents (Analyzer,
-Reconciliation, Semantic Alignment, Generator, Form Filler), with code checks between them. It is not specific to any
-domain; the samples are project proposals and incident reports in [`examples/`](examples).
+## Try it
 
 ```
-cp .env.example .env     # set GOOGLE_API_KEY
+cp .env.example .env          # set GOOGLE_API_KEY
 make build
-make pipeline ARGS="examples/project_proposals --category project_proposals"
+make example-skills           # an agent with three skills (examples/skills_agent.py); add ARGS="your request"
+make pipeline ARGS="examples/project_proposals --category project_proposals"   # the example pipeline
 ```
-
-(Without Docker: `uv sync`, then `PYTHONPATH=src uv run python -m doclearn.cli examples/project_proposals --category project_proposals`.)
-
-It learns from the example documents, shows what it learned, fills a form (by hand, or an agent invents a case) and
-generates a document. Everything lands in `runs/<time>_<category>/` and in `micro.db`.
-
-Read [`pipeline.py`](src/doclearn/pipeline.py) and [`learning.py`](src/doclearn/learning.py) for how a pipeline is an
-ordinary async function over `runner.run`, with the decisions about failure in code, and
-[`generation.py`](src/doclearn/generation.py) for an agent with a check tool.
 
 ## Limits
 
-A prototype, and the example is a quick demonstration, not a finished product. Deliberately out of scope:
-
-- **No evaluation.** The tests show it works; there is no held-out set, prompt comparison or quality metric. The
-  conformance score the example prints measures self-consistency, not quality.
-- **No personal-data handling.** Documents go to the model as they are and are kept in plaintext in the run log. The
-  examples are invented; do not run it on real client documents.
-- **Generation is lenient.** Fixed text is checked by similarity (85%), so a small but meaningful edit can pass, and
-  totals are computed by the model, not re-checked. Free-written blocks are not verified.
-- **Gemini only,** markdown only, and learning from a user's edits is designed but not built.
-
-The places a production system would plug in exist: `AgentRunner(model_factory=...)` for another model, the single
-attempt loop for tracing, `RunStore` for Redis, and pipelines as plain async functions that an API can start. The rest
-(a real database, auth, cost accounting, evaluation) is work still to do.
+A prototype, with limited scope on purpose. Not built: evaluation (there is no held-out set or quality metric),
+handling of personal data (inputs are kept in plaintext in the run log), and anything beyond Gemini. The harness has the
+places a production system would plug in (`AgentRunner(model_factory=...)` for another model, one loop for tracing,
+`RunStore` for Redis); a real database, auth, cost accounting and evaluation are work still to do. More in
+[the example pipeline's limits](docs/example-pipeline.md#limits).
 
 ## Development
 
@@ -185,12 +114,14 @@ attempt loop for tracing, `RunStore` for Redis, and pipelines as plain async fun
 | `make build` | Build the image |
 | `make test` | Unit tests (the model is mocked, no key needed); or `uv run pytest` |
 | `make e2e` | Tests against the real model (costs money) |
-| `make pipeline ARGS="..."` | Run the example command line |
+| `make pipeline ARGS="..."` | Run the example pipeline |
+| `make example-skills` | Run the skills example agent |
 
 ```
 src/micro/      the harness
-src/doclearn/   the example pipelines
-examples/       sample documents
+src/doclearn/   the example pipeline
+examples/       sample documents, skills, and an agent that uses them
+docs/           documentation
 tests/          mocked tests; tests/e2e uses the real model
 ```
 
