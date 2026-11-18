@@ -147,3 +147,35 @@ async def test_data_survives_reopen(tmp_path):
     async with Database(path) as db2:
         assert (await db2.get_job(job_id)).name == "learn"
         assert (await db2.get_run(run_id)).agent_name == "echo"
+
+
+OLD_SCHEMA = """
+CREATE TABLE jobs (job_id TEXT PRIMARY KEY, name TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL,
+                   completed_at TEXT, error TEXT);
+CREATE TABLE agent_runs (
+    agent_run_id TEXT PRIMARY KEY, invocation_id TEXT NOT NULL, attempt INTEGER NOT NULL,
+    job_id TEXT REFERENCES jobs(job_id), agent_name TEXT NOT NULL, agent_version TEXT NOT NULL,
+    model_name TEXT NOT NULL, reported_model_name TEXT, reasoning TEXT NOT NULL, tool_names TEXT NOT NULL,
+    system_prompt_hash TEXT NOT NULL, status TEXT NOT NULL, input TEXT NOT NULL, output TEXT, input_tokens INTEGER,
+    output_tokens INTEGER, error TEXT, latency_ms REAL, created_at TEXT NOT NULL, completed_at TEXT
+);
+INSERT INTO agent_runs VALUES ('old', 'inv', 1, NULL, 'echo', '0.1.0', 'm', NULL, 'low', '[]', 'h', 'SUCCESS',
+                               '{}', NULL, NULL, NULL, NULL, NULL, '2026-01-01T00:00:00+00:00', NULL);
+"""
+
+
+async def test_an_older_database_gets_the_new_columns_when_it_is_opened(tmp_path):
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(path)
+    conn.executescript(OLD_SCHEMA)
+    conn.commit()
+    conn.close()
+
+    async with Database(path) as db:
+        (old,) = await db.list_runs()
+        assert old.agent_run_id == "old" and old.parent_agent_run_id is None and old.depth == 1  # the defaults
+        await db.create_run(**run_kwargs(parent_agent_run_id="old", depth=2))
+        assert (await db.list_runs())[-1].depth == 2
+
+    async with Database(path) as db:  # opening it again changes nothing
+        assert len(await db.list_runs()) == 2
