@@ -100,6 +100,7 @@ Set `GOOGLE_API_KEY` first. `runner.run_many(Agent, inputs, job_id=...)` runs on
 | [Launching agents](docs/launching-agents.md) | The `subagents` allow-list, the two tools, depth and breadth limits, concurrency, tracing |
 | [MCP tools](docs/mcp.md) | Declaring servers, the runner's connections, what the model gets, failures |
 | [Skills](docs/skills.md) | The skill model, how an agent reads its skills, loading, and which parts of the specification are supported |
+| [Specs](docs/specs) | What each part is supposed to do and why: agents, the runner (with launching), jobs and tracing, skills, tools and the store, MCP |
 | [Example pipeline](docs/example-pipeline.md) | `doclearn`: two pipelines and five agents built on `micro`, and their limits |
 
 ## Try it
