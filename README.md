@@ -1,15 +1,28 @@
 # micro
 
-A tiny wrapper for writing agents, and one way to build a pipeline of them.
+**An opinionated agent harness, where Pydantic is the specification.**
 
-Writing agents is still fuzzy: there is no obvious, simple way to define one and know it behaves. `micro` is a small
-answer. An agent is a Pydantic class (prompt, model, tools, input and output schemas), so **type checks and the agent's
-specification are enforced for free**: Pydantic validates what goes in and what comes out. The runner adds retries,
-a concurrency limit, failures returned as results, a trace of every attempt in sqlite, agents that can launch other
-agents, and skills.
+An agent is a typed Pydantic class, and everything about how it behaves is declared in that class and enforced by
+Pydantic, not left to convention or to the model: its input, its output, its skills and the agents it may launch. The
+runner then makes it dependable: failures come back as values, retries and limits are built in, and every attempt is
+recorded.
 
-If you want to build a pipeline of agents, this is one way to start with the boring parts already done. It is about
-1,400 lines, built on langchain and langgraph, async throughout, Gemini models for now.
+The opinions, which are the whole design:
+
+- **An agent is a specification, not a script.** It is a static, typed definition: name, version, prompt, model,
+  tools, and input and output schemas. Nothing about it is decided at run time, so it can be read, tested and versioned
+  like any other class.
+- **Pydantic enforces the contract at every boundary.** The input before the model is called, the output after, a skill's
+  fields when it is loaded, the list of sub-agents when the agent is built. A model that breaks a rule gets retried; it
+  does not get to pass.
+- **Failures are values.** A run that fails at run time returns a result, `FAILED` with the error, not an exception, so
+  the pipeline decides what a failure means. (Programming errors, such as the wrong input type, do raise.)
+- **Code checks, the model proposes.** Validators and `check_output` hold what a schema cannot, and a pipeline is
+  ordinary async Python around `run` and `run_many`, with no graph language to learn.
+- **Every attempt is on record.** Inputs, outputs, errors, tokens, latency and the prompt's hash, in sqlite, grouped by
+  job and tied to the agent that launched it.
+- **Small enough to read.** About 1,400 lines on langchain and langgraph, async throughout, Gemini models for now. You
+  should be able to read all of it, and change the parts you disagree with.
 
 > A small, quick, vibe coded project: a few days of work. A prototype with limited scope, not production software.
 
@@ -70,16 +83,15 @@ Set `GOOGLE_API_KEY` first. `runner.run_many(Agent, inputs, job_id=...)` runs on
 
 ## What you get
 
-- **Typed, static agents.** Input, output, tools and prompt are declared; Pydantic enforces them.
-- **Failures are results,** not exceptions, so the pipeline decides what a failure means.
-- **Retries, output checks and a concurrency limit,** with fan-out over many inputs.
+- **Typed, static agents,** with their input and output enforced by Pydantic.
+- **Retries, output checks and a concurrency limit,** with fan-out over many inputs. Failures are returned, not raised.
 - **Tracing.** Every attempt is a row in sqlite, grouped by job. Pipelines run as jobs. (Why sqlite and not
   OpenTelemetry? To keep it small; see [agents](docs/agents.md#jobs-and-tracing).)
 - **Tools** per agent, with a few ready-made ones: exact arithmetic, dates, and a store shared within a job.
-- **Agents launching agents.** `subagents = [Researcher, Writer]` is an allow-list; depth and breadth limits; every
-  launch traced under its parent.
-- **Skills.** Instructions in the [Agent Skills](https://agentskills.io/specification) format: names and descriptions
-  in the prompt, the rest read on demand with `get_skill`.
+- **Agents launching agents.** `subagents = [Researcher, Writer]` is an allow-list of classes; depth and breadth limits;
+  every launch traced under its parent.
+- **Skills.** Instructions in the [Agent Skills](https://agentskills.io/specification) format, as a Pydantic model that
+  checks the specification's rules: names and descriptions in the prompt, the rest read on demand with `get_skill`.
 
 ## Documentation
 

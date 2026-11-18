@@ -1,7 +1,7 @@
 [project]
 name = "micro"
 version = "0.1.0"
-description = "A tiny agent harness: typed agents, a runner that validates and retries, and a run log. With an example pipeline on top."
+description = "An opinionated agent harness where Pydantic is the specification: typed agents, sub-agents and skills, with retries, failures as values, and a trace of every attempt."
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.12"
