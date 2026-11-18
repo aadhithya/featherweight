@@ -1,0 +1,28 @@
+# Install once, for the commit checks and the commit message check:
+#   uv run pre-commit install
+# Run on every file:
+#   uv run pre-commit run --all-files
+default_install_hook_types: [pre-commit, commit-msg]
+
+repos:
+  # Commit messages follow Conventional Commits: `type(scope): subject`, e.g. `feat(runner): launch agents`.
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.5.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [--verbose]
+
+  # Lint and format with ruff, from the version in uv.lock (the same one CI uses).
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --frozen ruff check --fix
+        language: system
+        types: [python]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --frozen ruff format
+        language: system
+        types_or: [python, markdown]
