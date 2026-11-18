@@ -6,7 +6,7 @@ An agent is a typed class. Its input, output, skills and sub-agents are declared
 not by convention, and not by hoping the model behaves. The boilerplate every agent project ends up writing (retries,
 limits, failures, tracing, tools, delegation) is already written. You write the pipeline. That's the part that's yours.
 
-It has opinions. Take them, or fork it.
+It has opinions. Take them, or fork off.
 
 - **Agents are specs, not scripts.** Static, typed, versioned like any class. Nothing about them is decided at run time.
 - **Pydantic is the contract.** Checked on the way in, on the way out, when a skill loads and when a sub-agent list is
@@ -16,7 +16,6 @@ It has opinions. Take them, or fork it.
 - **Code checks. The model proposes.** Validators have the last word. Pipelines are plain async Python, with no graph
   language to learn.
 - **Everything is on record.** Every attempt, in sqlite, tied to the agent that launched it.
-- **Small enough to read.** About 1,500 lines. Read all of it. Disagree with it. Change it.
 
 > A small, quick, vibe coded project: a few days of work. A prototype with limited scope, not production software.
 
