@@ -2,16 +2,14 @@
 
 import hashlib
 from enum import StrEnum
-from typing import ClassVar, Generic, Literal, TypeVar
+from typing import ClassVar, Generic, TypeVar
 
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from micro.mcp import HttpMCPServer, StdioMCPServer
+from micro.model_settings import Gemini, ModelSettings
 from micro.skills import Skill
-
-ModelName = Literal["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash"]
-Reasoning = Literal["low", "medium", "high"]
 
 # The tools the runner adds to an agent, by what it declares. An agent's own tools cannot use these names.
 LAUNCH_TOOL_NAMES = ("launch_agent", "get_agent_schema")
@@ -94,8 +92,8 @@ class AgentBase(BaseModel):
     description: str
     version: str
     prompt: str
-    model_name: ModelName = "gemini-3.5-flash-lite"
-    reasoning: Reasoning = "medium"
+    # Which model runs the agent, and how hard it thinks: one class per provider (see micro/model_settings.py).
+    model: ModelSettings = Field(default_factory=Gemini)
     tools: list[BaseTool] = Field(default_factory=list)
     # Guard against a runaway tool loop; passed to langgraph as `recursion_limit`.
     recursion_limit: int = Field(default=25, ge=1)

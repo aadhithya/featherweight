@@ -51,7 +51,7 @@ connection, with foreign keys on.
 | `job_id` | The job, or empty. A job id that does not exist is refused by the foreign key |
 | `parent_agent_run_id`, `depth` | For an agent launched by another: the attempt that launched it, and its depth (1 at the top) |
 | `agent_name`, `agent_version`, `tool_names` | The agent. `tool_names` lists everything bound to the model, the runner's and MCP tools included |
-| `model_name`, `reported_model_name`, `reasoning` | What was asked for, and what the API reported |
+| `model_name`, `reasoning`, `provider`, `settings`, `reported_model_name` | What was asked for (the model, the effort or thinking level, the provider, and all the settings as JSON; `NULL` for rows from before the last two existed), and what the API reported |
 | `system_prompt_hash` | SHA-256 of the assembled system prompt |
 | `status`, `error` | See below |
 | `input`, `output` | JSON. A failed attempt keeps its error, not the model's raw reply |

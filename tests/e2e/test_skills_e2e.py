@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from typing import ClassVar
 
+from micro.model_settings import Gemini, ModelSettings
 from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus
 from micro.runner import AgentRunner
 from micro.skills import Skill
@@ -34,8 +35,7 @@ class NoteWriter(AgentBase):
     description: str = "Writes notes for a meeting"
     version: str = "0.1.0"
     prompt: str = "Write the notes for the meeting in the text."
-    model_name: str = "gemini-3.5-flash-lite"
-    reasoning: str = "low"
+    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
     skills: list[Skill] = [SKILL]
     input_model: ClassVar[type[AgentInput]] = NotesInput
     output_model: ClassVar[type[AgentOutput]] = NotesOutput

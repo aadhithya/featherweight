@@ -5,7 +5,8 @@ from typing import ClassVar
 from pydantic import Field, model_validator
 
 from doclearn.models import DocumentTemplate, ElementType, FieldExamples, NameMapping
-from micro.models import AgentBase, AgentInput, AgentOutput, ModelName, Reasoning
+from micro.model_settings import Gemini, ModelSettings
+from micro.models import AgentBase, AgentInput, AgentOutput
 
 PROMPT = """\
 You reconcile the element types and field names found in several documents of the same category into one \
@@ -87,7 +88,8 @@ class ReconciliationAgent(AgentBase):
     description: str = "Reconciles element type names and field names across documents into one standard vocabulary"
     version: str = "0.8.1"
     prompt: str = PROMPT
-    model_name: ModelName = "gemini-3.8-flash"  # judging whether two names mean the same needs a stronger model
-    reasoning: Reasoning = "medium"
+    model: ModelSettings = Gemini(
+        model="gemini-3.8-flash", thinking="medium"
+    )  # judging whether two names mean the same needs a stronger model
     input_model: ClassVar[type[AgentInput]] = ReconcilerInput
     output_model: ClassVar[type[AgentOutput]] = ReconcilerOutput

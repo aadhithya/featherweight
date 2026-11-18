@@ -23,7 +23,8 @@ It has opinions. Take them, or fork off.
   [agents](docs/agents.md#jobs-and-tracing).)
 
 Agents launch agents. MCP servers are named, not wired. Skills use the
-[Agent Skills](https://agentskills.io/specification) format. All of it is in the declaration.
+[Agent Skills](https://agentskills.io/specification) format. The model is a typed class too: Gemini, Gemma, Claude or OpenAI, and a small subclass adds
+another. All of it is in the declaration.
 
 
 ## An agent
@@ -79,7 +80,7 @@ async def main():
 asyncio.run(main())
 ```
 
-Set `GOOGLE_API_KEY` first. `runner.run_many(Agent, inputs, job_id=...)` runs one agent over many inputs at once.
+Set `GOOGLE_API_KEY` first (the default model is Gemini; the [other providers](docs/models.md) take their own key). `runner.run_many(Agent, inputs, job_id=...)` runs one agent over many inputs at once.
 
 ## Why does this exist? Pydantic AI and LangGraph are right there.
 
@@ -99,6 +100,7 @@ planned here, just not yet. Until then, if a run dies, it starts over.
 | [**Start here**](docs/README.md) | How the docs fit together: guides, specs and examples, and where to begin |
 | [Agents](docs/agents.md) | Defining and running an agent, results, retries, checks, tools, jobs and tracing, configuration |
 | [Launching agents](docs/launching-agents.md) | The `subagents` allow-list, the two tools, depth and breadth limits, concurrency, tracing |
+| [Models and providers](docs/models.md) | `Gemini`, `Gemma`, `Claude`, `OpenAI`, what is checked, adding GPT-5.x or Ollama |
 | [MCP tools](docs/mcp.md) | Declaring servers, the runner's connections, what the model gets, failures |
 | [Skills](docs/skills.md) | The skill model, how an agent reads its skills, loading, and which parts of the specification are supported |
 | [Specs](docs/specs) | What each part is supposed to do and why: agents, the runner (with launching), jobs and tracing, skills, tools and the store, MCP |

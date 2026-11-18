@@ -19,10 +19,18 @@ dependencies = [
 mcp = [
     "langchain-mcp-adapters>=0.3.2",
 ]
+anthropic = [
+    "langchain-anthropic>=1.7",
+]
+openai = [
+    "langchain-openai>=1.8",
+]
 
 [dependency-groups]
 dev = [
+    "langchain-anthropic>=1.7",
     "langchain-mcp-adapters>=0.3.2",
+    "langchain-openai>=1.8",
     "pre-commit>=4.7.0",
     "pytest",
     "pytest-asyncio",

@@ -22,7 +22,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))  # so that 
 from micro.db import Database, default_db_path  # noqa: E402
 from micro.log import setup_logging  # noqa: E402
 from micro.mcp import HttpMCPServer, StdioMCPServer  # noqa: E402
-from micro.models import AgentBase, AgentInput, AgentOutput, ModelName, Reasoning, RunStatus  # noqa: E402
+from micro.model_settings import Gemini, ModelSettings  # noqa: E402
+from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus  # noqa: E402
 from micro.runner import AgentRunner  # noqa: E402
 
 GITHUB = HttpMCPServer(
@@ -58,8 +59,7 @@ class RepoReader(AgentBase):
         "Answer the question about public GitHub repositories, using your GitHub tools to look things up instead of "
         "answering from memory. Be brief: two or three sentences. Put the URLs of the pages you used in `sources`."
     )
-    model_name: ModelName = "gemini-3.5-flash-lite"
-    reasoning: Reasoning = "low"
+    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
     mcp_servers: list[StdioMCPServer | HttpMCPServer] = [GITHUB]
     input_model: ClassVar[type[AgentInput]] = QuestionInput
     output_model: ClassVar[type[AgentOutput]] = AnswerOutput

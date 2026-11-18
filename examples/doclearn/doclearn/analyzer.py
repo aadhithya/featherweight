@@ -6,7 +6,8 @@ from pydantic import Field, model_validator
 
 from doclearn.facts import derive_template, find_spans
 from doclearn.models import Document, DocumentFacts, DocumentTemplate, ElementStyle, FactBlock, FactNode, FieldValue
-from micro.models import AgentBase, AgentInput, AgentOutput, ModelName, Reasoning
+from micro.model_settings import Gemini, ModelSettings
+from micro.models import AgentBase, AgentInput, AgentOutput
 
 PROMPT = """\
 You analyze one document and break it into typed content blocks. The input is JSON with the document \
@@ -145,7 +146,6 @@ class DocumentAnalyzer(AgentBase):
     description: str = "Breaks one document into typed content blocks, fillable fields and element styles"
     version: str = "0.5.1"
     prompt: str = PROMPT
-    model_name: ModelName = "gemini-3.8-flash"
-    reasoning: Reasoning = "low"
+    model: ModelSettings = Gemini(model="gemini-3.8-flash", thinking="low")
     input_model: ClassVar[type[AgentInput]] = AnalyzerInput
     output_model: ClassVar[type[AgentOutput]] = AnalyzerOutput

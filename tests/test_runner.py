@@ -55,6 +55,8 @@ async def test_success(db):
     assert row.reported_model_name == "gemini-3.5-flash-lite"
     assert row.system_prompt_hash == Echo().system_prompt_hash
     assert row.model_name == "gemini-3.5-flash-lite"
+    assert (row.provider, row.reasoning) == ("google", "medium")
+    assert row.settings == {"model": "gemini-3.5-flash-lite", "max_output_tokens": None, "thinking": "medium"}
     assert row.completed_at is not None
 
     messages = model.seen[0]  # what the model was sent

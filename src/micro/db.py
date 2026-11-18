@@ -58,6 +58,8 @@ CREATE INDEX IF NOT EXISTS idx_agent_runs_invocation ON agent_runs(invocation_id
 ADDED_COLUMNS = {
     "parent_agent_run_id": "TEXT",  # the attempt of the agent that launched this one; NULL for a top-level run
     "depth": "INTEGER NOT NULL DEFAULT 1",  # 1 for a top-level run, 2 for the agent it launched, and so on
+    "provider": "TEXT",  # `google`, `anthropic`, `openai`, or a user class's own; NULL before this column existed
+    "settings": "TEXT",  # the agent's model settings as JSON; NULL before this column existed
 }
 
 
@@ -113,6 +115,8 @@ class AgentRunRow(BaseModel):
     completed_at: str | None
     parent_agent_run_id: str | None = None
     depth: int = 1
+    provider: str | None = None
+    settings: dict[str, Any] | None = None
 
 
 class Database:
@@ -208,13 +212,15 @@ class Database:
         input: BaseModel | dict[str, Any],
         parent_agent_run_id: str | None = None,
         depth: int = 1,
+        provider: str | None = None,
+        settings: str | None = None,
     ) -> str:
         await self.conn.execute(
             """INSERT INTO agent_runs (
                    agent_run_id, invocation_id, attempt, job_id, agent_name, agent_version,
                    model_name, reasoning, tool_names, system_prompt_hash, status, input, created_at,
-                   parent_agent_run_id, depth
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   parent_agent_run_id, depth, provider, settings
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 agent_run_id,
                 invocation_id,
@@ -231,6 +237,8 @@ class Database:
                 _now(),
                 parent_agent_run_id,
                 depth,
+                provider,
+                settings,
             ),
         )
         await self.conn.commit()
@@ -328,4 +336,5 @@ class Database:
         data["tool_names"] = json.loads(data["tool_names"])
         data["input"] = json.loads(data["input"])
         data["output"] = json.loads(data["output"]) if data["output"] is not None else None
+        data["settings"] = json.loads(data["settings"]) if data["settings"] is not None else None
         return AgentRunRow(**data)

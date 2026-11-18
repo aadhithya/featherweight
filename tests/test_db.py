@@ -174,8 +174,12 @@ async def test_an_older_database_gets_the_new_columns_when_it_is_opened(tmp_path
     async with Database(path) as db:
         (old,) = await db.list_runs()
         assert old.agent_run_id == "old" and old.parent_agent_run_id is None and old.depth == 1  # the defaults
-        await db.create_run(**run_kwargs(parent_agent_run_id="old", depth=2))
-        assert (await db.list_runs())[-1].depth == 2
+        assert old.provider is None and old.settings is None  # a row from before there were settings
+        await db.create_run(
+            **run_kwargs(parent_agent_run_id="old", depth=2, provider="openai", settings='{"model": "x"}')
+        )
+        newest = (await db.list_runs())[-1]
+        assert newest.depth == 2 and newest.provider == "openai" and newest.settings == {"model": "x"}
 
     async with Database(path) as db:  # opening it again changes nothing
         assert len(await db.list_runs()) == 2

@@ -20,7 +20,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))  # so that 
 
 from micro.db import Database, default_db_path  # noqa: E402
 from micro.log import setup_logging  # noqa: E402
-from micro.models import AgentBase, AgentInput, AgentOutput, ModelName, Reasoning, RunStatus  # noqa: E402
+from micro.model_settings import Gemini, ModelSettings  # noqa: E402
+from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus  # noqa: E402
 from micro.runner import AgentRunner  # noqa: E402
 
 
@@ -38,8 +39,7 @@ class Summariser(AgentBase):
     description: str = "Summarises a text in at most the given number of words"
     version: str = "0.1.0"
     prompt: str = "Summarise the text in at most `max_words` words. Keep the figures."
-    model_name: ModelName = "gemini-3.5-flash-lite"
-    reasoning: Reasoning = "low"
+    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
     input_model: ClassVar[type[AgentInput]] = SummariserInput
     output_model: ClassVar[type[AgentOutput]] = SummariserOutput
 
@@ -58,8 +58,7 @@ class Translator(AgentBase):
     description: str = "Translates a text into the given language"
     version: str = "0.1.0"
     prompt: str = "Translate the text into the given language. Return only the translation."
-    model_name: ModelName = "gemini-3.5-flash-lite"
-    reasoning: Reasoning = "low"
+    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
     input_model: ClassVar[type[AgentInput]] = TranslatorInput
     output_model: ClassVar[type[AgentOutput]] = TranslatorOutput
 
@@ -82,8 +81,7 @@ class Editor(AgentBase):
         "request asks for another language, get the translator to translate the headline and the summary. Return "
         "the headline and the summary in `headline` and `summary`."
     )
-    model_name: ModelName = "gemini-3.5-flash-lite"
-    reasoning: Reasoning = "low"
+    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
     subagents: list[type] = [Summariser, Translator]  # the only agents the editor can launch
     input_model: ClassVar[type[AgentInput]] = EditorInput
     output_model: ClassVar[type[AgentOutput]] = EditorOutput

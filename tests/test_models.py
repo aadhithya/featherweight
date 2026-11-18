@@ -2,6 +2,7 @@ import pytest
 from fakes import Echo, EchoOutput
 from pydantic import ValidationError
 
+from micro.model_settings import Claude, Gemini, ModelSettings
 from micro.models import (
     ASK_ALLOWED,
     ASK_FORBIDDEN,
@@ -14,30 +15,17 @@ from micro.models import (
 
 def test_defaults():
     agent = Echo()
-    assert agent.model_name == "gemini-3.5-flash-lite"
-    assert agent.reasoning == "medium"
+    assert agent.model == Gemini()
+    assert (agent.model.model, agent.model.thinking) == ("gemini-3.5-flash-lite", "medium")
     assert agent.allow_user_questions is False
     assert agent.raise_conflicts is False
 
 
-@pytest.mark.parametrize(
-    "kwargs,allowed",
-    [
-        ({"model_name": "gemini-3.6-flash"}, True),
-        ({"model_name": "gemini-3.5-flash-lite"}, True),
-        ({"model_name": "gemini-3.8-flash"}, True),
-        ({"reasoning": "high"}, True),
-        ({"model_name": "gemini-3.5-flash"}, False),
-        ({"model_name": "gpt-4o"}, False),
-        ({"reasoning": "extreme"}, False),
-    ],
-)
-def test_only_allow_listed_models_and_reasoning_levels(kwargs, allowed):
-    if allowed:
-        Echo(**kwargs)
-    else:
-        with pytest.raises(ValidationError):
-            Echo(**kwargs)
+def test_an_agent_takes_the_settings_of_any_provider():
+    class Reader(Echo):
+        model: ModelSettings = Claude(model="claude-haiku-5-5", effort="low")
+
+    assert Reader().model.provider == "anthropic"
 
 
 @pytest.mark.parametrize(

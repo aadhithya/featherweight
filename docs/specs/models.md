@@ -1,6 +1,8 @@
 # Spec: models and providers
 
-Status: **design, not built.** This is the design for [issue #2](https://github.com/aadhithya/micro/issues/2). It changes
+Status: implemented. How to use it is in [models.md](../models.md). The code is [model_settings.py](../../src/micro/model_settings.py).
+
+It was designed in [issue #2](https://github.com/aadhithya/micro/issues/2). It changes
 [agents](agents.md) (the `model_name` and `reasoning` fields), [the runner](runner.md#configuration) (the model factory)
 and [jobs and tracing](jobs-and-tracing.md) (two columns).
 
@@ -140,7 +142,9 @@ output, a defaulted field and a bounded integer worked. The API does not enforce
 Subclass the class and add to its catalog. For example, GPT-5.x:
 
 ```python
-from micro import ModelInfo, OpenAI
+from typing import ClassVar
+
+from micro.model_settings import ModelInfo, OpenAI
 
 
 class OpenAI5(OpenAI):
@@ -209,8 +213,8 @@ spec and the [guide](../agents.md) are updated.
 
 - `AgentBase`: `model_name` and `reasoning` are removed, `model` is added. **This breaks every agent.** The library is not
   released, and the examples, docs and tests change with it.
-- `ModelName` and `Reasoning` are removed. `ModelSettings`, `ModelInfo`, `Gemini`, `Gemma`, `Claude`, `OpenAI` are
-  exported from `micro`.
+- `ModelName` and `Reasoning` are removed. `ModelSettings`, `ModelInfo`, `Gemini`, `Gemma`, `Claude` and `OpenAI` are
+  in `micro.model_settings`.
 - `default_model_factory(agent)` becomes `agent.model.build()`. The `model_factory` argument stays, for tests and for a
   setup that is not a class.
 - `pyproject.toml`: extras `anthropic` and `openai`, and both in the dev group.

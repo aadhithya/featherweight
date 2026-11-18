@@ -5,6 +5,7 @@ schema, launch it with the input as a JSON string and use what comes back. About
 
 from typing import ClassVar
 
+from micro.model_settings import Gemini, ModelSettings
 from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus
 from micro.runner import AgentRunner
 
@@ -28,8 +29,7 @@ class Summariser(AgentBase):
     description: str = "Summarises a text in at most the given number of words"
     version: str = "0.1.0"
     prompt: str = "Summarise the text in at most `max_words` words. Keep the figures."
-    model_name: str = "gemini-3.5-flash-lite"
-    reasoning: str = "low"
+    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
     input_model: ClassVar[type[AgentInput]] = SummariserInput
     output_model: ClassVar[type[AgentOutput]] = SummariserOutput
 
@@ -51,8 +51,7 @@ class Reporter(AgentBase):
         "Write a headline and a summary for the article. Get the summary from the summariser agent (at most 20 words), "
         "and return it unchanged as `summary`. Write the headline yourself."
     )
-    model_name: str = "gemini-3.5-flash-lite"
-    reasoning: str = "low"
+    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
     subagents: list[type] = [Summariser]
     input_model: ClassVar[type[AgentInput]] = ReporterInput
     output_model: ClassVar[type[AgentOutput]] = ReporterOutput

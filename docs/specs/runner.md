@@ -138,13 +138,13 @@ keeps servers up between runs and stops them at the end. A runner with no MCP ag
 |---|---|---|---|
 | `max_attempts` | | 3 | At least 1 |
 | `retry_delay_s` | | 1.0 | |
-| `model_factory` | | Gemini through langchain | `agent -> chat model`. A fake in tests, or another provider |
+| `model_factory` | | `agent.model.build()` | `agent -> chat model`. A fake in tests, or a setup that is not a model class ([models](models.md)) |
 | `store` | | a new `RunStore` | What the store tools read and write |
 | `max_concurrent` | `MAX_CONCURRENT_AGENT_RUNS` | 10 | At least 1 |
 | `max_depth` | `MAX_AGENT_DEPTH` | 3 | At least 1 |
 | `max_launches` | `MAX_AGENT_LAUNCHES` | 10 | At least 1 |
 
-An argument wins over the variable. A value below 1, or an environment variable that is not an integer, raises. `GOOGLE_API_KEY`
+An argument wins over the variable. A value below 1, or an environment variable that is not an integer, raises. The key of the provider (`GOOGLE_API_KEY`, `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`)
 is needed for the real model. A missing key is a setup error: the run fails at once, without retries.
 
 ## Logging

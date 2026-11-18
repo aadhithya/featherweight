@@ -6,7 +6,8 @@ from pydantic import Field, model_validator
 
 from doclearn.facts import find_spans, walk
 from doclearn.models import ElementType, FieldInfo, LearnedBlock, LearnedNode, UnitDocument
-from micro.models import AgentBase, AgentInput, AgentOutput, ModelName, Reasoning
+from micro.model_settings import Gemini, ModelSettings
+from micro.models import AgentBase, AgentInput, AgentOutput
 
 MIN_COVERAGE_DIVISOR = 2  # the learned tree must have at least 1/2 of the largest document's blocks
 
@@ -161,8 +162,7 @@ class SemanticAlignmentAgent(AgentBase):
     )
     version: str = "0.6.1"
     prompt: str = PROMPT
-    model_name: ModelName = "gemini-3.8-flash"
-    reasoning: Reasoning = "low"
+    model: ModelSettings = Gemini(model="gemini-3.8-flash", thinking="low")
     input_model: ClassVar[type[AgentInput]] = SemanticAlignmentInput
     output_model: ClassVar[type[AgentOutput]] = SemanticAlignmentOutput
 

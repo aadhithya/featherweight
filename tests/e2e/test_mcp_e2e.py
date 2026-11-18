@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import ClassVar
 
 from micro.mcp import StdioMCPServer
+from micro.model_settings import Gemini, ModelSettings
 from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus
 from micro.runner import AgentRunner
 
@@ -38,8 +39,7 @@ class Helper(AgentBase):
     description: str = "Answers with the help of its tools"
     version: str = "0.1.0"
     prompt: str = "Do what the task says, using your tools, and report the results."
-    model_name: str = "gemini-3.5-flash-lite"
-    reasoning: str = "low"
+    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
     mcp_servers: list[StdioMCPServer] = [SERVER]
     input_model: ClassVar[type[AgentInput]] = TaskInput
     output_model: ClassVar[type[AgentOutput]] = TaskOutput

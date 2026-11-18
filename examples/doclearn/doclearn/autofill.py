@@ -16,7 +16,8 @@ from doclearn.assembly import _value_fits
 from doclearn.generation import render_structure
 from doclearn.models import FieldValue, InputField
 from doclearn.store import LearnedDocument
-from micro.models import AgentBase, AgentInput, AgentOutput, ModelName, Reasoning, RunStatus
+from micro.model_settings import Gemini, ModelSettings
+from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus
 from micro.runner import AgentRunner
 
 logger = logging.getLogger(__name__)
@@ -64,8 +65,7 @@ class FormFillerAgent(AgentBase):
     description: str = "Invents a case for a learned template: the values of its inputs and a story"
     version: str = "0.1.0"
     prompt: str = PROMPT
-    model_name: ModelName = "gemini-3.5-flash-lite"
-    reasoning: Reasoning = "low"
+    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
     input_model: ClassVar[type[AgentInput]] = FormFillerInput
     output_model: ClassVar[type[AgentOutput]] = FormFillerOutput
 

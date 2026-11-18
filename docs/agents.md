@@ -49,8 +49,7 @@ defaults, so that a model that wants to ask a question is not forced to invent a
 | Field | Default | |
 |---|---|---|
 | `name`, `description`, `version`, `prompt` | required | Recorded in the run log with every attempt. `description` is what other agents see when they may launch this one. Change `version` when the prompt or behaviour changes |
-| `model_name` | `gemini-3.5-flash-lite` | `gemini-3.6-flash`, `gemini-3.5-flash-lite` or `gemini-3.8-flash` |
-| `reasoning` | `medium` | `low`, `medium` or `high` (the model's thinking level) |
+| `model` | `Gemini()` | Which model runs the agent, and how hard it thinks: `Gemini`, `Gemma`, `Claude` or `OpenAI`, or your own class. See [models.md](models.md) |
 | `tools` | none | The tools the agent can call. Only these are ever bound to the model |
 | `recursion_limit` | 25 | Stops a runaway tool loop inside one run; a run that hits it fails |
 | `allow_user_questions` | `False` | Adds a sentence to the prompt telling the model whether it may put questions in `open_questions` |
@@ -101,7 +100,7 @@ async with Database("micro.db") as db:
 |---|---|---|
 | `max_attempts` | 3 | Attempts per run |
 | `retry_delay_s` | 1.0 | Wait between attempts, without holding a concurrency slot |
-| `model_factory` | Gemini through langchain | `agent -> chat model`. Replace it to use another model, or a fake in tests |
+| `model_factory` | `agent.model.build()` | `agent -> chat model`. Replace it for a fake in tests, or a setup that is not a model class |
 | `store` | a new `RunStore` | What the store tools read and write |
 | `max_concurrent` | `MAX_CONCURRENT_AGENT_RUNS`, else 10 | Model attempts running at once |
 | `max_depth`, `max_launches` | 3, 10 | See [launching-agents.md](launching-agents.md) |
@@ -204,7 +203,7 @@ row **per attempt**:
 | `job_id` | The job |
 | `parent_agent_run_id`, `depth` | For an agent launched by another: the attempt that launched it, and its depth (1 for a top-level run) |
 | `agent_name`, `agent_version`, `tool_names` | The agent. `tool_names` includes the tools the runner added |
-| `model_name`, `reported_model_name`, `reasoning` | What was asked for, and what the API reported |
+| `model_name`, `reasoning`, `provider`, `settings`, `reported_model_name` | What was asked for (the model, the effort, the provider, all settings as JSON), and what the API reported |
 | `system_prompt_hash` | The hash of the assembled system prompt |
 | `status`, `error` | `INIT` (queued for a slot), `RUNNING`, `SUCCESS` or `FAILED` |
 | `input`, `output` | JSON. A failed attempt keeps its error, not the model's raw reply |
@@ -229,7 +228,7 @@ a span needs are already recorded.
 
 | Variable | Default | |
 |---|---|---|
-| `GOOGLE_API_KEY` | | Required for real model calls |
+| `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | | The key of the provider the agent's `model` uses. See [models.md](models.md) |
 | `MAX_CONCURRENT_AGENT_RUNS` | 10 | Model attempts running at once, per runner. A queued attempt shows as `INIT` until it gets a slot |
 | `MAX_AGENT_DEPTH` | 3 | Most agents in one chain of launches |
 | `MAX_AGENT_LAUNCHES` | 10 | Most launches per attempt of one agent |

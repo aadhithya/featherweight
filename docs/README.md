@@ -18,6 +18,8 @@ or finding out why it behaves as it does.
   [`examples/launching`](../examples/launching) or [`examples/skills`](../examples/skills) to run something.
 - **I want my agent to use outside tools.** [MCP tools](mcp.md): declare a server, and the agent gets its tools. They are
   found by search by default. Then [`examples/mcp`](../examples/mcp), which uses GitHub's server.
+- **I want to use another model or provider.** [Models and providers](models.md): Gemini, Gemma, Claude and OpenAI, and how
+  to add GPT-5.x or Ollama with a small class.
 - **I want agents that delegate.** [Launching agents](launching-agents.md): an allow-list of agents, depth and breadth
   limits.
 - **I want to teach an agent a procedure.** [Skills](skills.md): instructions in the Agent Skills format, read on demand.
@@ -31,6 +33,7 @@ or finding out why it behaves as it does.
 | Guide | Covers | Its spec |
 |---|---|---|
 | [Agents](agents.md) | Defining and running an agent, results, retries, output checks, tools, jobs and tracing, configuration | [Agents](specs/agents.md), [the runner](specs/runner.md), [jobs and tracing](specs/jobs-and-tracing.md), [tools and the store](specs/tools-and-store.md) |
+| [Models and providers](models.md) | `Gemini`, `Gemma`, `Claude`, `OpenAI`, what is checked, adding a model or a provider | [Models](specs/models.md) |
 | [Launching agents](launching-agents.md) | The `subagents` allow-list, the two tools, depth and breadth, concurrency, tracing | [The runner](specs/runner.md#launching-agents) |
 | [MCP tools](mcp.md) | Declaring servers, connections, what the model gets, failures, finding tools by search | [MCP tools](specs/mcp-tools.md), [tool discovery](specs/tool-discovery.md) |
 | [Skills](skills.md) | The skill model, how an agent reads its skills, loading, what the specification covers | [Skills](specs/skills.md) |
@@ -45,6 +48,8 @@ Each spec has the same shape: goal, the rules, decisions and why, what is not su
 agents ──────────── what an agent is, and what is checked when it is built
   │
 runner ──────────── runs agents: attempts, retries, concurrency, launching other agents
+  │   │
+  │   ├── models ──────── which model and provider, and how hard it thinks
   │   │
   │   └── jobs and tracing ── what is recorded, and how
   │

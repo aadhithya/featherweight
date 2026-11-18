@@ -25,8 +25,7 @@ A subclass of `AgentBase`. The runner instantiates it (`agent_cls()`), so a subc
 | Field | Type, default | Rule |
 |---|---|---|
 | `name`, `description`, `version`, `prompt` | `str`, required | `name` and `version` are recorded on every attempt. `description` is what a parent's model reads before it launches this agent |
-| `model_name` | `Literal["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash"]`, `gemini-3.5-flash-lite` | Another value fails validation |
-| `reasoning` | `Literal["low", "medium", "high"]`, `medium` | The model's thinking level |
+| `model` | `ModelSettings`, `Gemini()` | Which model runs the agent and how hard it thinks. A setting the model does not accept fails when the agent is built ([models](models.md)) |
 | `tools` | `list[BaseTool]`, empty | Only these are bound to the model, besides the tools the runner adds ([tools and store](tools-and-store.md)) |
 | `recursion_limit` | `int`, 25, at least 1 | Passed to langgraph. Stops a runaway tool loop inside one run; a run that hits it fails |
 | `allow_user_questions`, `raise_conflicts` | `bool`, `False` | Each only adds a sentence to the prompt. Neither is enforced |
@@ -47,7 +46,7 @@ Each of these raises a `ValidationError` (a programming error, not a failed run)
 - `mcp_servers`: the names are distinct. Each server model checks itself too (name format, timeouts, caps).
 - `tools`: the names are distinct, and none is `launch_agent`, `get_agent_schema`, `get_skill`, `search_tools` or `call_tool`, which the runner uses
   for its own tools.
-- `model_name`, `reasoning`, `recursion_limit`: the allowed values above.
+- `model`, `recursion_limit`: the allowed values above. `model` checks itself ([models](models.md)).
 
 Agent A listing B while B lists A is allowed. The runner's depth limit stops it.
 
@@ -92,8 +91,8 @@ hash is known before any server starts. Bound MCP tools add nothing to the promp
 - **Flat output schemas for Gemini.** A nested or nullable structured-output schema can come back silently truncated (a
   tree with only its root). Prefer flat lists with ids, avoid `X | None` on nested objects, and add a `check_output` that
   compares the output with the input. The example pipeline builds its trees from flat lists for this reason.
-- **The model is a closed set.** `model_name` is a `Literal`, so a typo fails at build time. Other providers are
-  [issue #2](https://github.com/aadhithya/micro/issues/2).
+- **The model is typed, one class per provider.** A typo, or an effort a model does not accept, fails at build time.
+  Other models and providers are a subclass ([models](models.md)).
 
 ## Not supported
 

@@ -13,7 +13,6 @@ from langchain.agents import create_agent
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.tools import BaseTool, tool
-from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import ValidationError
 
 from micro.context import CURRENT_AGENT_RUN_ID, RunContext
@@ -55,7 +54,8 @@ class ModelSetupError(SetupError):
 
 
 def default_model_factory(agent: AgentBase) -> BaseChatModel:
-    return ChatGoogleGenerativeAI(model=agent.model_name, thinking_level=agent.reasoning)
+    """The chat model of the agent: its model settings build it."""
+    return agent.model.build()
 
 
 def is_non_retryable(exc: BaseException) -> bool:
@@ -281,8 +281,8 @@ class AgentRunner:
             invocation_id,
             agent.name,
             agent.version,
-            agent.model_name,
-            agent.reasoning,
+            agent.model.model,
+            agent.model.label(),
             job_id,
             self.max_attempts,
         )
@@ -312,8 +312,10 @@ class AgentRunner:
                 job_id=job_id,
                 agent_name=agent.name,
                 agent_version=agent.version,
-                model_name=agent.model_name,
-                reasoning=agent.reasoning,
+                model_name=agent.model.model,
+                reasoning=agent.model.label(),
+                provider=agent.model.provider,
+                settings=agent.model.model_dump_json(),
                 tool_names=registry.names + runner_tool_names,
                 system_prompt_hash=prompt_hash,
                 input=agent_input,

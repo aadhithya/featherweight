@@ -26,7 +26,8 @@ from doclearn.facts import SPAN_RE, find_spans, walk
 from doclearn.models import ElementType, FieldValue, InputField, LearnedNode, LearnedTree
 from doclearn.store import LearnedDocument
 from micro.context import RunContext
-from micro.models import AgentBase, AgentInput, AgentOutput, ModelName, Reasoning, RunStatus
+from micro.model_settings import Gemini, ModelSettings
+from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus
 from micro.runner import AgentRunner
 from micro.tools import NO_JOB, add_to_date, calculate, current_datetime, days_between
 
@@ -115,8 +116,7 @@ class GeneratorAgent(AgentBase):
     description: str = "Writes a document from a learned tree and the facts of a new case"
     version: str = "0.4.0"
     prompt: str = PROMPT
-    model_name: ModelName = "gemini-3.8-flash"
-    reasoning: Reasoning = "low"
+    model: ModelSettings = Gemini(model="gemini-3.8-flash", thinking="low")
     tools: list[BaseTool] = [calculate, current_datetime, add_to_date, days_between, check_document]
     input_model: ClassVar[type[AgentInput]] = GeneratorInput
     output_model: ClassVar[type[AgentOutput]] = GeneratorOutput
