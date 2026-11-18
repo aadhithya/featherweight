@@ -20,7 +20,6 @@ It has opinions. Take them, or fork off.
   language to learn.
 - **Everything is on record.** Every attempt, in sqlite, tied to the agent that launched it.
 
-> A small, quick, vibe coded project: a few days of work. A prototype with limited scope, not production software.
 
 ## An agent
 
