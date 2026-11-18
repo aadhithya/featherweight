@@ -11,16 +11,19 @@ and both are enforced. No guessing.
 
 It has opinions. Take them, or fork off.
 
-- **Agents are specs, not scripts.** Static, typed, versioned like any class. Nothing about them is decided at run time.
-- **Pydantic is the contract.** Checked on the way in, on the way out, when a skill loads and when a sub-agent list is
-  built. Break a rule and you get retried. Nobody gets a pass.
-- **Failures are values.** A run that fails returns `FAILED` and the error. It doesn't throw. You decide what that
-  means. (A wrong input type is a bug, and it does raise.)
-- **Code checks. The model proposes.** Validators have the last word. Pipelines are plain async Python, with no graph
-  language to learn.
-- **You own the orchestration.** Order, loops, branching, when to stop: your code. `micro` runs your agents and keeps what
-  they returned. It is not a workflow engine, and it won't pretend to be one.
-- **Everything is on record.** Every attempt, in sqlite, tied to the agent that launched it.
+- **Everything is declared.** An agent is a class. So is a skill. Input, output, tools, skills, sub-agents, MCP servers:
+  all written on it, all settled before anything runs. You never build the instance. The runner does. That's its job.
+- **Pydantic is the contract.** In, out, on skill load, on sub-agent list. Break a rule and you get retried. Nobody gets a
+  pass.
+- **Failures are values.** A failed run returns `FAILED` and the error. It doesn't throw. Deal with it. Retries, output
+  checks, a concurrency limit and `run_many` fan-out come free. (A wrong input type is a bug, and that does raise.)
+- **Code checks. The model proposes.** Validators get the last word. Pipelines are plain async Python. Order, loops, when
+  to stop: yours. This is not a workflow engine, and it won't pretend to be one.
+- **Everything is on record.** Every attempt, in sqlite, tied to the agent that launched it. OpenTelemetry? Too big. (See
+  [agents](docs/agents.md#jobs-and-tracing).)
+
+Agents launch agents. MCP servers are named, not wired. Skills use the
+[Agent Skills](https://agentskills.io/specification) format. All of it is in the declaration.
 
 
 ## An agent
@@ -78,20 +81,16 @@ asyncio.run(main())
 
 Set `GOOGLE_API_KEY` first. `runner.run_many(Agent, inputs, job_id=...)` runs one agent over many inputs at once.
 
-## What you get
+## Why does this exist? Pydantic AI and LangGraph are right there.
 
-- **Typed, static agents,** with their input and output enforced by Pydantic.
-- **Retries, output checks and a concurrency limit,** with fan-out over many inputs. Failures are returned, not raised.
-- **Tracing.** Every attempt is a row in sqlite, grouped by job. Pipelines run as jobs. (Why sqlite and not
-  OpenTelemetry? To keep it small; see [agents](docs/agents.md#jobs-and-tracing).)
-- **Tools** per agent, with a few ready-made ones: exact arithmetic, dates, and a store shared within a job.
-- **Agents launching agents.** `subagents = [Researcher, Writer]` is an allow-list of classes; depth and breadth limits;
-  every launch traced under its parent.
-- **MCP tools.** Declare the servers on the agent (`mcp_servers`): typed, secrets by name, an allow-list of tools. One
-  shared connection per server, and a dead server is text for the model, not a crash. A server's tools are found by
-  keyword search by default, so a big server does not fill the context.
-- **Skills.** Instructions in the [Agent Skills](https://agentskills.io/specification) format, as a Pydantic model that
-  checks the specification's rules: names and descriptions in the prompt, the rest read on demand with `get_skill`.
+They are. Use them. This is built on LangChain and LangGraph anyway.
+
+- **Boredom.** Every agent project needs the same retries, limits and MCP wiring. I wrote them once and got on with my day.
+- **Background agents only.** Pipelines, batches, fan-out. No chat, no UI, no streaming. Nobody is watching the tokens.
+- **Very opinionated.** Sorry, not sorry. Don't like them? Fork off.
+
+Want durable execution, evals or OpenTelemetry? Pydantic AI. Want a graph that pauses and resumes? LangGraph. Resuming is
+planned here, just not yet. Until then, if a run dies, it starts over.
 
 ## Documentation
 
