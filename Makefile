@@ -34,7 +34,7 @@ typecheck:
 check:
 	docker compose run --rm micro sh -c "ruff check . && ruff format --check . && ty check"
 
-# Install the git hooks (conventional commit messages, ruff, ty) in this clone. Run on the host, not in the container.
+# Install the git hooks (conventional commit messages, ruff, ty, unit tests) in this clone. Run on the host, not in the container.
 hooks:
 	uv run pre-commit install
 
