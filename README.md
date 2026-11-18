@@ -1,4 +1,4 @@
-# micro
+<h1 align="center"><img src="docs/assets/micro.png" alt="[micro.]" width="520"></h1>
 
 **An opinionated agent harness. Pydantic is the spec. Everything else follows.**
 
