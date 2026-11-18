@@ -1,7 +1,7 @@
 import pytest
+from fakes import Echo, EchoOutput
 from pydantic import ValidationError
 
-from fakes import Echo, EchoOutput
 from micro.models import (
     ASK_ALLOWED,
     ASK_FORBIDDEN,

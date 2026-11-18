@@ -130,9 +130,15 @@ def write_learned_files(folder: Path, learned: LearnedDocument, result: Learning
     (folder / "template.json").write_text(learned.template.model_dump_json(indent=2), encoding="utf-8")
     (folder / "facts_schema.json").write_text(learned.facts_schema.model_dump_json(indent=2), encoding="utf-8")
     (folder / "conformance.json").write_text(
-        json.dumps({"conformance": [c.model_dump() | {"score": c.score} for c in result.conformance],
-                    "warnings": result.warnings, "skipped": [s.model_dump() for s in result.skipped]},
-                   indent=2, ensure_ascii=False),
+        json.dumps(
+            {
+                "conformance": [c.model_dump() | {"score": c.score} for c in result.conformance],
+                "warnings": result.warnings,
+                "skipped": [s.model_dump() for s in result.skipped],
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
         encoding="utf-8",
     )
     (folder / "outline.txt").write_text(render_structure(learned.tree) + "\n", encoding="utf-8")

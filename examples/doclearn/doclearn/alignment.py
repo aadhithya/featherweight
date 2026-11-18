@@ -2,11 +2,11 @@
 
 from typing import ClassVar
 
-from micro.models import AgentBase, AgentInput, AgentOutput, ModelName, Reasoning
 from pydantic import Field, model_validator
 
 from doclearn.facts import find_spans, walk
 from doclearn.models import ElementType, FieldInfo, LearnedBlock, LearnedNode, UnitDocument
+from micro.models import AgentBase, AgentInput, AgentOutput, ModelName, Reasoning
 
 MIN_COVERAGE_DIVISOR = 2  # the learned tree must have at least 1/2 of the largest document's blocks
 
@@ -54,14 +54,18 @@ types, and never use a condition for such a difference.
 
 class SemanticAlignmentInput(AgentInput):
     category: str = Field(description="The document category, provided by the user.")
-    position: int = Field(description="Which section this is, starting at 1: the same section is matched across the documents by its heading.")
+    position: int = Field(
+        description="Which section this is, starting at 1: the same section is matched across the documents by its heading."
+    )
     documents: list[UnitDocument] = Field(description="The documents that have this unit, each with its subtree.")
     missing_in: list[str] = Field(description="Ids of the documents that do not have this unit.")
     styles: list[ElementType] = Field(description="Reconciled formatting of each element type used in the subtree.")
 
 
 class SemanticAlignmentOutput(AgentOutput):
-    blocks: list[LearnedBlock] = Field(default_factory=list, description="The learned section as a flat list of blocks.")
+    blocks: list[LearnedBlock] = Field(
+        default_factory=list, description="The learned section as a flat list of blocks."
+    )
     fields: list[FieldInfo] = Field(default_factory=list, description="Every field the blocks use, described.")
 
     @model_validator(mode="after")
@@ -152,7 +156,9 @@ def _reachable(blocks: list[LearnedBlock], root_id: str) -> set[str]:
 
 class SemanticAlignmentAgent(AgentBase):
     name: str = "semantic_alignment"
-    description: str = "Aligns one section across documents into a learned subtree with kinds, alternatives and conditions"
+    description: str = (
+        "Aligns one section across documents into a learned subtree with kinds, alternatives and conditions"
+    )
     version: str = "0.6.1"
     prompt: str = PROMPT
     model_name: ModelName = "gemini-3.8-flash"

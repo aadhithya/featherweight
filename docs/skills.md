@@ -16,6 +16,7 @@ optionally, other files. Defining agents is in [agents.md](agents.md).
 ```python
 from micro.skills import Skill
 
+
 class Writer(AgentBase):
     ...
     skills: list[Skill] = [Skill.from_directory("examples/skills/meeting-notes")]
@@ -24,8 +25,11 @@ class Writer(AgentBase):
 A skill can also be written in code:
 
 ```python
-Skill(name="release-notes", description="Turns changes into release notes. Use when asked for a changelog.",
-      instructions="1. Start with the version.\n2. ...")
+Skill(
+    name="release-notes",
+    description="Turns changes into release notes. Use when asked for a changelog.",
+    instructions="1. Start with the version.\n2. ...",
+)
 ```
 
 [`examples/skills`](../examples/skills) is an agent with three skills to run (`make example-skills`): the agent is

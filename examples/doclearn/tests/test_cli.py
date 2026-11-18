@@ -5,14 +5,14 @@ import json
 import logging
 
 import pytest
-
-from fakes import Reactive, structured_reply, tool_reply
+from builders import make_respond
 from doclearn import cli
 from doclearn.assembly import derive_facts_schema
 from doclearn.models import Condition, FieldInfo, LearnedNode, LearnedTree
 from doclearn.report import GUIDANCE_KEY, form_file_content
+from fakes import Reactive, structured_reply, tool_reply
+
 from micro.runner import AgentRunner
-from builders import make_respond
 
 DOCUMENT = "# PROPOSAL\n\n**Proposal No.:** PRP-1\n"
 GENERATED = "# PROPOSAL\n**Proposal No.:** PRP-9\n## CLIENT\n**Name:** Alder Ltd\n## PRICING\n- Total price: $5.\n"
@@ -77,7 +77,9 @@ def workdir(tmp_path, monkeypatch):
 
 def invoke(workdir, session, monkeypatch, *args):
     model = Reactive(respond=session.respond)
-    monkeypatch.setattr(cli, "AgentRunner", lambda db: AgentRunner(db, model_factory=lambda agent: model, retry_delay_s=0.0))
+    monkeypatch.setattr(
+        cli, "AgentRunner", lambda db: AgentRunner(db, model_factory=lambda agent: model, retry_delay_s=0.0)
+    )
     argv = [str(workdir / "docs"), "--category", "proposals", "--out-dir", str(workdir / "runs"), *args]
     return cli.main(argv, session.console())
 
@@ -87,7 +89,9 @@ def run_dir(workdir):
     return folder
 
 
-def test_manual_fill_opens_the_form_in_the_editor_generates_with_its_story_and_saves_the_run_folder(workdir, monkeypatch, capsys):
+def test_manual_fill_opens_the_form_in_the_editor_generates_with_its_story_and_saves_the_run_folder(
+    workdir, monkeypatch, capsys
+):
     shown = {}
 
     def edit_form(text):
@@ -99,7 +103,12 @@ def test_manual_fill_opens_the_form_in_the_editor_generates_with_its_story_and_s
     out = capsys.readouterr().out
 
     assert code == cli.DONE and session.edited == 1 and session.questions == []
-    assert [k for k in shown["form"] if not k.startswith("_")] == ["proposal_no", "client_name", "total_price", "include_training"]
+    assert [k for k in shown["form"] if not k.startswith("_")] == [
+        "proposal_no",
+        "client_name",
+        "total_price",
+        "include_training",
+    ]
     assert session.generator_inputs[0]["guidance"] == "A manual story."
     assert {f["name"]: f["value"] for f in session.generator_inputs[0]["facts"]} == FACTS
     assert "used the short wording" in out and "include_training" in out  # the optional input with no value
@@ -109,16 +118,31 @@ def test_manual_fill_opens_the_form_in_the_editor_generates_with_its_story_and_s
     assert (folder / "story.txt").read_text().strip() == "A manual story."
     assert json.loads((folder / "facts.json").read_text())["proposal_no"] == "PRP-9"
     assert {p.name for p in (folder / "learned").iterdir()} == {
-        "tree.json", "template.json", "facts_schema.json", "conformance.json", "outline.txt", "overview.md"
+        "tree.json",
+        "template.json",
+        "facts_schema.json",
+        "conformance.json",
+        "outline.txt",
+        "overview.md",
     }
-    assert [n["text"] for n in json.loads((folder / "learned/tree.json").read_text())["nodes"]] == ["# PROPOSAL", "## CLIENT", "## PRICING"]
-    assert [c["document_id"] for c in json.loads((folder / "learned/conformance.json").read_text())["conformance"]] == ["a", "b", "c"]
+    assert [n["text"] for n in json.loads((folder / "learned/tree.json").read_text())["nodes"]] == [
+        "# PROPOSAL",
+        "## CLIENT",
+        "## PRICING",
+    ]
+    assert [c["document_id"] for c in json.loads((folder / "learned/conformance.json").read_text())["conformance"]] == [
+        "a",
+        "b",
+        "c",
+    ]
     assert "Conformance of the source documents" in (folder / "learned/overview.md").read_text()
     assert "Tree: 3 units" in (folder / "summary.md").read_text()  # the only guard for the summary's overview wording
 
 
 @pytest.mark.parametrize("verbose", [False, True])
-def test_the_terminal_shows_progress_and_the_overview_and_log_lines_only_with_verbose(workdir, monkeypatch, capsys, verbose):
+def test_the_terminal_shows_progress_and_the_overview_and_log_lines_only_with_verbose(
+    workdir, monkeypatch, capsys, verbose
+):
     invoke(workdir, Session(edits=[form_with()]), monkeypatch, "--fill", "manual", *(["-v"] if verbose else []))
     out = capsys.readouterr().out
 
@@ -176,7 +200,9 @@ def test_the_auto_filled_case_is_shown_and_can_be_generated_redone_edited_or_qui
 def test_without_fill_it_asks_for_the_mode(workdir, monkeypatch, answers, edits, code, questions):
     session = Session(answers=answers, edits=edits)
     assert invoke(workdir, session, monkeypatch) == code
-    assert len(session.questions) == questions and "[m]anual" in session.questions[0] and "[a]uto" in session.questions[0]
+    assert (
+        len(session.questions) == questions and "[m]anual" in session.questions[0] and "[a]uto" in session.questions[0]
+    )
     assert (run_dir(workdir) / "learned" / "tree.json").exists()
 
 
@@ -184,8 +210,13 @@ def test_without_fill_it_asks_for_the_mode(workdir, monkeypatch, answers, edits,
     "answers, edits, code, edited, messages",
     [
         # bad JSON, answer y; then missing inputs and a bad number, answer y again
-        (["y", "y"], ["{not json", form_with({"proposal_no": "PRP-9", "total_price": "lots"}), form_with()], cli.DONE, 3,
-         ["is not valid JSON", "required fields without a value: ['client_name']", "'lots' is not a valid number"]),
+        (
+            ["y", "y"],
+            ["{not json", form_with({"proposal_no": "PRP-9", "total_price": "lots"}), form_with()],
+            cli.DONE,
+            3,
+            ["is not valid JSON", "required fields without a value: ['client_name']", "'lots' is not a valid number"],
+        ),
         (["n"], ["{not json"], cli.STOPPED, 1, ["is not valid JSON"]),  # refusing to edit again stops
     ],
 )
@@ -201,7 +232,9 @@ def test_a_form_with_problems_goes_back_to_the_editor_until_it_is_complete_or_th
 
 def test_problems_the_user_can_fix_exit_with_1_and_a_message(workdir, monkeypatch, capsys):
     (workdir / "empty").mkdir()
-    code = cli.main([str(workdir / "empty"), "--category", "proposals", "--out-dir", str(workdir / "runs")], Session().console())
+    code = cli.main(
+        [str(workdir / "empty"), "--category", "proposals", "--out-dir", str(workdir / "runs")], Session().console()
+    )
     assert code == cli.FAILED and "No .md documents" in capsys.readouterr().err
 
 
@@ -209,8 +242,17 @@ def test_the_form_file_lists_the_required_inputs_first_with_their_notes_and_is_r
     tree = LearnedTree(
         category="c",
         nodes=[
-            LearnedNode(type="t", text="a {{y}}", kind="slot", alternatives=["a"],
-                        children=[LearnedNode(type="t", text="b {{z}}", kind="slot", conditions=[Condition(field="f", op="=", value="true")])]),
+            LearnedNode(
+                type="t",
+                text="a {{y}}",
+                kind="slot",
+                alternatives=["a"],
+                children=[
+                    LearnedNode(
+                        type="t", text="b {{z}}", kind="slot", conditions=[Condition(field="f", op="=", value="true")]
+                    )
+                ],
+            ),
             LearnedNode(type="t", text="c {{x}}", kind="slot"),
         ],
         fields=[FieldInfo(name=n, type="number" if n == "x" else "text", description=f"the {n}") for n in "yzfx"],

@@ -20,12 +20,13 @@ translator (`make example-launching`). It prints the runs of each request as a t
 ```python
 class Researcher(AgentBase):
     name: str = "researcher"
-    description: str = "Finds facts about a topic"      # this is what the parent's model reads
+    description: str = "Finds facts about a topic"  # this is what the parent's model reads
     ...
+
 
 class Planner(AgentBase):
     ...
-    subagents: list[type] = [Researcher, Writer]       # the only agents Planner can launch
+    subagents: list[type] = [Researcher, Writer]  # the only agents Planner can launch
 ```
 
 `subagents` holds agent **classes**. It is the allow-list: an agent can launch exactly those, and nothing else.

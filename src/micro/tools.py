@@ -125,7 +125,7 @@ _ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 
 def _utc_now() -> dt.datetime:
-    return dt.datetime.now(dt.timezone.utc)
+    return dt.datetime.now(dt.UTC)
 
 
 def _parse_date(text: str) -> dt.date:

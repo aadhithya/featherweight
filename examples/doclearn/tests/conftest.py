@@ -1,5 +1,4 @@
 import pytest_asyncio
-
 from doclearn.store import LearnedStore
 
 

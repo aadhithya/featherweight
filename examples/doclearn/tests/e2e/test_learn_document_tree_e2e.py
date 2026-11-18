@@ -12,18 +12,17 @@ import logging
 import re
 from pathlib import Path
 
-import pytest
-
 from doclearn.cli import read_documents
 from doclearn.facts import SPAN_RE, find_spans, heading_key, walk
 from doclearn.models import Document, LearnedTree
 from doclearn.pipeline import learn_document_tree
 from doclearn.store import LearnedStore
+from learned_checks import shared_sections, structural_problems
+
 from micro.db import Database
 from micro.jobs import run_job
 from micro.models import RunStatus
 from micro.runner import AgentRunner
-from learned_checks import shared_sections, structural_problems
 
 CATEGORY = "project_proposals"
 FIXTURES = Path(__file__).parent.parent / "fixtures" / "proposals"
@@ -57,7 +56,9 @@ def check_role_slots(tree: LearnedTree) -> None:
         blocks = [n for n in walk(scope) if label in n.text]
         assert len(blocks) == 1, f"{role}: {len(blocks)} blocks with {label!r}"
         (block,) = blocks
-        assert block.kind == "slot" and not block.alternatives and not block.conditions, f"{role}: {block.kind} {block.text!r}"
+        assert block.kind == "slot" and not block.alternatives and not block.conditions, (
+            f"{role}: {block.kind} {block.text!r}"
+        )
         span = re.search(re.escape(label) + r"\s*" + SPAN_RE.pattern, block.text)
         assert span, f"{role}: no span after {label!r} in {block.text!r}"
         names[role] = span.group(1)
@@ -72,12 +73,19 @@ def check_fixture_proposals_tree(tree: LearnedTree) -> None:
     conditioned = [n for n in nodes if n.conditions]
     covered = " ".join(m.text for c in conditioned for m in walk([c]))  # a condition covers the block and its children
     assert "Optional Support" in covered, f"no conditional Optional Support block; conditional: {covered!r}"
-    assert any(n.alternatives for n in nodes), "no block has alternatives although the payment lines are worded differently"
+    assert any(n.alternatives for n in nodes), (
+        "no block has alternatives although the payment lines are worded differently"
+    )
 
 
 async def learn_and_check(
-    runner: AgentRunner, db: Database, documents: list[Document], caplog, sections: list[str] = SECTIONS,
-    category: str = CATEGORY, fixture_proposals: bool = False,
+    runner: AgentRunner,
+    db: Database,
+    documents: list[Document],
+    caplog,
+    sections: list[str] = SECTIONS,
+    category: str = CATEGORY,
+    fixture_proposals: bool = False,
 ) -> None:
     """Run `learn_document_tree` through `run_job` and check what ended up in the database. `fixture_proposals` adds the
     checks that depend on the content of tests/fixtures/proposals (roles, the conditional block, nothing unmapped)."""
@@ -98,7 +106,9 @@ async def learn_and_check(
     nodes = list(walk(tree.nodes))
     for n in nodes:
         kinds[n.kind] = kinds.get(n.kind, 0) + 1
-    print(f"\n[learned] {len(tree.nodes)} units, {len(nodes)} blocks {kinds}; template types: {sorted(e.name for e in template.element_types)}")
+    print(
+        f"\n[learned] {len(tree.nodes)} units, {len(nodes)} blocks {kinds}; template types: {sorted(e.name for e in template.element_types)}"
+    )
     for position, root in enumerate(tree.nodes, 1):
         print(f"  unit {position}: [{root.kind}] {root.text[:60]} ({len(list(walk([root])))} blocks)")
     conditional = [n for n in nodes if n.conditions]
@@ -117,13 +127,17 @@ async def learn_and_check(
     problems = structural_problems(tree, sections)  # the shape: these units, none conditional, no heading twice
     assert not problems, "; ".join(problems)
     assert {n.type for n in nodes} <= {e.name for e in template.element_types}
-    assert {s for n in nodes for text in [n.text, *n.alternatives] for s in find_spans(text)} <= {f.name for f in tree.fields}
+    assert {s for n in nodes for text in [n.text, *n.alternatives] for s in find_spans(text)} <= {
+        f.name for f in tree.fields
+    }
     assert any(n.kind == "slot" for n in nodes) and any(n.kind == "fixed" for n in nodes), f"kinds: {kinds}"
 
     if fixture_proposals:
         check_role_slots(tree)
         check_fixture_proposals_tree(tree)
-        assert not [r for r in caplog.records if r.getMessage().startswith("reconciliation_unmapped")], "the Reconciler left names unmapped"
+        assert not [r for r in caplog.records if r.getMessage().startswith("reconciliation_unmapped")], (
+            "the Reconciler left names unmapped"
+        )
 
     # the facts schema: inputs only, each described and typed, no calculated fields
     assert schema.category == category and len(schema.fields) >= MIN_SCHEMA_FIELDS, f"only {len(schema.fields)} inputs"
@@ -138,7 +152,9 @@ async def learn_and_check(
     successful = [r for r in runs if r.status == RunStatus.SUCCESS]
     by_agent = {a: sum(r.agent_name == a for r in successful) for a in {r.agent_name for r in runs}}
     assert all(r.input_tokens and r.output_tokens for r in successful), "a successful run has no token counts"
-    print(f"[run log] model calls: {len(runs)} ({len(runs) - len(successful)} retried); successful by agent: {by_agent}")
+    print(
+        f"[run log] model calls: {len(runs)} ({len(runs) - len(successful)} retried); successful by agent: {by_agent}"
+    )
     assert by_agent == {
         "document_analyzer": len(documents),
         "reconciliation_agent": 1,

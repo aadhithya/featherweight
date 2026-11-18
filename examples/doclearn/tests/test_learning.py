@@ -1,10 +1,10 @@
 import json
 
 import pytest
-
-from fakes import Reactive, flat_blocks, runner_with, structured_reply
 from doclearn.learning import analyze_documents
 from doclearn.models import Document
+from fakes import Reactive, flat_blocks, runner_with, structured_reply
+
 from micro.models import RunStatus
 
 

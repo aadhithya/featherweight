@@ -3,7 +3,6 @@
 import json
 
 import pytest
-
 from doclearn.alignment import SemanticAlignmentInput, SemanticAlignmentOutput
 from doclearn.analyzer import AnalyzerInput, AnalyzerOutput
 from doclearn.models import (

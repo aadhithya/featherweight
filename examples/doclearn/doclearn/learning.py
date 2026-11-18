@@ -6,8 +6,6 @@ from collections import Counter
 from collections.abc import Sequence
 from statistics import fmean
 
-from micro.models import RunStatus
-from micro.runner import AgentRunner
 from pydantic import BaseModel, Field
 
 from doclearn.alignment import SemanticAlignmentAgent, SemanticAlignmentInput
@@ -25,6 +23,7 @@ from doclearn.models import (
     Document,
     DocumentFacts,
     DocumentTemplate,
+    FactNode,
     FieldContext,
     FieldExamples,
     FieldInfo,
@@ -33,6 +32,8 @@ from doclearn.models import (
     UnitDocument,
 )
 from doclearn.reconciler import ReconcilerInput, ReconciliationAgent
+from micro.models import RunStatus
+from micro.runner import AgentRunner
 
 logger = logging.getLogger(__name__)
 
@@ -72,15 +73,16 @@ async def analyze_documents(
     )
 
     analysis = AnalysisResult()
-    for document, result in zip(documents, results):
+    for document, result in zip(documents, results, strict=True):
         if result.status == RunStatus.SUCCESS:
             facts = result.output.to_facts(document.document_id)
-            analysis.analyzed.append(
-                AnalyzedDocument(facts=facts, template=result.output.to_template(category))
-            )
+            analysis.analyzed.append(AnalyzedDocument(facts=facts, template=result.output.to_template(category)))
             logger.info(
                 "document_analyzed document_id=%s top_level=%d blocks=%d fields=%d",
-                document.document_id, len(facts.nodes), len(list(walk(facts.nodes))), len(facts.fields),
+                document.document_id,
+                len(facts.nodes),
+                len(list(walk(facts.nodes))),
+                len(facts.fields),
             )
         else:
             analysis.failed.append(FailedDocument(document_id=document.document_id, error=result.error or ""))
@@ -88,7 +90,10 @@ async def analyze_documents(
 
     logger.info(
         "analysis_finished category=%s analyzed=%d failed=%d job_id=%s",
-        category, len(analysis.analyzed), len(analysis.failed), job_id,
+        category,
+        len(analysis.analyzed),
+        len(analysis.failed),
+        job_id,
     )
     return analysis
 
@@ -180,15 +185,17 @@ async def reconcile(
     unmapped_types = sorted({e.name for a in analysis.analyzed for e in a.template.element_types} - mapped_types)
     unmapped_fields = sorted({n for a in analysis.analyzed for n in a.facts.fields} - mapped_fields)
     if unmapped_types or unmapped_fields:
-        logger.warning(
-            "reconciliation_unmapped types=%s fields=%s (left unchanged)", unmapped_types, unmapped_fields
-        )
+        logger.warning("reconciliation_unmapped types=%s fields=%s (left unchanged)", unmapped_types, unmapped_fields)
     logger.info(
         "reconciliation_finished documents=%d types=%d->%d fields=%d->%d unmapped_types=%d unmapped_fields=%d job_id=%s",
         len(facts),
-        len({e.name for a in analysis.analyzed for e in a.template.element_types}), len(type_map),
-        len({n for a in analysis.analyzed for n in a.facts.fields}), len(field_map),
-        len(unmapped_types), len(unmapped_fields), job_id,
+        len({e.name for a in analysis.analyzed for e in a.template.element_types}),
+        len(type_map),
+        len({n for a in analysis.analyzed for n in a.facts.fields}),
+        len(field_map),
+        len(unmapped_types),
+        len(unmapped_fields),
+        job_id,
     )
     return ReconciledAnalysis(
         template=output.to_template(category),
@@ -216,7 +223,9 @@ def build_units(reconciled: ReconciledAnalysis, category: str) -> list[SemanticA
     """
     styles = {e.name: e for e in reconciled.template.element_types}
 
-    sections: dict[tuple[str, int], dict[str, tuple[int, FactNode]]] = {}  # (heading, occurrence) -> document -> (index, node)
+    sections: dict[
+        tuple[str, int], dict[str, tuple[int, FactNode]]
+    ] = {}  # (heading, occurrence) -> document -> (index, node)
     for facts in reconciled.facts:
         seen: Counter[str] = Counter()
         for index, section in enumerate(facts.nodes):
@@ -286,7 +295,11 @@ def normalize_spans(node: LearnedNode, fields: list[FieldInfo]) -> tuple[Learned
     still_used = {
         name
         for n in walk([result])
-        for name in [*find_spans(n.text), *(s for a in n.alternatives for s in find_spans(a)), *(c.field for c in n.conditions)]
+        for name in [
+            *find_spans(n.text),
+            *(s for a in n.alternatives for s in find_spans(a)),
+            *(c.field for c in n.conditions),
+        ]
     }
     dropped = renamed - still_used
     return result, [f for f in fields if f.name not in dropped]
@@ -310,14 +323,14 @@ async def align_units(
 
     failures = [
         f"unit {unit.position}: {result.error if result.status != RunStatus.SUCCESS else 'no blocks returned'}"
-        for unit, result in zip(units, results)
+        for unit, result in zip(units, results, strict=True)
         if result.status != RunStatus.SUCCESS or not result.output.blocks
     ]
     if failures:
         raise LearningError("Semantic Alignment failed for " + "; ".join(failures))
 
     aligned = []
-    for unit, result in zip(units, results):
+    for unit, result in zip(units, results, strict=True):
         node, fields = normalize_spans(result.output.to_node(), result.output.fields)
         aligned.append(AlignedUnit(position=unit.position, node=node, fields=fields))
     logger.info(

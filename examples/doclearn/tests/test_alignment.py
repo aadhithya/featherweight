@@ -1,14 +1,14 @@
 import json
 
 import pytest
-from pydantic import ValidationError
-
-from builders import block, facts, fld, fnode, lnode, info, reconciled
-from fakes import Reactive, Scripted, runner_with, structured_reply
+from builders import block, facts, fld, fnode, info, lnode, reconciled
 from doclearn.alignment import SemanticAlignmentAgent, SemanticAlignmentOutput
 from doclearn.facts import walk
 from doclearn.learning import LearningError, align_units, build_units, normalize_spans
 from doclearn.models import Condition, LearnedNode
+from fakes import Reactive, Scripted, runner_with, structured_reply
+from pydantic import ValidationError
+
 from micro.models import RunStatus
 
 
@@ -55,7 +55,10 @@ def test_a_consistent_output_rebuilds_the_tree_with_its_nesting_and_list_order()
     root = out.to_node()
 
     assert isinstance(root, LearnedNode) and root.text == "## PRICING"
-    assert [c.text for c in root.children] == ["Total price: {{total_price}}.", "Include the optional training package."]
+    assert [c.text for c in root.children] == [
+        "Total price: {{total_price}}.",
+        "Include the optional training package.",
+    ]
     assert root.children[1].conditions == [Condition(field="include_training", op="=", value="true")]
     assert root.children[0].kind == "slot" and root.conditions == []
     assert out.open_questions == []
@@ -71,7 +74,10 @@ def test_a_consistent_output_rebuilds_the_tree_with_its_nesting_and_list_order()
         block("b6", "b5", "statement", "b1"),
     ]
     nested = SemanticAlignmentOutput.model_validate({"blocks": blocks}).to_node()
-    assert [(c.text, [g.text for g in c.children]) for c in nested.children] == [("1. A", ["a1", "a2"]), ("2. B", ["b1"])]
+    assert [(c.text, [g.text for g in c.children]) for c in nested.children] == [
+        ("1. A", ["a1", "a2"]),
+        ("2. B", ["b1"]),
+    ]
 
 
 def _alternative_with_a_new_span(d):
@@ -92,8 +98,14 @@ def _alternative_with_a_new_span(d):
         (lambda d: d["blocks"][0].update(parent_id="b2"), "exactly one root block"),
         (lambda d: d["blocks"][2].update(parent_id=""), "exactly one root block"),
         (lambda d: d["blocks"][2].update(parent_id="b9"), r"unknown blocks: \['b9'\]"),
-        (lambda d: (d["blocks"][1].update(parent_id="b3"), d["blocks"][2].update(parent_id="b2")), r"not connected to the root: \['b2', 'b3'\]"),
-        (lambda d: (d.update(fields=[]), d["blocks"][2].update(parent_id="b9")), r"(?s)(?=.*unknown blocks)(?=.*not described)"),  # together
+        (
+            lambda d: (d["blocks"][1].update(parent_id="b3"), d["blocks"][2].update(parent_id="b2")),
+            r"not connected to the root: \['b2', 'b3'\]",
+        ),
+        (
+            lambda d: (d.update(fields=[]), d["blocks"][2].update(parent_id="b9")),
+            r"(?s)(?=.*unknown blocks)(?=.*not described)",
+        ),  # together
     ],
 )
 def test_invalid_alignment_output_is_rejected(mutate, message):
@@ -106,7 +118,9 @@ def test_invalid_alignment_output_is_rejected(mutate, message):
 def test_the_kind_is_read_off_the_text_not_given_by_the_agent():
     """A real run: 13 of 22 failed attempts contradicted the agent's own text (`slot` with no span, `fixed` with a
     span), e.g. for a block worded `... at the standard rate.` in one document and `... from {{date}}.` in two."""
-    kinds = lambda data: [n.kind for n in walk([SemanticAlignmentOutput.model_validate(data).to_node()])]
+
+    def kinds(data):
+        return [n.kind for n in walk([SemanticAlignmentOutput.model_validate(data).to_node()])]
 
     assert kinds(learned()) == ["fixed", "slot", "generated"]  # no span, a span, judged generated
 
@@ -116,7 +130,9 @@ def test_the_kind_is_read_off_the_text_not_given_by_the_agent():
     assert kinds(data)[1] == "fixed"
 
     data = learned()
-    data["blocks"][1].update(text="Payment is due at the standard rate.", alternatives=["Payment is due from {{total_price}}."])
+    data["blocks"][1].update(
+        text="Payment is due at the standard rate.", alternatives=["Payment is due from {{total_price}}."]
+    )
     assert kinds(data)[1] == "slot"  # a span in any wording makes it a slot
 
     data = learned()
@@ -161,14 +177,20 @@ def test_edge_cases_of_the_units_no_documents_a_missing_section_and_a_span_witho
 
 
 def tree_of(n_blocks: int) -> SemanticAlignmentOutput:
-    blocks = [block("b1", "", "section", "## S")] + [block(f"b{i + 2}", "b1", "statement", f"s{i}") for i in range(n_blocks - 1)]
+    blocks = [block("b1", "", "section", "## S")] + [
+        block(f"b{i + 2}", "b1", "statement", f"s{i}") for i in range(n_blocks - 1)
+    ]
     return SemanticAlignmentOutput.model_validate({"blocks": blocks[:n_blocks]})
 
 
 @pytest.mark.parametrize(
     "n_statements,n_returned,message",
     [
-        (7, 1, r"(?s)learned tree has 1 blocks but the largest document has 8.*Returned: \['b1<-root:## S'\]"),  # only the heading
+        (
+            7,
+            1,
+            r"(?s)learned tree has 1 blocks but the largest document has 8.*Returned: \['b1<-root:## S'\]",
+        ),  # only the heading
         (3, 1, "learned tree has 1 blocks"),
         (3, 2, None),  # the largest document has 4 blocks: exactly half is fine
         (3, 4, None),
@@ -199,7 +221,9 @@ def respond_by_position(user_text, call_number):
     if position == 3:
         return structured_reply("SemanticAlignmentOutput", learned())
     root_type = payload["documents"][0]["node"]["type"]  # a realistic reply uses the input's own element type
-    return structured_reply("SemanticAlignmentOutput", {"blocks": [block("b1", "", root_type, f"unit {position}")], "fields": []})
+    return structured_reply(
+        "SemanticAlignmentOutput", {"blocks": [block("b1", "", root_type, f"unit {position}")], "fields": []}
+    )
 
 
 async def test_every_unit_is_aligned_concurrently_and_returned_in_position_order(db):
@@ -214,14 +238,21 @@ async def test_every_unit_is_aligned_concurrently_and_returned_in_position_order
     assert {f.name for f in aligned[2].fields} == {"total_price", "include_training"}
     assert model.max_in_flight > 1
     runs = await db.list_runs(job_id=job_id)
-    assert [r.agent_name for r in runs] == ["semantic_alignment"] * 3 and all(r.status == RunStatus.SUCCESS for r in runs)
+    assert [r.agent_name for r in runs] == ["semantic_alignment"] * 3 and all(
+        r.status == RunStatus.SUCCESS for r in runs
+    )
 
 
 @pytest.mark.parametrize(
     "analysis,position,reply,message",
     [
         (three_documents(), 2, RuntimeError("down"), r"unit 2: RuntimeError: down"),
-        (three_documents(), 1, structured_reply("SemanticAlignmentOutput", {}), "unit 1: ValueError: no blocks returned"),
+        (
+            three_documents(),
+            1,
+            structured_reply("SemanticAlignmentOutput", {}),
+            "unit 1: ValueError: no blocks returned",
+        ),
         (reconciled(), None, None, "no units"),
     ],
 )
@@ -244,8 +275,16 @@ async def test_a_unit_that_keeps_failing_fails_the_step_and_names_the_unit(db, a
 )
 async def test_an_unacceptable_reply_is_retried_through_the_runner(db, first_reply, error):
     docs = reconciled(facts("a", fnode("section", "## S", *[fnode("statement", f"s{i}") for i in range(7)])))
-    full = {"blocks": [block("b1", "", "section", "## S")] + [block(f"b{i + 2}", "b1", "statement", f"s{i}") for i in range(7)]}
-    model = Scripted(script=[structured_reply("SemanticAlignmentOutput", first_reply), structured_reply("SemanticAlignmentOutput", full)])
+    full = {
+        "blocks": [block("b1", "", "section", "## S")]
+        + [block(f"b{i + 2}", "b1", "statement", f"s{i}") for i in range(7)]
+    }
+    model = Scripted(
+        script=[
+            structured_reply("SemanticAlignmentOutput", first_reply),
+            structured_reply("SemanticAlignmentOutput", full),
+        ]
+    )
 
     aligned = await align_units(runner_with(db, model), docs, "proposals")
 
@@ -336,14 +375,20 @@ def test_an_alternative_with_another_span_name_gets_the_blocks_name_and_the_unus
     span and one fact became three inputs."""
     item = bullet(
         "- Lost client contract: {{lost_client_contract_value}}",
-        alternatives=["- Client penalty payments: {{client_penalties}}", "- Lost charter contracts: {{charter_losses}}"],
+        alternatives=[
+            "- Client penalty payments: {{client_penalties}}",
+            "- Lost charter contracts: {{charter_losses}}",
+        ],
     )
     original = item.model_dump()
     node, fields = normalize_spans(
         bullet("## PRICES", item, kind="fixed"),
         [info(n, "number") for n in ("lost_client_contract_value", "client_penalties", "charter_losses")],
     )
-    assert node.children[0].alternatives == ["- Client penalty payments: {{lost_client_contract_value}}", "- Lost charter contracts: {{lost_client_contract_value}}"]
+    assert node.children[0].alternatives == [
+        "- Client penalty payments: {{lost_client_contract_value}}",
+        "- Lost charter contracts: {{lost_client_contract_value}}",
+    ]
     assert [f.name for f in fields] == ["lost_client_contract_value"]
     assert item.model_dump() == original  # the input is not modified
 
@@ -352,7 +397,9 @@ def test_a_renamed_field_is_kept_when_used_elsewhere_and_ambiguous_alternatives_
     first = bullet("- Item: {{amount}}", alternatives=["- Other: {{penalties}}"])
     second = bullet("- Penalties: {{penalties}}", kind="slot")
     flagged = bullet("- Extra", conditions=[Condition(field="extra", op="=", value="true")])
-    node, fields = normalize_spans(bullet("## S", first, second, flagged, kind="fixed"), [info("amount"), info("penalties"), info("extra")])
+    node, fields = normalize_spans(
+        bullet("## S", first, second, flagged, kind="fixed"), [info("amount"), info("penalties"), info("extra")]
+    )
     assert node.children[0].alternatives == ["- Other: {{amount}}"]
     assert [f.name for f in fields] == ["amount", "penalties", "extra"]
 
@@ -374,7 +421,9 @@ async def test_align_units_normalizes_the_spans_of_every_unit(db):
         data["fields"].append(fld("amount_quoted", "number"))
         return structured_reply("SemanticAlignmentOutput", data)
 
-    one_section = facts("d1", fnode("section", "## PRICING", fnode("statement", "Total price: {{total_price}}.")), total_price="$1")
+    one_section = facts(
+        "d1", fnode("section", "## PRICING", fnode("statement", "Total price: {{total_price}}.")), total_price="$1"
+    )
     aligned = await align_units(runner_with(db, Reactive(respond=respond)), reconciled(one_section), "proposals")
 
     assert aligned[0].node.children[0].alternatives == ["Quote a price of {{total_price}}."]

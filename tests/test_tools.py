@@ -3,10 +3,10 @@
 import json
 from typing import ClassVar
 
+from fakes import Scripted, runner_with, structured_reply, tool_reply
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
 
-from fakes import Scripted, runner_with, structured_reply, tool_reply
 from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus
 from micro.store import RunStore
 from micro.tools import store_get, store_set
@@ -66,9 +66,7 @@ async def test_store_is_shared_between_agents_of_the_same_job_only(db):
     writer = Scripted(
         script=[tool_reply("store_set", {"key": "k", "value": "from job 1"}, "t1"), structured_reply("TaskOutput", {})]
     )
-    reader_same_job = Scripted(
-        script=[tool_reply("store_get", {"key": "k"}, "t2"), structured_reply("TaskOutput", {})]
-    )
+    reader_same_job = Scripted(script=[tool_reply("store_get", {"key": "k"}, "t2"), structured_reply("TaskOutput", {})])
     reader_other_job = Scripted(
         script=[tool_reply("store_get", {"key": "k"}, "t3"), structured_reply("TaskOutput", {})]
     )

@@ -207,9 +207,7 @@ class AgentRunner:
         the job and records the attempt that launched it."""
         agent = agent_cls()
         if not isinstance(agent_input, agent.input_model):
-            raise TypeError(
-                f"{agent.name} expects {agent.input_model.__name__}, got {type(agent_input).__name__}"
-            )
+            raise TypeError(f"{agent.name} expects {agent.input_model.__name__}, got {type(agent_input).__name__}")
 
         invocation_id = new_id()
         # Only an agent that has depth left to launch is told about its sub-agents, and given the tools.
@@ -227,7 +225,12 @@ class AgentRunner:
 
         logger.info(
             "invocation_started invocation_id=%s agent=%s version=%s model=%s reasoning=%s job_id=%s max_attempts=%d",
-            invocation_id, agent.name, agent.version, agent.model_name, agent.reasoning, job_id,
+            invocation_id,
+            agent.name,
+            agent.version,
+            agent.model_name,
+            agent.reasoning,
+            job_id,
             self.max_attempts,
         )
 
@@ -263,12 +266,16 @@ class AgentRunner:
                 if queued:
                     logger.info(
                         "slot_acquired agent_run_id=%s waited_ms=%.0f",
-                        agent_run_id, (time.perf_counter() - wait_started) * 1000,
+                        agent_run_id,
+                        (time.perf_counter() - wait_started) * 1000,
                     )
                 await self.db.mark_run_running(agent_run_id)
                 logger.info(
                     "attempt_started agent_run_id=%s invocation_id=%s attempt=%d/%d",
-                    agent_run_id, invocation_id, attempt, self.max_attempts,
+                    agent_run_id,
+                    invocation_id,
+                    attempt,
+                    self.max_attempts,
                 )
                 attempt_started = time.perf_counter()
 
@@ -288,7 +295,11 @@ class AgentRunner:
                     )
                     logger.warning(
                         "attempt_failed agent_run_id=%s attempt=%d/%d non_retryable=%s error=%s",
-                        agent_run_id, attempt, self.max_attempts, non_retryable, error,
+                        agent_run_id,
+                        attempt,
+                        self.max_attempts,
+                        non_retryable,
+                        error,
                     )
                 else:
                     await self.db.finish_run(
@@ -303,7 +314,11 @@ class AgentRunner:
                     latency_ms = (time.perf_counter() - started) * 1000
                     logger.info(
                         "invocation_finished invocation_id=%s status=SUCCESS attempts=%d input_tokens=%d output_tokens=%d latency_ms=%.0f",
-                        invocation_id, attempt, input_tokens, output_tokens, latency_ms,
+                        invocation_id,
+                        attempt,
+                        input_tokens,
+                        output_tokens,
+                        latency_ms,
                     )
                     return result_cls(
                         status=RunStatus.SUCCESS,
@@ -327,7 +342,10 @@ class AgentRunner:
         latency_ms = (time.perf_counter() - started) * 1000
         logger.error(
             "invocation_finished invocation_id=%s status=FAILED attempts=%d latency_ms=%.0f error=%s",
-            invocation_id, attempt, latency_ms, error,
+            invocation_id,
+            attempt,
+            latency_ms,
+            error,
         )
         return result_cls(
             status=RunStatus.FAILED,
@@ -407,18 +425,28 @@ class AgentRunner:
             launches += 1
             logger.info(
                 "agent_launch parent_agent_run_id=%s child=%s depth=%d launch=%d/%d job_id=%s",
-                context.agent_run_id, agent_name, depth + 1, launches, self.max_launches, context.job_id,
+                context.agent_run_id,
+                agent_name,
+                depth + 1,
+                launches,
+                self.max_launches,
+                context.job_id,
             )
             slot.leave()  # the child needs a slot of its own
             try:
                 result = await self._run(
-                    type(child), child_input, job_id=context.job_id,
-                    parent_agent_run_id=context.agent_run_id, depth=depth + 1,
+                    type(child),
+                    child_input,
+                    job_id=context.job_id,
+                    parent_agent_run_id=context.agent_run_id,
+                    depth=depth + 1,
                 )
             finally:
                 await slot.back()
             if result.status == RunStatus.SUCCESS:
-                return json.dumps({"status": "SUCCESS", "agent": agent_name, "output": result.output.model_dump(mode="json")})
+                return json.dumps(
+                    {"status": "SUCCESS", "agent": agent_name, "output": result.output.model_dump(mode="json")}
+                )
             return json.dumps({"status": "FAILED", "agent": agent_name, "error": result.error})
 
         return [launch_agent, get_agent_schema]

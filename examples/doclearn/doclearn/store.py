@@ -5,12 +5,12 @@ sqlite connection. Each run adds a row (history is kept); `latest` returns the n
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from micro.db import Database, new_id
 from pydantic import BaseModel
 
 from doclearn.models import DocumentTemplate, FactsSchema, LearnedTree
+from micro.db import Database, new_id
 
 logger = logging.getLogger(__name__)
 
@@ -64,14 +64,23 @@ class LearnedStore:
             """INSERT INTO learned_documents (learned_id, job_id, category, template, tree, facts_schema, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (
-                learned_id, job_id, category, template.model_dump_json(), tree.model_dump_json(),
-                facts_schema.model_dump_json(), datetime.now(timezone.utc).isoformat(),
+                learned_id,
+                job_id,
+                category,
+                template.model_dump_json(),
+                tree.model_dump_json(),
+                facts_schema.model_dump_json(),
+                datetime.now(UTC).isoformat(),
             ),
         )
         await self.db.conn.commit()
         logger.info(
             "learned_saved learned_id=%s job_id=%s category=%s units=%d schema_fields=%d",
-            learned_id, job_id, category, len(tree.nodes), len(facts_schema.fields),
+            learned_id,
+            job_id,
+            category,
+            len(tree.nodes),
+            len(facts_schema.fields),
         )
         return learned_id
 

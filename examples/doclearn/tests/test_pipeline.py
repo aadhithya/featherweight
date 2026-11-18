@@ -1,11 +1,11 @@
 """The whole learning pipeline with a mocked LLM: Analyzer, Reconciler, Semantic Alignment, assembly, storage."""
 
 import pytest
-
 from builders import make_respond
-from fakes import Reactive, runner_with
 from doclearn.models import Document
 from doclearn.pipeline import learn_document_tree
+from fakes import Reactive, runner_with
+
 from micro.jobs import run_job
 from micro.models import RunStatus
 
@@ -27,16 +27,29 @@ async def test_the_whole_pipeline_learns_stores_and_marks_the_job_success(db, st
     assert [n.text for n in learned.tree.nodes] == ["# PROPOSAL", "## CLIENT", "## PRICING"]
     assert [c.text for c in learned.tree.nodes[0].children] == ["**Proposal No.:** {{proposal_no}}"]
     pricing = learned.tree.nodes[2]
-    assert [c.text for c in pricing.children] == ["- Total price: {{total_price}}.", "- Add the optional training package."]
+    assert [c.text for c in pricing.children] == [
+        "- Total price: {{total_price}}.",
+        "- Add the optional training package.",
+    ]
     assert pricing.children[1].conditions[0].field == "include_training"
     assert {e.name for e in learned.template.element_types} == {"title", "metadata", "section", "statement"}
-    assert [f.name for f in learned.facts_schema.fields] == ["proposal_no", "client_name", "total_price", "include_training"]
-    assert "proposal_num" not in learned.tree.model_dump_json()  # the naming drift of document b is reconciled before alignment
+    assert [f.name for f in learned.facts_schema.fields] == [
+        "proposal_no",
+        "client_name",
+        "total_price",
+        "include_training",
+    ]
+    assert (
+        "proposal_num" not in learned.tree.model_dump_json()
+    )  # the naming drift of document b is reconciled before alignment
 
     job = await db.get_job(outcome.job_id)
     assert (job.status, job.error) == (RunStatus.SUCCESS, None) and job.completed_at
     runs = await db.list_runs(job_id=outcome.job_id)
-    assert sorted(r.agent_name for r in runs) == ["document_analyzer"] * 3 + ["reconciliation_agent"] + ["semantic_alignment"] * 3
+    assert (
+        sorted(r.agent_name for r in runs)
+        == ["document_analyzer"] * 3 + ["reconciliation_agent"] + ["semantic_alignment"] * 3
+    )
     assert all(r.status == RunStatus.SUCCESS for r in runs)
 
 
@@ -54,7 +67,9 @@ async def test_progress_lines_come_in_pipeline_order(db, store):
     lines: list[str] = []
     runner = runner_with(db, Reactive(respond=make_respond()))
     outcome = await run_job(
-        db, "learn", lambda job_id: learn_document_tree(runner, store, DOCUMENTS, "proposals", job_id=job_id, progress=lines.append)
+        db,
+        "learn",
+        lambda job_id: learn_document_tree(runner, store, DOCUMENTS, "proposals", job_id=job_id, progress=lines.append),
     )
 
     assert outcome.status == RunStatus.SUCCESS, outcome.error

@@ -1,5 +1,4 @@
 import pytest
-
 from doclearn.alignment import SemanticAlignmentAgent, SemanticAlignmentInput, SemanticAlignmentOutput
 from doclearn.analyzer import AnalyzerInput, AnalyzerOutput, DocumentAnalyzer
 from doclearn.reconciler import ReconcilerInput, ReconcilerOutput, ReconciliationAgent

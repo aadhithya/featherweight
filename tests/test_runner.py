@@ -2,10 +2,10 @@ import json
 import logging
 
 import pytest
+from fakes import Echo, EchoInput, EchoOutput, Scripted, runner_with, structured_reply, tool_reply
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.tools import BaseTool, tool
 
-from fakes import Echo, EchoInput, EchoOutput, Scripted, runner_with, structured_reply, tool_reply
 from micro import runner as runner_module
 from micro.models import AgentInput, RunStatus
 from micro.runner import AgentRunner, ModelSetupError, is_non_retryable

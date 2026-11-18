@@ -7,7 +7,6 @@ written under pytest's tmp dir and the test prints its path.
 from pathlib import Path
 
 import pytest
-
 from doclearn import cli
 
 SAMPLES = Path(__file__).parent.parent.parent / "samples" / "incident_reports"

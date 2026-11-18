@@ -4,11 +4,10 @@ import json
 
 import pytest
 import pytest_asyncio
-
-from fakes import Scripted, runner_with, structured_reply
-from doclearn.autofill import MAX_RETRIES, AutofillError, check_form, fill_form
 from doclearn.assembly import derive_facts_schema
+from doclearn.autofill import MAX_RETRIES, AutofillError, check_form, fill_form
 from doclearn.models import DocumentTemplate, FieldInfo, FieldValue, InputField, LearnedNode, LearnedTree
+from fakes import Scripted, runner_with, structured_reply
 
 
 def field(name, type_="text", required=True):
@@ -27,7 +26,10 @@ FIELDS = [field("who"), field("amount", "number"), field("day", "date"), field("
     [
         (values(who="Alder Ltd", amount="$5", day="March 4, 2024"), []),
         # empty values count as not given, and optional inputs may be left out
-        (values(who="Alpine", amount=" ", day="March 4, 2024", flag=""), ["required fields without a value: ['amount']"]),
+        (
+            values(who="Alpine", amount=" ", day="March 4, 2024", flag=""),
+            ["required fields without a value: ['amount']"],
+        ),
         (
             values(who="A", amount="many", day="soon", flag="maybe", extra="x") + values(who="B"),
             [
@@ -49,14 +51,24 @@ async def learned(store):
     tree = LearnedTree(
         category="proposals",
         nodes=[LearnedNode(type="t", text="Quote for {{who}}: {{amount}}", kind="slot")],
-        fields=[FieldInfo(name="who", type="text", description="the customer"), FieldInfo(name="amount", type="number", description="the sum")],
+        fields=[
+            FieldInfo(name="who", type="text", description="the customer"),
+            FieldInfo(name="amount", type="number", description="the sum"),
+        ],
     )
-    learned_id = await store.save(category="proposals", template=DocumentTemplate(category="proposals"), tree=tree, facts_schema=derive_facts_schema(tree))
+    learned_id = await store.save(
+        category="proposals",
+        template=DocumentTemplate(category="proposals"),
+        tree=tree,
+        facts_schema=derive_facts_schema(tree),
+    )
     return await store.get(learned_id)
 
 
 def reply(facts, story="A story."):
-    return structured_reply("FormFillerOutput", {"facts": [{"name": n, "value": v} for n, v in facts.items()], "story": story})
+    return structured_reply(
+        "FormFillerOutput", {"facts": [{"name": n, "value": v} for n, v in facts.items()], "story": story}
+    )
 
 
 async def test_problems_go_back_to_the_agent_and_the_second_attempt_is_taken(db, learned):

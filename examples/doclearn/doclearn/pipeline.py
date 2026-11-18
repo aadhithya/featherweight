@@ -3,13 +3,13 @@
 import logging
 from collections.abc import Callable, Sequence
 
-from micro.runner import AgentRunner
 from pydantic import BaseModel, Field
 
 from doclearn.assembly import DocumentConformance, assemble
 from doclearn.learning import FailedDocument, align_units, analyze_documents, reconcile
 from doclearn.models import Document
 from doclearn.store import LearnedStore
+from micro.runner import AgentRunner
 
 logger = logging.getLogger(__name__)
 
@@ -72,8 +72,14 @@ async def learn_document_tree(
     )
     logger.info(
         "learning_finished learned_id=%s category=%s analyzed=%d skipped=%d units=%d schema_fields=%d warnings=%d job_id=%s",
-        learned_id, category, len(analysis.analyzed), len(analysis.failed), len(assembly.tree.nodes),
-        len(assembly.facts_schema.fields), len(assembly.warnings), job_id,
+        learned_id,
+        category,
+        len(analysis.analyzed),
+        len(analysis.failed),
+        len(assembly.tree.nodes),
+        len(assembly.facts_schema.fields),
+        len(assembly.warnings),
+        job_id,
     )
     return LearningResult(
         learned_id=learned_id, conformance=assembly.conformance, warnings=assembly.warnings, skipped=analysis.failed

@@ -4,7 +4,6 @@ Alignment reply per unit), used by the pipeline and the CLI tests."""
 
 import json
 
-from fakes import flat_blocks, structured_reply
 from doclearn.learning import AlignedUnit, ReconciledAnalysis
 from doclearn.models import (
     Condition,
@@ -15,6 +14,7 @@ from doclearn.models import (
     FieldInfo,
     LearnedNode,
 )
+from fakes import flat_blocks, structured_reply
 
 
 def fnode(type_, text, *children):
@@ -23,7 +23,12 @@ def fnode(type_, text, *children):
 
 def lnode(type_, text, kind="fixed", *children, alternatives=None, conditions=None):
     return LearnedNode(
-        type=type_, text=text, kind=kind, alternatives=alternatives or [], conditions=conditions or [], children=list(children)
+        type=type_,
+        text=text,
+        kind=kind,
+        alternatives=alternatives or [],
+        conditions=conditions or [],
+        children=list(children),
     )
 
 
@@ -69,7 +74,7 @@ def analyzer_reply(document_id: str):
         {
             "blocks": flat_blocks(
                 [
-                    reply_node("title", "# PROPOSAL", [reply_node("metadata", "**Proposal No.:** {{%s}}" % case)]),
+                    reply_node("title", "# PROPOSAL", [reply_node("metadata", f"**Proposal No.:** {{{{{case}}}}}")]),
                     reply_node("section", "## CLIENT", [reply_node("statement", "**Name:** {{client_name}}")]),
                     reply_node("section", "## PRICING", pricing),
                 ]
@@ -99,21 +104,35 @@ def fld(name, type_="text", description="d", calculated=False) -> dict:
 def alignment_reply(position: int, pricing_text="## PRICING"):
     blocks, fields = {
         1: (
-            [block("b1", "", "title", "# PROPOSAL"), block("b2", "b1", "metadata", "**Proposal No.:** {{proposal_no}}", "slot")],
+            [
+                block("b1", "", "title", "# PROPOSAL"),
+                block("b2", "b1", "metadata", "**Proposal No.:** {{proposal_no}}", "slot"),
+            ],
             [fld("proposal_no", description="Case number")],
         ),
         2: (
-            [block("b1", "", "section", "## CLIENT"), block("b2", "b1", "statement", "**Name:** {{client_name}}", "slot")],
+            [
+                block("b1", "", "section", "## CLIENT"),
+                block("b2", "b1", "statement", "**Name:** {{client_name}}", "slot"),
+            ],
             [fld("client_name", description="Client's name")],
         ),
         3: (
             [
                 block("b1", "", "section", pricing_text),
                 block("b2", "b1", "statement", "- Total price: {{total_price}}.", "slot"),
-                block("b3", "b1", "statement", "- Add the optional training package.",
-                      conditions=[{"field": "include_training", "op": "=", "value": "true"}]),
+                block(
+                    "b3",
+                    "b1",
+                    "statement",
+                    "- Add the optional training package.",
+                    conditions=[{"field": "include_training", "op": "=", "value": "true"}],
+                ),
             ],
-            [fld("total_price", "number", "Total price in USD"), fld("include_training", "boolean", "Include the training package?")],
+            [
+                fld("total_price", "number", "Total price in USD"),
+                fld("include_training", "boolean", "Include the training package?"),
+            ],
         ),
     }[position]
     return structured_reply("SemanticAlignmentOutput", {"blocks": blocks, "fields": fields})
@@ -128,7 +147,10 @@ RECONCILER_REPLY = structured_reply(
             {"canonical": "client_name", "raw_names": ["client_name"]},
             {"canonical": "total_price", "raw_names": ["total_price"]},
         ],
-        "element_types": [{"name": n, "markdown": f"{n} pattern", "repeatable": n in ("section", "statement")} for n in ("title", "metadata", "section", "statement")],
+        "element_types": [
+            {"name": n, "markdown": f"{n} pattern", "repeatable": n in ("section", "statement")}
+            for n in ("title", "metadata", "section", "statement")
+        ],
     },
 )
 
@@ -138,7 +160,11 @@ def make_respond(fail_analyzing=(), fail_unit=None, pricing_text="## PRICING"):
         payload = json.loads(user_text)
         if "document" in payload:
             document_id = payload["document"]["document_id"]
-            return RuntimeError(f"cannot analyze {document_id}") if document_id in fail_analyzing else analyzer_reply(document_id)
+            return (
+                RuntimeError(f"cannot analyze {document_id}")
+                if document_id in fail_analyzing
+                else analyzer_reply(document_id)
+            )
         if "templates" in payload:
             return RECONCILER_REPLY
         if payload["position"] == fail_unit:

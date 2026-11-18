@@ -1,7 +1,6 @@
 import pytest
-
-from learned_checks import shared_sections, structural_problems
 from doclearn.models import Condition, Document, LearnedNode, LearnedTree
+from learned_checks import shared_sections, structural_problems
 
 SECTIONS = ["# PROPOSAL", "## CLIENT", "## PRICING"]
 
@@ -22,7 +21,11 @@ OPTIONAL = Condition(field="include_extra", op="=", value="true")
     [
         tree(node("# PROPOSAL"), node("## CLIENT", node("**Name:** x", type_="statement")), node("## PRICING")),
         tree(node("# Proposal"), node("### 2. Client"), node("## **PRICING**")),  # without markdown numbering and case
-        tree(node("# PROPOSAL"), node("## CLIENT", node("- extra", type_="statement", conditions=[OPTIONAL])), node("## PRICING")),
+        tree(
+            node("# PROPOSAL"),
+            node("## CLIENT", node("- extra", type_="statement", conditions=[OPTIONAL])),
+            node("## PRICING"),
+        ),
     ],
 )
 def test_a_tree_with_the_expected_units_and_no_repeats_has_no_problems(good):
@@ -58,6 +61,8 @@ def test_missing_extra_or_reordered_units_are_caught(units):
 def test_the_shared_sections_are_the_level_one_and_two_headings_every_document_has():
     docs = [
         Document(document_id="a", text="# PROPOSAL\n\n## CLIENT\n### I. FACTS\n## EVIDENCE\n## CONCLUSION\n"),
-        Document(document_id="b", text="# Proposal\n\n## 1. Client\n### I. FACTS\n## CONCLUSION\n"),  # no evidence section
+        Document(
+            document_id="b", text="# Proposal\n\n## 1. Client\n### I. FACTS\n## CONCLUSION\n"
+        ),  # no evidence section
     ]
     assert shared_sections(docs) == ["# PROPOSAL", "## CLIENT", "## CONCLUSION"]

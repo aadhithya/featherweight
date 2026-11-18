@@ -1,5 +1,4 @@
 import pytest
-
 from builders import facts, fnode
 from doclearn.facts import MappingError, apply_mappings, derive_template, find_spans, split_conflicting_merges, walk
 from doclearn.models import DocumentFacts
@@ -13,8 +12,8 @@ def proposal_facts(document_id="proposal_002", case_span="proposal_no", date_spa
             fnode("title", "# PROJECT PROPOSAL"),
             fnode(
                 "metadata",
-                "**Proposal No.:** {{%s}}" % case_span,
-                fnode("metadata_line", "**Issued:** {{%s}}" % date_span),
+                f"**Proposal No.:** {{{{{case_span}}}}}",
+                fnode("metadata_line", f"**Issued:** {{{{{date_span}}}}}"),
             ),
             fnode("party_client", "## CLIENT", fnode("statement", "**Name:** {{client_name}}")),
             fnode("party_vendor", "## VENDOR", fnode("statement", "**Name:** {{vendor_name}}")),
@@ -120,15 +119,26 @@ def test_apply_mappings_renames_types_spans_and_fields_and_makes_documents_consi
     assert out.nodes[4].children[0].children[0].type == "bullet"
     assert out.nodes[1].text == "**Proposal No.:** {{proposal_no}}"
     assert out.nodes[1].children[0].text == "**Issued:** {{date_issued}}"
-    assert set(out.fields) == {"proposal_no", "date_issued", "client_name", "vendor_name", "agreement_date", "contract_value"}
+    assert set(out.fields) == {
+        "proposal_no",
+        "date_issued",
+        "client_name",
+        "vendor_name",
+        "agreement_date",
+        "contract_value",
+    }
     assert out.fields["proposal_no"] == "PRP-2024-002"
 
-    other = apply_mappings(proposal_facts("b", case_span="proposal_number"), TYPE_MAPPING, FIELD_MAPPING)  # another raw name
+    other = apply_mappings(
+        proposal_facts("b", case_span="proposal_number"), TYPE_MAPPING, FIELD_MAPPING
+    )  # another raw name
     assert other.nodes[1].text == out.nodes[1].text and other.fields.keys() == out.fields.keys()
 
 
 def test_unmapped_names_are_left_as_they_are_spans_are_normalised_and_equal_values_merge():
-    doc = facts("d", fnode("title", "Hello {{ unknown_field }} and {{proposal_num}}"), unknown_field="x", proposal_num="1")
+    doc = facts(
+        "d", fnode("title", "Hello {{ unknown_field }} and {{proposal_num}}"), unknown_field="x", proposal_num="1"
+    )
     out = apply_mappings(doc, {}, FIELD_MAPPING)
     assert out.nodes[0].text == "Hello {{unknown_field}} and {{proposal_no}}"
     assert out.fields == {"unknown_field": "x", "proposal_no": "1"}
@@ -140,7 +150,12 @@ def test_unmapped_names_are_left_as_they_are_spans_are_normalised_and_equal_valu
 @pytest.mark.parametrize(
     "doc,type_mapping,field_mapping,message",
     [
-        (facts("doc-9", proposal_num="PRP-1", proposal_no="PRP-2"), {}, FIELD_MAPPING, "doc-9"),  # two values for one field
+        (
+            facts("doc-9", proposal_num="PRP-1", proposal_no="PRP-2"),
+            {},
+            FIELD_MAPPING,
+            "doc-9",
+        ),  # two values for one field
         (proposal_facts(), {}, {"proposal_no": ["proposal_num"], "region_no": ["proposal_num"]}, "proposal_num"),
         (proposal_facts(), {"party_client": ["client"], "customer": ["client"]}, {}, "client"),
     ],
@@ -169,7 +184,11 @@ def test_a_mapping_that_cannot_be_applied_is_an_error(doc, type_mapping, field_m
             1,
         ),
         (  # different documents, or the same value ("X  Y" and "X Y" are the same): stay merged
-            [facts("a", proposal_no="PRP-1", region="Berlin"), facts("b", proposal_num="PRP-2"), facts("c", proposal_no="X  Y", proposal_ref="X Y")],
+            [
+                facts("a", proposal_no="PRP-1", region="Berlin"),
+                facts("b", proposal_num="PRP-2"),
+                facts("c", proposal_no="X  Y", proposal_ref="X Y"),
+            ],
             {"proposal_number": ["proposal_no", "proposal_num", "proposal_ref"]},
             {"proposal_number": ["proposal_no", "proposal_num", "proposal_ref"]},
             0,

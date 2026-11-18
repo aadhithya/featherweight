@@ -2,11 +2,11 @@
 
 from typing import ClassVar
 
-from micro.models import AgentBase, AgentInput, AgentOutput, ModelName, Reasoning
 from pydantic import Field, model_validator
 
 from doclearn.facts import derive_template, find_spans
 from doclearn.models import Document, DocumentFacts, DocumentTemplate, ElementStyle, FactBlock, FactNode, FieldValue
+from micro.models import AgentBase, AgentInput, AgentOutput, ModelName, Reasoning
 
 PROMPT = """\
 You analyze one document and break it into typed content blocks. The input is JSON with the document \
@@ -76,7 +76,9 @@ class AnalyzerOutput(AgentOutput):
     blocks: list[FactBlock] = Field(
         default_factory=list, description="The document as a flat list of typed blocks with parent ids, in order."
     )
-    fields: list[FieldValue] = Field(default_factory=list, description="Each {{span_name}} used in the blocks, with its value.")
+    fields: list[FieldValue] = Field(
+        default_factory=list, description="Each {{span_name}} used in the blocks, with its value."
+    )
     styles: list[ElementStyle] = Field(default_factory=list, description="One markdown pattern per element type used.")
 
     @model_validator(mode="after")

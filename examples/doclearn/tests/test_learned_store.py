@@ -1,13 +1,24 @@
 from doclearn.models import DocumentTemplate, ElementType, FactsSchema, FieldInfo, InputField, LearnedNode, LearnedTree
 from doclearn.store import LearnedStore
+
 from micro.db import Database
 
 
 def artifacts(category="proposals", marker="x"):
-    template = DocumentTemplate(category=category, element_types=[ElementType(name="section", markdown="## {{h}}", repeatable=True)])
+    template = DocumentTemplate(
+        category=category, element_types=[ElementType(name="section", markdown="## {{h}}", repeatable=True)]
+    )
     tree = LearnedTree(
         category=category,
-        nodes=[LearnedNode(type="section", text=f"## {marker} {{{{client_name}}}}", kind="slot", alternatives=["## alt"], children=[LearnedNode(type="statement", text="s", kind="fixed")])],
+        nodes=[
+            LearnedNode(
+                type="section",
+                text=f"## {marker} {{{{client_name}}}}",
+                kind="slot",
+                alternatives=["## alt"],
+                children=[LearnedNode(type="statement", text="s", kind="fixed")],
+            )
+        ],
         fields=[FieldInfo(name="client_name", type="text", description="Client", calculated=False)],
     )
     schema = FactsSchema(category=category, fields=[InputField(name="client_name", type="text", description="Client")])
@@ -18,7 +29,9 @@ async def test_what_is_saved_comes_back_unchanged_with_or_without_a_job(db, stor
     template, tree, schema = artifacts()
     job_id = await db.create_job("learn")
 
-    learned_id = await store.save(category="proposals", template=template, tree=tree, facts_schema=schema, job_id=job_id)
+    learned_id = await store.save(
+        category="proposals", template=template, tree=tree, facts_schema=schema, job_id=job_id
+    )
     loaded = await store.get(learned_id)
 
     assert loaded.learned_id == learned_id and loaded.job_id == job_id and loaded.category == "proposals"

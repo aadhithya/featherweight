@@ -40,7 +40,9 @@ class Skill(BaseModel):
     # specification defines is checked.
     model_config = ConfigDict(frozen=True, extra="ignore", populate_by_name=True)
 
-    name: str = Field(description="1-64 characters: lowercase letters, digits and single hyphens. Matches the directory.")
+    name: str = Field(
+        description="1-64 characters: lowercase letters, digits and single hyphens. Matches the directory."
+    )
     description: str = Field(description="What the skill does and when to use it, in 1-1024 characters.")
     instructions: str = Field(default="", description="The Markdown body of SKILL.md.")
     license: str | None = None
@@ -117,7 +119,12 @@ class Skill(BaseModel):
             frontmatter["metadata"] = {str(k): str(v) for k, v in frontmatter["metadata"].items()}
         body = match.group(2).strip("\r\n")
         if body.count("\n") + 1 > RECOMMENDED_MAX_LINES:
-            logger.warning("skill_long name=%s lines=%d recommended=%d", frontmatter.get("name"), body.count("\n") + 1, RECOMMENDED_MAX_LINES)
+            logger.warning(
+                "skill_long name=%s lines=%d recommended=%d",
+                frontmatter.get("name"),
+                body.count("\n") + 1,
+                RECOMMENDED_MAX_LINES,
+            )
         return cls(**frontmatter, instructions=body, resources=resources or {})
 
     @classmethod

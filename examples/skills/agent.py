@@ -80,7 +80,9 @@ async def main(requests: list[str]) -> int:
         runner = AgentRunner(db)
         for request in requests:
             print(f"\n> {request}")
-            result = await runner.run(Assistant, AssistantInput(request=request), job_id=await db.create_job("skills-demo"))
+            result = await runner.run(
+                Assistant, AssistantInput(request=request), job_id=await db.create_job("skills-demo")
+            )
             if result.status == RunStatus.SUCCESS:
                 print(f"\n{result.output.answer}\n  ({result.input_tokens} tokens in, {result.output_tokens} out)")
             else:

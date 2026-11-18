@@ -1,9 +1,9 @@
 import pytest
-from pydantic import ValidationError
-
-from fakes import Scripted, flat_blocks, runner_with, structured_reply
 from doclearn.analyzer import AnalyzerInput, AnalyzerOutput, DocumentAnalyzer
 from doclearn.models import Document
+from fakes import Scripted, flat_blocks, runner_with, structured_reply
+from pydantic import ValidationError
+
 from micro.models import RunStatus
 
 NODES = [  # written nested for readability; the model returns it flat (see flat_blocks)
@@ -45,14 +45,23 @@ def tree(*blocks) -> dict:
     [
         (output(styles=STYLES[:2]), r"no style for element types: \['statement'\]"),
         (output(fields=FIELDS[:1]), r"spans without a field entry: \['region'\]"),
-        (output(fields=FIELDS + [{"name": "region", "value": "Southern Region"}]), "'region' is given two different values"),
+        (
+            output(fields=FIELDS + [{"name": "region", "value": "Southern Region"}]),
+            "'region' is given two different values",
+        ),
         (output(styles=STYLES + [{"name": "title", "markdown": "## {{title}}"}]), "two different styles"),
-        (output(blocks=[block("n1", "", "title", "Case {{ proposal_no }}")], styles=STYLES[:1], fields=[]), "proposal_no"),  # inner spaces
+        (
+            output(blocks=[block("n1", "", "title", "Case {{ proposal_no }}")], styles=STYLES[:1], fields=[]),
+            "proposal_no",
+        ),  # inner spaces
         (tree(block("n1", ""), block("n1", "")), r"block ids used twice: \['n1'\]"),
         (tree(block("n1", "n9")), r"unknown blocks: \['n9'\]"),
         (tree(block("n1", "n1")), r"a parent must come before its children in the list: \['n1'\]"),
         (tree(block("n1", "n2"), block("n2", "")), r"a parent must come before its children in the list: \['n1'\]"),
-        (output(styles=[], fields=[]), r"(?s)(?=.*no style for element types)(?=.*spans without a field entry)"),  # all reported together
+        (
+            output(styles=[], fields=[]),
+            r"(?s)(?=.*no style for element types)(?=.*spans without a field entry)",
+        ),  # all reported together
     ],
 )
 def test_invalid_analyzer_output_is_rejected(data, message):
@@ -80,7 +89,14 @@ def test_to_facts_builds_the_tree_from_the_parent_ids_and_turns_the_fields_into_
 
 
 def test_deep_nesting_and_sibling_order_are_kept():
-    blocks = [block("n1", ""), block("n2", "n1"), block("n3", "n2"), block("n4", "n2"), block("n5", "n1"), block("n6", "")]
+    blocks = [
+        block("n1", ""),
+        block("n2", "n1"),
+        block("n3", "n2"),
+        block("n4", "n2"),
+        block("n5", "n1"),
+        block("n6", ""),
+    ]
     nodes = AnalyzerOutput.model_validate(tree(*blocks)).to_nodes()
     assert [len(n.children) for n in nodes] == [2, 0]
     assert [len(c.children) for c in nodes[0].children] == [2, 0]

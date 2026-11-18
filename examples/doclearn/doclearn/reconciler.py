@@ -2,10 +2,10 @@
 
 from typing import ClassVar
 
-from micro.models import AgentBase, AgentInput, AgentOutput, ModelName, Reasoning
 from pydantic import Field, model_validator
 
 from doclearn.models import DocumentTemplate, ElementType, FieldExamples, NameMapping
+from micro.models import AgentBase, AgentInput, AgentOutput, ModelName, Reasoning
 
 PROMPT = """\
 You reconcile the element types and field names found in several documents of the same category into one \
@@ -35,7 +35,9 @@ class ReconcilerInput(AgentInput):
 class ReconcilerOutput(AgentOutput):
     type_mapping: list[NameMapping] = Field(default_factory=list, description="Standard element type to its raw names.")
     field_mapping: list[NameMapping] = Field(default_factory=list, description="Standard field name to its raw names.")
-    element_types: list[ElementType] = Field(default_factory=list, description="The reconciled template: one per standard type.")
+    element_types: list[ElementType] = Field(
+        default_factory=list, description="The reconciled template: one per standard type."
+    )
 
     @model_validator(mode="after")
     def _consistent(self) -> "ReconcilerOutput":

@@ -63,7 +63,9 @@ async def test_reconciliation_agent_on_the_real_input_of_a_full_run(db):
 
     assert result.status == RunStatus.SUCCESS, result.error
     out = result.output
-    print(f"\n[reconciliation, real input] fields {len(real.fields)} -> {len(out.field_mapping)}; types {len(out.type_mapping)}")
+    print(
+        f"\n[reconciliation, real input] fields {len(real.fields)} -> {len(out.field_mapping)}; types {len(out.type_mapping)}"
+    )
     for m in out.field_mapping:
         if len(m.raw_names) > 1:
             print(f"  merged: {m.canonical} <- {m.raw_names}")

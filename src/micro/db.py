@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -70,7 +70,7 @@ def default_db_path() -> Path:
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _dump(value: BaseModel | dict[str, Any] | None) -> str | None:
@@ -170,9 +170,7 @@ class Database:
         logger.info("job_created job_id=%s name=%s", job_id, name)
         return job_id
 
-    async def set_job_status(
-        self, job_id: str, status: RunStatus, error: str | None = None
-    ) -> None:
+    async def set_job_status(self, job_id: str, status: RunStatus, error: str | None = None) -> None:
         """Set the job's status. `error` is kept only for FAILED; any other status clears it."""
         status = RunStatus(status)
         terminal = status in (RunStatus.SUCCESS, RunStatus.FAILED)
@@ -218,17 +216,36 @@ class Database:
                    parent_agent_run_id, depth
                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                agent_run_id, invocation_id, attempt, job_id, agent_name, agent_version,
-                model_name, reasoning, json.dumps(tool_names), system_prompt_hash,
-                RunStatus.INIT.value, _dump(input), _now(), parent_agent_run_id, depth,
+                agent_run_id,
+                invocation_id,
+                attempt,
+                job_id,
+                agent_name,
+                agent_version,
+                model_name,
+                reasoning,
+                json.dumps(tool_names),
+                system_prompt_hash,
+                RunStatus.INIT.value,
+                _dump(input),
+                _now(),
+                parent_agent_run_id,
+                depth,
             ),
         )
         await self.conn.commit()
         logger.info(
             "run_created agent_run_id=%s invocation_id=%s attempt=%d job_id=%s agent=%s version=%s model=%s "
             "parent_agent_run_id=%s depth=%d",
-            agent_run_id, invocation_id, attempt, job_id, agent_name, agent_version, model_name,
-            parent_agent_run_id, depth,
+            agent_run_id,
+            invocation_id,
+            attempt,
+            job_id,
+            agent_name,
+            agent_version,
+            model_name,
+            parent_agent_run_id,
+            depth,
         )
         return agent_run_id
 
@@ -265,19 +282,20 @@ class Database:
         log = logger.info if status is RunStatus.SUCCESS else logger.warning
         log(
             "run_finished agent_run_id=%s status=%s input_tokens=%s output_tokens=%s latency_ms=%s error=%s",
-            agent_run_id, status.value, input_tokens, output_tokens, latency_ms, error,
+            agent_run_id,
+            status.value,
+            input_tokens,
+            output_tokens,
+            latency_ms,
+            error,
         )
 
     async def get_run(self, agent_run_id: str) -> AgentRunRow | None:
-        async with self.conn.execute(
-            "SELECT * FROM agent_runs WHERE agent_run_id = ?", (agent_run_id,)
-        ) as cur:
+        async with self.conn.execute("SELECT * FROM agent_runs WHERE agent_run_id = ?", (agent_run_id,)) as cur:
             row = await cur.fetchone()
         return self._row_to_run(row) if row else None
 
-    async def list_runs(
-        self, *, job_id: str | None = None, invocation_id: str | None = None
-    ) -> list[AgentRunRow]:
+    async def list_runs(self, *, job_id: str | None = None, invocation_id: str | None = None) -> list[AgentRunRow]:
         """Runs in insertion order, optionally filtered by job and/or invocation."""
         where, params = [], []
         if job_id is not None:

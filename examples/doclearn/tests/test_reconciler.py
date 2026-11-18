@@ -1,20 +1,20 @@
 import json
 
 import pytest
-from langchain_core.messages import HumanMessage
-from pydantic import ValidationError
-
-from fakes import Scripted, runner_with, structured_reply
 from doclearn.learning import AnalysisResult, AnalyzedDocument, LearningError, build_reconciler_input, reconcile
 from doclearn.models import DocumentFacts, DocumentTemplate, ElementType, FactNode
 from doclearn.reconciler import ReconcilerOutput
+from fakes import Scripted, runner_with, structured_reply
+from langchain_core.messages import HumanMessage
+from pydantic import ValidationError
+
 from micro.models import RunStatus
 
 
 def analyzed(document_id, client_type, case_span, *, extra_type=None, client="Alder Ltd") -> AnalyzedDocument:
     nodes = [
         FactNode(type="title", text="# PROPOSAL"),
-        FactNode(type="metadata", text="**Proposal No.:** {{%s}}" % case_span),
+        FactNode(type="metadata", text=f"**Proposal No.:** {{{{{case_span}}}}}"),
         FactNode(type=client_type, text="## CLIENT", children=[FactNode(type="statement", text="{{client_name}}")]),
     ]
     if extra_type:
@@ -69,7 +69,9 @@ def element_types(*names) -> list[dict]:
 
 
 def doc_with_lines(document_id: str, lines: dict[str, str], **fields) -> AnalyzedDocument:
-    facts = DocumentFacts(document_id=document_id, nodes=[FactNode(type="title", text=t) for t in lines.values()], fields=fields)
+    facts = DocumentFacts(
+        document_id=document_id, nodes=[FactNode(type="title", text=t) for t in lines.values()], fields=fields
+    )
     template = DocumentTemplate(category="c", element_types=[ElementType(name="title", markdown="#", repeatable=False)])
     return AnalyzedDocument(facts=facts, template=template)
 
@@ -109,9 +111,15 @@ def test_a_consistent_output_is_valid_and_converts_to_maps_and_a_template():
             ),
             "field name 'number'",
         ),
-        (dict(field_mapping=[{"canonical": "x", "raw_names": ["a"]}, {"canonical": "x", "raw_names": ["b"]}]), "field 'x' is listed twice"),
+        (
+            dict(field_mapping=[{"canonical": "x", "raw_names": ["a"]}, {"canonical": "x", "raw_names": ["b"]}]),
+            "field 'x' is listed twice",
+        ),
         (dict(element_types=reconciler_output()["element_types"][:-1]), r"missing \['section'\]"),
-        (dict(element_types=reconciler_output()["element_types"] + element_types("footer")), r"unexpected \['footer'\]"),
+        (
+            dict(element_types=reconciler_output()["element_types"] + element_types("footer")),
+            r"unexpected \['footer'\]",
+        ),
         (dict(element_types=reconciler_output()["element_types"] * 2), "duplicate names"),
     ],
 )
@@ -139,8 +147,15 @@ def test_every_name_comes_with_its_line_and_each_documents_value_and_an_unused_n
         analyzed=[
             doc_with_lines(
                 "a",
-                {"item": "- Training and support fees: {{training_fees}}", "sub": "- **Subtotal: {{subtotal}}**", "who": "**Name:** {{client_name}}"},
-                training_fees="$14,000", subtotal="$14,000", client_name="Alder Ltd", orphan="v",
+                {
+                    "item": "- Training and support fees: {{training_fees}}",
+                    "sub": "- **Subtotal: {{subtotal}}**",
+                    "who": "**Name:** {{client_name}}",
+                },
+                training_fees="$14,000",
+                subtotal="$14,000",
+                client_name="Alder Ltd",
+                orphan="v",
             ),
             doc_with_lines("b", {"who": "**Name:** {{client_name}}"}, client_name="Bravo AG"),
         ]
@@ -152,19 +167,28 @@ def test_every_name_comes_with_its_line_and_each_documents_value_and_an_unused_n
 
     assert seen("training_fees") == [("- Training and support fees: {{training_fees}}", "$14,000")]
     assert seen("subtotal") == [("- **Subtotal: {{subtotal}}**", "$14,000")]
-    assert seen("client_name") == [("**Name:** {{client_name}}", "Alder Ltd"), ("**Name:** {{client_name}}", "Bravo AG")]
+    assert seen("client_name") == [
+        ("**Name:** {{client_name}}", "Alder Ltd"),
+        ("**Name:** {{client_name}}", "Bravo AG"),
+    ]
     assert by_name["orphan"].contexts == []
 
 
 def test_contexts_are_distinct_capped_at_three_and_taken_across_documents():
     docs = AnalysisResult(
         analyzed=[
-            doc_with_lines(str(i), {"x": f"line {i}: {{{{proposal_no}}}}", "y": "same line {{proposal_no}}"}, proposal_no="v")
+            doc_with_lines(
+                str(i), {"x": f"line {i}: {{{{proposal_no}}}}", "y": "same line {{proposal_no}}"}, proposal_no="v"
+            )
             for i in range(6)
         ]
     )
     contexts = {f.name: f for f in build_reconciler_input(docs, "c").fields}["proposal_no"].contexts
-    assert [c.line for c in contexts] == ["line 0: {{proposal_no}}", "same line {{proposal_no}}", "line 1: {{proposal_no}}"]  # distinct, in order, three
+    assert [c.line for c in contexts] == [
+        "line 0: {{proposal_no}}",
+        "same line {{proposal_no}}",
+        "line 1: {{proposal_no}}",
+    ]  # distinct, in order, three
 
 
 def test_a_long_line_is_cut_to_a_window_around_the_span_and_spaces_are_normalised():
@@ -195,14 +219,22 @@ async def test_mappings_are_applied_to_every_documents_facts_in_one_recorded_run
     assert reconciled.facts[2].nodes[3].type == "section"  # "appendix" merged into a similar type
     assert reconciled.facts[2].fields["proposal_no"] == "PRP-c"
     assert reconciled.template.category == "proposals"
-    assert {e.name for e in reconciled.template.element_types} == {"title", "metadata", "party_client", "statement", "section"}
+    assert {e.name for e in reconciled.template.element_types} == {
+        "title",
+        "metadata",
+        "party_client",
+        "statement",
+        "section",
+    }
     assert reconciled.unmapped_types == [] and reconciled.unmapped_fields == []
 
     sent = json.loads([m for m in model.seen[0] if isinstance(m, HumanMessage)][0].content)  # what the agent was given
     assert len(sent["templates"]) == 3
     assert {f["name"] for f in sent["fields"]} == {"proposal_no", "proposal_num", "proposal_number", "client_name"}
     runs = await db.list_runs(job_id=job_id)
-    assert [(r.agent_name, r.status) for r in runs] == [("reconciliation_agent", RunStatus.SUCCESS)]  # one call, not one per document
+    assert [(r.agent_name, r.status) for r in runs] == [
+        ("reconciliation_agent", RunStatus.SUCCESS)
+    ]  # one call, not one per document
 
 
 async def test_names_the_agent_leaves_out_stay_unchanged_and_are_reported(db):
@@ -257,12 +289,18 @@ async def test_a_merge_of_names_with_different_values_in_one_document_is_split_n
     document, so the names stay apart (b has proposal_num and client_name, which cannot be one field)."""
     clash = reconciler_output(
         field_mapping=[
-            {"canonical": "proposal_no", "raw_names": ["client_name", "proposal_no", "proposal_num", "proposal_number"]},
+            {
+                "canonical": "proposal_no",
+                "raw_names": ["client_name", "proposal_no", "proposal_num", "proposal_number"],
+            },
         ]
     )
     model = Scripted(script=[structured_reply("ReconcilerOutput", clash)])
 
     reconciled = await reconcile(runner_with(db, model), three_documents(), "proposals")
 
-    assert reconciled.field_mapping == {"proposal_no": ["proposal_no", "proposal_num", "proposal_number"], "client_name": ["client_name"]}
+    assert reconciled.field_mapping == {
+        "proposal_no": ["proposal_no", "proposal_num", "proposal_number"],
+        "client_name": ["client_name"],
+    }
     assert "client_name" in reconciled.facts[1].fields  # b keeps both values

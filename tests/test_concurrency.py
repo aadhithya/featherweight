@@ -3,6 +3,7 @@
 import asyncio
 
 from fakes import Echo, EchoInput, Reactive, respond, runner_with
+
 from micro.models import RunStatus
 from micro.store import RunStore
 
@@ -13,9 +14,7 @@ async def test_many_concurrent_runs_do_not_interfere(db):
     job_id = await db.create_job("learn")
     texts = [f"ok-{i}" for i in range(25)]
 
-    results = await asyncio.gather(
-        *(runner.run(Echo, EchoInput(text=t), job_id=job_id) for t in texts)
-    )
+    results = await asyncio.gather(*(runner.run(Echo, EchoInput(text=t), job_id=job_id) for t in texts))
 
     assert model.max_in_flight > 1  # the runs really overlapped
     assert all(r.status == RunStatus.SUCCESS for r in results)

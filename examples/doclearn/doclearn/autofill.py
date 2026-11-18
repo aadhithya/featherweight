@@ -10,14 +10,14 @@ import logging
 from collections.abc import Callable
 from typing import ClassVar
 
-from micro.models import AgentBase, AgentInput, AgentOutput, ModelName, Reasoning, RunStatus
-from micro.runner import AgentRunner
 from pydantic import BaseModel, Field
 
 from doclearn.assembly import _value_fits
 from doclearn.generation import render_structure
 from doclearn.models import FieldValue, InputField
 from doclearn.store import LearnedDocument
+from micro.models import AgentBase, AgentInput, AgentOutput, ModelName, Reasoning, RunStatus
+from micro.runner import AgentRunner
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +117,11 @@ async def fill_form(
     problems: list[str] = []
     for attempt in range(1, MAX_RETRIES + 2):
         if progress:
-            progress("Inventing a case" if attempt == 1 else f"Inventing the case again (attempt {attempt}): fixing {len(problems)} problems")
+            progress(
+                "Inventing a case"
+                if attempt == 1
+                else f"Inventing the case again (attempt {attempt}): fixing {len(problems)} problems"
+            )
         result = await runner.run(FormFillerAgent, attempt_input, job_id=job_id)
         if result.status != RunStatus.SUCCESS:
             raise AutofillError(f"The Form Filler failed: {result.error}")

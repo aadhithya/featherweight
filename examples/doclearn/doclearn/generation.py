@@ -19,16 +19,16 @@ from typing import ClassVar
 
 from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
-from micro.context import RunContext
-from micro.models import AgentBase, AgentInput, AgentOutput, ModelName, Reasoning, RunStatus
-from micro.runner import AgentRunner
-from micro.tools import NO_JOB, add_to_date, calculate, current_datetime, days_between
 from pydantic import BaseModel, Field
 
 from doclearn.assembly import LEADING_NUMBER, conditions_hold
 from doclearn.facts import SPAN_RE, find_spans, walk
 from doclearn.models import ElementType, FieldValue, InputField, LearnedNode, LearnedTree
 from doclearn.store import LearnedDocument
+from micro.context import RunContext
+from micro.models import AgentBase, AgentInput, AgentOutput, ModelName, Reasoning, RunStatus
+from micro.runner import AgentRunner
+from micro.tools import NO_JOB, add_to_date, calculate, current_datetime, days_between
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +124,9 @@ class GeneratorAgent(AgentBase):
 
 class GeneratedDocument(BaseModel):
     markdown: str
-    notes: list[str] = Field(default_factory=list, description="From the agent: what it left out, which wordings it chose.")
+    notes: list[str] = Field(
+        default_factory=list, description="From the agent: what it left out, which wordings it chose."
+    )
     not_provided: list[str] = Field(default_factory=list, description="Optional inputs that had no value.")
     unused_inputs: list[str] = Field(
         default_factory=list,
@@ -190,7 +192,9 @@ def _renderable(node: LearnedNode, facts: Mapping[str, str]) -> list[tuple[list[
     for wording in [node.text, *node.alternatives]:
         names = find_spans(wording)
         if all(facts.get(name, "").strip() for name in names):
-            out.append((_lines(SPAN_RE.sub(lambda m: facts[m.group(1)].strip(), wording)), [facts[n].strip() for n in names]))
+            out.append(
+                (_lines(SPAN_RE.sub(lambda m: facts[m.group(1)].strip(), wording)), [facts[n].strip() for n in names])
+            )
     return out
 
 
@@ -198,7 +202,10 @@ def _find(document: list[str], wording: list[str], start: int = 0) -> int:
     """Where lines close to the wording's lines come in a row in the document (at or after `start`); -1 if nowhere."""
     expected = "\n".join(wording).casefold()
     for i in range(start, len(document) - len(wording) + 1):
-        if SequenceMatcher(None, expected, "\n".join(document[i : i + len(wording)]).casefold()).ratio() >= MIN_SIMILARITY:
+        if (
+            SequenceMatcher(None, expected, "\n".join(document[i : i + len(wording)]).casefold()).ratio()
+            >= MIN_SIMILARITY
+        ):
             return i
     return -1
 
@@ -255,7 +262,8 @@ def unused_inputs(tree: LearnedTree, facts: Mapping[str, str], markdown: str) ->
         return re.search(rf"(?<!\w){re.escape(' '.join(value.split()))}(?!\w)", document) is not None
 
     return [
-        name for name, value in facts.items()
+        name
+        for name, value in facts.items()
         if types.get(name) != "boolean" and len(value) <= MAX_VERBATIM_CHARS and not appears(value)
     ]
 
@@ -303,12 +311,18 @@ async def generate_document(
     )
     logger.info(
         "generation_started learned_id=%s category=%s facts=%d not_provided=%d job_id=%s",
-        learned.learned_id, tree.category, len(given), len(not_provided), job_id,
+        learned.learned_id,
+        tree.category,
+        len(given),
+        len(not_provided),
+        job_id,
     )
 
     job_id = job_id or await runner.db.create_job("generate")  # the check tool keeps its state per job
     await runner.store.set(
-        job_id, STATE_KEY, {"tree": tree.model_dump(mode="json"), "facts": given, "failed_checks": 0, "document": None, "problems": []},
+        job_id,
+        STATE_KEY,
+        {"tree": tree.model_dump(mode="json"), "facts": given, "failed_checks": 0, "document": None, "problems": []},
     )
     if progress:
         progress("Writing the document")
@@ -317,16 +331,24 @@ async def generate_document(
         raise GenerationError(f"The Generator failed: {result.error}")
     state = await runner.store.get(job_id, STATE_KEY)
     if state is None or state["document"] is None:
-        raise GenerationError("The Generator ended without handing in a document that passed the check (check_document)")
+        raise GenerationError(
+            "The Generator ended without handing in a document that passed the check (check_document)"
+        )
     markdown = state["document"]
     unused = unused_inputs(tree, given, markdown)
     if unused:
         logger.warning("generation_unused_inputs inputs=%s job_id=%s", unused, job_id)
     logger.info(
         "generation_finished learned_id=%s failed_checks=%d problems=%d job_id=%s",
-        learned.learned_id, state["failed_checks"], len(state["problems"]), job_id,
+        learned.learned_id,
+        state["failed_checks"],
+        len(state["problems"]),
+        job_id,
     )
     return GeneratedDocument(
-        markdown=markdown, notes=result.output.notes, not_provided=not_provided, unused_inputs=unused,
+        markdown=markdown,
+        notes=result.output.notes,
+        not_provided=not_provided,
+        unused_inputs=unused,
         problems=state["problems"],
     )

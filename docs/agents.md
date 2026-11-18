@@ -84,7 +84,9 @@ async with Database("micro.db") as db:
     job_id = await db.create_job("demo")
     runner = AgentRunner(db)
     result = await runner.run(PeopleExtractor, ExtractInput(text="..."), job_id=job_id)
-    results = await runner.run_many(PeopleExtractor, [ExtractInput(text="..."), ExtractInput(text="...")], job_id=job_id)
+    results = await runner.run_many(
+        PeopleExtractor, [ExtractInput(text="..."), ExtractInput(text="...")], job_id=job_id
+    )
 ```
 
 - `run(agent_cls, agent_input, job_id=None)` runs one agent. Pass the class, not an instance.
@@ -136,6 +138,7 @@ Beyond the schema, two places hold the rules the output must satisfy:
 ```python
 class PeopleExtractor(AgentBase):
     ...
+
     def check_output(self, agent_input, output):
         missing = [p for p in output.people if p not in agent_input.text]
         if missing:

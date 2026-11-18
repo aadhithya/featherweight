@@ -1,20 +1,21 @@
 """Skills: the model, loading from the specification's format, and an agent reading its skills."""
 
-import json
 import logging
 from pathlib import Path
 from typing import ClassVar
 
 import pytest
+from fakes import Scripted, runner_with, structured_reply, tool_reply
 from langchain_core.messages import SystemMessage, ToolMessage
 from pydantic import ValidationError
 
-from fakes import Scripted, runner_with, structured_reply, tool_reply
 from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus
 from micro.skills import Skill, SkillError
 
 EXAMPLE = Path(__file__).parent.parent / "examples" / "skills" / "meeting-notes"
-VALID = "---\nname: pdf-processing\ndescription: Extracts text from PDFs. Use when a PDF is mentioned.\n---\n# PDFs\nDo it."
+VALID = (
+    "---\nname: pdf-processing\ndescription: Extracts text from PDFs. Use when a PDF is mentioned.\n---\n# PDFs\nDo it."
+)
 
 
 def skill(**kwargs) -> Skill:
@@ -30,8 +31,18 @@ def test_valid_names(name):
 
 
 @pytest.mark.parametrize(
-    "name", ["PDF-Processing", "-pdf", "pdf-", "pdf--processing", "pdf_processing", "pdf processing", "", "x" * 65],
-    ids=["uppercase", "leading hyphen", "trailing hyphen", "double hyphen", "underscore", "space", "empty", "65 characters"],
+    "name",
+    ["PDF-Processing", "-pdf", "pdf-", "pdf--processing", "pdf_processing", "pdf processing", "", "x" * 65],
+    ids=[
+        "uppercase",
+        "leading hyphen",
+        "trailing hyphen",
+        "double hyphen",
+        "underscore",
+        "space",
+        "empty",
+        "65 characters",
+    ],
 )
 def test_invalid_names(name):
     with pytest.raises(ValidationError, match="skill name"):
@@ -48,7 +59,9 @@ def test_description_limits_are_inclusive():
     assert len(skill(description="d" * 1024).description) == 1024
 
 
-@pytest.mark.parametrize("compatibility,ok", [(None, True), ("Needs git", True), ("c" * 500, True), ("", False), ("c" * 501, False)])
+@pytest.mark.parametrize(
+    "compatibility,ok", [(None, True), ("Needs git", True), ("c" * 500, True), ("", False), ("c" * 501, False)]
+)
 def test_compatibility_is_1_to_500_characters_when_given(compatibility, ok):
     if ok:
         assert skill(compatibility=compatibility).compatibility == compatibility
@@ -77,7 +90,11 @@ def test_reading_gives_the_instructions_and_lists_the_other_files():
     s = skill(instructions="Do the thing.", resources={"references/a.md": "A", "scripts/run.py": "print(1)"})
     text = s.read()
     assert text.startswith("# Skill: pdf-processing") and "Do the thing." in text
-    assert "- references/a.md" in text and "- scripts/run.py" in text and "A" not in text.split("Other files")[0].split("Do the thing.")[1]
+    assert (
+        "- references/a.md" in text
+        and "- scripts/run.py" in text
+        and "A" not in text.split("Other files")[0].split("Do the thing.")[1]
+    )
 
 
 def test_reading_a_skill_without_other_files_lists_none():
@@ -146,7 +163,9 @@ def test_every_example_skill_follows_the_specification(path):
     s = Skill.from_directory(path)  # the name must match the directory, and every limit is checked
     assert s.instructions and len(s.instructions.splitlines()) < 500
     for name in s.resources:  # the instructions only point to files that exist
-        assert name in s.instructions or not name.startswith("references/"), f"{name} is not mentioned in the instructions"
+        assert name in s.instructions or not name.startswith("references/"), (
+            f"{name} is not mentioned in the instructions"
+        )
 
 
 def make_dir(tmp_path, name="pdf-processing", text=VALID):

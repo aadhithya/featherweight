@@ -234,7 +234,9 @@ def assemble(aligned: Sequence[AlignedUnit], reconciled: ReconciledAnalysis, cat
         raise LearningError("Nothing to assemble: there are no aligned units")
     units = sorted(aligned, key=lambda u: u.position)
     if [u.position for u in units] != list(range(1, len(units) + 1)):
-        raise LearningError(f"The unit positions must be 1 to {len(units)} without gaps, got {[u.position for u in units]}")
+        raise LearningError(
+            f"The unit positions must be 1 to {len(units)} without gaps, got {[u.position for u in units]}"
+        )
     logger.info("assembly_started units=%d documents=%d category=%s", len(units), len(reconciled.facts), category)
 
     nodes = [u.node for u in units]
@@ -247,14 +249,19 @@ def assemble(aligned: Sequence[AlignedUnit], reconciled: ReconciledAnalysis, cat
         for info in unit.fields:
             first = merged.setdefault(info.name, info)
             if first is not info and first.type != info.type:
-                warnings.append(f"field '{info.name}' is described as {first.type} and as {info.type}; using {first.type}")
+                warnings.append(
+                    f"field '{info.name}' is described as {first.type} and as {info.type}; using {first.type}"
+                )
             if first is not info and first.calculated != info.calculated:
                 warnings.append(f"field '{info.name}' is marked calculated in only one unit; using {first.calculated}")
 
     used: list[str] = []  # in order of first use
     for node in all_nodes:
-        for name in [*find_spans(node.text), *(s for alt in node.alternatives for s in find_spans(alt)),
-                     *(c.field for c in node.conditions)]:
+        for name in [
+            *find_spans(node.text),
+            *(s for alt in node.alternatives for s in find_spans(alt)),
+            *(c.field for c in node.conditions),
+        ]:
             if name not in used:
                 used.append(name)
 
@@ -275,9 +282,13 @@ def assemble(aligned: Sequence[AlignedUnit], reconciled: ReconciledAnalysis, cat
         for condition in node.conditions:
             info = merged[condition.field]
             if condition.op in ORDERING_OPS and info.type not in ("number", "date"):
-                warnings.append(f"condition {condition.field} {condition.op} {condition.value}: ordering needs a number or date field, not {info.type}")
+                warnings.append(
+                    f"condition {condition.field} {condition.op} {condition.value}: ordering needs a number or date field, not {info.type}"
+                )
             if not _value_fits(info.type, condition.value):
-                warnings.append(f"condition {condition.field} {condition.op} {condition.value}: the value is not a valid {info.type}")
+                warnings.append(
+                    f"condition {condition.field} {condition.op} {condition.value}: the value is not a valid {info.type}"
+                )
 
     ordered = [merged[n] for n in used] + [f for n, f in merged.items() if n not in used]
     tree = LearnedTree(category=category, nodes=nodes, fields=ordered)
@@ -286,8 +297,11 @@ def assemble(aligned: Sequence[AlignedUnit], reconciled: ReconciledAnalysis, cat
     conformance = [check_conformance(tree, facts) for facts in reconciled.facts]
     for result in conformance:
         logger.info(
-            "conformance document_id=%s score=%.2f matched=%d total=%d", result.document_id, result.score,
-            result.matched, result.total,
+            "conformance document_id=%s score=%.2f matched=%d total=%d",
+            result.document_id,
+            result.score,
+            result.matched,
+            result.total,
         )
         for mismatch in result.mismatches[:10]:
             logger.warning("conformance_mismatch document_id=%s %s", result.document_id, mismatch)
@@ -296,11 +310,17 @@ def assemble(aligned: Sequence[AlignedUnit], reconciled: ReconciledAnalysis, cat
 
     low = [r for r in conformance if r.score < MIN_CONFORMANCE]
     if low:
-        details = "; ".join(f"{r.document_id} {r.score:.0%} (e.g. {r.mismatches[0] if r.mismatches else 'n/a'})" for r in low)
+        details = "; ".join(
+            f"{r.document_id} {r.score:.0%} (e.g. {r.mismatches[0] if r.mismatches else 'n/a'})" for r in low
+        )
         raise LearningError(f"Documents do not conform to the learned tree (below {MIN_CONFORMANCE:.0%}): {details}")
 
     logger.info(
         "assembly_finished units=%d fields=%d schema_fields=%d warnings=%d min_conformance=%.2f",
-        len(units), len(ordered), len(schema.fields), len(warnings), min((r.score for r in conformance), default=1.0),
+        len(units),
+        len(ordered),
+        len(schema.fields),
+        len(warnings),
+        min((r.score for r in conformance), default=1.0),
     )
     return Assembly(tree=tree, facts_schema=schema, warnings=warnings, conformance=conformance)

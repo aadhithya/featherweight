@@ -13,6 +13,7 @@ from doclearn.assembly import derive_facts_schema
 from doclearn.generation import check_generated, compile_tree, generate_document
 from doclearn.models import DocumentTemplate, LearnedTree
 from doclearn.store import LearnedStore
+
 from micro.jobs import run_job
 from micro.models import RunStatus
 from micro.runner import AgentRunner
@@ -44,9 +45,12 @@ CASE = {
     "cost_training": "$5,000",
     "cost_support_licences": "$14,000",
     # optional blocks switched on, each with its values
-    "include_data_migration_cost": "true", "cost_data_migration": "$7,000",
-    "include_hosting_setup_cost": "true", "cost_hosting_setup": "$3,000",
-    "include_optional_support": "true", "optional_support_price": "$5,500",
+    "include_data_migration_cost": "true",
+    "cost_data_migration": "$7,000",
+    "include_hosting_setup_cost": "true",
+    "cost_hosting_setup": "$3,000",
+    "include_optional_support": "true",
+    "optional_support_price": "$5,500",
 }
 EXPECTED_TOTAL = 144_000  # the six implementation and service prices of the case, plus data migration and hosting
 GUIDANCE = (
@@ -61,7 +65,10 @@ async def test_generate_a_proposal_from_the_learned_tree(db, caplog):
     schema = derive_facts_schema(tree)
     store = await LearnedStore.open(db)
     learned_id = await store.save(
-        category=tree.category, template=DocumentTemplate.model_validate(saved["template"]), tree=tree, facts_schema=schema
+        category=tree.category,
+        template=DocumentTemplate.model_validate(saved["template"]),
+        tree=tree,
+        facts_schema=schema,
     )
     learned = await store.get(learned_id)
     required = {f.name for f in schema.fields if f.required}
@@ -74,8 +81,12 @@ async def test_generate_a_proposal_from_the_learned_tree(db, caplog):
     assert outcome.status == RunStatus.SUCCESS, outcome.error
     document = outcome.result
 
-    remaining = check_generated(compile_tree(tree, CASE), CASE, document.markdown)  # the same check the agent had as a tool
-    print(f"\n[generated] problems left: {remaining}; not provided: {document.not_provided}; unused: {document.unused_inputs}")
+    remaining = check_generated(
+        compile_tree(tree, CASE), CASE, document.markdown
+    )  # the same check the agent had as a tool
+    print(
+        f"\n[generated] problems left: {remaining}; not provided: {document.not_provided}; unused: {document.unused_inputs}"
+    )
     print("[notes]", *document.notes, sep="\n  ")
     print("[document]\n" + document.markdown)
 
@@ -85,6 +96,8 @@ async def test_generate_a_proposal_from_the_learned_tree(db, caplog):
     for name in ("proposal_no", "client_name", "vendor_name", "vendor_email", "cost_development"):
         assert CASE[name] in text, f"{name} is not in the document"
     assert "Optional Support" in text and "Data migration" in text  # the flags were set
-    assert not any(word in text.lower() for word in ("milk", "appointment", "vessel", "route sheets", "stock hub")), "content of the example text leaked"
-    total_line = next((l for l in text.splitlines() if "TOTAL PRICE" in l.upper()), "")
+    assert not any(word in text.lower() for word in ("milk", "appointment", "vessel", "route sheets", "stock hub")), (
+        "content of the example text leaked"
+    )
+    total_line = next((line for line in text.splitlines() if "TOTAL PRICE" in line.upper()), "")
     assert str(EXPECTED_TOTAL) in re.sub(r"\D", "", total_line), f"total: {total_line!r}, expected {EXPECTED_TOTAL}"

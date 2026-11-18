@@ -3,8 +3,8 @@
 import asyncio
 
 import pytest
-
 from fakes import Echo, EchoInput, Reactive, respond, runner_with
+
 from micro.models import RunStatus
 from micro.runner import ENV_MAX_CONCURRENT, AgentRunner, max_concurrent_from_env
 

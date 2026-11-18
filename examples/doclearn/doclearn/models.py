@@ -19,7 +19,9 @@ class Document(_Strict):
 class FactNode(_Strict):
     """One content block of a document. The hierarchy lives here, not in the template."""
 
-    type: str = Field(description="Generic element type of this block, e.g. title, section, party_client, bullet_point.")
+    type: str = Field(
+        description="Generic element type of this block, e.g. title, section, party_client, bullet_point."
+    )
     text: str = Field(description="The block's own text as written, with {{span_name}} in place of fillable values.")
     children: list["FactNode"] = Field(default_factory=list, description="Nested blocks, in document order.")
 
@@ -33,7 +35,9 @@ class FactBlock(_Strict):
 
     id: str = Field(description="Unique id of this block within the document, e.g. n1, n2.")
     parent_id: str = Field(description="Id of the block this one is nested under; empty for a top-level block.")
-    type: str = Field(description="Generic element type of this block, e.g. title, section, party_client, bullet_point.")
+    type: str = Field(
+        description="Generic element type of this block, e.g. title, section, party_client, bullet_point."
+    )
     text: str = Field(description="The block's own text as written, with {{span_name}} in place of fillable values.")
 
 
@@ -59,7 +63,8 @@ class FieldExamples(_Strict):
     name: str = Field(description="A span name as used in the documents.")
     documents: int = Field(description="In how many documents this span name appears.")
     contexts: list[FieldContext] = Field(
-        default_factory=list, description="Up to three places where this name is used: the line and the value it had there."
+        default_factory=list,
+        description="Up to three places where this name is used: the line and the value it had there.",
     )
 
 
@@ -89,7 +94,9 @@ class DocumentTemplate(_Strict):
 class Condition(_Strict):
     field: str = Field(description="Name of the field the condition tests, e.g. salary or jurisdiction.")
     op: Literal["=", "!=", ">", ">=", "<", "<="] = Field(description="Comparison; = and != also match text.")
-    value: str = Field(description="Value to compare with, e.g. 5000 or Bayern. Numbers and dates compare by the field type.")
+    value: str = Field(
+        description="Value to compare with, e.g. 5000 or Bayern. Numbers and dates compare by the field type."
+    )
 
 
 class LearnedNode(_Strict):
@@ -101,7 +108,9 @@ class LearnedNode(_Strict):
         description="fixed: same everywhere, no spans. slot: same sentence, case-specific values as spans. "
         "generated: varies with the case and is written for each case."
     )
-    alternatives: list[str] = Field(default_factory=list, description="Other wordings of this block found in other documents.")
+    alternatives: list[str] = Field(
+        default_factory=list, description="Other wordings of this block found in other documents."
+    )
     conditions: list[Condition] = Field(
         default_factory=list, description="Include this block, and its children, only if all of these hold."
     )
@@ -123,7 +132,9 @@ class LearnedBlock(_Strict):
         "a narrative, a justification) and is written for each case. False for standard wording, also when it has {{spans}} or "
         "other phrasings."
     )
-    alternatives: list[str] = Field(default_factory=list, description="Other wordings of this block found in other documents.")
+    alternatives: list[str] = Field(
+        default_factory=list, description="Other wordings of this block found in other documents."
+    )
     conditions: list[Condition] = Field(
         default_factory=list, description="Include this block, and its children, only if all of these hold."
     )
@@ -133,7 +144,9 @@ class FieldInfo(_Strict):
     name: str = Field(description="Field name, as used in {{spans}} or in a condition.")
     type: Literal["text", "number", "date", "boolean"] = Field(description="What kind of value the field holds.")
     description: str = Field(description="One short line saying what to enter; helps the user and the model.")
-    calculated: bool = Field(default=False, description="True if the value is computed from other fields, e.g. a total.")
+    calculated: bool = Field(
+        default=False, description="True if the value is computed from other fields, e.g. a total."
+    )
 
 
 class LearnedTree(_Strict):
@@ -163,7 +176,9 @@ class FactsSchema(_Strict):
 
 class UnitDocument(_Strict):
     document_id: str = Field(description="Id of the document.")
-    node: FactNode = Field(description="This document's section for the unit: its heading node, with its whole subtree.")
+    node: FactNode = Field(
+        description="This document's section for the unit: its heading node, with its whole subtree."
+    )
     fields: list[FieldValue] = Field(description="The spans used in that subtree, with their values in this document.")
 
 

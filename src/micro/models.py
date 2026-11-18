@@ -17,16 +17,13 @@ ASK_ALLOWED = (
     "add a clear question to `open_questions` instead of guessing."
 )
 ASK_FORBIDDEN = (
-    "Do not ask the user questions. Where information is missing, "
-    "proceed with the most reasonable interpretation."
+    "Do not ask the user questions. Where information is missing, proceed with the most reasonable interpretation."
 )
 CONFLICTS_ALLOWED = (
     "If the input contains conflicting or inconsistent information, "
     "report each conflict in `open_questions` instead of silently picking one side."
 )
-CONFLICTS_FORBIDDEN = (
-    "Do not report conflicts in the input; resolve any inconsistency with your best judgement."
-)
+CONFLICTS_FORBIDDEN = "Do not report conflicts in the input; resolve any inconsistency with your best judgement."
 
 
 SUBAGENTS = (

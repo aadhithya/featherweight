@@ -27,17 +27,16 @@ from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
 
-from micro.db import Database, default_db_path
-from micro.jobs import run_job
-from micro.models import RunStatus
-from micro.runner import AgentRunner
-
 from doclearn.autofill import AutofillError, FilledForm, check_form, fill_form
 from doclearn.generation import GeneratedDocument, GenerationError, generate_document
 from doclearn.models import Document, FactsSchema, FieldValue
 from doclearn.pipeline import LearningResult, learn_document_tree
 from doclearn.report import GUIDANCE_KEY, form_file_content, overview, write_learned_files
 from doclearn.store import LearnedDocument, LearnedStore
+from micro.db import Database, default_db_path
+from micro.jobs import run_job
+from micro.models import RunStatus
+from micro.runner import AgentRunner
 
 DONE, FAILED, STOPPED = 0, 1, 2
 DEFAULT_OUT_DIR = "runs"
@@ -168,7 +167,8 @@ async def learn(
     runner: AgentRunner, store: LearnedStore, db: Database, documents: list[Document], category: str, console: Console
 ) -> tuple[LearnedDocument, LearningResult]:
     outcome = await run_job(
-        db, "learn",
+        db,
+        "learn",
         lambda job_id: learn_document_tree(runner, store, documents, category, job_id=job_id, progress=console.step),
     )
     if outcome.status != RunStatus.SUCCESS:
@@ -237,10 +237,9 @@ async def generate(
     runner: AgentRunner, db: Database, learned: LearnedDocument, form: FilledForm, console: Console
 ) -> GeneratedDocument:
     outcome = await run_job(
-        db, "generate",
-        lambda job_id: generate_document(
-            runner, learned, form.facts, form.story, job_id=job_id, progress=console.step
-        ),
+        db,
+        "generate",
+        lambda job_id: generate_document(runner, learned, form.facts, form.story, job_id=job_id, progress=console.step),
     )
     if outcome.status != RunStatus.SUCCESS:
         raise CliError(f"Generation failed: {outcome.error} (job {outcome.job_id})")
@@ -248,7 +247,9 @@ async def generate(
 
 
 def report(console: Console, document: GeneratedDocument, path: Path) -> None:
-    path.write_text(document.markdown if document.markdown.endswith("\n") else document.markdown + "\n", encoding="utf-8")
+    path.write_text(
+        document.markdown if document.markdown.endswith("\n") else document.markdown + "\n", encoding="utf-8"
+    )
     console.say("Document written.")
     if document.notes:
         console.say("Notes from the writer:")
@@ -261,7 +262,9 @@ def report(console: Console, document: GeneratedDocument, path: Path) -> None:
     if document.not_provided:
         console.say(f"Optional inputs without a value: {', '.join(document.not_provided)}")
     if document.unused_inputs:
-        console.say(f"Inputs whose value is not in the document (no place for them in the template): {', '.join(document.unused_inputs)}")
+        console.say(
+            f"Inputs whose value is not in the document (no place for them in the template): {', '.join(document.unused_inputs)}"
+        )
 
 
 # the command line
@@ -293,8 +296,12 @@ async def run(args: argparse.Namespace, console: Console, run_dir: Path) -> None
         console.say(f"\nSaved in {run_dir / 'learned'}\n")
 
         schema = learned.facts_schema
-        mode = args.fill[0] if args.fill else console.choose(
-            "Fill the form", {"m": "manual (in your editor)", "a": "auto (an agent invents a case)", "q": "quit"}
+        mode = (
+            args.fill[0]
+            if args.fill
+            else console.choose(
+                "Fill the form", {"m": "manual (in your editor)", "a": "auto (an agent invents a case)", "q": "quit"}
+            )
         )
         if mode == "q":
             raise Stopped

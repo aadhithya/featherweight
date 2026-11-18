@@ -1,10 +1,8 @@
 import pytest
-
 from builders import cond, facts, fnode, info, lnode, reconciled, unit
 from doclearn.assembly import MIN_CONFORMANCE, assemble, check_conformance, parse_date, parse_number
 from doclearn.learning import AlignedUnit, LearningError
 from doclearn.models import LearnedTree
-
 
 # the proposal-shaped example used by most tests: title, client section, pricing section with an optional item
 
@@ -31,7 +29,9 @@ def learned_units() -> list[AlignedUnit]:
 def doc(document_id, total="$100,000", support=False, fees="- Travel costs are billed at cost.", name=None):
     pricing = [fnode("statement", "- Total price: {{total_price}}.")]
     if support:
-        pricing.append(fnode("numbered_item", "3. **Optional Support:**", fnode("statement", "- Training for two days.")))
+        pricing.append(
+            fnode("numbered_item", "3. **Optional Support:**", fnode("statement", "- Training for two days."))
+        )
     pricing.append(fnode("statement", fees))
     return facts(
         document_id,
@@ -76,7 +76,11 @@ NO_NUMBERED_ITEM = ("title", "section", "statement")
         (lambda units: units.clear(), None, "Nothing to assemble"),
         (lambda units: None, NO_NUMBERED_ITEM, r"not in the reconciled template: \['numbered_item'\]"),
         (_illegal_name, None, r"illegal names \(use snake_case\): \['Client Name'\]"),
-        (_both_problems, NO_NUMBERED_ITEM, r"(?s)(?=.*not in the reconciled template)(?=.*illegal names)"),  # reported together
+        (
+            _both_problems,
+            NO_NUMBERED_ITEM,
+            r"(?s)(?=.*not in the reconciled template)(?=.*illegal names)",
+        ),  # reported together
     ],
 )
 def test_a_hard_problem_is_an_error(mutate, types, message):
@@ -87,11 +91,22 @@ def test_a_hard_problem_is_an_error(mutate, types, message):
         assemble(units, analysis, "proposals")
 
 
-@pytest.mark.parametrize("name,legal", [("client_name", True), ("a1_b2", True), ("1abc", False), ("Client", False), ("a-b", False), ("a b", False), ("_x", False)])
+@pytest.mark.parametrize(
+    "name,legal",
+    [
+        ("client_name", True),
+        ("a1_b2", True),
+        ("1abc", False),
+        ("Client", False),
+        ("a-b", False),
+        ("a b", False),
+        ("_x", False),
+    ],
+)
 def test_what_a_legal_name_is(name, legal):
-    units = [unit(1, lnode("title", "x {{%s}}" % name, "slot"), info(name))]
+    units = [unit(1, lnode("title", f"x {{{{{name}}}}}", "slot"), info(name))]
     if legal:
-        assemble(units, reconciled(facts("a", fnode("title", "x {{%s}}" % name), **{name: "v"})), "proposals")
+        assemble(units, reconciled(facts("a", fnode("title", f"x {{{{{name}}}}}"), **{name: "v"})), "proposals")
     else:
         with pytest.raises(LearningError, match="illegal names"):
             assemble(units, reconciled(facts("a", fnode("title", "x"))), "proposals")
@@ -106,9 +121,18 @@ def test_the_tree_keeps_every_field_and_the_schema_only_the_inputs_in_order_of_f
 
     result = assemble(units, reconciled(doc("a")), "proposals")
 
-    assert [f.name for f in result.tree.fields] == ["client_name", "total_price", "include_optional_support", "case_background"]
+    assert [f.name for f in result.tree.fields] == [
+        "client_name",
+        "total_price",
+        "include_optional_support",
+        "case_background",
+    ]
     # not the calculated total; a described field that no block uses is an input too, and comes last
-    assert [f.name for f in result.facts_schema.fields] == ["client_name", "include_optional_support", "case_background"]
+    assert [f.name for f in result.facts_schema.fields] == [
+        "client_name",
+        "include_optional_support",
+        "case_background",
+    ]
     assert result.facts_schema.category == "proposals"
     flag = result.facts_schema.fields[1]
     assert flag.type == "boolean" and flag.description == "Include the training package?"
@@ -146,10 +170,22 @@ def _condition(condition, *fields):
     "mutate,warning",
     [
         (_calculated_in_one_unit_only, "calculated"),
-        (_condition(cond("jurisdiction", ">=", "Bayern"), info("jurisdiction", "text")), "ordering needs a number or date field, not text"),
-        (_condition(cond("salary", ">=", "lots"), info("salary", "number")), "salary >= lots: the value is not a valid number"),
-        (_condition(cond("filed", "<", "next week"), info("filed", "date")), "filed < next week: the value is not a valid date"),
-        (_condition(cond("include_optional_support", "=", "maybe")), "include_optional_support = maybe: the value is not a valid boolean"),
+        (
+            _condition(cond("jurisdiction", ">=", "Bayern"), info("jurisdiction", "text")),
+            "ordering needs a number or date field, not text",
+        ),
+        (
+            _condition(cond("salary", ">=", "lots"), info("salary", "number")),
+            "salary >= lots: the value is not a valid number",
+        ),
+        (
+            _condition(cond("filed", "<", "next week"), info("filed", "date")),
+            "filed < next week: the value is not a valid date",
+        ),
+        (
+            _condition(cond("include_optional_support", "=", "maybe")),
+            "include_optional_support = maybe: the value is not a valid boolean",
+        ),
         (_condition(cond("jurisdiction", "=", "Bayern"), info("jurisdiction", "text")), None),  # fine
     ],
 )
@@ -214,16 +250,36 @@ def _generated_text():
     "mutate,document,mismatch",
     [
         (None, doc("a"), None),  # a document that the tree describes conforms fully
-        (None, doc("b", name="Someone Else Ltd", total="$999,000"), None),  # slots compare after filling in the document's own values
-        (None, doc("b", support=True, fees="- Reasonable travel costs are billed at cost."), None),  # an alternative wording; a conditional block that is present
-        (None, doc("b", support=True), None),  # "3. **Optional Support:**" vs "2. ...": leading list numbers are ignored
-        (None, doc("c", fees="- Award nothing at all."), "no block matches '- Award nothing at all.'"),  # but the rest of the text is not
+        (
+            None,
+            doc("b", name="Someone Else Ltd", total="$999,000"),
+            None,
+        ),  # slots compare after filling in the document's own values
+        (
+            None,
+            doc("b", support=True, fees="- Reasonable travel costs are billed at cost."),
+            None,
+        ),  # an alternative wording; a conditional block that is present
+        (
+            None,
+            doc("b", support=True),
+            None,
+        ),  # "3. **Optional Support:**" vs "2. ...": leading list numbers are ignored
+        (
+            None,
+            doc("c", fees="- Award nothing at all."),
+            "no block matches '- Award nothing at all.'",
+        ),  # but the rest of the text is not
         (None, _extra_appendix(), "APPENDIX"),  # a block the document has that the tree lacks
         (None, _no_price_line(), "required block missing: '- Total price: {{total_price}}.'"),
         (None, _swapped_sections(), ""),  # blocks out of order do not match
         (_generated_name_statement, _generated_text(), None),  # a generated block accepts any text of its type
         (_condition_on_total, doc("h", total="$800,000"), "missing although its condition holds"),
-        (_condition_on_total, doc("i", total="$100,000"), None),  # the condition does not hold and the block is missing: fine
+        (
+            _condition_on_total,
+            doc("i", total="$100,000"),
+            None,
+        ),  # the condition does not hold and the block is missing: fine
         (_condition_on_total, doc("j", total="$100,000", support=True), "present although its condition does not hold"),
         (_condition_on_total, doc("k", total="$800,000", support=True), None),
         (None, doc("l", support=False), None),  # a conditional block may be missing when its flag has no value
@@ -258,7 +314,9 @@ def test_assembly_reports_conformance_per_document_and_fails_below_the_threshold
     almost.nodes[2].children.append(fnode("statement", "- An extra line nobody learned."))  # 6 of 7 blocks match
     report = assemble(learned_units(), reconciled(almost), "proposals").conformance[0]
     assert (report.matched, report.total) == (6, 7)
-    assert report.score >= MIN_CONFORMANCE and report.mismatches  # just above the threshold: passes, mismatches reported
+    assert (
+        report.score >= MIN_CONFORMANCE and report.mismatches
+    )  # just above the threshold: passes, mismatches reported
 
     bad = facts("bad", fnode("section", "## UNRELATED"), fnode("section", "## ALSO UNRELATED"))
     with pytest.raises(LearningError, match=r"below 80%\): bad 0% \(e\.g\."):

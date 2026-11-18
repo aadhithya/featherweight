@@ -4,10 +4,10 @@ import datetime as dt
 from typing import ClassVar
 
 import pytest
+from fakes import Scripted, structured_reply, tool_reply
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
 
-from fakes import Scripted, structured_reply, tool_reply
 from micro import tools as tools_module
 from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus
 from micro.runner import AgentRunner
@@ -20,7 +20,7 @@ def calc(expression: str) -> str:
 
 @pytest.fixture
 def fixed_now(monkeypatch):
-    now = dt.datetime(2026, 11, 5, 10, 15, 30, 123456, tzinfo=dt.timezone.utc)
+    now = dt.datetime(2026, 11, 5, 10, 15, 30, 123456, tzinfo=dt.UTC)
     monkeypatch.setattr(tools_module, "_utc_now", lambda: now)
     return now
 
@@ -99,7 +99,10 @@ def test_add_to_date(kwargs, expected):
 @pytest.mark.parametrize(
     "tool,args",
     [
-        *[(add_to_date, {"date": bad, "days": 1}) for bad in ("05.11.2026", "2026-13-01", "2026-02-30", "tomorrow", "")],
+        *[
+            (add_to_date, {"date": bad, "days": 1})
+            for bad in ("05.11.2026", "2026-13-01", "2026-02-30", "tomorrow", "")
+        ],
         (add_to_date, {"date": "9999-12-31", "days": 1}),  # out of range
         (add_to_date, {"date": "2026-01-01", "years": 100000}),
         (days_between, {"start": "nope", "end": "2026-11-05"}),

@@ -10,11 +10,11 @@ import re
 from pathlib import Path
 
 import pytest
-
 from doclearn.analyzer import AnalyzerInput, DocumentAnalyzer
 from doclearn.cli import read_documents
 from doclearn.facts import SPAN_RE, heading_key, walk
 from doclearn.models import Document
+
 from micro.models import RunStatus
 from micro.runner import AgentRunner
 
@@ -49,7 +49,9 @@ def depth(nodes, level=1) -> int:
 
 def report(title: str, facts, template) -> None:
     nodes = list(walk(facts.nodes))
-    print(f"\n[{title}] {facts.document_id}: {len(nodes)} nodes ({len(facts.nodes)} top-level, nesting depth {depth(facts.nodes)}), {len(facts.fields)} fields")
+    print(
+        f"\n[{title}] {facts.document_id}: {len(nodes)} nodes ({len(facts.nodes)} top-level, nesting depth {depth(facts.nodes)}), {len(facts.fields)} fields"
+    )
     print("  element types:", ", ".join(f"{e.name}{'*' if e.repeatable else ''}" for e in template.element_types))
 
 
@@ -71,7 +73,9 @@ async def check_analyzer(
     facts = result.output.to_facts(doc.document_id)
     template = result.output.to_template(category)
     report(category, facts, template)
-    print(f"  tokens in/out: {result.input_tokens}/{result.output_tokens}, model: {result.model_name}, attempts: {result.attempts}")
+    print(
+        f"  tokens in/out: {result.input_tokens}/{result.output_tokens}, model: {result.model_name}, attempts: {result.attempts}"
+    )
 
     assert len(list(walk(facts.nodes))) >= 10
     assert len(template.element_types) >= 4
@@ -107,7 +111,11 @@ async def check_analyzer(
 
 async def test_analyzer_on_a_project_proposal(db, runner):
     await check_analyzer(
-        db, runner, read_documents(FIXTURES / "proposals")[0], "project_proposals", "PRP-FX-101",
+        db,
+        runner,
+        read_documents(FIXTURES / "proposals")[0],
+        "project_proposals",
+        "PRP-FX-101",
         ("Quillfeather Books Ltd", "Copperline Software Ltd"),
         ["project proposal", "client", "vendor", "proposal", "supporting material", "closing"],
     )
@@ -115,7 +123,11 @@ async def test_analyzer_on_a_project_proposal(db, runner):
 
 async def test_analyzer_on_an_incident_report(db, runner):
     await check_analyzer(
-        db, runner, read_documents(FIXTURES / "incidents")[0], "incident_reports", "INC-FX-201",
+        db,
+        runner,
+        read_documents(FIXTURES / "incidents")[0],
+        "incident_reports",
+        "INC-FX-201",
         ("Greta Holm", "Product Search"),
         ["incident report", "reporter", "affected service", "incident summary", "follow-up", "sign-off"],
     )

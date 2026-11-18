@@ -4,7 +4,6 @@ import re
 from pathlib import Path
 
 import pytest
-
 from doclearn.alignment import SemanticAlignmentAgent
 from doclearn.analyzer import DocumentAnalyzer
 from doclearn.autofill import FormFillerAgent

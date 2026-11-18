@@ -62,9 +62,7 @@ def derive_template(facts: DocumentFacts, styles: Mapping[str, str], category: s
     visit(facts.nodes)
     return DocumentTemplate(
         category=category,
-        element_types=[
-            ElementType(name=t, markdown=styles[t], repeatable=t in repeatable) for t in sorted(used)
-        ],
+        element_types=[ElementType(name=t, markdown=styles[t], repeatable=t in repeatable) for t in sorted(used)],
     )
 
 
@@ -74,9 +72,7 @@ def _invert(mapping: Mapping[str, Sequence[str]], kind: str) -> dict[str, str]:
     for canonical, raws in mapping.items():
         for raw in raws:
             if raw_to_canonical.get(raw, canonical) != canonical:
-                raise MappingError(
-                    f"{kind} '{raw}' is mapped to both '{raw_to_canonical[raw]}' and '{canonical}'"
-                )
+                raise MappingError(f"{kind} '{raw}' is mapped to both '{raw_to_canonical[raw]}' and '{canonical}'")
             raw_to_canonical[raw] = canonical
     return raw_to_canonical
 
