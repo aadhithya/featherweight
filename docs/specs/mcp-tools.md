@@ -39,7 +39,7 @@ Checked with a fake stdio server, and once with a real Gemini call through `crea
 - Tool annotations (`readOnlyHint` and so on) arrive in `tool.metadata`. `tool_interceptors` wrap every call and get the
   server name.
 - Gemini accepted the tools, including a nested and nullable schema, and called them correctly.
-- `mcp` brings `jsonschema`, which `call_tool` (#3) can use. About 50 packages in all, so it is an optional extra.
+- `mcp` brings `jsonschema`, which `call_tool` ([tool discovery](tool-discovery.md)) uses. About 50 packages in all, so it is an optional extra.
 
 **It does not fit, and what we do.**
 1. **By default each tool call starts a new session**, which for stdio is a new subprocess. We hold the sessions
@@ -214,7 +214,7 @@ A real stdio fake server (FastMCP, about 0.3s to start) with a scripted fake cha
 - A secret's value is in no log line, run row or exception message.
 - A server stops when the run ends without `async with`, and when the block ends with it; two runs share a server inside
   the block, and parallel runs share one outside it. `aclose()` leaves no child process; closing twice is fine.
-- An MCP agent on a runner that is not open raises, and starts no process.
+- An MCP agent runs on a runner that is not open (no `async with`), and its server is stopped when the run ends.
 - A resource link reaches the model as text, with no fetch. Audio becomes a text note.
 - An image and a PDF returned by the server reach the real model and are read (e2e, `gemini-3.5-flash-lite`).
 - Unit tests for the empty-content-with-structured-content rule, and for the cap: a result at the limit is untouched,

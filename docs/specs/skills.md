@@ -95,8 +95,8 @@ count in input tokens from then on, which is why a body should stay short.
 
 ## Not supported
 
-- Finding skills. An agent knows only the skills it lists. A tool that finds skills by keyword is planned
-  ([issue #3](https://github.com/aadhithya/micro/issues/3) and the shared lookup).
+- Finding skills. An agent knows only the skills it lists. A tool that finds skills by keyword is not built. The BM25
+  matcher of [tool discovery](tool-discovery.md#matching) is generic and could serve it.
 - Binary assets (images, PDFs), and scripts that run.
 - Loading from an archive or a registry, and sharing a skill between processes.
 - Reading a part of a long file, or a size limit on a file.

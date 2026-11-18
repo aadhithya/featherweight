@@ -177,7 +177,8 @@ The store is `RunStore`: state per job, in memory (`fakeredis`). Any `redis.asyn
 `await store.set(job_id, "key", value)` and `await store.get(job_id, "key")`.
 
 Agents that can launch agents, and agents with skills, get their extra tools from the runner; they are not in `tools`.
-The tools of MCP servers are added the same way (see [mcp.md](mcp.md)).
+The tools of MCP servers are added the same way: found with `search_tools` and `call_tool` by default, or bound directly
+with `discover=False` (see [mcp.md](mcp.md)).
 
 ## Jobs and tracing
 

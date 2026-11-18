@@ -143,7 +143,8 @@ Beyond the specification, in `micro`:
 - An agent can have both `skills` and `subagents` ([launching-agents.md](launching-agents.md)); they are independent.
 
 Not built yet:
-- **Finding skills.** An agent knows only the skills it lists. A tool that finds skills by keyword is planned.
+- **Finding skills.** An agent knows only the skills it lists. A tool that finds skills by keyword is not built. The matcher
+  that finds MCP tools ([tool discovery](specs/tool-discovery.md#matching)) could serve it.
 - Loading skills from an archive or a registry, or sharing a skill between processes.
 - Reading a part of a long file, or a size limit on a file.
 
