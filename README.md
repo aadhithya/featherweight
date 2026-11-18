@@ -11,14 +11,9 @@ and both are enforced. No guessing.
 
 It has opinions. Take them, or fork off.
 
-```
-the definition   what an agent is. A class. Static. Checked before anything runs.
-the runner       runs it. Retries, limits, delegation, the trace. Written once. Not your problem.
-your code        the pipeline. Order, loops, when to stop. Plain async Python.
-```
-
-- **Separation of concerns.** Agents are static classes. The runner runs them. Your code decides what happens next.
-  Nothing leaks across the line, and nobody gets to be clever.
+- **Separation of concerns.** Agents are static classes, checked before anything runs. The runner runs them: retries,
+  limits, delegation, the trace. Your code decides what happens next. Nothing leaks across the line, and nobody gets to
+  be clever.
 - **Typed contracts.** Pydantic checks what goes in and what comes out. `check_output` checks what a schema can't. Break
   a contract and the attempt fails. Nobody gets a pass.
 - **Failures are values.** A failed run returns `FAILED` and the error. It doesn't throw. Deal with it. Retries, a
