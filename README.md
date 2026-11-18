@@ -11,22 +11,20 @@ and both are enforced. No guessing.
 
 It has opinions. Take them, or fork off.
 
-- **Separation of concerns.** Agents are static classes, checked before anything runs. The runner runs them: retries,
-  limits, delegation, the trace. Your code decides what happens next. Nothing leaks across the line, and nobody gets to
-  be clever.
-- **Typed contracts.** Pydantic checks what goes in and what comes out. `check_output` checks what a schema can't. Break
-  a contract and the attempt fails. Nobody gets a pass.
-- **Failures are values.** A failed run returns `FAILED` and the error. It doesn't throw. Deal with it. Retries, a
-  concurrency limit and `run_many` fan-out come free. (A wrong input type is a bug, and that does raise.)
-- **Plain Python pipelines.** No graph DSL. No workflow magic. Order, loops and branching are `if` and `for`. Validators
-  get the last word, and the model only proposes. This is not a workflow engine, and it won't pretend to be one.
-- **Delegation on a leash.** Agents launch agents, from an allow-list, within depth and breadth limits. A parent that
-  waits hands its slot over, so nothing deadlocks. A runaway recursion dies. It doesn't get a vote.
-- **Everything is on record.** Every attempt, in sqlite: prompt hash, tokens, error, and the agent that launched it.
-  OpenTelemetry? Too big. (See [agents](docs/agents.md#jobs-and-tracing).)
-- **Plug things in, declare them.** The model is a typed class: Gemini, Gemma, Claude or OpenAI, and a small subclass adds
-  any other. MCP servers are named, not wired, and their tools are found by search. Skills use the
-  [Agent Skills](https://agentskills.io/specification) format. Tool schemas and skill bodies stay out of the context until the agent reaches for them.
+- **Separation of concerns.** Agents are classes. The runner runs them. Your code decides what happens next. Nobody gets
+  to be clever.
+- **Typed contracts.** Pydantic checks what goes in and what comes out, and `check_output` checks what a schema can't.
+  Break the contract and the attempt fails.
+- **Failures are values.** A failed run returns `FAILED` and the error. It doesn't throw. Retries, a concurrency limit and
+  `run_many` fan-out come free.
+- **Plain Python pipelines.** Order, loops and branching are `if` and `for`. No special workflow syntax, no nodes and
+  edges to wire up. This is not a workflow engine, and it won't pretend to be one.
+- **Delegation on a leash.** Agents can launch other agents, but only the ones on their list, and only so deep and so
+  wide. A runaway recursion dies.
+- **Everything is on record.** Every attempt goes in sqlite: tokens, errors, which agent launched which. OpenTelemetry?
+  Too big. (See [agents](docs/agents.md#jobs-and-tracing).)
+- **Plug things in.** The model (Gemini, Gemma, Claude, OpenAI, or your own subclass), MCP servers and skills are
+  declared on the agent. Tool schemas and skill instructions stay out of the context until the agent needs them.
 
 ## An agent
 
