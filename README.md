@@ -1,33 +1,22 @@
 # micro
 
-**An opinionated agent harness, where Pydantic is the specification.**
+**An opinionated agent harness. Pydantic is the spec. Everything else follows.**
 
-An agent is a typed Pydantic class, and everything about how it behaves is declared in that class and enforced by
-Pydantic, not left to convention or to the model: its input, its output, its skills and the agents it may launch. The
-runner then makes it dependable: failures come back as values, retries and limits are built in, and every attempt is
-recorded.
+An agent is a typed class. Its input, output, skills and sub-agents are declared right there and enforced by Pydantic,
+not by convention, and not by hoping the model behaves. The boilerplate every agent project ends up writing (retries,
+limits, failures, tracing, tools, delegation) is already written. You write the pipeline. That's the part that's yours.
 
-It is also a convenience. Every agent project ends up writing the same boilerplate: validating inputs and outputs,
-retrying, limiting concurrency, handling failures, tracing runs, wiring up tools, letting one agent call another, loading
-instructions for an agent to follow. `micro` is that boilerplate, written once, so that you can start from a working base
-and spend your time on the pipeline: the part that is your product.
+It has opinions. Take them, or fork it.
 
-The opinions, which are the whole design:
-
-- **An agent is a specification, not a script.** It is a static, typed definition: name, version, prompt, model,
-  tools, and input and output schemas. Nothing about it is decided at run time, so it can be read, tested and versioned
-  like any other class.
-- **Pydantic enforces the contract at every boundary.** The input before the model is called, the output after, a skill's
-  fields when it is loaded, the list of sub-agents when the agent is built. A model that breaks a rule gets retried; it
-  does not get to pass.
-- **Failures are values.** A run that fails at run time returns a result, `FAILED` with the error, not an exception, so
-  the pipeline decides what a failure means. (Programming errors, such as the wrong input type, do raise.)
-- **Code checks, the model proposes.** Validators and `check_output` hold what a schema cannot, and a pipeline is
-  ordinary async Python around `run` and `run_many`, with no graph language to learn.
-- **Every attempt is on record.** Inputs, outputs, errors, tokens, latency and the prompt's hash, in sqlite, grouped by
-  job and tied to the agent that launched it.
-- **Small enough to read.** About 1,400 lines on langchain and langgraph, async throughout, Gemini models for now. You
-  should be able to read all of it, and change the parts you disagree with.
+- **Agents are specs, not scripts.** Static, typed, versioned like any class. Nothing about them is decided at run time.
+- **Pydantic is the contract.** Checked on the way in, on the way out, when a skill loads and when a sub-agent list is
+  built. Break a rule and you get retried. Nobody gets a pass.
+- **Failures are values.** A run that fails returns `FAILED` and the error. It doesn't throw. You decide what that
+  means. (A wrong input type is a bug, and it does raise.)
+- **Code checks. The model proposes.** Validators have the last word. Pipelines are plain async Python, with no graph
+  language to learn.
+- **Everything is on record.** Every attempt, in sqlite, tied to the agent that launched it.
+- **Small enough to read.** About 1,500 lines. Read all of it. Disagree with it. Change it.
 
 > A small, quick, vibe coded project: a few days of work. A prototype with limited scope, not production software.
 
@@ -123,6 +112,8 @@ make pipeline ARGS="examples/doclearn/samples/project_proposals --category proje
 |---|---|
 | `make build` | Build the image |
 | `make test` | Unit tests (the model is mocked, no key needed); or `uv run pytest` |
+| `make check` | Lint and format check (ruff) and types (ty); `make lint`, `make format`, `make typecheck` run one |
+| `make hooks` | Install the git hooks: conventional commit messages, ruff and ty |
 | `make e2e` | Tests against the real model (costs money) |
 | `make pipeline ARGS="..."` | Run the example pipeline |
 | `make example-skills` | Run the skills example agent |
@@ -137,7 +128,9 @@ docs/                 documentation
 tests/                the harness's tests; tests/e2e uses the real model
 ```
 
-Issues and pull requests are welcome; run `make test` first.
+Issues and pull requests are welcome. Run `make hooks` once: commit messages follow
+[Conventional Commits](https://www.conventionalcommits.org) (`feat(runner): ...`, `fix: ...`), and `make check` and
+`make test` must pass.
 
 ## License
 
