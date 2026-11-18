@@ -58,8 +58,18 @@ GITHUB = HttpMCPServer(
 - **A tool that errors is text for the model.** If GitHub says a repository does not exist, the agent reads that and
   answers accordingly. It does not crash the run.
 
-Each request is a job in `micro.db`. `select tool_names from agent_runs` shows the six tools, and the log shows each call:
-`mcp_call ... server=github tool=github_get_latest_release status=ok ms=...` (run with `MICRO_LOG_LEVEL=INFO`).
+Each request is a job in `micro.db`. `select tool_names from agent_runs` shows which tools the model was bound to: the six
+`github_*` tools with `discover=False`, or just `search_tools` and `call_tool` when the server is found by search.
+
+The script prints only the answers. To see what happens underneath, turn the log on:
+
+```
+MICRO_LOG_LEVEL=INFO make example-mcp
+```
+
+You will see the server start (`mcp_open`), each search (`tool_search ... keywords=[...] hits=3`), each call
+(`tool_call_via_search ... tool=github_list_releases status=ok`, and `mcp_call ... status=ok ms=...`), and the model's token
+counts. Without `MICRO_LOG_LEVEL` nothing is logged. The variable reaches the container from your shell or from `.env`.
 
 ## Things to try
 

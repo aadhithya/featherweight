@@ -6,9 +6,13 @@
 Needs GOOGLE_API_KEY and GITHUB_TOKEN, a read-only token (see examples/mcp/README.md). The agent declares one server,
 GitHub's remote one, and an allow-list of six read-only tools out of the dozens it offers. The runner connects when the
 first request needs it, and `async with` keeps it up between the requests and closes it at the end.
+
+Set MICRO_LOG_LEVEL=INFO (`MICRO_LOG_LEVEL=INFO make example-mcp`) to see the log lines: each server start, search and
+tool call.
 """
 
 import asyncio
+import os
 import sys
 from pathlib import Path
 from typing import ClassVar
@@ -16,6 +20,7 @@ from typing import ClassVar
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))  # so that this runs without installing anything
 
 from micro.db import Database, default_db_path  # noqa: E402
+from micro.log import setup_logging  # noqa: E402
 from micro.mcp import HttpMCPServer, StdioMCPServer  # noqa: E402
 from micro.models import AgentBase, AgentInput, AgentOutput, ModelName, Reasoning, RunStatus  # noqa: E402
 from micro.runner import AgentRunner  # noqa: E402
@@ -67,6 +72,8 @@ SAMPLES = [
 
 
 async def main(questions: list[str]) -> int:
+    if os.environ.get("MICRO_LOG_LEVEL"):  # the log is for when you ask for it: the answers are what this prints
+        setup_logging()
     failed = 0
     async with Database(default_db_path()) as db, AgentRunner(db) as runner:
         for question in questions:

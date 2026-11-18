@@ -6,10 +6,13 @@
 Needs GOOGLE_API_KEY. The agent is told the name and description of its three skills (the folders next to this file); when a
 request fits one, it reads that skill with `get_skill`, and then the files the skill points to, and follows them.
 The script prints each skill the agent read.
+
+Set MICRO_LOG_LEVEL=INFO (`MICRO_LOG_LEVEL=INFO make example-skills`) to see the log lines: each attempt, each skill read and each token count.
 """
 
 import asyncio
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import ClassVar
@@ -18,6 +21,7 @@ HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE.parent.parent / "src"))  # so that this runs without installing anything
 
 from micro.db import Database, default_db_path  # noqa: E402
+from micro.log import setup_logging  # noqa: E402
 from micro.models import AgentBase, AgentInput, AgentOutput, ModelName, Reasoning, RunStatus  # noqa: E402
 from micro.runner import AgentRunner  # noqa: E402
 from micro.skills import Skill  # noqa: E402
@@ -72,6 +76,8 @@ class ShowSkillReads(logging.Handler):
 
 
 async def main(requests: list[str]) -> int:
+    if os.environ.get("MICRO_LOG_LEVEL"):  # the log is for when you ask for it: the answers are what this prints
+        setup_logging()
     runner_log = logging.getLogger("micro.runner")
     runner_log.setLevel(logging.INFO)
     runner_log.addHandler(ShowSkillReads())

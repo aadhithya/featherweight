@@ -6,6 +6,7 @@ services:
         required: false
     environment:
       MICRO_DB_PATH: /app/micro.db  # the project directory is bind-mounted at /app, so this is ./micro.db on the host
+      MICRO_LOG_LEVEL: ${MICRO_LOG_LEVEL:-}  # from your shell, or .env: `MICRO_LOG_LEVEL=INFO make example-mcp`
     volumes:
       - .:/app
     # No app entry point yet; keep the container alive for `make shell` / `make test`.

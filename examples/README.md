@@ -14,6 +14,9 @@ which use `gemini-3.8-flash` for the harder steps.
 `launching`, `skills` and `mcp` are one file of agents plus a script that runs them, and they are the place to start. `doclearn`
 is bigger: five agents, two pipelines, sample documents and its own tests.
 
+The examples print answers only. `MICRO_LOG_LEVEL=INFO make example-mcp` (or any other example) also prints the log: each
+attempt, tool call, search and launch. `doclearn` has its own: `-v`.
+
 Each `make` target runs in Docker. Without Docker, run the script with `uv run python examples/<folder>/agent.py`
 (`doclearn` is run as a module: see its README). Pass your own request after the script, or as `ARGS="..."` to `make`.
 

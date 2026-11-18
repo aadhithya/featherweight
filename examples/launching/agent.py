@@ -6,9 +6,12 @@
 Needs GOOGLE_API_KEY. The `Editor` may launch two agents, and only those: it is told their names and descriptions, asks
 for the input one expects with `get_agent_schema`, and launches it with `launch_agent`. After each request the script
 prints the runs of the job as a tree, which is how launches are recorded: every row knows the attempt that launched it.
+
+Set MICRO_LOG_LEVEL=INFO (`MICRO_LOG_LEVEL=INFO make example-launching`) to see the log lines: each attempt, each launch and each token count.
 """
 
 import asyncio
+import os
 import sys
 from pathlib import Path
 from typing import ClassVar
@@ -16,6 +19,7 @@ from typing import ClassVar
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))  # so that this runs without installing anything
 
 from micro.db import Database, default_db_path  # noqa: E402
+from micro.log import setup_logging  # noqa: E402
 from micro.models import AgentBase, AgentInput, AgentOutput, ModelName, Reasoning, RunStatus  # noqa: E402
 from micro.runner import AgentRunner  # noqa: E402
 
@@ -112,6 +116,8 @@ def print_tree(rows) -> None:
 
 
 async def main(requests: list[str]) -> int:
+    if os.environ.get("MICRO_LOG_LEVEL"):  # the log is for when you ask for it: the answers are what this prints
+        setup_logging()
     failed = 0
     async with Database(default_db_path()) as db:
         runner = AgentRunner(db)
