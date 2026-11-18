@@ -38,7 +38,7 @@ An agent with no `model` uses `Gemini()`.
 
 ## Install and keys
 
-Gemini and Gemma come with `micro`. The other two are extras:
+Gemini and Gemma come with [micro.]. The other two are extras:
 
 ```
 pip install 'micro[anthropic]'     # ANTHROPIC_API_KEY

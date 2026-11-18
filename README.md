@@ -1,8 +1,7 @@
-<h1 align="center"><img src="docs/assets/micro.png" alt="[micro.]" width="520"></h1>
+# [micro.]
 
 **An opinionated agent harness. Pydantic is the spec. Everything else follows.**
 
-Designed by a human. Implemented by Claude.
 
 An agent is a typed class. Its input, output, skills and sub-agents are declared right there and enforced by Pydantic,
 not by convention, and not by hoping the model behaves. The boilerplate every agent project ends up writing (retries,
@@ -27,6 +26,9 @@ It has opinions. Take them, or fork off.
   Too big. (See [agents](docs/agents.md#jobs-and-tracing).)
 - **Plug things in.** The model (Gemini, Gemma, Claude, OpenAI, or your own subclass), MCP servers and skills are
   declared on the agent. Tool schemas and skill instructions stay out of the context until the agent needs them.
+
+> Designed by a human. Implemented by Claude.
+
 
 ## An agent
 
@@ -154,3 +156,5 @@ Issues and pull requests are welcome. Run `make hooks` once: commit messages fol
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE).
+
+<p align="center"><img src="docs/assets/micro.png" alt="[micro.]" width="520"></p>

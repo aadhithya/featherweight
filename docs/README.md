@@ -4,7 +4,7 @@ Three kinds of page, from "how do I use it" to "why is it this way". Start at th
 
 | Level | Answers | Where |
 |---|---|---|
-| **Overview** | What is `micro`, and is it for me? | The [README](../README.md) |
+| **Overview** | What is [micro.], and is it for me? | The [README](../README.md) |
 | **Guides** | How do I do X? | [This folder](#guides) |
 | **Specs** | What exactly does it do, what was decided and why, and what is left out? | [`specs/`](specs) |
 | **Examples** | Show me running code | [`examples/`](../examples) |
@@ -26,7 +26,7 @@ or finding out why it behaves as it does.
   limits.
 - **I want to teach an agent a procedure.** [Skills](skills.md): instructions in the Agent Skills format, read on demand.
 - **I want to see a whole pipeline.** [Example pipeline](example-pipeline.md): `doclearn`, five agents and two pipelines
-  built on `micro`. Run it with `make pipeline`.
+  built on [micro.]. Run it with `make pipeline`.
 - **I want to know why it works this way, or to change it.** [Specs](specs). Start with the
   [agent runner](specs/runner.md), which most behaviour passes through.
 
@@ -65,7 +65,7 @@ runner ──────────── runs agents: attempts, retries, conc
 
 ## How it fits together
 
-- **The README** says what `micro` is and what it will not do.
+- **The README** says what [micro.] is and what it will not do.
 - **A guide** is written for someone with a task. It shows code, and says what to expect.
 - **A spec** is written from the code. It states the rules as they are, the decisions with their reasons, and what was left
   out on purpose. If a guide and a spec disagree, the spec and the code are right, and the guide should be fixed.

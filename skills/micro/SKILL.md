@@ -1,19 +1,20 @@
 ---
 name: micro
-description: "Build background AI agents and pipelines with the `micro` Python framework: typed Pydantic agents, a runner with retries and concurrency limits, sub-agents, MCP tools, Agent Skills, and a sqlite trace. Use when the user wants to build, extend, test or debug an app, pipeline, batch job or agent system with `micro`, or when code imports `micro.models`, `micro.runner` or `micro.model_settings`."
+description: "Build background AI agents and pipelines with the [micro.] Python framework: typed Pydantic agents, a runner with retries and concurrency limits, sub-agents, MCP tools, Agent Skills, and a sqlite trace. Use when the user wants to build, extend, test or debug an app, pipeline, batch job or agent system with [micro.], or when code imports `micro.models`, `micro.runner` or `micro.model_settings`."
 ---
 
-# Building with micro
+# Building with [micro.]
 
-`micro` is a small Python framework for **background agents**: pipelines, batches, fan-out. No chat, no UI, no streaming.
+[micro.] is a small Python framework for **background agents**: pipelines, batches, fan-out. No chat, no UI, no streaming.
 An agent is a typed class. A runner runs it with retries, limits and a trace. Your code, plain async Python, decides what
 runs next. It has opinions, but they are defaults: follow them unless the user wants something else.
 
-Install (Python 3.12 or later), with the extras the app needs:
+Install (Python 3.12 or later). Add the extras the app needs: `mcp` for MCP servers, `anthropic` for Claude, `openai` for
+OpenAI. Gemini and Gemma need no extra.
 
 ```
 pip install "micro @ git+https://github.com/aadhithya/micro"
-pip install "micro[mcp,anthropic,openai] @ git+https://github.com/aadhithya/micro"
+pip install "micro[mcp,anthropic,openai] @ git+https://github.com/aadhithya/micro"   # with all the extras
 ```
 
 Gemini is the default model and needs `GOOGLE_API_KEY`. Claude needs `ANTHROPIC_API_KEY` and OpenAI `OPENAI_API_KEY`.
@@ -93,8 +94,12 @@ asyncio.run(main())
 ## Rules that save you a round trip
 
 - **Pass the class to the runner, not an instance.** `runner.run(PeopleExtractor, input)`. The runner builds it.
-- **Check `result.status`.** A failed run returns `FAILED` and `result.error`. It does not raise. A wrong input type does
-  raise, and that is a bug in your code.
+- **Check `result.status`.** It is a `RunStatus`, a string enum: `RunStatus.SUCCESS` or `RunStatus.FAILED`. A failed run
+  returns `FAILED` and `result.error`. It does not raise. A wrong input type does raise, and that is a bug in your code.
+  `run_job` returns a `JobOutcome` with `job_id`, `status`, `result` (what your pipeline returned) and `error`.
+- **Two kinds of bad output.** A reply that breaks the schema (a wrong type, a value outside a `Literal`) goes back to the
+  model within the same attempt. A rejection by `check_output` fails the attempt, and the runner retries it, up to 3
+  attempts. Use a `Literal` or validator for rules on the output alone, `check_output` for rules about the input too.
 - **A retry resamples with the same input.** The error is not sent back. If the retry must know what went wrong, build a
   new input in the pipeline that carries the problems.
 - **Output models:** give task fields defaults, and prefer flat lists with ids over nested or `X | None` objects. Gemini
@@ -113,14 +118,15 @@ asyncio.run(main())
 
 ## Tests and cost
 
-- **Never call a real model in tests.** Pass a fake chat model: `AgentRunner(db, model_factory=lambda agent: fake)`. See
-  `references/recipes.md` for a scripted fake.
+- **Never call a real model in tests.** Pass a fake chat model: `AgentRunner(db, model_factory=lambda agent: fake)`.
+  `references/recipes.md` has a whole test file with a fake that works with `run_many`. Tests need `pytest-asyncio` with
+  `asyncio_mode = auto`.
 - Real calls cost money. Ask the user before running one, use the smallest model (`gemini-3.5-flash-lite`,
   `claude-haiku-5-5`, `gpt-6-luna`) at the lowest effort, and keep the input small.
 
 ## Where to read next
 
-Read only the reference for the task. Each is a guide from the `micro` repository, with its code examples.
+Read only the reference for the task. Each is a guide from the [micro.] repository, with its code examples.
 
 | The task | Read |
 |---|---|

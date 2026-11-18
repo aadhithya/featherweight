@@ -2,7 +2,7 @@
 
 # Example pipeline: `doclearn`
 
-[`examples/doclearn`](https://github.com/aadhithya/micro/blob/main/examples/doclearn) is a worked example of a pipeline on top of `micro`: learn the template of a document
+[`examples/doclearn`](https://github.com/aadhithya/micro/blob/main/examples/doclearn) is a worked example of a pipeline on top of [micro.]: learn the template of a document
 family from a few examples, then write a new document from a few facts. It is a demonstration of what the harness makes
 easy, not a finished product, and it is not specific to any domain. The sample documents (project proposals and
 incident reports) are in [`examples/doclearn/samples`](https://github.com/aadhithya/micro/blob/main/examples/doclearn/samples).

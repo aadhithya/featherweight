@@ -1,9 +1,11 @@
 """The skill in `skills/micro`: it loads as a skill, its guides match the docs, and its code runs (on a fake model)."""
 
 import ast
-import asyncio
 import importlib.util
+import os
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -64,13 +66,36 @@ def test_the_working_app_in_the_skill_runs_on_a_fake_model(monkeypatch, tmp_path
     assert (tmp_path / "micro.db").exists()
 
 
-def test_the_recipes_pipeline_and_fake_model_test_run(monkeypatch, tmp_path):
+def test_the_recipes_pipeline_defines_and_the_fake_model_test_file_passes_as_written(tmp_path):
     definition, pipeline, *_ = python_blocks(SKILL / "SKILL.md")
     namespace: dict = {"__name__": "skill_example"}
     exec(definition, namespace)
     exec(pipeline.replace("asyncio.run(main())", ""), namespace)  # the imports and main(), not run
+    exec(python_blocks(SKILL / "references" / "recipes.md")[0], namespace)  # the pipeline of two agents: defines it
 
-    blocks = python_blocks(SKILL / "references" / "recipes.md")
-    exec(blocks[0], namespace)  # the pipeline of two agents
-    exec(next(b for b in blocks if "class Scripted" in b), namespace)  # the fake model and its test
-    asyncio.run(namespace["test_extracts_people"](tmp_path))
+    # The recipe's test file, saved next to the agent as `app.py`, as the recipe says, and run by pytest.
+    (tmp_path / "app.py").write_text(definition)
+    (tmp_path / "test_app.py").write_text(
+        next(b for b in python_blocks(SKILL / "references" / "recipes.md") if "class FakeModel" in b)
+    )
+    env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
+    done = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-o",
+            "asyncio_mode=auto",
+            "-p",
+            "no:cacheprovider",
+            "--rootdir",
+            str(tmp_path),
+        ],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "4 passed" in done.stdout

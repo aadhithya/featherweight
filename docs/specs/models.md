@@ -225,7 +225,7 @@ spec and the [guide](../agents.md) are updated.
 - **One class per provider, with its own fields.** The controls differ in kind, so a shared `reasoning: Literal[...]` would
   be wrong for one of them. The label in the log is what is shared.
 - **A catalog per class, checked when the setting is built.** A typo, or an effort a model refuses, fails at definition time.
-  The cost is a change in `micro` when a model ships, and a user class is the way round it.
+  The cost is a change in [micro.] when a model ships, and a user class is the way round it.
 - **No registry.** The class is the extension point and the runner calls `build()`. Nothing is registered.
 - **No temperature.** The vendors have removed or discourage it, and silently ignoring it is worse than refusing it.
 - **Only current families.** Older models need other parameters (`budget_tokens`, `thinking_budget`), and a user class can
