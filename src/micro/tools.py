@@ -17,6 +17,7 @@ import logging
 import math
 import operator
 import re
+from collections.abc import Callable
 from decimal import Decimal, DivisionByZero, InvalidOperation, Overflow
 
 from langchain.tools import ToolRuntime, tool
@@ -60,7 +61,7 @@ async def store_set(key: str, value: str, runtime: ToolRuntime[RunContext]) -> s
 MAX_EXPRESSION_CHARS = 200
 MAX_EXPONENT = 100
 
-_BINARY_OPS = {
+_BINARY_OPS: dict[type[ast.operator], Callable[[Decimal, Decimal], Decimal]] = {
     ast.Add: operator.add,
     ast.Sub: operator.sub,
     ast.Mult: operator.mul,

@@ -3,8 +3,9 @@
 import re
 from collections import Counter
 from collections.abc import Iterator, Mapping, Sequence
+from typing import TypeVar
 
-from doclearn.models import DocumentFacts, DocumentTemplate, ElementType, FactNode
+from doclearn.models import DocumentFacts, DocumentTemplate, ElementType, FactNode, LearnedNode
 
 SPAN_RE = re.compile(r"\{\{\s*([^{}]*?)\s*\}\}")
 
@@ -18,7 +19,10 @@ def find_spans(text: str) -> list[str]:
     return [m.group(1) for m in SPAN_RE.finditer(text)]
 
 
-def walk(nodes: Sequence[FactNode]) -> Iterator[FactNode]:
+Node = TypeVar("Node", FactNode, LearnedNode)  # a tree of facts, or a learned tree
+
+
+def walk(nodes: Sequence[Node]) -> Iterator[Node]:
     """Every node in the tree, depth-first, parents before their children."""
     for node in nodes:
         yield node

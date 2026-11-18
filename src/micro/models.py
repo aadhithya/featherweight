@@ -106,7 +106,7 @@ class AgentBase(BaseModel):
                 raise ValueError(f"subagents must be AgentBase classes, got {sub!r}")
             if sub is type(self):
                 raise ValueError(f"{self.name} lists itself in subagents: an agent can only launch other agents")
-            names.append(sub().name)
+            names.append(sub().name)  # ty: ignore[missing-argument]  # a subclass supplies the defaults
         if len(set(names)) != len(names):
             raise ValueError(f"subagents of {self.name} have duplicate names: {names}")
         skill_names = [skill.name for skill in self.skills]

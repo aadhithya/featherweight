@@ -50,3 +50,18 @@ ignore = [
 
 [tool.ty.environment]
 extra-paths = ["src", "tests", "examples/doclearn", "examples/doclearn/tests"]
+
+# `ty` is strict on the harness (src/) and the small examples. The tests and the doclearn example read `result.output`
+# after checking `result.status`, which `ty` cannot narrow (they are separate fields), and doclearn's agents override
+# `check_output` with their own input and output types. Those rules are relaxed there, and only there.
+[[tool.ty.overrides]]
+include = ["tests/**", "examples/doclearn/**"]
+
+[tool.ty.overrides.rules]
+missing-union-attribute = "ignore"
+missing-attribute = "ignore"
+invalid-argument-type = "ignore"
+invalid-explicit-return = "ignore"
+unsupported-operator = "ignore"
+incompatible-attribute-override = "ignore"
+invalid-assignment = "ignore"

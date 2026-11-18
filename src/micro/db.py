@@ -131,13 +131,13 @@ class Database:
         logger.info("db_connected path=%s", self.path)
 
     async def _migrate(self) -> None:
-        async with self._conn.execute("PRAGMA table_info(agent_runs)") as cur:
+        async with self.conn.execute("PRAGMA table_info(agent_runs)") as cur:
             existing = {row["name"] for row in await cur.fetchall()}
         for column, definition in ADDED_COLUMNS.items():
             if column not in existing:
-                await self._conn.execute(f"ALTER TABLE agent_runs ADD COLUMN {column} {definition}")
+                await self.conn.execute(f"ALTER TABLE agent_runs ADD COLUMN {column} {definition}")
                 logger.info("db_migrated column=%s", column)
-        await self._conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_runs_parent ON agent_runs(parent_agent_run_id)")
+        await self.conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_runs_parent ON agent_runs(parent_agent_run_id)")
 
     async def close(self) -> None:
         if self._conn is not None:

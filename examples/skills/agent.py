@@ -18,7 +18,7 @@ HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE.parent.parent / "src"))  # so that this runs without installing anything
 
 from micro.db import Database, default_db_path  # noqa: E402
-from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus  # noqa: E402
+from micro.models import AgentBase, AgentInput, AgentOutput, ModelName, Reasoning, RunStatus  # noqa: E402
 from micro.runner import AgentRunner  # noqa: E402
 from micro.skills import Skill  # noqa: E402
 
@@ -41,8 +41,8 @@ class Assistant(AgentBase):
         "You help with short writing tasks. If one of your skills fits the request, use it. "
         "Return the finished text, and nothing else, in `answer`."
     )
-    model_name: str = "gemini-3.5-flash-lite"
-    reasoning: str = "low"
+    model_name: ModelName = "gemini-3.5-flash-lite"
+    reasoning: Reasoning = "low"
     skills: list[Skill] = SKILLS
     input_model: ClassVar[type[AgentInput]] = AssistantInput
     output_model: ClassVar[type[AgentOutput]] = AssistantOutput
@@ -83,7 +83,7 @@ async def main(requests: list[str]) -> int:
             result = await runner.run(
                 Assistant, AssistantInput(request=request), job_id=await db.create_job("skills-demo")
             )
-            if result.status == RunStatus.SUCCESS:
+            if result.status == RunStatus.SUCCESS and result.output is not None:
                 print(f"\n{result.output.answer}\n  ({result.input_tokens} tokens in, {result.output_tokens} out)")
             else:
                 failed += 1

@@ -205,7 +205,7 @@ class AgentRunner:
     ) -> AgentResult[Any]:
         """`run`, for the agents launched by other agents too: `depth` is 1 for a top-level run, and the child shares
         the job and records the attempt that launched it."""
-        agent = agent_cls()
+        agent = agent_cls()  # ty: ignore[missing-argument]  # a subclass supplies the defaults
         if not isinstance(agent_input, agent.input_model):
             raise TypeError(f"{agent.name} expects {agent.input_model.__name__}, got {type(agent_input).__name__}")
 
@@ -220,7 +220,7 @@ class AgentRunner:
             + (list(SKILL_TOOL_NAMES) if agent.skills else [])
         )
         message = agent_input.model_dump_json(indent=2)
-        result_cls = AgentResult[agent.output_model]
+        result_cls = AgentResult[agent.output_model]  # ty: ignore[invalid-type-form]  # the output model is known only now
         started = time.perf_counter()
 
         logger.info(
@@ -368,7 +368,7 @@ class AgentRunner:
         exceptions, so the caller decides what a failure means. There is no limit of its own: the
         runner's concurrency limit bounds how many attempts run at once.
         """
-        name = agent_cls().name
+        name = agent_cls().name  # ty: ignore[missing-argument]  # a subclass supplies the defaults
         logger.info("fan_out_started agent=%s count=%d job_id=%s", name, len(agent_inputs), job_id)
         results = list(
             await asyncio.gather(*(self.run(agent_cls, agent_input, job_id=job_id) for agent_input in agent_inputs))
@@ -443,7 +443,7 @@ class AgentRunner:
                 )
             finally:
                 await slot.back()
-            if result.status == RunStatus.SUCCESS:
+            if result.status == RunStatus.SUCCESS and result.output is not None:
                 return json.dumps(
                     {"status": "SUCCESS", "agent": agent_name, "output": result.output.model_dump(mode="json")}
                 )
