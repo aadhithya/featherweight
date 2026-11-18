@@ -99,8 +99,8 @@ class AgentBase(BaseModel):
     # Skills this agent can read (see micro/skills.py). Their names and descriptions are in the prompt; the
     # runner gives the agent `get_skill` to read the instructions when one applies.
     skills: list[Skill] = Field(default_factory=list)
-    # MCP servers whose tools this agent may use. The runner connects to them (see micro/mcp.py), so the runner must be
-    # open: `async with AgentRunner(...)`. Each tool is named `<server>_<tool>`.
+    # MCP servers whose tools this agent may use. The runner connects to them when a run needs them (see
+    # micro/mcp_connections.py). Each tool is named `<server>_<tool>`.
     mcp_servers: list[StdioMCPServer | HttpMCPServer] = Field(default_factory=list)
 
     input_model: ClassVar[type[AgentInput]] = AgentInput

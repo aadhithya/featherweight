@@ -19,6 +19,7 @@ from pydantic import ValidationError
 from micro.context import CURRENT_AGENT_RUN_ID, RunContext
 from micro.db import Database, new_id
 from micro.errors import RETRYABLE_4XX, SetupError
+from micro.mcp_connections import Lease, MCPConnections
 from micro.models import (
     LAUNCH_TOOL_NAMES,
     SKILL_TOOL_NAMES,
@@ -189,48 +190,31 @@ class AgentRunner:
         self.max_attempts = max_attempts
         self.retry_delay_s = retry_delay_s
         self._model_factory = model_factory
-        self._entered = False
-        self._mcp: Any = None  # the MCPConnections, created when the first MCP tool is needed
+        self._keep_open = False  # True inside `async with`: MCP servers stay up between runs
+        self._mcp: MCPConnections | None = None  # created when a run first needs an MCP server
 
     async def __aenter__(self) -> "AgentRunner":
-        """Open the runner. It is required only for agents that have `mcp_servers`: their servers are started on first
-        use and stopped when the block ends."""
-        self._entered = True
+        """Optional. Without it, an MCP server is started when a run needs it and stopped when the last run using it
+        ends. Inside `async with`, servers stay up between runs and are stopped when the block ends."""
+        self._keep_open = True
+        if self._mcp is not None:
+            self._mcp.keep_open = True
         return self
 
     async def __aexit__(self, *exc_info: object) -> None:
         await self.aclose()
 
     async def aclose(self) -> None:
-        """Stop the MCP servers this runner started. Safe to call twice."""
-        self._entered = False
+        """Stop every MCP server this runner started. Safe to call twice."""
+        self._keep_open = False
         mcp, self._mcp = self._mcp, None
         if mcp is not None:
             await mcp.aclose()
 
-    def _connections(self) -> Any:
+    def _connections(self) -> MCPConnections:
         if self._mcp is None:
-            try:
-                from micro.mcp_runtime import MCPConnections
-            except ImportError as exc:
-                raise SetupError("MCP servers need an extra install: pip install 'micro[mcp]'") from exc
-            self._mcp = MCPConnections()
+            self._mcp = MCPConnections(keep_open=self._keep_open)
         return self._mcp
-
-    async def _mcp_tools(self, agent: AgentBase) -> list[BaseTool]:
-        """The tools of the agent's MCP servers. The servers are started here if they are not running yet."""
-        if not agent.mcp_servers:
-            return []
-        connections = self._connections()
-        results = await asyncio.gather(
-            *(connections.tools_for(server) for server in agent.mcp_servers), return_exceptions=True
-        )
-        tools: list[BaseTool] = []
-        for result in results:
-            if isinstance(result, BaseException):
-                raise result
-            tools.extend(result)
-        return tools
 
     async def run(
         self, agent_cls: type[AgentBase], agent_input: AgentInput, *, job_id: str | None = None
@@ -252,24 +236,37 @@ class AgentRunner:
         depth: int = 1,
     ) -> AgentResult[Any]:
         """`run`, for the agents launched by other agents too: `depth` is 1 for a top-level run, and the child shares
-        the job and records the attempt that launched it."""
+        the job and records the attempt that launched it. The run holds a lease on its MCP servers from its first
+        attempt to its last, so that a retry does not start them again, and lets go of them when it is done."""
+        lease = Lease(self._connections)
+        try:
+            return await self._invoke(
+                agent_cls, agent_input, lease, job_id=job_id, parent_agent_run_id=parent_agent_run_id, depth=depth
+            )
+        finally:
+            await lease.release()
+
+    async def _invoke(
+        self,
+        agent_cls: type[AgentBase],
+        agent_input: AgentInput,
+        lease: Lease,
+        *,
+        job_id: str | None,
+        parent_agent_run_id: str | None,
+        depth: int,
+    ) -> AgentResult[Any]:
         agent = agent_cls()  # ty: ignore[missing-argument]  # a subclass supplies the defaults
         if not isinstance(agent_input, agent.input_model):
             raise TypeError(f"{agent.name} expects {agent.input_model.__name__}, got {type(agent_input).__name__}")
-        if agent.mcp_servers and not self._entered:
-            raise RuntimeError(
-                f"{agent.name} uses MCP servers, so the runner must be open: use `async with AgentRunner(...) as runner`"
-            )
 
         invocation_id = new_id()
         # Only an agent that has depth left to launch is told about its sub-agents, and given the tools.
         can_launch = bool(agent.subagents) and depth < self.max_depth
         system_prompt = agent.build_system_prompt(can_launch=can_launch)
         prompt_hash = hashlib.sha256(system_prompt.encode()).hexdigest()
-        tool_names = (
-            agent.tool_names
-            + (list(LAUNCH_TOOL_NAMES) if can_launch else [])
-            + (list(SKILL_TOOL_NAMES) if agent.skills else [])
+        runner_tool_names = (list(LAUNCH_TOOL_NAMES) if can_launch else []) + (
+            list(SKILL_TOOL_NAMES) if agent.skills else []
         )
         message = agent_input.model_dump_json(indent=2)
         result_cls = AgentResult[agent.output_model]  # ty: ignore[invalid-type-form]  # the output model is known only now
@@ -292,12 +289,16 @@ class AgentRunner:
         while attempt < self.max_attempts:
             attempt += 1
             agent_run_id = new_id()
-            # The servers are started before the attempt waits for a slot, so that a slow start holds none. A failure
+            # This attempt's tools: the agent's own, and those of its MCP servers as the agent declares them. The
+            # servers are started here, before the attempt waits for a slot, so that a slow start holds none. A failure
             # is raised inside the attempt below, so it is logged and counted like any other.
-            mcp_tools: list[BaseTool] = []
+            registry = ToolRegistry()
             setup_error: Exception | None = None
             try:
-                mcp_tools = await self._mcp_tools(agent)
+                for local_tool in agent.tools:
+                    registry.add(local_tool, "local")
+                for server in agent.mcp_servers:
+                    await registry.add_mcp(server, lease)
             except Exception as exc:
                 setup_error = exc
             await self.db.create_run(
@@ -309,7 +310,7 @@ class AgentRunner:
                 agent_version=agent.version,
                 model_name=agent.model_name,
                 reasoning=agent.reasoning,
-                tool_names=tool_names + [tool.name for tool in mcp_tools],
+                tool_names=registry.names + runner_tool_names,
                 system_prompt_hash=prompt_hash,
                 input=agent_input,
                 parent_agent_run_id=parent_agent_run_id,
@@ -344,7 +345,7 @@ class AgentRunner:
                         raise setup_error
                     context = RunContext(store=self.store, job_id=job_id, agent_run_id=agent_run_id)
                     output, input_tokens, output_tokens, reported_model = await self._attempt(
-                        agent, agent_input, system_prompt, message, context, slot, depth, can_launch, mcp_tools
+                        agent, agent_input, system_prompt, message, context, slot, depth, can_launch, registry
                     )
                 except Exception as exc:
                     error = _format_error(exc)
@@ -541,18 +542,13 @@ class AgentRunner:
         slot: _Slot,
         depth: int,
         can_launch: bool,
-        mcp_tools: list[BaseTool],
+        registry: ToolRegistry,
     ) -> tuple[AgentOutput, int, int, str | None]:
         try:
             model = self._model_factory(agent)
         except Exception as exc:
             raise ModelSetupError(str(exc)) from exc
 
-        registry = ToolRegistry()
-        for local_tool in agent.tools:
-            registry.add(local_tool, "local")
-        for mcp_tool in mcp_tools:
-            registry.add(mcp_tool, "mcp")
         for runner_tool in (self._launch_tools(agent, context, slot, depth) if can_launch else []) + (
             self._skill_tools(agent) if agent.skills else []
         ):

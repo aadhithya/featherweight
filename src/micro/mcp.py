@@ -1,5 +1,5 @@
 """How an agent declares the MCP servers it uses. These are plain, frozen Pydantic models: they only describe a
-server. Connecting to it is the runner's job (see `micro/mcp_runtime.py`), so this module needs no MCP install."""
+server. Connecting to it is the runner's job (see `micro/mcp_connections.py`), so this module needs no MCP install."""
 
 import re
 from typing import Annotated

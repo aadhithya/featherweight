@@ -7,14 +7,15 @@ import sys
 from pathlib import Path
 
 import pytest
-from fakes import Echo, EchoInput, Scripted, runner_with, structured_reply, tool_reply
+from fakes import Echo, EchoInput, Reactive, Scripted, runner_with, structured_reply, tool_reply
 from langchain_core.messages import AIMessage, ToolMessage
 from langchain_core.tools import BaseTool, tool
 from pydantic import ValidationError
 
 from micro.errors import SetupError
 from micro.mcp import HttpMCPServer, StdioMCPServer
-from micro.mcp_runtime import MCPConnections, connection_config, present
+from micro.mcp_connections import Lease, MCPConnections, connection_config
+from micro.mcp_tools import present
 from micro.models import RunStatus
 
 SERVER_SCRIPT = str(Path(__file__).parent / "mcp_fake_server.py")
@@ -220,24 +221,6 @@ async def test_the_tools_of_a_server_are_named_after_it_and_bound_to_the_model(d
     assert texts(model) == ["5"]
     (row,) = await db.list_runs()
     assert {"fake_add", "fake_pid", "fake_boom"} <= set(row.tool_names)
-
-
-async def test_an_agent_with_servers_cannot_run_on_a_runner_that_is_not_open(db):
-    runner = runner_with(db, Scripted(script=[done()]))
-    with pytest.raises(RuntimeError, match="async with"):
-        await runner.run(worker(fake()), INPUT)
-    assert runner._mcp is None  # no server was started
-    assert await db.list_runs() == []
-
-    async with runner:
-        pass
-    with pytest.raises(RuntimeError, match="async with"):  # closed again
-        await runner.run(worker(fake()), INPUT)
-
-
-async def test_a_runner_without_mcp_agents_needs_no_async_with(db):
-    result = await runner_with(db, Scripted(script=[done()])).run(Echo, INPUT)
-    assert result.status == RunStatus.SUCCESS
 
 
 async def test_the_allow_list_keeps_only_the_named_tools(db):
@@ -461,40 +444,30 @@ async def test_a_server_that_is_busy_is_retried(db, http_server, monkeypatch):
     assert result.status == RunStatus.FAILED and result.attempts == 3
 
 
-async def test_closing_stops_the_server_process_and_can_be_done_twice(db):
+async def test_closing_the_runner_stops_the_server_process_and_can_be_done_twice(db):
     model = Scripted(script=[tool_reply("fake_pid", {}, "c1"), done()])
     runner = runner_with(db, model)
     async with runner:
         await runner.run(worker(fake()), INPUT)
-    (pid,) = [int(value) for value in texts(model)]
+        (pid,) = [int(value) for value in texts(model)]
+        os.kill(pid, 0)  # still running between runs: the runner is open
 
     await runner.aclose()  # a second time
-    for _ in range(50):
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
-            break
-        await asyncio.sleep(0.1)
-    else:
-        pytest.fail(f"the server process {pid} is still running")
+    await wait_gone(pid)
 
 
-async def test_concurrent_first_uses_open_one_connection():
-    connections = MCPConnections()
+async def test_concurrent_first_leases_open_one_connection():
+    connections = MCPConnections(keep_open=True)
+    leases = [Lease(lambda: connections) for _ in range(4)]
     try:
-        results = await asyncio.gather(*(connections.tools_for(fake(name=f"s{i}")) for i in range(4)))
+        tools = await asyncio.gather(*(lease.list_tools(fake(name=f"s{i}")) for i, lease in enumerate(leases)))
         assert len(connections._entries) == 1
-        assert all(any(t.name.endswith("_add") for t in tools) for tools in results)
+        assert all({"add", "pid"} <= {tool.name for tool in each} for each in tools)  # the server's own names
     finally:
+        for lease in leases:
+            await lease.release()
         await connections.aclose()
         await connections.aclose()
-
-
-async def test_closed_connections_are_not_reopened():
-    connections = MCPConnections()
-    await connections.aclose()
-    with pytest.raises(RuntimeError, match="closed"):
-        await connections.tools_for(fake())
 
 
 async def test_a_sub_agent_uses_the_servers_it_declares_itself(db):
@@ -512,14 +485,130 @@ async def test_a_sub_agent_uses_the_servers_it_declares_itself(db):
         subagents: list[type] = [child_cls]
 
     models = {"boss": parent_model, "child_worker": child_model}
-    async with runner_with(db, parent_model) as runner:
-        runner._model_factory = lambda agent: models[agent.name]
-        result = await runner.run(Boss, INPUT)
+    runner = runner_with(db, parent_model)
+    runner._model_factory = lambda agent: models[agent.name]
+    result = await runner.run(Boss, INPUT)  # the runner is not open: the child's server starts and stops by itself
 
     assert result.status == RunStatus.SUCCESS
     assert texts(child_model) == ["9"]
     rows = {row.agent_name: row for row in await db.list_runs()}
     assert "fake_add" in rows["child_worker"].tool_names and "fake_add" not in rows["boss"].tool_names
+
+
+async def wait_gone(pid: int) -> None:
+    for _ in range(50):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return
+        await asyncio.sleep(0.1)
+    pytest.fail(f"the server process {pid} is still running")
+
+
+def pid_run(db, runs=1):
+    """A runner whose model asks for the server's pid on its first call and finishes on its second, and the model."""
+    script = []
+    for number in range(runs):
+        script += [tool_reply("fake_pid", {}, f"c{number}"), done()]
+    model = Scripted(script=script)
+    return runner_with(db, model), model
+
+
+async def test_without_async_with_the_server_stops_when_the_run_ends(db):
+    runner, model = pid_run(db)
+    result = await runner.run(worker(fake()), INPUT)
+
+    assert result.status == RunStatus.SUCCESS
+    (pid,) = [int(value) for value in texts(model)]
+    await wait_gone(pid)
+    assert runner._mcp is not None and runner._mcp._entries == {}
+
+
+async def test_without_async_with_each_run_starts_its_own_server(db):
+    runner, model = pid_run(db, runs=2)
+    await runner.run(worker(fake()), INPUT)
+    await runner.run(worker(fake()), INPUT)
+
+    first, second = texts(model)
+    assert first != second
+
+
+async def test_inside_async_with_the_server_stays_up_between_runs_and_stops_at_the_end(db):
+    runner, model = pid_run(db, runs=2)
+    async with runner:
+        await runner.run(worker(fake()), INPUT)
+        await runner.run(worker(fake()), INPUT)
+
+    first, second = texts(model)
+    assert first == second
+    await wait_gone(int(first))
+
+
+async def test_parallel_runs_share_one_server_and_it_stops_after_the_last(db, caplog):
+    caplog.set_level(logging.INFO)
+
+    def respond(user_text, call_number):
+        if call_number == 1:
+            return tool_reply("fake_pid", {"delay_s": 0.3}, "c1")
+        return done()
+
+    model = Reactive(respond=respond)
+    runner = runner_with(db, model)
+    inputs = [EchoInput(text=name) for name in ("a", "b", "c")]
+    results = await runner.run_many(worker(fake()), inputs)
+
+    assert [r.status for r in results] == [RunStatus.SUCCESS] * 3
+    assert caplog.text.count("mcp_open server=fake") == 1 and caplog.text.count("mcp_close server=fake") == 1
+    assert runner._mcp is not None and runner._mcp._entries == {}
+
+
+async def test_a_retry_does_not_start_the_server_again(db, caplog):
+    caplog.set_level(logging.INFO)
+    model = Scripted(script=[RuntimeError("model down"), done()])
+    result = await runner_with(db, model).run(worker(fake()), INPUT)
+
+    assert result.status == RunStatus.SUCCESS and result.attempts == 2
+    assert caplog.text.count("mcp_open server=fake") == 1
+
+
+async def test_a_lease_holds_a_server_until_the_last_one_is_released():
+    connections = MCPConnections()
+    first, second = Lease(lambda: connections), Lease(lambda: connections)
+    await first.list_tools(fake(name="a"))
+    await second.list_tools(fake(name="b"))
+    (entry,) = connections._entries.values()
+    assert entry.users == 2
+
+    await first.release()
+    assert len(connections._entries) == 1  # the second still uses it
+    await second.release()
+    assert connections._entries == {}  # nobody does
+
+
+async def test_a_lease_gives_the_raw_tools_and_leaves_names_and_filters_to_the_agent(db):
+    connections = MCPConnections()
+    lease = Lease(lambda: connections)
+    try:
+        raw = await lease.list_tools(fake(name="x", tools=("add",)))  # the connection ignores the allow-list
+        assert {"add", "pid", "boom"} <= {tool.name for tool in raw}
+
+        from micro.registry import ToolRegistry
+
+        registry = ToolRegistry()
+        await registry.add_mcp(fake(name="x", tools=("add",)), lease)
+        assert registry.names == ["x_add"]  # the agent's view: prefixed and filtered
+    finally:
+        await lease.release()
+
+
+async def test_a_released_server_starts_again_when_a_lease_asks(db):
+    connections = MCPConnections()
+    for _ in range(2):
+        lease = Lease(lambda: connections)
+        await lease.list_tools(fake())
+        assert len(connections._entries) == 1
+        await lease.release()
+        assert connections._entries == {}
 
 
 # logging and secrets

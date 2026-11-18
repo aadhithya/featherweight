@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from langchain_core.tools import BaseTool
 
 from micro.errors import SetupError
+from micro.mcp import MCPServer
+from micro.mcp_connections import Lease
 
 # What Gemini accepts as a function name: it starts with a letter or an underscore, and has at most 64 characters.
 _TOOL_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_.:\-]{0,63}$")
@@ -35,6 +37,14 @@ class ToolRegistry:
         if taken is not None:
             raise SetupError(f"Two tools are called '{tool.name}' ({taken.source} and {source})")
         self._entries[tool.name] = RegistryEntry(tool, source)
+
+    async def add_mcp(self, server: MCPServer, lease: Lease) -> None:
+        """Add the tools of one of the agent's MCP servers, as this agent's declaration says: the allow-list, the
+        `<server>_` prefix, the timeout and the size cap. The connection is shared and knows none of that."""
+        from micro.mcp_tools import mcp_tools
+
+        for tool in await mcp_tools(server, lease):
+            self.add(tool, "mcp")
 
     @property
     def tools(self) -> list[BaseTool]:

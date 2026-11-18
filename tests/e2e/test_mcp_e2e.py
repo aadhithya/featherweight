@@ -46,8 +46,8 @@ async def test_an_agent_uses_mcp_tools_and_reads_what_they_return(db):
         "Add 17 and 25 with the add tool. Look at the picture from the picture tool and name its single colour. "
         "Read the document from the access_note tool and report the access code."
     )
-    async with AgentRunner(db) as runner:
-        result = await runner.run(Helper, TaskInput(task=task))
+    job_id = await db.create_job("mcp-e2e")
+    result = await AgentRunner(db).run(Helper, TaskInput(task=task), job_id=job_id)  # no `async with`: it is optional
 
     assert result.status == RunStatus.SUCCESS, result.error
     out = result.output
@@ -55,5 +55,5 @@ async def test_an_agent_uses_mcp_tools_and_reads_what_they_return(db):
     assert out.sum == 42
     assert out.colour and "red" in out.colour.lower()
     assert out.access_code and "7421" in out.access_code
-    (row,) = await db.list_runs()
+    (row,) = await db.list_runs(job_id=job_id)
     assert sorted(row.tool_names) == ["fake_access_note", "fake_add", "fake_picture"]
