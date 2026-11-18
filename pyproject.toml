@@ -1,0 +1,32 @@
+[project]
+name = "micro"
+version = "0.1.0"
+description = "A tiny agent harness: typed agents, a runner that validates and retries, and a run log. With an example pipeline on top."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.12"
+dependencies = [
+    "aiosqlite",
+    "fakeredis",
+    "langchain",
+    "langchain-google-genai",
+    "langgraph",
+    "pydantic>=2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = ["e2e: real Gemini calls on the small fixtures and the examples; run with `make e2e`, excluded from `make test`"]
+addopts = "-m 'not e2e'"

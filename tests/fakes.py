@@ -1,0 +1,150 @@
+"""Test doubles for the chat model. No test makes a real LLM call."""
+
+import asyncio
+import json
+from typing import Any, ClassVar
+
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
+
+from micro.models import AgentBase, AgentInput, AgentOutput
+from micro.runner import AgentRunner
+
+
+def runner_with(db, model, **kwargs) -> AgentRunner:
+    """An AgentRunner on `db` that always uses `model`, with no delay between retries."""
+    kwargs.setdefault("retry_delay_s", 0.0)
+    return AgentRunner(db, model_factory=lambda agent: model, **kwargs)
+
+
+class EchoInput(AgentInput):
+    text: str
+
+
+class EchoOutput(AgentOutput):
+    echoed: str | None = None
+
+
+class Echo(AgentBase):
+    name: str = "echo"
+    description: str = "Echoes the input"
+    version: str = "0.1.0"
+    prompt: str = "Echo the input text."
+    input_model: ClassVar[type[AgentInput]] = EchoInput
+    output_model: ClassVar[type[AgentOutput]] = EchoOutput
+
+
+class Scripted(BaseChatModel):
+    """A chat model that replays a script. Items are AIMessages, or exceptions to raise."""
+
+    script: list[Any]
+    calls: int = 0
+    seen: list[Any] = []
+
+    @property
+    def _llm_type(self) -> str:
+        return "scripted"
+
+    def bind_tools(self, tools, **kwargs):
+        return self
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        self.seen.append(messages)
+        item = self.script[self.calls]
+        self.calls += 1
+        if isinstance(item, Exception):
+            raise item
+        return ChatResult(generations=[ChatGeneration(message=item)])
+
+
+def structured_reply(output_name: str, args: dict, *, input_tokens=5, output_tokens=7, model="fake-model"):
+    return AIMessage(
+        content="",
+        tool_calls=[{"name": output_name, "args": args, "id": f"call-{output_name}"}],
+        usage_metadata={
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": input_tokens + output_tokens,
+        },
+        response_metadata={"model_name": model},
+    )
+
+
+def tool_reply(name: str, args: dict, call_id: str, *, input_tokens=3, output_tokens=2):
+    return AIMessage(
+        content="",
+        tool_calls=[{"name": name, "args": args, "id": call_id}],
+        usage_metadata={
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": input_tokens + output_tokens,
+        },
+    )
+
+
+class Reactive(BaseChatModel):
+    """A chat model that decides each reply from the user message, for concurrency tests.
+
+    `respond(user_text, call_number)` returns an AIMessage or an exception to raise, where
+    `call_number` counts calls for that same user text. It yields to the event loop for
+    `delay_s` on each call, so concurrent runs really interleave, and it records the most calls
+    that were in flight at once.
+    """
+
+    respond: Any
+    delay_s: float = 0.01
+    in_flight: int = 0
+    max_in_flight: int = 0
+    counts: dict[str, int] = {}
+
+    @property
+    def _llm_type(self) -> str:
+        return "reactive"
+
+    def bind_tools(self, tools, **kwargs):
+        return self
+
+    def _reply(self, messages) -> ChatResult:
+        text = [m for m in messages if isinstance(m, HumanMessage)][-1].content
+        self.counts[text] = self.counts.get(text, 0) + 1
+        item = self.respond(text, self.counts[text])
+        if isinstance(item, Exception):
+            raise item
+        return ChatResult(generations=[ChatGeneration(message=item)])
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        return self._reply(messages)
+
+    async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
+        self.in_flight += 1
+        self.max_in_flight = max(self.max_in_flight, self.in_flight)
+        try:
+            await asyncio.sleep(self.delay_s)
+            return self._reply(messages)
+        finally:
+            self.in_flight -= 1
+
+
+def respond(user_text, call_number):
+    """`Reactive` reply for `Echo`: `ok-*` succeeds, `flaky-*` fails on its first call, `fail-*` fails every time."""
+    text = json.loads(user_text)["text"]
+    kind = text.split("-")[0]
+    if kind == "fail" or (kind == "flaky" and call_number == 1):
+        return RuntimeError(f"down {text}")
+    return structured_reply("EchoOutput", {"echoed": text})
+
+
+def flat_blocks(nodes: list[dict]) -> list[dict]:
+    """Flatten nested {"type", "text", "children"} dicts into the Analyzer's flat blocks (ids and parent ids)."""
+    blocks: list[dict] = []
+
+    def add(node: dict, parent: str) -> None:
+        block_id = f"n{len(blocks) + 1}"
+        blocks.append({"id": block_id, "parent_id": parent, "type": node["type"], "text": node["text"]})
+        for child in node.get("children", []):
+            add(child, block_id)
+
+    for node in nodes:
+        add(node, "")
+    return blocks

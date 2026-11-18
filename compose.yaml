@@ -1,0 +1,12 @@
+services:
+  micro:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      MICRO_DB_PATH: /app/micro.db  # the project directory is bind-mounted at /app, so this is ./micro.db on the host
+    volumes:
+      - .:/app
+    # No app entry point yet; keep the container alive for `make shell` / `make test`.
+    command: sleep infinity
