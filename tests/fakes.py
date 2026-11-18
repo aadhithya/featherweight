@@ -41,12 +41,14 @@ class Scripted(BaseChatModel):
     script: list[Any]
     calls: int = 0
     seen: list[Any] = []
+    bound: list[list[str]] = []  # the names of the tools the model was bound to, for each time it was bound
 
     @property
     def _llm_type(self) -> str:
         return "scripted"
 
     def bind_tools(self, tools, **kwargs):
+        self.bound.append([getattr(t, "name", str(t)) for t in tools])
         return self
 
     def _generate(self, messages, stop=None, run_manager=None, **kwargs):

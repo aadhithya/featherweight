@@ -3,13 +3,12 @@
 import asyncio
 import logging
 import os
-import sys
-from pathlib import Path
 
 import pytest
-from fakes import Echo, EchoInput, Reactive, Scripted, runner_with, structured_reply, tool_reply
-from langchain_core.messages import AIMessage, ToolMessage
-from langchain_core.tools import BaseTool, tool
+from fakes import Echo, EchoInput, Reactive, Scripted, runner_with, tool_reply
+from langchain_core.messages import AIMessage
+from langchain_core.tools import tool
+from mcp_helpers import INPUT, done, fake, shown, texts, worker
 from pydantic import ValidationError
 
 from micro.errors import SetupError
@@ -17,49 +16,6 @@ from micro.mcp import HttpMCPServer, StdioMCPServer
 from micro.mcp_connections import Lease, MCPConnections, connection_config
 from micro.mcp_tools import present
 from micro.models import RunStatus
-
-SERVER_SCRIPT = str(Path(__file__).parent / "mcp_fake_server.py")
-
-
-def fake(name="fake", **kwargs) -> StdioMCPServer:
-    return StdioMCPServer(name=name, command=sys.executable, args=(SERVER_SCRIPT,), **kwargs)
-
-
-def worker(*servers, tools=(), name="worker"):
-    """An agent class with the given servers and local tools."""
-    server_list, tool_list, agent_name = list(servers), list(tools), name
-
-    class Worker(Echo):
-        name: str = agent_name
-        tools: list[BaseTool] = tool_list
-        mcp_servers: list[StdioMCPServer | HttpMCPServer] = server_list
-
-    return Worker
-
-
-def done():
-    return structured_reply("EchoOutput", {"echoed": "ok"})
-
-
-def shown(model) -> list[list]:
-    """The content of every tool result the model was shown, in order, one list of blocks each."""
-    seen: dict[str, list] = {}
-    for messages in model.seen:
-        for message in messages:
-            if isinstance(message, ToolMessage):
-                content = message.content
-                seen[message.tool_call_id] = (
-                    content if isinstance(content, list) else [{"type": "text", "text": content}]
-                )
-    return list(seen.values())
-
-
-def texts(model) -> list[str]:
-    return ["".join(block.get("text", "") for block in blocks) for blocks in shown(model)]
-
-
-INPUT = EchoInput(text="go")
-
 
 # the declaration
 

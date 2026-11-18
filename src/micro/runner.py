@@ -18,9 +18,11 @@ from pydantic import ValidationError
 
 from micro.context import CURRENT_AGENT_RUN_ID, RunContext
 from micro.db import Database, new_id
+from micro.discovery import discovery_tools
 from micro.errors import RETRYABLE_4XX, SetupError
 from micro.mcp_connections import Lease, MCPConnections
 from micro.models import (
+    DISCOVERY_TOOL_NAMES,
     LAUNCH_TOOL_NAMES,
     SKILL_TOOL_NAMES,
     AgentBase,
@@ -265,8 +267,10 @@ class AgentRunner:
         can_launch = bool(agent.subagents) and depth < self.max_depth
         system_prompt = agent.build_system_prompt(can_launch=can_launch)
         prompt_hash = hashlib.sha256(system_prompt.encode()).hexdigest()
-        runner_tool_names = (list(LAUNCH_TOOL_NAMES) if can_launch else []) + (
-            list(SKILL_TOOL_NAMES) if agent.skills else []
+        runner_tool_names = (
+            (list(LAUNCH_TOOL_NAMES) if can_launch else [])
+            + (list(SKILL_TOOL_NAMES) if agent.skills else [])
+            + (list(DISCOVERY_TOOL_NAMES) if agent.has_discovery else [])
         )
         message = agent_input.model_dump_json(indent=2)
         result_cls = AgentResult[agent.output_model]  # ty: ignore[invalid-type-form]  # the output model is known only now
@@ -549,8 +553,10 @@ class AgentRunner:
         except Exception as exc:
             raise ModelSetupError(str(exc)) from exc
 
-        for runner_tool in (self._launch_tools(agent, context, slot, depth) if can_launch else []) + (
-            self._skill_tools(agent) if agent.skills else []
+        for runner_tool in (
+            (self._launch_tools(agent, context, slot, depth) if can_launch else [])
+            + (self._skill_tools(agent) if agent.skills else [])
+            + (discovery_tools(registry) if agent.has_discovery else [])
         ):
             registry.add(runner_tool, "runner")
         lc_agent = create_agent(

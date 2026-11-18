@@ -16,6 +16,7 @@ Reasoning = Literal["low", "medium", "high"]
 # The tools the runner adds to an agent, by what it declares. An agent's own tools cannot use these names.
 LAUNCH_TOOL_NAMES = ("launch_agent", "get_agent_schema")
 SKILL_TOOL_NAMES = ("get_skill",)
+DISCOVERY_TOOL_NAMES = ("search_tools", "call_tool")
 
 ASK_ALLOWED = (
     "You may ask the user questions. If required information is missing or ambiguous, "
@@ -43,6 +44,14 @@ SKILLS = (
     "You have these skills, which are instructions for particular kinds of work:\n{skills}\n"
     "When a skill applies to your task, call `get_skill` with its name before you start, and follow what it says. "
     "If it names other files of the skill, read one with `get_skill` and its `resource` only when you need it."
+)
+
+
+DISCOVERY = (
+    "You can find more tools by searching. These servers have tools you can search for:\n{servers}\n"
+    "Call `search_tools` with a few keywords to find the tools you need. Each result has the tool's name, description "
+    "and input schema. Call a tool you found with `call_tool`, passing its name and its input as a JSON string. Search "
+    "results stay in this conversation: search again only when the tool you need is not in an earlier result."
 )
 
 
@@ -125,7 +134,7 @@ class AgentBase(BaseModel):
             raise ValueError(f"mcp_servers of {self.name} have duplicate names: {server_names}")
         tool_names = self.tool_names
         for tool_name in tool_names:
-            if tool_name in LAUNCH_TOOL_NAMES + SKILL_TOOL_NAMES:
+            if tool_name in LAUNCH_TOOL_NAMES + SKILL_TOOL_NAMES + DISCOVERY_TOOL_NAMES:
                 raise ValueError(f"{self.name} has a tool called {tool_name}, a name the runner uses for its own tool")
         if len(set(tool_names)) != len(tool_names):
             raise ValueError(f"tools of {self.name} have duplicate names: {tool_names}")
@@ -137,6 +146,12 @@ class AgentBase(BaseModel):
         Raise `ValueError` to reject the output: the runner counts that as a failed attempt and retries.
         The default accepts everything.
         """
+
+    @property
+    def has_discovery(self) -> bool:
+        """Whether any MCP server of the agent is found by search, so that the runner adds `search_tools` and
+        `call_tool`."""
+        return any(server.discover for server in self.mcp_servers)
 
     @property
     def tool_names(self) -> list[str]:
@@ -174,6 +189,10 @@ class AgentBase(BaseModel):
         if self.skills:
             listed = "\n".join(f"- {skill.name}: {skill.description}" for skill in self.skills)
             parts.append(SKILLS.format(skills=listed))
+        if self.has_discovery:
+            found = [s for s in self.mcp_servers if s.discover]
+            listed = "\n".join(f"- {s.name}: {s.description}" if s.description else f"- {s.name}" for s in found)
+            parts.append(DISCOVERY.format(servers=listed))
         return "\n\n".join(parts)
 
 

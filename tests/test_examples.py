@@ -38,6 +38,6 @@ def test_the_mcp_example_reads_github_with_a_token_by_name_and_six_read_only_too
     agent = load("mcp").RepoReader()
     (server,) = agent.mcp_servers
     assert server.url == "https://api.githubcopilot.com/mcp/readonly" and server.bearer_from == "GITHUB_TOKEN"
-    assert server.tools is not None and len(server.tools) == 6
+    assert server.tools is not None and len(server.tools) == 6 and server.discover is False
     assert not any(word in tool for tool in server.tools for word in ("create", "update", "delete", "merge", "push"))
     assert agent.model_name == "gemini-3.5-flash-lite"

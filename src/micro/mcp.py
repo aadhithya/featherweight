@@ -20,7 +20,10 @@ class MCPServer(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     name: str
-    description: str = ""  # reserved for tool discovery
+    description: str = ""  # what the server is for: the model reads it, to know what to search for
+    # True: the server's tools are found with `search_tools` and run with `call_tool`, and none is bound to the model.
+    # False: they are bound directly, which suits a server with only a few tools.
+    discover: bool = True
     # Which of the server's tools the agent gets, by the names the server uses. None: all of them.
     tools: tuple[str, ...] | None = None
     timeout_s: Annotated[float, Field(gt=0)] = DEFAULT_TIMEOUT_S  # per call, and for starting the server

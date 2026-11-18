@@ -16,7 +16,11 @@ SERVER = StdioMCPServer(
     command=sys.executable,
     args=(str(Path(__file__).parent.parent / "mcp_fake_server.py"),),
     tools=("add", "picture", "access_note"),
+    discover=False,  # bound directly
 )
+FOUND = SERVER.model_copy(
+    update={"discover": True, "description": "Small tools: add numbers, show a picture, read documents"}
+)  # found by search
 
 
 class TaskInput(AgentInput):
@@ -39,6 +43,24 @@ class Helper(AgentBase):
     mcp_servers: list[StdioMCPServer] = [SERVER]
     input_model: ClassVar[type[AgentInput]] = TaskInput
     output_model: ClassVar[type[AgentOutput]] = TaskOutput
+
+
+class Seeker(Helper):
+    name: str = "seeker"
+    mcp_servers: list[StdioMCPServer] = [FOUND]
+
+
+async def test_an_agent_finds_mcp_tools_by_search_and_calls_them(db):
+    task = "Add 17 and 25. Read the document from the access note tool and report the access code."
+    job_id = await db.create_job("mcp-discovery-e2e")
+    result = await AgentRunner(db).run(Seeker, TaskInput(task=task), job_id=job_id)
+
+    assert result.status == RunStatus.SUCCESS, result.error
+    out = result.output
+    print(f"\n[output] {out}\n[tokens] in={result.input_tokens} out={result.output_tokens}")
+    assert out.sum == 42 and out.access_code and "7421" in out.access_code
+    (row,) = await db.list_runs(job_id=job_id)
+    assert row.tool_names == ["search_tools", "call_tool"]  # the server's tools were never bound
 
 
 async def test_an_agent_uses_mcp_tools_and_reads_what_they_return(db):
