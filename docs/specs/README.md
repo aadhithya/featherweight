@@ -11,4 +11,5 @@ not supported, tests.
 | [Jobs and tracing](jobs-and-tracing.md) | Jobs, the run log, statuses, logging |
 | [Skills](skills.md) | The skill model, loading, how an agent reads a skill, the Agent Skills specification |
 | [Tools, the registry and the store](tools-and-store.md) | Tools on an agent, the tool registry, the ready-made tools, the run context, the run store |
+| [Tool discovery](tool-discovery.md) | Finding MCP tools by keyword: `discover`, `search_tools`, `call_tool`, matching |
 | [MCP tools](mcp-tools.md) | MCP servers: declaring, connections, failures, what the model gets |
