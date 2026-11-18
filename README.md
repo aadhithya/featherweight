@@ -117,14 +117,6 @@ make example-launching        # an agent that launches two other agents (example
 make pipeline ARGS="examples/doclearn/samples/project_proposals --category project_proposals"   # an example pipeline (examples/doclearn)
 ```
 
-## Limits
-
-A prototype, with limited scope on purpose. Not built: evaluation (there is no held-out set or quality metric),
-handling of personal data (inputs are kept in plaintext in the run log), and anything beyond Gemini. The harness has the
-places a production system would plug in (`AgentRunner(model_factory=...)` for another model, one loop for tracing,
-`RunStore` for Redis); a real database, auth, cost accounting and evaluation are work still to do. More in
-[the example pipeline's limits](docs/example-pipeline.md#limits).
-
 ## Development
 
 | Command | |
