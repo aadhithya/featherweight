@@ -9,7 +9,7 @@ a concurrency limit, failures returned as results, a trace of every attempt in s
 other agents, with depth and breadth limits.
 
 If you want to build a pipeline of agents, this is one way to start with the boring parts already done. It is about
-1,200 lines, built on langchain and langgraph, async throughout, Gemini models for now.
+1,400 lines, built on langchain and langgraph, async throughout, Gemini models for now.
 
 > A small, quick, vibe coded project: a few days of work. A prototype with limited scope, not production software.
 
@@ -91,6 +91,32 @@ class Planner(AgentBase):
 - A retried parent attempt launches its children again. The tokens of a child are in its own rows; the parent's include
   the child's output, which it reads as a tool result.
 
+## Skills
+
+A skill is a set of instructions an agent reads when it needs them, in the
+[Agent Skills format](https://agentskills.io/specification): a directory with a `SKILL.md` (YAML frontmatter with a
+`name` and a `description`, then Markdown) and, optionally, other files such as `references/`. In `micro` a skill is a
+typed Pydantic model, `Skill`, that checks the specification's rules (name, description and field limits).
+
+```python
+from micro.skills import Skill
+
+class Writer(AgentBase):
+    ...
+    skills: list[Skill] = [Skill.from_directory("examples/skills/meeting-notes")]
+```
+
+- The prompt gets each skill's name and description, and nothing else, so a skill costs little until it is used.
+- The agent gets `get_skill(name, resource="")`. It returns the instructions, and lists the skill's other files; with
+  `resource` it returns one of those files. The agent reads only its own skills.
+- Skills can also be written in code: `Skill(name="...", description="...", instructions="...")`.
+- Scripts in a skill are text for the agent to read; nothing runs them. `allowed-tools` is kept but not enforced.
+
+Try it: [`examples/skills_agent.py`](examples/skills_agent.py) is an `Assistant` agent with three skills
+(meeting notes, email replies, release notes). `make example-skills` runs it on three sample requests and shows which
+skills it read; `make example-skills ARGS="your request"` runs your own. Without Docker:
+`uv run python examples/skills_agent.py` (needs `GOOGLE_API_KEY`).
+
 ## What you get
 
 - **Typed, static agents.** Input, output, tools and prompt are declared; Pydantic enforces them.
@@ -98,6 +124,7 @@ class Planner(AgentBase):
   failure means. Wrong input types and unknown job ids are programming errors and do raise.
 - **Retries** (3 attempts by default), except for errors that cannot succeed, such as a bad key. A retry resamples with
   the same input; the error is logged but not sent back to the model.
+- **Skills.** Instructions in the Agent Skills format, listed in the prompt and read on demand with `get_skill`.
 - **Agents launching agents.** An allow-list of sub-agents, two tools, depth and breadth limits, and every launch
   traced under its parent (see above).
 - **Output checks:** pydantic validators on the output model, plus `check_output` against the input.

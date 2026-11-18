@@ -34,6 +34,7 @@ DEFAULT_MAX_DEPTH = 3
 ENV_MAX_LAUNCHES = "MAX_AGENT_LAUNCHES"
 DEFAULT_MAX_LAUNCHES = 10
 LAUNCH_TOOL_NAMES = ("launch_agent", "get_agent_schema")
+SKILL_TOOL_NAMES = ("get_skill",)
 
 # 4xx codes that can succeed on a retry; every other 4xx means the request itself is wrong.
 RETRYABLE_4XX = {408, 409, 429}
@@ -215,7 +216,11 @@ class AgentRunner:
         can_launch = bool(agent.subagents) and depth < self.max_depth
         system_prompt = agent.build_system_prompt(can_launch=can_launch)
         prompt_hash = hashlib.sha256(system_prompt.encode()).hexdigest()
-        tool_names = agent.tool_names + (list(LAUNCH_TOOL_NAMES) if can_launch else [])
+        tool_names = (
+            agent.tool_names
+            + (list(LAUNCH_TOOL_NAMES) if can_launch else [])
+            + (list(SKILL_TOOL_NAMES) if agent.skills else [])
+        )
         message = agent_input.model_dump_json(indent=2)
         result_cls = AgentResult[agent.output_model]
         started = time.perf_counter()
@@ -418,6 +423,24 @@ class AgentRunner:
 
         return [launch_agent, get_agent_schema]
 
+    @staticmethod
+    def _skill_tools(agent: AgentBase) -> list[BaseTool]:
+        """`get_skill` for `agent`: it reads only the skills the agent lists, and says so when asked for another."""
+        by_name = {skill.name: skill for skill in agent.skills}
+        available = ", ".join(by_name)
+
+        @tool
+        async def get_skill(name: str, resource: str = "") -> str:
+            """Read one of your skills: its instructions, and the other files it has. Pass `resource` (a path the
+            instructions or this tool named) to read one of those files instead."""
+            skill = by_name.get(name)
+            if skill is None:
+                return f"'{name}' is not one of your skills. Your skills: {available}."
+            logger.info("skill_read agent=%s skill=%s resource=%s", agent.name, name, resource or "-")
+            return skill.read(resource)
+
+        return [get_skill]
+
     async def _attempt(
         self,
         agent: AgentBase,
@@ -434,7 +457,11 @@ class AgentRunner:
         except Exception as exc:
             raise ModelSetupError(str(exc)) from exc
 
-        tools = list(agent.tools) + (self._launch_tools(agent, context, slot, depth) if can_launch else [])
+        tools = (
+            list(agent.tools)
+            + (self._launch_tools(agent, context, slot, depth) if can_launch else [])
+            + (self._skill_tools(agent) if agent.skills else [])
+        )
         lc_agent = create_agent(
             model,
             tools=tools,  # only the allow-listed tools are ever bound

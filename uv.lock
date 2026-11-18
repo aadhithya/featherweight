@@ -677,6 +677,7 @@ dependencies = [
     { name = "langchain-google-genai" },
     { name = "langgraph" },
     { name = "pydantic" },
+    { name = "pyyaml" },
 ]
 
 [package.dev-dependencies]
@@ -693,6 +694,7 @@ requires-dist = [
     { name = "langchain-google-genai" },
     { name = "langgraph" },
     { name = "pydantic", specifier = ">=2" },
+    { name = "pyyaml" },
 ]
 
 [package.metadata.requires-dev]

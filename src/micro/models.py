@@ -7,6 +7,8 @@ from typing import ClassVar, Generic, Literal, TypeVar
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from micro.skills import Skill
+
 ModelName = Literal["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash"]
 Reasoning = Literal["low", "medium", "high"]
 
@@ -32,6 +34,13 @@ SUBAGENTS = (
     "Before you launch an agent, call `get_agent_schema` with its name to see the input it expects. Then call "
     "`launch_agent` with its name and that input as a JSON string. The result is the agent's output as JSON, or an "
     "error that says what went wrong; read it, and fix the input or carry on without that agent."
+)
+
+
+SKILLS = (
+    "You have these skills, which are instructions for particular kinds of work:\n{skills}\n"
+    "When a skill applies to your task, call `get_skill` with its name before you start, and follow what it says. "
+    "If it names other files of the skill, read one with `get_skill` and its `resource` only when you need it."
 )
 
 
@@ -85,6 +94,9 @@ class AgentBase(BaseModel):
     # The only agents this agent may launch (classes, not names; an agent cannot launch its own class). When this is
     # not empty, the runner gives the agent `launch_agent` and `get_agent_schema`, and the prompt lists them.
     subagents: list[type] = Field(default_factory=list)
+    # Skills this agent can read (see micro/skills.py). Their names and descriptions are in the prompt; the
+    # runner gives the agent `get_skill` to read the instructions when one applies.
+    skills: list[Skill] = Field(default_factory=list)
 
     input_model: ClassVar[type[AgentInput]] = AgentInput
     output_model: ClassVar[type[AgentOutput]] = AgentOutput
@@ -100,6 +112,9 @@ class AgentBase(BaseModel):
             names.append(sub().name)
         if len(set(names)) != len(names):
             raise ValueError(f"subagents of {self.name} have duplicate names: {names}")
+        skill_names = [skill.name for skill in self.skills]
+        if len(set(skill_names)) != len(skill_names):
+            raise ValueError(f"skills of {self.name} have duplicate names: {skill_names}")
         return self
 
     def check_output(self, agent_input: AgentInput, output: AgentOutput) -> None:
@@ -142,6 +157,9 @@ class AgentBase(BaseModel):
         if self.subagents and can_launch:
             listed = "\n".join(f"- {a.name}: {a.description}" for a in (sub() for sub in self.subagents))
             parts.append(SUBAGENTS.format(agents=listed))
+        if self.skills:
+            listed = "\n".join(f"- {skill.name}: {skill.description}" for skill in self.skills)
+            parts.append(SKILLS.format(skills=listed))
         return "\n\n".join(parts)
 
 

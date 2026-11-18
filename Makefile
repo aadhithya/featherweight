@@ -1,4 +1,4 @@
-.PHONY: build up down clean clean-all test e2e pipeline shell
+.PHONY: build up down clean clean-all test e2e pipeline example-skills shell
 
 build:
 	docker compose build
@@ -29,6 +29,10 @@ e2e:
 # see `make pipeline ARGS=--help`. Run folders go to ./runs.
 pipeline:
 	docker compose run --rm micro python -m doclearn.cli $(ARGS)
+
+# An agent that uses skills (real Gemini calls). `make example-skills ARGS="your request"` for your own request.
+example-skills:
+	docker compose run --rm micro python examples/skills_agent.py $(ARGS)
 
 shell:
 	docker compose exec micro bash
