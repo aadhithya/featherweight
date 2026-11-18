@@ -133,7 +133,10 @@ class Local(AgentBase):
     model: ModelSettings = Ollama(model="gpt-oss:20b", temperature=0.2)
 ```
 
-- `build()` is the only method you must write. The runner calls `agent.model.build()`.
+- **`build()` is required.** It is the only method you must write, and it returns the LangChain chat model. The base class
+  does not provide one: if you leave it out, the class can still be created and put on an agent, but the first run fails
+  with `NotImplementedError: <Class> must write build()`. A setup error is not retried, so the run fails at once. The runner
+  calls `agent.model.build()` for every attempt.
 - With no `models` catalog, any model name is accepted and efforts are not checked. Add a `models` catalog, and an
   `effort_field` naming the field that holds the effort, to get the checks of the built-in classes.
 - `label()` is the short text the run log keeps. It is the effort field by default, and can be overridden.

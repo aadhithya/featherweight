@@ -41,7 +41,7 @@ class Triager(AgentBase):
 | `models` | A class attribute: the catalog of the class, model id to `ModelInfo` |
 | `model` | The model id. Must be in `models` |
 | `max_output_tokens` | Optional. The most tokens the model may produce, **thinking included** |
-| `build()` | Returns the LangChain chat model. Imports the provider's package when called. **The only method a new class must write** |
+| `build()` | Returns the LangChain chat model. Imports the provider's package when called. **Required: the only method a new class must write.** The base class raises `NotImplementedError("<Class> must write build()")`, when the model is built for a run, not when the class is defined |
 | `label()` | A short text for the log, such as `medium`, `off` or `high`. By default the effort or thinking field |
 
 `ModelInfo` is frozen: `efforts` (the allowed values, in order), `default` (what the provider uses when none is sent,
