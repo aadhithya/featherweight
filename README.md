@@ -97,6 +97,7 @@ Set `GOOGLE_API_KEY` first. `runner.run_many(Agent, inputs, job_id=...)` runs on
 
 | | |
 |---|---|
+| [**Start here**](docs/README.md) | How the docs fit together: guides, specs and examples, and where to begin |
 | [Agents](docs/agents.md) | Defining and running an agent, results, retries, checks, tools, jobs and tracing, configuration |
 | [Launching agents](docs/launching-agents.md) | The `subagents` allow-list, the two tools, depth and breadth limits, concurrency, tracing |
 | [MCP tools](docs/mcp.md) | Declaring servers, the runner's connections, what the model gets, failures |
