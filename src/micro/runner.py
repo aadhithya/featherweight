@@ -16,9 +16,19 @@ from langchain_core.tools import BaseTool, tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import ValidationError
 
-from micro.context import RunContext
+from micro.context import CURRENT_AGENT_RUN_ID, RunContext
 from micro.db import Database, new_id
-from micro.models import AgentBase, AgentInput, AgentOutput, AgentResult, RunStatus
+from micro.errors import RETRYABLE_4XX, SetupError
+from micro.models import (
+    LAUNCH_TOOL_NAMES,
+    SKILL_TOOL_NAMES,
+    AgentBase,
+    AgentInput,
+    AgentOutput,
+    AgentResult,
+    RunStatus,
+)
+from micro.registry import ToolRegistry
 from micro.store import RunStore
 
 logger = logging.getLogger(__name__)
@@ -33,15 +43,11 @@ ENV_MAX_DEPTH = "MAX_AGENT_DEPTH"
 DEFAULT_MAX_DEPTH = 3
 ENV_MAX_LAUNCHES = "MAX_AGENT_LAUNCHES"
 DEFAULT_MAX_LAUNCHES = 10
-LAUNCH_TOOL_NAMES = ("launch_agent", "get_agent_schema")
-SKILL_TOOL_NAMES = ("get_skill",)
 
-# 4xx codes that can succeed on a retry; every other 4xx means the request itself is wrong.
-RETRYABLE_4XX = {408, 409, 429}
 MAX_ERROR_CHARS = 2000
 
 
-class ModelSetupError(Exception):
+class ModelSetupError(SetupError):
     """The chat model could not be built (e.g. no API key). Retrying cannot help."""
 
 
@@ -55,7 +61,7 @@ def is_non_retryable(exc: BaseException) -> bool:
     current: BaseException | None = exc
     while current is not None and id(current) not in seen:
         seen.add(id(current))
-        if isinstance(current, ModelSetupError):
+        if isinstance(current, SetupError):
             return True
         for attr in ("code", "status_code"):
             code = getattr(current, attr, None)
@@ -183,6 +189,48 @@ class AgentRunner:
         self.max_attempts = max_attempts
         self.retry_delay_s = retry_delay_s
         self._model_factory = model_factory
+        self._entered = False
+        self._mcp: Any = None  # the MCPConnections, created when the first MCP tool is needed
+
+    async def __aenter__(self) -> "AgentRunner":
+        """Open the runner. It is required only for agents that have `mcp_servers`: their servers are started on first
+        use and stopped when the block ends."""
+        self._entered = True
+        return self
+
+    async def __aexit__(self, *exc_info: object) -> None:
+        await self.aclose()
+
+    async def aclose(self) -> None:
+        """Stop the MCP servers this runner started. Safe to call twice."""
+        self._entered = False
+        mcp, self._mcp = self._mcp, None
+        if mcp is not None:
+            await mcp.aclose()
+
+    def _connections(self) -> Any:
+        if self._mcp is None:
+            try:
+                from micro.mcp_runtime import MCPConnections
+            except ImportError as exc:
+                raise SetupError("MCP servers need an extra install: pip install 'micro[mcp]'") from exc
+            self._mcp = MCPConnections()
+        return self._mcp
+
+    async def _mcp_tools(self, agent: AgentBase) -> list[BaseTool]:
+        """The tools of the agent's MCP servers. The servers are started here if they are not running yet."""
+        if not agent.mcp_servers:
+            return []
+        connections = self._connections()
+        results = await asyncio.gather(
+            *(connections.tools_for(server) for server in agent.mcp_servers), return_exceptions=True
+        )
+        tools: list[BaseTool] = []
+        for result in results:
+            if isinstance(result, BaseException):
+                raise result
+            tools.extend(result)
+        return tools
 
     async def run(
         self, agent_cls: type[AgentBase], agent_input: AgentInput, *, job_id: str | None = None
@@ -208,6 +256,10 @@ class AgentRunner:
         agent = agent_cls()  # ty: ignore[missing-argument]  # a subclass supplies the defaults
         if not isinstance(agent_input, agent.input_model):
             raise TypeError(f"{agent.name} expects {agent.input_model.__name__}, got {type(agent_input).__name__}")
+        if agent.mcp_servers and not self._entered:
+            raise RuntimeError(
+                f"{agent.name} uses MCP servers, so the runner must be open: use `async with AgentRunner(...) as runner`"
+            )
 
         invocation_id = new_id()
         # Only an agent that has depth left to launch is told about its sub-agents, and given the tools.
@@ -240,6 +292,14 @@ class AgentRunner:
         while attempt < self.max_attempts:
             attempt += 1
             agent_run_id = new_id()
+            # The servers are started before the attempt waits for a slot, so that a slow start holds none. A failure
+            # is raised inside the attempt below, so it is logged and counted like any other.
+            mcp_tools: list[BaseTool] = []
+            setup_error: Exception | None = None
+            try:
+                mcp_tools = await self._mcp_tools(agent)
+            except Exception as exc:
+                setup_error = exc
             await self.db.create_run(
                 agent_run_id=agent_run_id,
                 invocation_id=invocation_id,
@@ -249,7 +309,7 @@ class AgentRunner:
                 agent_version=agent.version,
                 model_name=agent.model_name,
                 reasoning=agent.reasoning,
-                tool_names=tool_names,
+                tool_names=tool_names + [tool.name for tool in mcp_tools],
                 system_prompt_hash=prompt_hash,
                 input=agent_input,
                 parent_agent_run_id=parent_agent_run_id,
@@ -280,9 +340,11 @@ class AgentRunner:
                 attempt_started = time.perf_counter()
 
                 try:
+                    if setup_error is not None:
+                        raise setup_error
                     context = RunContext(store=self.store, job_id=job_id, agent_run_id=agent_run_id)
                     output, input_tokens, output_tokens, reported_model = await self._attempt(
-                        agent, agent_input, system_prompt, message, context, slot, depth, can_launch
+                        agent, agent_input, system_prompt, message, context, slot, depth, can_launch, mcp_tools
                     )
                 except Exception as exc:
                     error = _format_error(exc)
@@ -479,29 +541,38 @@ class AgentRunner:
         slot: _Slot,
         depth: int,
         can_launch: bool,
+        mcp_tools: list[BaseTool],
     ) -> tuple[AgentOutput, int, int, str | None]:
         try:
             model = self._model_factory(agent)
         except Exception as exc:
             raise ModelSetupError(str(exc)) from exc
 
-        tools = (
-            list(agent.tools)
-            + (self._launch_tools(agent, context, slot, depth) if can_launch else [])
-            + (self._skill_tools(agent) if agent.skills else [])
-        )
+        registry = ToolRegistry()
+        for local_tool in agent.tools:
+            registry.add(local_tool, "local")
+        for mcp_tool in mcp_tools:
+            registry.add(mcp_tool, "mcp")
+        for runner_tool in (self._launch_tools(agent, context, slot, depth) if can_launch else []) + (
+            self._skill_tools(agent) if agent.skills else []
+        ):
+            registry.add(runner_tool, "runner")
         lc_agent = create_agent(
             model,
-            tools=tools,  # only the allow-listed tools are ever bound
+            tools=registry.tools,  # only the allow-listed tools are ever bound
             system_prompt=system_prompt,
             response_format=agent.output_model,
             context_schema=RunContext,
         )
-        result = await lc_agent.ainvoke(
-            {"messages": [{"role": "user", "content": message}]},
-            config={"recursion_limit": agent.recursion_limit},
-            context=context,  # reaches tools through ToolRuntime; the model never sees it
-        )
+        token = CURRENT_AGENT_RUN_ID.set(context.agent_run_id)
+        try:
+            result = await lc_agent.ainvoke(
+                {"messages": [{"role": "user", "content": message}]},
+                config={"recursion_limit": agent.recursion_limit},
+                context=context,  # reaches tools through ToolRuntime; the model never sees it
+            )
+        finally:
+            CURRENT_AGENT_RUN_ID.reset(token)
 
         structured = result.get("structured_response")
         if structured is None:

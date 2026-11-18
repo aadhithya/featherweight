@@ -15,8 +15,14 @@ dependencies = [
     "pyyaml",
 ]
 
+[project.optional-dependencies]
+mcp = [
+    "langchain-mcp-adapters>=0.3.2",
+]
+
 [dependency-groups]
 dev = [
+    "langchain-mcp-adapters>=0.3.2",
     "pre-commit>=4.7.0",
     "pytest",
     "pytest-asyncio",

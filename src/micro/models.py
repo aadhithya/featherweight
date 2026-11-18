@@ -7,10 +7,15 @@ from typing import ClassVar, Generic, Literal, TypeVar
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from micro.mcp import HttpMCPServer, StdioMCPServer
 from micro.skills import Skill
 
 ModelName = Literal["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash"]
 Reasoning = Literal["low", "medium", "high"]
+
+# The tools the runner adds to an agent, by what it declares. An agent's own tools cannot use these names.
+LAUNCH_TOOL_NAMES = ("launch_agent", "get_agent_schema")
+SKILL_TOOL_NAMES = ("get_skill",)
 
 ASK_ALLOWED = (
     "You may ask the user questions. If required information is missing or ambiguous, "
@@ -94,6 +99,9 @@ class AgentBase(BaseModel):
     # Skills this agent can read (see micro/skills.py). Their names and descriptions are in the prompt; the
     # runner gives the agent `get_skill` to read the instructions when one applies.
     skills: list[Skill] = Field(default_factory=list)
+    # MCP servers whose tools this agent may use. The runner connects to them (see micro/mcp.py), so the runner must be
+    # open: `async with AgentRunner(...)`. Each tool is named `<server>_<tool>`.
+    mcp_servers: list[StdioMCPServer | HttpMCPServer] = Field(default_factory=list)
 
     input_model: ClassVar[type[AgentInput]] = AgentInput
     output_model: ClassVar[type[AgentOutput]] = AgentOutput
@@ -112,6 +120,15 @@ class AgentBase(BaseModel):
         skill_names = [skill.name for skill in self.skills]
         if len(set(skill_names)) != len(skill_names):
             raise ValueError(f"skills of {self.name} have duplicate names: {skill_names}")
+        server_names = [server.name for server in self.mcp_servers]
+        if len(set(server_names)) != len(server_names):
+            raise ValueError(f"mcp_servers of {self.name} have duplicate names: {server_names}")
+        tool_names = self.tool_names
+        for tool_name in tool_names:
+            if tool_name in LAUNCH_TOOL_NAMES + SKILL_TOOL_NAMES:
+                raise ValueError(f"{self.name} has a tool called {tool_name}, a name the runner uses for its own tool")
+        if len(set(tool_names)) != len(tool_names):
+            raise ValueError(f"tools of {self.name} have duplicate names: {tool_names}")
         return self
 
     def check_output(self, agent_input: AgentInput, output: AgentOutput) -> None:
