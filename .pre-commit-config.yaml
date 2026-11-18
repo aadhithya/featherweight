@@ -26,3 +26,13 @@ repos:
         entry: uv run --frozen ruff format
         language: system
         types_or: [python, markdown]
+
+  # Type check with ty, over the whole project (a change in one file can break another).
+  - repo: local
+    hooks:
+      - id: ty
+        name: ty check
+        entry: uv run --frozen ty check
+        language: system
+        types: [python]
+        pass_filenames: false

@@ -1,4 +1,4 @@
-.PHONY: build up down clean clean-all test e2e pipeline example-skills example-launching shell
+.PHONY: build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching shell
 
 build:
 	docker compose build
@@ -20,6 +20,23 @@ clean-all:
 
 test:
 	docker compose run --rm micro pytest
+
+# Lint, formatting and types (ruff and ty, from uv.lock). `make check` runs all three without changing files.
+lint:
+	docker compose run --rm micro ruff check .
+
+format:
+	docker compose run --rm micro ruff format .
+
+typecheck:
+	docker compose run --rm micro ty check
+
+check:
+	docker compose run --rm micro sh -c "ruff check . && ruff format --check . && ty check"
+
+# Install the git hooks (conventional commit messages, ruff, ty) in this clone. Run on the host, not in the container.
+hooks:
+	uv run pre-commit install
 
 # Real Gemini calls (needs GOOGLE_API_KEY in .env). Narrow with e.g. `make e2e ARGS="-k claim"`.
 e2e:
