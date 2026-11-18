@@ -14,6 +14,8 @@ or finding out why it behaves as it does.
 
 ## Where to start
 
+- **I want a coding agent to build with it.** [The skill](../skills/micro/SKILL.md): install it in Claude Code, or copy
+  `skills/micro` into another tool's skills folder. It carries the rules, a working app and the guides.
 - **I want to build an agent.** [Agents](agents.md): define one, run it, read the result, handle failures. Then
   [`examples/launching`](../examples/launching) or [`examples/skills`](../examples/skills) to run something.
 - **I want my agent to use outside tools.** [MCP tools](mcp.md): declare a server, and the agent gets its tools. They are

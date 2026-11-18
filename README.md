@@ -95,6 +95,17 @@ They are. Use them. This is built on LangChain and LangGraph anyway.
 Want durable execution, evals or OpenTelemetry? Pydantic AI. Want a graph that pauses and resumes? LangGraph. Resuming is
 planned here, just not yet. Until then, if a run dies, it starts over.
 
+## Build with a coding agent
+
+There is a skill that teaches a coding agent to build with `micro`. In Claude Code:
+
+```
+/plugin marketplace add aadhithya/micro
+/plugin install micro@micro
+```
+
+Other tools that read Agent Skills: copy [`skills/micro`](skills/micro) into their skills folder.
+
 ## Documentation
 
 - [**Docs**](docs/README.md): guides for using it, and where to begin

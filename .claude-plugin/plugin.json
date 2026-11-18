@@ -1,0 +1,10 @@
+{
+  "name": "micro",
+  "description": "Build background AI agents and pipelines with the micro Python framework: typed agents, a runner, sub-agents, MCP tools and skills.",
+  "version": "0.1.0",
+  "author": { "name": "aadhithya" },
+  "homepage": "https://github.com/aadhithya/micro",
+  "repository": "https://github.com/aadhithya/micro",
+  "license": "Apache-2.0",
+  "skills": "./skills"
+}
