@@ -1,3 +1,10 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [project]
 name = "micro"
 version = "0.1.0"
@@ -8,6 +15,7 @@ requires-python = ">=3.12"
 dependencies = [
     "aiosqlite",
     "fakeredis",
+    "jsonschema",
     "langchain",
     "langchain-google-genai",
     "langgraph",

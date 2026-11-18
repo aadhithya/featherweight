@@ -1,0 +1,16 @@
+{
+  "name": "micro",
+  "owner": {
+    "name": "aadhithya"
+  },
+  "plugins": [
+    {
+      "name": "micro",
+      "source": "./",
+      "description": "A skill for building background AI agents and pipelines with the micro Python framework."
+    }
+  ],
+  "metadata": {
+    "description": "The micro agent framework: a skill that teaches a coding agent to build with it."
+  }
+}

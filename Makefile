@@ -1,4 +1,4 @@
-.PHONY: build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching example-mcp shell
+.PHONY: skill build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching example-mcp shell
 
 build:
 	docker compose build
@@ -33,6 +33,10 @@ typecheck:
 
 check:
 	docker compose run --rm micro sh -c "ruff check . && ruff format --check . && ty check"
+
+# Copy the guides of docs/ into the skill (skills/micro/references). The tests fail when they are out of date.
+skill:
+	python3 scripts/build_skill.py
 
 # Install the git hooks (conventional commit messages, ruff, ty, unit tests) in this clone. Run on the host, not in the container.
 hooks:
