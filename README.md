@@ -7,6 +7,11 @@ Pydantic, not left to convention or to the model: its input, its output, its ski
 runner then makes it dependable: failures come back as values, retries and limits are built in, and every attempt is
 recorded.
 
+It is also a convenience. Every agent project ends up writing the same boilerplate: validating inputs and outputs,
+retrying, limiting concurrency, handling failures, tracing runs, wiring up tools, letting one agent call another, loading
+instructions for an agent to follow. `micro` is that boilerplate, written once, so that you can start from a working base
+and spend your time on the pipeline: the part that is your product.
+
 The opinions, which are the whole design:
 
 - **An agent is a specification, not a script.** It is a static, typed definition: name, version, prompt, model,
