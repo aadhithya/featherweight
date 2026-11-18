@@ -17,8 +17,11 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.7.0",
     "pytest",
     "pytest-asyncio",
+    "ruff>=0.17.5",
+    "ty>=0.0.105",
 ]
 
 [tool.uv]
@@ -31,3 +34,19 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 markers = ["e2e: real Gemini calls on the small fixtures and the examples; run with `make e2e`, excluded from `make test`"]
 addopts = "-m 'not e2e'"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["examples/doclearn/tests/fixtures"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = [
+    "E501",  # line length: the formatter owns code; long strings (prompts, docstrings) are fine
+    "UP046",  # keep `Generic[T]` on the pydantic generic models rather than PEP 695 syntax
+    "UP047",
+]
+
+[tool.ty.environment]
+extra-paths = ["src", "tests", "examples/doclearn", "examples/doclearn/tests"]
