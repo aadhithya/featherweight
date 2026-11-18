@@ -10,7 +10,7 @@ a concurrency limit, failures returned as results, and a trace of every attempt 
 If you want to build a pipeline of agents, this is one way to start with the boring parts already done. It is about
 1,000 lines, built on langchain and langgraph, async throughout, Gemini models for now.
 
-> A small, quick project: a few days of work. A prototype, not production software.
+> A small, quick, vibe coded project: a few days of work. A prototype with limited scope, not production software.
 
 ## An agent
 
