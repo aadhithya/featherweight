@@ -124,7 +124,8 @@ is not calling the model.
 
 Each attempt builds a [tool registry](tools-and-store.md#the-tool-registry) from the agent's `tools`, the tools of its MCP
 servers, and the tools the runner adds: `launch_agent` and `get_agent_schema` (with sub-agents and depth left) and
-`get_skill` (with skills). A failure to build it is a setup error.
+`get_skill` (with skills) and `search_tools` and `call_tool` (with an MCP server that is found by search). A failure to build
+it is a setup error.
 
 **MCP connections** are the runner's, shared by every agent it runs ([MCP tools](mcp-tools.md)). A run holds a lease on
 its servers from its first attempt to its last, so a retry does not start a server again, and lets go when it is done. A

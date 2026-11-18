@@ -45,7 +45,7 @@ Each of these raises a `ValidationError` (a programming error, not a failed run)
   distinct.
 - `skills`: the names are distinct.
 - `mcp_servers`: the names are distinct. Each server model checks itself too (name format, timeouts, caps).
-- `tools`: the names are distinct, and none is `launch_agent`, `get_agent_schema` or `get_skill`, which the runner uses
+- `tools`: the names are distinct, and none is `launch_agent`, `get_agent_schema`, `get_skill`, `search_tools` or `call_tool`, which the runner uses
   for its own tools.
 - `model_name`, `reasoning`, `recursion_limit`: the allowed values above.
 
@@ -74,9 +74,12 @@ Assembled by `build_system_prompt(can_launch=True)`, in this order, and joined b
 3. if the agent has `subagents` and `can_launch`: the sub-agents by name and description, and how to use them. Their
    schemas are not in the prompt
 4. if the agent has `skills`: each skill's name and description, and how to read one
+5. if the agent has an MCP server with `discover` on (the default): the servers it can search, by name and description, and how
+   to use `search_tools` and `call_tool`
 
 The runner sets `can_launch` to false for an agent at the depth limit. Its SHA-256 is recorded on every attempt
-(`system_prompt_hash`), so two runs can be compared by prompt. MCP tools add nothing to the prompt.
+(`system_prompt_hash`), so two runs can be compared by prompt. The discovery section is built from the declaration, so the
+hash is known before any server starts. Bound MCP tools add nothing to the prompt.
 
 ## Decisions
 

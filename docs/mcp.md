@@ -7,6 +7,7 @@ design and what was checked is in [specs/mcp-tools.md](specs/mcp-tools.md).
 - [Declaring a server](#declaring-a-server)
 - [Running an agent that uses MCP](#running-an-agent-that-uses-mcp)
 - [What the model gets](#what-the-model-gets)
+- [Finding tools by search](#finding-tools-by-search)
 - [Failures](#failures)
 - [Connections](#connections)
 - [Logging](#logging)
@@ -42,7 +43,8 @@ import without it; it is needed when a server is connected.
 | `tools` | all | The server's own tool names that the agent may use. A name the server does not have fails the attempt, because it is usually a typo |
 | `timeout_s` | 60 | For one call, and for starting the server |
 | `max_result_chars` | 20,000 | The cap on the text of one result (see [below](#what-the-model-gets)) |
-| `description` | empty | Not used yet. Kept for tool discovery |
+| `discover` | `True` | `True`: the server's tools are found with `search_tools` and run with `call_tool`, and none is bound to the model. `False`: they are bound directly. See [below](#finding-tools-by-search) |
+| `description` | empty | What the server is for. With `discover`, the model reads it to know what to search for |
 | `command`, `args`, `env_from`, `cwd` | | A stdio server: the process to start, and the names of the environment variables to pass it |
 | `url`, `bearer_from`, `headers_from` | | A streamable HTTP server. `bearer_from` is the name of the environment variable that holds a token, sent as `Authorization: Bearer <token>`. `headers_from` maps other header names to the name of the variable that holds the value |
 
@@ -74,7 +76,8 @@ async with AgentRunner(db) as runner:  # the servers stay up between runs, and s
 
 ## What the model gets
 
-The tools of the servers are bound to the model like the agent's own, with their schemas. An agent's own `tools`, MCP
+The tools of a server with `discover=False` are bound to the model like the agent's own, with their schemas. (The default
+is to [find them by search](#finding-tools-by-search) instead, and this section is about what a tool returns either way.) An agent's own `tools`, MCP
 tools and the tools the runner adds ([launching](launching-agents.md), [skills](skills.md)) are checked together before
 the model sees any: two tools with one name fail the attempt, and so does a name Gemini would refuse. The run log's
 `tool_names` lists them all.
@@ -90,6 +93,32 @@ the model sees any: two tools with one name fail the attempt, and so does a name
 **The text is capped** at the server's `max_result_chars`, over all the text blocks of one result. Longer text is cut and
 ends with `[truncated: 48,213 characters, showing the first 20,000]`. A result counts in the next model call's input
 tokens, and an oversized one can exceed the context limit and fail the attempt. Images and files are not capped.
+
+## Finding tools by search
+
+**By default an MCP server's tools are not bound to the model.** A server can offer dozens, and binding all of them puts
+every schema in every model call. The model gets two tools instead, and the prompt names the servers it can search:
+
+```
+You can find more tools by searching. These servers have tools you can search for:
+- github: Issues, pull requests and code search
+```
+
+| Tool | |
+|---|---|
+| `search_tools(keywords)` | The best 5 matching tools, each with its name, description and input schema. Matched by BM25 over the tool's name, description and argument names |
+| `call_tool(name, args_json)` | Runs a tool. `args_json` is a JSON string. It is checked against the tool's real schema first, and a call that does not fit returns the errors **and the schema**, so the model can fix it without searching again |
+
+- **Search only when the tool is not in an earlier result.** Results stay in the conversation, and the prompt says so.
+- **`call_tool` needs no earlier search.** The agent's `tools` filter is the boundary. A name that is not a tool of the agent
+  gets a message to search for it.
+- A discovered tool has the same timeout, size cap and failures-as-text as a bound one.
+- **Opt out with `discover=False`** for a small server, where one native call beats a search and a call. One agent can bind
+  one server and search another. The agent's own `tools` are always bound.
+- The run log's `tool_names` shows `search_tools` and `call_tool`, not the tools behind them. Each search logs
+  `tool_search ... keywords=... hits=...` and each call `tool_call_via_search ... status=ok|invalid`.
+
+[specs/tool-discovery.md](specs/tool-discovery.md) has the design.
 
 ## Failures
 
@@ -140,8 +169,7 @@ behaves oddly, look at the schema the model was given. This is the same kind of 
 
 ## What is not supported
 
-- Finding tools (`search_tools`): an agent gets every tool its servers list, and `tools` is the only filter. This is
-  [issue #3](https://github.com/aadhithya/micro/issues/3).
+- Finding tools of the agent's own `tools`, skills or agents. Only MCP tools are found by search.
 - SSE and websocket transports, OAuth for HTTP servers, and MCP resources, prompts and sampling.
 - A refresh of a server's tool list while it runs. It is read when the connection is opened.
 - Using a tool's annotations (`destructiveHint` and so on) as policy.

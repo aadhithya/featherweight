@@ -88,7 +88,8 @@ Set `GOOGLE_API_KEY` first. `runner.run_many(Agent, inputs, job_id=...)` runs on
 - **Agents launching agents.** `subagents = [Researcher, Writer]` is an allow-list of classes; depth and breadth limits;
   every launch traced under its parent.
 - **MCP tools.** Declare the servers on the agent (`mcp_servers`): typed, secrets by name, an allow-list of tools. One
-  shared connection per server, and a dead server is text for the model, not a crash.
+  shared connection per server, and a dead server is text for the model, not a crash. A server's tools are found by
+  keyword search by default, so a big server does not fill the context.
 - **Skills.** Instructions in the [Agent Skills](https://agentskills.io/specification) format, as a Pydantic model that
   checks the specification's rules: names and descriptions in the prompt, the rest read on demand with `get_skill`.
 

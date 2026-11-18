@@ -28,9 +28,10 @@ apart from the ones the runner adds:
 |---|---|---|
 | `subagents` (and depth is left) | `launch_agent`, `get_agent_schema` | The agents it may launch |
 | `skills` | `get_skill` | The skills it has |
-| `mcp_servers` | `<server>_<tool>` for each tool of each server | Nothing |
+| `mcp_servers` | `<server>_<tool>` for each tool of each server of `discover=False` | Nothing |
+| `mcp_servers` (the default, `discover=True`) | `search_tools`, `call_tool` | The servers it can search |
 
-The user does not list these. Their names are reserved: an agent with its own tool of one of those names fails when it is
+The user does not list these. Their names (`launch_agent`, `get_agent_schema`, `get_skill`, `search_tools`, `call_tool`) are reserved: an agent with its own tool of one of those names fails when it is
 built ([agents](agents.md#checked-when-an-agent-is-built)). The run log's `tool_names` lists everything bound.
 
 ## The tool registry
@@ -46,8 +47,9 @@ Internal. One per attempt of one agent. It holds the tools of that attempt, with
 - **A setup error is not retried.** The run fails at once and the message names the tools.
 - The registry's `tools` are what `create_agent` binds, and its `names` are what the log records.
 
-Tool discovery ([issue #3](https://github.com/aadhithya/micro/issues/3)) is planned to build on it: each entry would be
-direct or discoverable, and the registry would answer a keyword search. Not built.
+Each entry has a **mode**: `direct` (bound to the model) or `discoverable` (found with `search_tools` and run with
+`call_tool`; only MCP tools, by default). `tools` and `names` are the bound ones, names are unique across both modes, and
+`search(keywords, k)` ranks the discoverable ones ([tool discovery](tool-discovery.md)).
 
 ## Ready-made tools
 
@@ -101,7 +103,7 @@ The shared MCP tools cannot take a `RunContext`, because one tool object serves 
 - Rows for tool calls in the run log.
 - A per-call timeout or size cap for local tools. MCP tools have both.
 - Policy on a tool, such as "needs approval" or read-only.
-- Tool discovery.
+- Discovery of an agent's own tools.
 
 ## Tests
 

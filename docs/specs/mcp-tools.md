@@ -21,9 +21,9 @@ Status: implemented. This is the design for [issue #1](https://github.com/aadhit
 An agent declares the MCP servers it uses, as typed, frozen Pydantic models. Their tools are added to the agent like any
 other tool: allow-listed per agent, bound to the model, traced, and with failures returned as values.
 
-In this version MCP tools are **bound directly** to the model. Discovery (`discover=True`, `search_tools`, `call_tool`)
-is [issue #3](https://github.com/aadhithya/micro/issues/3). The registry is built so that it can be added without a
-redesign.
+This spec is how MCP tools are connected and bound. Finding them by search (`discover`, `search_tools`, `call_tool`) was
+added after, and is in [tool-discovery.md](tool-discovery.md): by default a server's tools are discoverable, and the sections
+below about binding apply to a server with `discover=False`.
 
 ## Findings from the adapter
 
@@ -60,7 +60,8 @@ Document it next to the existing structured-output caveat.
 ```python
 class MCPServer(BaseModel, frozen=True):
     name: str  # lowercase letters, digits and single underscores; the tool prefix
-    description: str = ""  # reserved for discovery (#3)
+    description: str = ""  # what the server is for; the model reads it, to know what to search for
+    discover: bool = True  # False: bind the tools directly (see tool-discovery.md)
     tools: tuple[str, ...] | None = None  # None: every tool of the server. A tuple: only those
     timeout_s: float = 60  # per call
     max_result_chars: int = 20_000  # cap on the text of one result; at least 1
@@ -99,7 +100,7 @@ raises a message that says `pip install micro[mcp]`.
 ## The tool registry
 
 An internal class, built by the runner for each attempt. It holds every tool the attempt may use, with its source
-(`local`, `mcp:<server>` or `runner`) and its mode (`direct`; `discoverable` arrives with #3).
+(`local`, `mcp:<server>` or `runner`) and its mode (`direct` or `discoverable`; see [tool-discovery.md](tool-discovery.md)).
 
 - **Naming.** MCP tools are named by the adapter: `load_mcp_tools(session, server_name=<the agent's name for the
   server>, tool_name_prefix=True)` gives `server_tool`. The registry does not rename tools. It loads once per connection
@@ -192,7 +193,7 @@ the agent loop. Without the wrapper a dead server ends the whole run (checked).
 
 ## Not in this version
 
-- Discovery: `discover`, `search_tools`, `call_tool` (#3).
+- Discovery of tools other than MCP's ([tool-discovery.md](tool-discovery.md)).
 - SSE and websocket transports.
 - OAuth flows for HTTP servers; MCP resources, prompts and sampling.
 - A refresh of a server's tool list. It is read when a connection is opened.

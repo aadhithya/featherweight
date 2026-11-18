@@ -24,6 +24,7 @@ GITHUB = HttpMCPServer(
     name="github",
     url="https://api.githubcopilot.com/mcp/readonly",  # the read-only variant of GitHub's server: no write tools at all
     bearer_from="GITHUB_TOKEN",  # the name of the variable; the token itself is never in the code
+    discover=False,  # six tools are few enough to bind to the model; the default is to find them by search
     tools=(  # only these, whatever else the server offers
         "search_repositories",
         "get_file_contents",

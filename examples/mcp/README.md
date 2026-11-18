@@ -47,6 +47,9 @@ GITHUB = HttpMCPServer(
 
 - **Three layers keep it read-only.** The `/readonly` URL offers no write tools, the `tools` allow-list lets the agent see
   six of the dozens that are left, and the token itself can only read public data.
+- **The tools are bound directly** (`discover=False`): six tools are few enough to give the model. By default an MCP
+  server's tools are found with `search_tools` and run with `call_tool`, which suits a server with dozens
+  ([docs/mcp.md](../../docs/mcp.md#finding-tools-by-search)). Drop that line to try it.
 - **The tools arrive named after the server:** `github_list_releases`, and so on. They are bound to the model next to
   any tools the agent has of its own, with the schemas the server publishes.
 - **The runner connects on first use**, before the model is called. The script runs the agent inside
