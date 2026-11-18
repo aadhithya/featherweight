@@ -147,8 +147,7 @@ Issues and pull requests are welcome. Run `make hooks` once: commit messages fol
 
 ## How it's built
 
-Designed by a human. Implemented by [Claude](https://claude.com/claude-code). Every decision here was the human's, and
-the typing was Claude's. The specs in [docs/specs](docs/specs) are what the human signed off before any code was written.
+Designed by a human. Implemented by Claude.
 
 ## License
 
