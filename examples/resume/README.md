@@ -10,6 +10,12 @@ make example-resume
 
 It needs `ANTHROPIC_API_KEY` in `.env`. Without Docker: `uv run python examples/resume/agent.py`.
 
+**Where the results are kept.** A job that opts in with `resumable=True` keeps the output of each step in a *result store*. This
+example does not pass one, so it uses the **default store**: a `results` table in the same sqlite file as the run log
+(`SqliteResultStore`, which `AgentRunner` uses with a `SqliteDatabase`). That is why it needs no setup. To keep results
+somewhere else (another database, a bucket, a store per tenant), write your own: [`examples/results`](../results) shows how in a
+dozen lines, and with Postgres you have to, because there is no default store there.
+
 ## What happens
 
 A `Summariser` summarises each of four commit messages (one `run_many`), then a `ReleaseNotes` agent writes the notes

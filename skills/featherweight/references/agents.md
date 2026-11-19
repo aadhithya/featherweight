@@ -283,7 +283,7 @@ This creates a **new job** that records `resumed_from`, and is resumable itself,
 pipeline runs again from the top, with its own loops and decisions. Only the agent runs are answered from kept results. It is
 replay, not pausing: Featherweight is not a workflow engine. To create the job first, use `db.create_job(name,
 resume_from=old_job_id)` and pass its id with `job_id` (`run_job` refuses `job_id` together with `resume_from` or
-`resumable`). [`examples/resume`](https://github.com/aadhithya/featherweight/blob/main/examples/resume) runs a pipeline that crashes halfway and resumes, with Claude Haiku
+`resumable`). [`examples/resume`](https://github.com/aadhithya/featherweight/blob/main/examples/resume) runs a pipeline that crashes halfway and resumes, with the default result store and Claude Haiku
 (`make example-resume`).
 
 For each run that your pipeline starts in the new job, the runner looks in the old job for a row that
