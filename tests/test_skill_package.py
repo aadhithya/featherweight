@@ -25,7 +25,7 @@ def python_blocks(path: Path) -> list[str]:
 def test_the_skill_loads_with_our_own_skill_model():
     skill = Skill.from_directory(SKILL)
     assert skill.name == "featherweight"
-    assert "Featherweight" in skill.description and "Use when" in skill.description
+    assert "featherweight" in skill.description and "Use when" in skill.description
     assert len(skill.instructions.splitlines()) < 500  # the specification's advice
     assert {"references/agents.md", "references/models.md", "references/recipes.md"} <= set(skill.resources)
 

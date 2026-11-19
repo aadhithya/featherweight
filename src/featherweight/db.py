@@ -1,4 +1,4 @@
-"""The run log: what Featherweight keeps of the orchestration, and the abstract class that a database implements.
+"""The run log: what featherweight keeps of the orchestration, and the abstract class that a database implements.
 
 The log is metadata only: jobs, and one row per attempt of an agent, with status, tokens, timing, the launch tree and hashes.
 It never holds an input, an output, a message or the text of an error (see docs/specs/persistence.md). `Database` is the

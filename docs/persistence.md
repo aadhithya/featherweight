@@ -1,6 +1,6 @@
 # Persistence: what is kept, and what is not
 
-Featherweight keeps **the state of the orchestration**, and none of **the data** that flowed through it. The run log says what
+featherweight keeps **the state of the orchestration**, and none of **the data** that flowed through it. The run log says what
 ran, in what order, with what outcome, at what cost. It never holds an input, an output, a message or the text of an error. Where
 data has to be kept for a feature (resuming a job), you provide the place.
 
@@ -104,6 +104,6 @@ the job id of its keys, or be one per tenant.
 
 ## Not here yet
 
-**Observers**: a way for the content of a run (input, output, error text) to leave Featherweight without being stored, for
+**Observers**: a way for the content of a run (input, output, error text) to leave featherweight without being stored, for
 debugging and tracing. It is not designed yet. Until then the content is in the logs only where the code logs it, and in what
 `AgentRunner.run` returns to you.

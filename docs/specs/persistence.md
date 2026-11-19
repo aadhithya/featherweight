@@ -28,7 +28,7 @@ runner](runner.md) (resuming reads through a result store), [agents](agents.md) 
 
 ## Goal
 
-Featherweight is a harness, not a data store. It keeps **the state of the orchestration**: what ran, in what order, which agent
+featherweight is a harness, not a data store. It keeps **the state of the orchestration**: what ran, in what order, which agent
 launched which, with what outcome, at what cost, and which hashes identify the declaration and the input. It does **not** keep
 **the data that flowed through it**: inputs, outputs, messages, results. Where data has to be kept for a feature (resuming a
 job), the user provides the place.
@@ -38,7 +38,7 @@ the metadata can be shared and read freely because it holds nothing of a client'
 
 ## The rule
 
-| Featherweight keeps | Featherweight never keeps |
+| featherweight keeps | featherweight never keeps |
 |---|---|
 | Jobs: status, timing, whether a retry points to an earlier job | The input of an agent |
 | Every attempt: agent, model, status, tokens, timing | The output of an agent, or the result of a job |
@@ -283,7 +283,7 @@ that must route by tenant can do so from the job id of its keys, or be one per t
 
 ## Not decided yet
 
-- **Observers:** a way for the full content of a run (input, output, error text) to leave Featherweight without being stored, for
+- **Observers:** a way for the full content of a run (input, output, error text) to leave featherweight without being stored, for
   debugging and tracing (OpenTelemetry would be one). Discussed later; until then, content is in the logs only where the code logs it.
 
 ## Not supported

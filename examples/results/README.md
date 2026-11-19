@@ -1,6 +1,6 @@
 # A result store of your own
 
-Resuming a job reads the outputs of finished steps back from a **result store**. Featherweight ships a sqlite one for local
+Resuming a job reads the outputs of finished steps back from a **result store**. featherweight ships a sqlite one for local
 development; in a deployment you write your own, because where results live (a folder, a bucket, a database per tenant) is your
 decision. This example is the whole job: [`store.py`](store.py) is a store that keeps a JSON file per result, in about a dozen
 lines, and then checks it with the conformance kit.

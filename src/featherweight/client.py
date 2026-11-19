@@ -1,7 +1,7 @@
 """`JobClient`: submit a job, follow it, cancel it, and read its result, from any process.
 
 The client and the job worker are independent: the queue and the database are all that connects them. The client writes the job
-row and puts a message on the queue; it never runs a job. The result is read from the user's result store, because Featherweight
+row and puts a message on the queue; it never runs a job. The result is read from the user's result store, because featherweight
 keeps no results of its own. See docs/specs/submitted-jobs.md.
 """
 

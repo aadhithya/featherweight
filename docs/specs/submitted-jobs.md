@@ -4,7 +4,7 @@ Status: implemented. #72 (the `Job` class, `JobContext`, the job columns and `CA
 its own issue (listed [at the end](#the-work)). When a part is built, this page says so, and the guide `docs/submitted-jobs.md`
 shows how to use it.
 
-It builds on [the persistence spec](persistence.md) (the `Database`, the result store, the rule that Featherweight keeps no
+It builds on [the persistence spec](persistence.md) (the `Database`, the result store, the rule that featherweight keeps no
 data). It changes [jobs and tracing](jobs-and-tracing.md) (the job columns, the `CANCELLED` status, the job events),
 [the runner](runner.md) (a job context runs agents in the job) and [agents](agents.md) (jobs).
 
@@ -33,7 +33,7 @@ workers that compete for one queue) are the next epic, and background agents the
 
 ## The principle
 
-Featherweight passes what the user gives to the job's agents, and writes the result into the user's result store. It stores **no
+featherweight passes what the user gives to the job's agents, and writes the result into the user's result store. It stores **no
 inputs and no results** of its own ([the rule](persistence.md#the-rule)):
 
 - **The input** travels in the queue message, as JSON. It can also be a reference (an id, a URL) that the job looks up itself.
@@ -203,7 +203,7 @@ data: {"seq":12,"job_id":"…","status":"RUNNING","at":"2026-11-20T10:00:01Z"}
 ```
 
 `id` is the sequence number, so a browser that reconnects sends `Last-Event-ID` and the stream resumes after it. A comment line goes
-out every 15 seconds to keep the connection open, and the stream ends after a final event. Featherweight runs **no server**: the
+out every 15 seconds to keep the connection open, and the stream ends after a final event. featherweight runs **no server**: the
 user's API sends the response (a `StreamingResponse` in FastAPI, about a dozen lines, in the example). No WebSockets, one job per
 stream, no stream of all jobs.
 

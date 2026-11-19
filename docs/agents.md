@@ -271,7 +271,7 @@ cost one query, not a hundred. Polling is in that one place.
 
 **SSE** is the one way events are streamed to a client. `sse.encode` turns the stream into server-sent events
 (`id` is the `seq`, so `Last-Event-ID` resumes; a comment goes out every 15 seconds to keep the connection open) and
-`sse.HEADERS` has the headers. Featherweight runs no server: your API sends the response.
+`sse.HEADERS` has the headers. featherweight runs no server: your API sends the response.
 
 ```python
 @app.get("/jobs/{job_id}/events")
@@ -366,7 +366,7 @@ a span needs are already recorded.
 ## Resuming a job
 
 A pipeline fails at step 2. Run it again with `resume_from`, and step 1 is not paid for twice. **The first job has to opt in
-before it runs**, because Featherweight keeps no outputs unless you ask:
+before it runs**, because featherweight keeps no outputs unless you ask:
 
 ```python
 first = await run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, job_id), resumable=True)  # fails at step 2
@@ -385,7 +385,7 @@ outcome = await run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, jo
 
 This creates a **new job** that records `resumed_from`, and is resumable itself, so that a third attempt is possible. Your
 pipeline runs again from the top, with its own loops and decisions. Only the agent runs are answered from kept results. It is
-replay, not pausing: Featherweight is not a workflow engine. To create the job first, use `db.create_job(name,
+replay, not pausing: featherweight is not a workflow engine. To create the job first, use `db.create_job(name,
 resume_from=old_job_id)` and pass its id with `job_id` (`run_job` refuses `job_id` together with `resume_from` or
 `resumable`). [`examples/resume`](../examples/resume) runs a pipeline that crashes halfway and resumes, with the default result store and Claude Haiku
 (`make example-resume`).
@@ -413,7 +413,7 @@ does any step whose input depends on its output.
 What to know:
 
 - **The code between agents must be deterministic**: no clock, no `random`, no unordered iteration. It is your code, so
-  it is your responsibility, and Featherweight does not check it. If it takes another path, the agents get other inputs,
+  it is your responsibility, and featherweight does not check it. If it takes another path, the agents get other inputs,
   nothing matches, and they run again.
 - **The run store is not used for resumption.** Outputs come from the result store. A reused step does not run, so a
   `store_set` it made does not happen again. Do not rely on the store for anything a resume needs.

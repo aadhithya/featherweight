@@ -2,7 +2,7 @@
 
 # Skills
 
-A skill is a set of instructions that an agent reads when it needs them. Featherweight follows the
+A skill is a set of instructions that an agent reads when it needs them. featherweight follows the
 [Agent Skills specification](https://agentskills.io/specification): a skill is a directory with a `SKILL.md` and,
 optionally, other files. Defining agents is in [agents.md](agents.md).
 
@@ -123,16 +123,16 @@ meeting-notes/
 
 ## What is supported
 
-What the specification defines, and what Featherweight does with it:
+What the specification defines, and what featherweight does with it:
 
-| In the specification | In Featherweight |
+| In the specification | In featherweight |
 |---|---|
 | `SKILL.md` with `name` and `description` | Supported, with every length and character rule |
 | `license`, `compatibility`, `metadata` | Supported: validated, kept, available on the `Skill` |
 | `allowed-tools` (experimental) | Parsed and kept; **not enforced**. An agent's tools are only those in its `tools` |
 | Markdown body as the instructions | Supported; returned by `get_skill` |
 | Other files, `references/`, `assets/` | Supported as **text** files, read on request with `get_skill` |
-| `scripts/` | Kept as text for the agent to read. **Nothing runs a script**: Featherweight has no code execution |
+| `scripts/` | Kept as text for the agent to read. **Nothing runs a script**: featherweight has no code execution |
 | Binary assets (images, PDFs) | Not supported: skipped when loading |
 | Progressive disclosure, steps 1 to 3 | Supported as described above |
 | The name matches the directory | Checked by `from_directory` |
@@ -140,7 +140,7 @@ What the specification defines, and what Featherweight does with it:
 | File references one level deep from `SKILL.md` | Not checked |
 | Validation with the `skills-ref` tool | Not used; `Skill` checks the same rules itself |
 
-Beyond the specification, in Featherweight:
+Beyond the specification, in featherweight:
 - A skill is a typed Pydantic model that can also be written in code, with no directory.
 - An agent can have both `skills` and `subagents` ([launching-agents.md](launching-agents.md)); they are independent.
 

@@ -1,11 +1,11 @@
 ---
 name: featherweight
-description: "Build background AI agents and pipelines with the Featherweight Python framework: typed Pydantic agents, a runner with retries and concurrency limits, sub-agents, MCP tools, Agent Skills, and a sqlite trace. Use when the user wants to build, extend, test or debug an app, pipeline, batch job or agent system with Featherweight, or when code imports `featherweight.models`, `featherweight.runner` or `featherweight.model_settings`."
+description: "Build background AI agents and pipelines with the featherweight Python framework: typed Pydantic agents, a runner with retries and concurrency limits, sub-agents, MCP tools, Agent Skills, and a sqlite trace. Use when the user wants to build, extend, test or debug an app, pipeline, batch job or agent system with featherweight, or when code imports `featherweight.models`, `featherweight.runner` or `featherweight.model_settings`."
 ---
 
-# Building with Featherweight
+# Building with featherweight
 
-Featherweight is a small Python framework for **background agents**: pipelines, batches, fan-out. A chat agent that streams its
+featherweight is a small Python framework for **background agents**: pipelines, batches, fan-out. A chat agent that streams its
 answer is a `StreamingAgent`; there is no UI and no stored conversation.
 An agent is a typed class. A runner runs it with retries, limits and a trace. Your code, plain async Python, decides what
 runs next. It has opinions, but they are defaults: follow them unless the user wants something else.
@@ -128,7 +128,7 @@ asyncio.run(main())
 
 ## Where to read next
 
-Read only the reference for the task. Each is a guide from the Featherweight repository, with its code examples.
+Read only the reference for the task. Each is a guide from the featherweight repository, with its code examples.
 
 | The task | Read |
 |---|---|
