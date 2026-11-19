@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from micro.models import AgentInput, AgentOutput
+
 EXAMPLES = Path(__file__).parent.parent / "examples"
 
 
@@ -41,3 +43,23 @@ def test_the_mcp_example_reads_github_with_a_token_by_name_and_six_read_only_too
     assert server.tools is not None and len(server.tools) == 6 and server.discover is False
     assert not any(word in tool for tool in server.tools for word in ("create", "update", "delete", "merge", "push"))
     assert agent.model.model == "gemini-3.5-flash-lite"
+
+
+def test_the_doclearn_agents_build_and_are_valid_definitions():
+    """The example's five agents are valid definitions: they build, and their settings, schemas and tools are consistent.
+    The example has no tests of its own; `make pipeline` runs it for real."""
+    from doclearn.alignment import SemanticAlignmentAgent
+    from doclearn.analyzer import DocumentAnalyzer
+    from doclearn.autofill import FormFillerAgent
+    from doclearn.generation import GeneratorAgent
+    from doclearn.reconciler import ReconciliationAgent
+
+    classes = [DocumentAnalyzer, ReconciliationAgent, SemanticAlignmentAgent, GeneratorAgent, FormFillerAgent]
+    agents = [cls() for cls in classes]
+    assert len({agent.name for agent in agents}) == len(agents)
+    for agent in agents:
+        assert agent.model.model in agent.model.models
+        assert issubclass(agent.input_model, AgentInput) and agent.input_model is not AgentInput  # its own input
+        assert issubclass(agent.output_model, AgentOutput) and agent.output_model is not AgentOutput
+        assert agent.build_system_prompt() and agent.system_prompt_hash
+        assert len(set(agent.tool_names)) == len(agent.tool_names)

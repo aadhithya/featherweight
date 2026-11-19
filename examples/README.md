@@ -12,7 +12,7 @@ which use `gemini-3.8-flash` for the harder steps.
 | [`doclearn`](doclearn) | A whole pipeline: learn a template from example documents, then write a new document from it | `make pipeline ARGS="examples/doclearn/samples/project_proposals --category project_proposals"` |
 
 `launching`, `skills` and `mcp` are one file of agents plus a script that runs them, and they are the place to start. `doclearn`
-is bigger: five agents, two pipelines, sample documents and its own tests.
+is bigger: five agents, two pipelines and sample documents. It has no tests of its own.
 
 The examples print answers only. `MICRO_LOG_LEVEL=INFO make example-mcp` (or any other example) also prints the log: each
 attempt, tool call, search and launch. `doclearn` has its own: `-v`.

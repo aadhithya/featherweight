@@ -20,9 +20,8 @@ skip the question, and `-v` to see every log line.
 |---|---|
 | [`doclearn/`](doclearn) | The package: the agents, the pipelines and the command line |
 | [`samples/`](samples) | Two document families to learn from: `project_proposals` and `incident_reports` (invented) |
-| [`tests/`](tests) | Its own tests: mocked unit tests, saved fixtures, and real-model tests in `tests/e2e` |
 
-Run its tests with `uv run pytest examples/doclearn`.
+It has no tests of its own: it is an example, and `make pipeline` runs it. The harness's tests check that its agents build.
 
 ## Where to look
 

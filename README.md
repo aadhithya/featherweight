@@ -144,7 +144,7 @@ src/micro/            the harness
 examples/launching/   an agent that launches other agents (make example-launching)
 examples/skills/      an agent that uses skills, with three skills (make example-skills)
 examples/mcp/         an agent that uses GitHub's MCP server (make example-mcp)
-examples/doclearn/    an example pipeline: its package, sample documents and tests (make pipeline)
+examples/doclearn/    an example pipeline: its package and sample documents (make pipeline)
 docs/                 documentation
 tests/                the harness's tests; tests/e2e uses the real model
 ```
