@@ -7,7 +7,24 @@ services:
     environment:
       FTW_DB_PATH: /app/featherweight.db  # the project directory is bind-mounted at /app, so this is ./featherweight.db on the host
       FTW_LOG_LEVEL: ${FTW_LOG_LEVEL:-}  # from your shell, or .env: `FTW_LOG_LEVEL=INFO make example-mcp`
+      FTW_TEST_POSTGRES_URL: postgresql://postgres:postgres@postgres:5432/postgres  # the tests of PostgresDatabase run against it
     volumes:
       - .:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
     # No app entry point yet; keep the container alive for `make shell` / `make test`.
     command: sleep infinity
+
+  # A Postgres for the tests (and for trying PostgresDatabase by hand: postgresql://postgres:postgres@localhost:5432/postgres).
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 20

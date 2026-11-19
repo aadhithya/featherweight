@@ -39,7 +39,7 @@ It has opinions. Take them, or fork off.
 
 ```
 pip install featherweight
-pip install 'featherweight[anthropic]'    # or mcp, openai
+pip install 'featherweight[anthropic]'    # or mcp, openai, postgres
 ```
 
 Python 3.12 or later. The import is `import featherweight as ftw`, and that is how everything here imports it.

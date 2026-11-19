@@ -81,6 +81,61 @@ CREATE TABLE results (
 );
 """
 
+# Postgres has native types (timestamptz, jsonb, boolean, an identity column). There is no `results` table: we ship no Postgres
+# result store (the user writes one), so a deployment decides where its results live.
+POSTGRES_BASELINE = f"""
+CREATE TABLE jobs (
+    job_id        text PRIMARY KEY,
+    name          text NOT NULL,
+    status        text NOT NULL CHECK (status IN {STATUSES}),
+    resumable     boolean NOT NULL DEFAULT false,
+    resumed_from  text REFERENCES jobs(job_id),
+    error_type    text,
+    error_hash    text,
+    created_at    timestamptz NOT NULL,
+    completed_at  timestamptz
+);
+
+CREATE TABLE agent_runs (
+    seq                       bigint GENERATED ALWAYS AS IDENTITY,
+    agent_run_id              text PRIMARY KEY,
+    invocation_id             text NOT NULL,
+    attempt                   integer NOT NULL CHECK (attempt >= 1),
+    job_id                    text REFERENCES jobs(job_id),
+    parent_agent_run_id       text,
+    depth                     integer NOT NULL CHECK (depth >= 1),
+    agent_name                text NOT NULL,
+    agent_version             text NOT NULL,
+    agent_hash                text NOT NULL,
+    system_prompt_hash        text NOT NULL,
+    tools_hash                text NOT NULL,
+    provider                  text NOT NULL,
+    model_name                text NOT NULL,
+    reported_model_name       text,
+    reasoning                 text NOT NULL,
+    settings                  jsonb NOT NULL,
+    input_hash                text NOT NULL,
+    output_hash               text,
+    reused_from_agent_run_id  text,
+    thread_id                 text,
+    status                    text NOT NULL CHECK (status IN {STATUSES}),
+    error_type                text,
+    error_hash                text,
+    input_tokens              integer CHECK (input_tokens >= 0),
+    output_tokens             integer CHECK (output_tokens >= 0),
+    latency_ms                double precision CHECK (latency_ms >= 0),
+    created_at                timestamptz NOT NULL,
+    started_at                timestamptz,
+    completed_at              timestamptz
+);
+
+CREATE UNIQUE INDEX idx_agent_runs_seq ON agent_runs(seq);
+CREATE INDEX idx_agent_runs_job ON agent_runs(job_id);
+CREATE INDEX idx_agent_runs_invocation ON agent_runs(invocation_id);
+CREATE INDEX idx_agent_runs_parent ON agent_runs(parent_agent_run_id);
+CREATE INDEX idx_agent_runs_reuse ON agent_runs(job_id, agent_hash, input_hash);
+"""
+
 MIGRATIONS: list[Migration] = [
-    Migration(version=1, name="baseline", sql={"sqlite": SQLITE_BASELINE}),
+    Migration(version=1, name="baseline", sql={"sqlite": SQLITE_BASELINE, "postgres": POSTGRES_BASELINE}),
 ]

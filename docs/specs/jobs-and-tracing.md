@@ -3,7 +3,7 @@
 Status: implemented. How to use it is in [agents.md](../agents.md#jobs-and-tracing). The code is
 [db.py](../../src/featherweight/db.py) (the abstract class, the records and rows), [sqlite.py](../../src/featherweight/sqlite.py),
 [migrations.py](../../src/featherweight/migrations.py), [jobs.py](../../src/featherweight/jobs.py) and [log.py](../../src/featherweight/log.py). The
-run log holds metadata only: see the [persistence spec](persistence.md) for why, and for `PostgresDatabase`, which is still to come.
+run log holds metadata only: see the [persistence spec](persistence.md) for why, and for [`PostgresDatabase`](../../src/featherweight/postgres.py).
 
 - [Goal](#goal)
 - [Jobs](#jobs)

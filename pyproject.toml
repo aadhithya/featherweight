@@ -57,6 +57,9 @@ anthropic = [
 openai = [
     "langchain-openai>=1.8",
 ]
+postgres = [
+    "psycopg[binary]>=3.2",
+]
 
 [dependency-groups]
 dev = [
@@ -66,6 +69,7 @@ dev = [
     "langchain-mcp-adapters>=0.3.2",
     "langchain-openai>=1.8",
     "pre-commit>=4.7.0",
+    "psycopg[binary]>=3.2",
     "pytest",
     "pytest-asyncio",
     "ruff>=0.17.5",

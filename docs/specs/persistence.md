@@ -1,6 +1,6 @@
 # Spec: the run log and the persistence boundary
 
-Status: being built. #59 (the agent hash includes the input and output schemas), #60 (resumable jobs and the result store) and #61 (the `Database` abstract class, typed records and rows, `SqliteDatabase`, migrations, the metadata-only schema) and #63 (the guide and the example) are done; Postgres is not. It is tracked in [epic #58](https://github.com/aadhithya/featherweight/issues/58), and each part has
+Status: implemented (epic #58 is done: #59 the agent hash, #60 resumable jobs and the result store, #61 the `Database` abstract class and the metadata-only schema, #62 `PostgresDatabase`, #63 the guide and the example). It is tracked in [epic #58](https://github.com/aadhithya/featherweight/issues/58), and each part has
 its own issue (listed [at the end](#the-work)). When a part is built, this page says so, and the guide `docs/persistence.md`
 shows how to use it.
 
@@ -232,13 +232,19 @@ is where the output comes from:
 ## Postgres
 
 `ftw.PostgresDatabase(dsn, schema="featherweight")` implements `Database` with `psycopg` (version 3, async), behind the extra
-`featherweight[postgres]`. It runs the same migrations with the `postgres` SQL of each, with **native types** (`timestamptz`,
-`jsonb`, an identity column), because Postgres is the deployment choice. The tables live in their own schema, so they never
-collide with an application's tables. One connection per `PostgresDatabase`, like sqlite; a pool is a later step.
+`featherweight[postgres]` (a `SetupError` with the install line when it is missing; importing `featherweight` never imports it).
+It runs the same migrations with the `postgres` SQL of each, with **native types** (`timestamptz`, `jsonb`, `boolean`, an identity
+column), because Postgres is the deployment choice. The tables live in their own schema (a lowercase identifier, created when
+it does not exist), so they never collide with an application's tables. The session is UTC and each statement commits (a
+migration runs in one transaction). One connection per `PostgresDatabase`, like sqlite; a pool is a later step.
 
-**Testing:** the `Database` conformance suite and the migration tests run against sqlite and Postgres. A `postgres` service in
-`compose.yaml` makes the Docker unit tests run both; without `FTW_TEST_POSTGRES_URL` the Postgres cases are skipped, so a plain
-`pytest` still runs.
+There is **no `results` table and no Postgres result store**: with a `PostgresDatabase` the runner has no default store, so pass
+`results=` (or resume is unavailable).
+
+**Testing:** the `Database` conformance kit, the migration tests and the type checks run against Postgres. A `postgres` service in
+`compose.yaml` (a healthy dependency of the `featherweight` service, and on `127.0.0.1:5432`) makes the Docker unit tests run them
+with `FTW_TEST_POSTGRES_URL` set; without it those tests are skipped, so a plain `pytest` still runs. Each test gets a schema of
+its own and drops it.
 
 ## Tenants
 
