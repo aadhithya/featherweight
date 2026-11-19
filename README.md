@@ -94,8 +94,9 @@ They are. Use them. This is built on LangChain and LangGraph anyway.
 - **Background agents only.** Pipelines, batches, fan-out. No chat, no UI, no streaming. Nobody is watching the tokens.
 - **Very opinionated.** Sorry, not sorry. Don't like them? Fork off.
 
-Want durable execution, evals or OpenTelemetry? Pydantic AI. Want a graph that pauses and resumes? LangGraph. Resuming is
-planned here, just not yet. Until then, if a run dies, it starts over.
+Want durable execution, evals or OpenTelemetry? Pydantic AI. Want a graph that pauses and resumes? LangGraph. Here, a failed job is run again with
+`run_job(..., resume_from=old_job_id)`: your pipeline code runs again, and the agent runs that already succeeded are
+answered from the run log ([resuming a job](docs/agents.md#resuming-a-job)).
 
 ## Build with a coding agent
 

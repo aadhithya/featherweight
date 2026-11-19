@@ -18,7 +18,7 @@ from micro.context import CURRENT_AGENT_RUN_ID, RunContext
 from micro.db import Database, new_id
 from micro.discovery import discovery_tools
 from micro.errors import RETRYABLE_4XX, SetupError
-from micro.fingerprint import agent_hash
+from micro.fingerprint import agent_hash, input_hash
 from micro.mcp_connections import Lease, MCPConnections
 from micro.models import (
     DISCOVERY_TOOL_NAMES,
@@ -278,6 +278,12 @@ class AgentRunner:
             self.max_attempts,
         )
 
+        declaration_hash = agent_hash(agent)
+        if depth == 1 and job_id is not None:  # only runs of the pipeline resume; a launched agent is not looked up
+            reused = await self._reuse(agent, agent_input, declaration_hash, job_id, invocation_id, result_cls)
+            if reused is not None:
+                return reused
+
         agent_run_id = ""
         error = ""
         attempt = 0
@@ -309,7 +315,8 @@ class AgentRunner:
                 settings=agent.model.model_dump_json(),
                 tool_names=registry.names + runner_tool_names,
                 system_prompt_hash=prompt_hash,
-                agent_hash=agent_hash(agent),
+                agent_hash=declaration_hash,
+                input_hash=input_hash(agent_input),
                 input=agent_input,
                 parent_agent_run_id=parent_agent_run_id,
                 depth=depth,
@@ -414,6 +421,70 @@ class AgentRunner:
             agent_run_id=agent_run_id,
             attempts=attempt,
             latency_ms=latency_ms,
+        )
+
+    async def _reuse(
+        self,
+        agent: AgentBase,
+        agent_input: AgentInput,
+        declaration_hash: str,
+        job_id: str,
+        invocation_id: str,
+        result_cls: type[AgentResult[Any]],
+    ) -> AgentResult[Any] | None:
+        """In a job that resumes another, answer from a run of the old job that succeeded with this agent and input.
+
+        The stored output must still validate against the output model and pass `check_output`; if not, the agent runs
+        as usual. The answer is written as a run of its own in this job, with no tokens, and takes no slot."""
+        job = await self.db.get_job(job_id)
+        if job is None or job.resumed_from is None:
+            return None
+        this_input_hash = input_hash(agent_input)
+        old = await self.db.find_reusable_run(job.resumed_from, declaration_hash, this_input_hash)
+        if old is None:
+            return None
+        try:
+            output = agent.output_model.model_validate(old.output)
+            agent.check_output(agent_input, output)
+        except Exception as exc:
+            logger.warning(
+                "run_reuse_rejected reused_from=%s agent=%s reason=%s", old.agent_run_id, agent.name, _format_error(exc)
+            )
+            return None
+        agent_run_id = await self.db.create_run(
+            agent_run_id=new_id(),
+            invocation_id=invocation_id,
+            attempt=1,
+            job_id=job_id,
+            agent_name=agent.name,
+            agent_version=agent.version,
+            model_name=agent.model.model,
+            reasoning=agent.model.label(),
+            provider=agent.model.provider,
+            settings=agent.model.model_dump_json(),
+            tool_names=old.tool_names,
+            system_prompt_hash=old.system_prompt_hash,
+            agent_hash=declaration_hash,
+            input_hash=this_input_hash,
+            input=agent_input,
+            reused_from_agent_run_id=old.agent_run_id,
+        )
+        await self.db.finish_run(
+            agent_run_id,
+            status=RunStatus.SUCCESS,
+            output=output,
+            input_tokens=0,
+            output_tokens=0,
+            latency_ms=0.0,
+            reported_model_name=old.reported_model_name,
+        )
+        logger.info("run_reused agent_run_id=%s reused_from=%s agent=%s", agent_run_id, old.agent_run_id, agent.name)
+        return result_cls(
+            status=RunStatus.SUCCESS,
+            output=output,
+            agent_run_id=agent_run_id,
+            model_name=old.reported_model_name,
+            reused=True,
         )
 
     async def run_many(

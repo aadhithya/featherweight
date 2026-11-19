@@ -100,6 +100,10 @@ asyncio.run(main())
 - **Two kinds of bad output.** A reply that breaks the schema (a wrong type, a value outside a `Literal`) goes back to the
   model within the same attempt. A rejection by `check_output` fails the attempt, and the runner retries it, up to 3
   attempts. Use a `Literal` or validator for rules on the output alone, `check_output` for rules about the input too.
+- **Resuming a failed job:** `run_job(db, name, pipeline, resume_from=old_job_id)` makes a new job. Agent runs that
+  already succeeded with the same agent and input are reused (`result.reused`, zero tokens); the rest run. The code
+  between agents must be deterministic, the run store is not used for resuming, and only top-level runs are reused
+  (see `references/agents.md`).
 - **A retry resamples with the same input.** The error is not sent back. If the retry must know what went wrong, build a
   new input in the pipeline that carries the problems.
 - **Output models:** give task fields defaults, and prefer flat lists with ids over nested or `X | None` objects. Gemini
