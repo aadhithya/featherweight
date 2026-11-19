@@ -23,14 +23,23 @@ It has opinions. Take them, or fork off.
 - **Delegation on a leash.** Agents can launch other agents, but only the ones on their list, and only so deep and so
   wide. A runaway recursion dies.
 - **Everything is on record.** Every attempt goes in sqlite: tokens, errors, which agent launched which. OpenTelemetry?
-  Too big. (See [agents](docs/agents.md#jobs-and-tracing).)
-- **Talks while it works.** A streaming agent streams its answer as [AG-UI](docs/streaming.md) events, with no output to
+  Too big. (See [agents](https://github.com/aadhithya/featherweight/blob/main/docs/agents.md#jobs-and-tracing).)
+- **Talks while it works.** A streaming agent streams its answer as [AG-UI](https://github.com/aadhithya/featherweight/blob/main/docs/streaming.md) events, with no output to
   validate and no retry, for chat. The Vercel AI SDK works too, and the user can stop it midway and correct it.
 - **Plug things in.** The model (Gemini, Gemma, Claude, OpenAI, or your own subclass), MCP servers and skills are
   declared on the agent. Tool schemas and skill instructions stay out of the context until the agent needs them.
 
 > Designed by a human. Implemented by Claude.
 
+
+## Install
+
+```
+pip install featherweight
+pip install 'featherweight[anthropic]'    # or mcp, openai
+```
+
+Python 3.12 or later. The import is `import featherweight as ftw`, and that is how everything here imports it.
 
 ## An agent
 
@@ -83,7 +92,7 @@ async def main():
 asyncio.run(main())
 ```
 
-Set `GOOGLE_API_KEY` first. The default model is Gemini, and the [other providers](docs/models.md) take their own key.
+Set `GOOGLE_API_KEY` first. The default model is Gemini, and the [other providers](https://github.com/aadhithya/featherweight/blob/main/docs/models.md) take their own key.
 `runner.run_many(Agent, inputs, job_id=...)` runs one agent over many inputs at once.
 
 ## Why does this exist? Pydantic AI and LangGraph are right there.
@@ -92,12 +101,12 @@ They are. Use them. This is built on LangChain and LangGraph anyway.
 
 - **Boredom.** Every agent project needs the same retries, limits and MCP wiring. I wrote them once and got on with my day.
 - **Mostly background agents.** Pipelines, batches, fan-out: nobody is watching the tokens. A chat agent streams its answer
-  ([streaming agents](docs/streaming.md)), but there is no UI, and no stored conversations.
+  ([streaming agents](https://github.com/aadhithya/featherweight/blob/main/docs/streaming.md)), but there is no UI, and no stored conversations.
 - **Very opinionated.** Sorry, not sorry. Don't like them? Fork off.
 
 Want durable execution, evals or OpenTelemetry? Pydantic AI. Want a graph that pauses and resumes? LangGraph. Here, a failed job is run again with
 `run_job(..., resume_from=old_job_id)`: your pipeline code runs again, and the agent runs that already succeeded are
-answered from the run log ([resuming a job](docs/agents.md#resuming-a-job)).
+answered from the run log ([resuming a job](https://github.com/aadhithya/featherweight/blob/main/docs/agents.md#resuming-a-job)).
 
 ## Build with a coding agent
 
@@ -108,13 +117,13 @@ There is a skill that teaches a coding agent to build with `featherweight`. In C
 /plugin install featherweight@featherweight
 ```
 
-Other tools that read Agent Skills: copy [`skills/featherweight`](skills/featherweight) into their skills folder.
+Other tools that read Agent Skills: copy [`skills/featherweight`](https://github.com/aadhithya/featherweight/blob/main/skills/featherweight) into their skills folder.
 
 ## Documentation
 
-- [**Docs**](docs/README.md): guides for using it, and where to begin
-- [**Specs**](docs/specs/README.md): what each part does, and why
-- [**Examples**](examples/README.md): code you can run
+- [**Docs**](https://github.com/aadhithya/featherweight/blob/main/docs/README.md): guides for using it, and where to begin
+- [**Specs**](https://github.com/aadhithya/featherweight/blob/main/docs/specs/README.md): what each part does, and why
+- [**Examples**](https://github.com/aadhithya/featherweight/blob/main/examples/README.md): code you can run
 
 ## Try it
 
@@ -154,10 +163,10 @@ docs/                 documentation
 tests/                the harness's tests; tests/e2e uses the real model
 ```
 
-Issues and pull requests are welcome. How a release is made: [docs/releasing.md](docs/releasing.md). Run `make hooks` once: commit messages follow
+Issues and pull requests are welcome. How a release is made: [docs/releasing.md](https://github.com/aadhithya/featherweight/blob/main/docs/releasing.md). Run `make hooks` once: commit messages follow
 [Conventional Commits](https://www.conventionalcommits.org) (`feat(runner): ...`, `fix: ...`), and `make check` and
 `make test` must pass.
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE).
+Apache License 2.0. See [LICENSE](https://github.com/aadhithya/featherweight/blob/main/LICENSE).

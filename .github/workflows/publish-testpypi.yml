@@ -1,0 +1,28 @@
+name: publish-testpypi
+
+# A dry run of publishing, by hand: builds the package at the ref you run it on and uploads it to TestPyPI (test.pypi.org),
+# not to PyPI. Use it before the first release, to see that trusted publishing is set up. It is never started by itself, and it
+# never makes a tag or a release.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  testpypi:
+    runs-on: ubuntu-latest
+    environment: testpypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install build twine
+      - run: python -m build
+      - run: twine check --strict dist/*
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
