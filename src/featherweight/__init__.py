@@ -49,6 +49,7 @@ _EXPORTS = {
     "wait_for_job": "events",
     "default_db_path": "db",
     "run_job": "jobs",
+    "JobWorker": "worker",
     "JobOutcome": "jobs",
     "Job": "jobs",
     "JobClient": "client",
@@ -101,6 +102,7 @@ _MODULES = (
     "streaming",
     "testing",
     "tools",
+    "worker",
 )
 
 __all__ = ["__version__", *_EXPORTS, *_SUBMODULES]
@@ -160,6 +162,7 @@ if TYPE_CHECKING:  # for editors and type checkers: the same names, imported
     from featherweight.streaming import ChatInput as ChatInput
     from featherweight.streaming import StreamingAgent as StreamingAgent
     from featherweight.streaming import StreamingRun as StreamingRun
+    from featherweight.worker import JobWorker as JobWorker
 
 
 def __getattr__(name: str) -> Any:

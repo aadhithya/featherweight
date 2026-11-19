@@ -1,5 +1,7 @@
 """The run log in sqlite: the contract of `Database`, and what is particular to a file."""
 
+import asyncio
+
 import pytest
 from pydantic import ValidationError
 
@@ -98,3 +100,20 @@ async def test_a_job_that_resumes_another_is_resumable_and_points_to_it(db):
     new = await db.create_job("p", resume_from=old)
     job = await db.get_job(new)
     assert job is not None and job.resumed_from == old and job.resumable is True
+
+
+async def test_a_write_that_fails_does_not_roll_back_the_writes_in_flight_beside_it(tmp_path):
+    """Everything shares one connection: without a lock per transaction, a failure rolls back another task's pending work."""
+    from featherweight.testing import _run
+
+    async with SqliteDatabase(tmp_path / "x.db") as db:
+        job = await db.create_job("p")
+
+        async def fails() -> None:
+            with pytest.raises(Exception, match="FOREIGN KEY"):
+                await db.create_run(_run("no-such-job", "bad"))
+
+        await asyncio.gather(*(fails() for _ in range(10)), db.set_job_status(job, RunStatus.RUNNING))
+        row = await db.get_job(job)
+        assert row is not None and row.status is RunStatus.RUNNING
+        assert [e.type for e in await db.list_job_events(job)] == ["queued", "running"]

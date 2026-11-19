@@ -11,7 +11,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from featherweight.db import FINAL, Database, JobEvent, JobRow
+from featherweight.db import Database, JobEvent, JobRow
 from featherweight.events import job_events, wait_for_job
 from featherweight.fingerprint import error_fields, input_hash
 from featherweight.jobs import Job, as_job
@@ -88,18 +88,10 @@ class JobClient:
         """Cancel a job. A queued job becomes `CANCELLED` (its message stays on the queue: the worker sees the status when it
         arrives, and skips it). A running job gets `cancel_requested`, and its worker stops it. Returns False for a job that is
         already final, or does not exist."""
-        job = await self.db.get_job(job_id)
-        if job is None or job.status in FINAL:
-            return False
-        if job.status is not RunStatus.INIT:
-            return await self.db.request_job_cancel(job_id)
-        await self.db.set_job_status(job_id, RunStatus.CANCELLED)
-        after = await self.db.get_job(job_id)
-        if (
-            after is not None and after.status is RunStatus.RUNNING
-        ):  # a worker took it in between, so it runs: ask it to stop
-            return await self.db.request_job_cancel(job_id)
-        return True
+        if await self.db.cancel_queued_job(job_id):  # one atomic step: it still waited, so it will not run
+            return True
+        # It was taken by a worker, or is final, or does not exist: ask a running job to stop (False for the others).
+        return await self.db.request_job_cancel(job_id)
 
     async def result(self, job: type[Job] | type[AgentBase], job_id: str) -> BaseModel | None:
         """The output of a job that succeeded, read from your result store and parsed into the job's output model; `None` while

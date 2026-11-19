@@ -1,6 +1,6 @@
 # Spec: submitted jobs
 
-Status: being built. #72 (the `Job` class, `JobContext`, the job columns and `CANCELLED`), #73 (the queue), #74 (job events and SSE) #75 (`JobClient`) and #77 (the `@ftw.job` decorator) are done; the rest is not. It is tracked in [epic #71](https://github.com/aadhithya/featherweight/issues/71), and each part has
+Status: being built. #72 (the `Job` class, `JobContext`, the job columns and `CANCELLED`), #73 (the queue), #74 (job events and SSE), #75 (the client), #76 (the worker, with the compare-and-set steps for taking and cancelling a job) and #77 (the `@ftw.job` decorator) are done; the guide and the example (#78) are not. It is tracked in [epic #71](https://github.com/aadhithya/featherweight/issues/71), and each part has
 its own issue (listed [at the end](#the-work)). When a part is built, this page says so, and the guide `docs/submitted-jobs.md`
 shows how to use it.
 
@@ -155,7 +155,7 @@ is part of the next epic.
 
 ## Cancelling
 
-- **A queued job** (`INIT`): `cancel` marks it `CANCELLED` (a `cancelled` event). Its message stays on the queue, because brokers
+- **A queued job** (`INIT`): `cancel` marks it `CANCELLED` (a `cancelled` event), in **one atomic step that succeeds only if the job is still `INIT`** (`Database.cancel_queued_job`). The worker takes a job with the matching step (`Database.start_job`: `RUNNING` only if still `INIT` and no one asked to cancel it). The two cannot both succeed, so a job is never cancelled and run at once. A cancel that loses falls through to a running job's flag. Its message stays on the queue, because brokers
   cannot remove by id; the worker sees the status when the message arrives, acknowledges it and skips it.
 - **A running job:** `cancel` sets `cancel_requested` (a `cancel_requested` event). Inside the worker each running job is an asyncio
   task, so cancelling it is `task.cancel()`, which is event-driven. **In the same process**, `worker.cancel(job_id)` does it at once.

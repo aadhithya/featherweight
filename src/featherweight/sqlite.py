@@ -1,9 +1,10 @@
 """`SqliteDatabase`: the run log in a sqlite file. For local development; deployments use `PostgresDatabase`."""
 
+import asyncio
 import contextlib
 import json
 import logging
-from collections.abc import Sequence
+from collections.abc import AsyncGenerator, Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -39,12 +40,26 @@ class SqliteDatabase(Database):
     def __init__(self, path: str | Path):
         self.path = Path(path)
         self._conn: aiosqlite.Connection | None = None
+        self._lock = asyncio.Lock()  # one write transaction at a time: they share one connection
 
     @property
     def conn(self) -> aiosqlite.Connection:
         if self._conn is None:
             raise RuntimeError("Database is not connected; call connect() first")
         return self._conn
+
+    @contextlib.asynccontextmanager
+    async def transaction(self) -> AsyncGenerator[aiosqlite.Connection]:
+        """One write transaction at a time on the connection, committed at the end and rolled back on any error. Everything
+        that writes (the run log, the result store, the queue) goes through it, so that two tasks writing at once cannot
+        commit or roll back each other's half-done work."""
+        async with self._lock:
+            try:
+                yield self.conn
+                await self.conn.commit()
+            except BaseException:
+                await self.conn.rollback()
+                raise
 
     async def connect(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -132,7 +147,7 @@ class SqliteDatabase(Database):
         job_hash: str | None,
         input_hash: str | None,
     ) -> str:
-        try:
+        async with self.transaction():
             await self.conn.execute(
                 "INSERT INTO jobs (job_id, name, status, resumable, resumed_from, job_hash, input_hash, created_at) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -148,10 +163,6 @@ class SqliteDatabase(Database):
                 ),
             )
             event = await self._write_event(job_id, "queued", RunStatus.INIT)
-            await self.conn.commit()
-        except BaseException:
-            await self.conn.rollback()
-            raise
         self._publish(event)
         logger.info("job_created job_id=%s name=%s resumed_from=%s resumable=%s", job_id, name, resumed_from, resumable)
         return job_id
@@ -162,7 +173,7 @@ class SqliteDatabase(Database):
         status = RunStatus(status)
         failed = status is RunStatus.FAILED
         started = ", started_at = ?" if status in (RunStatus.RUNNING, RunStatus.INIT) else ""
-        try:
+        async with self.transaction():
             cur = await self.conn.execute(
                 f"UPDATE jobs SET status = ?, completed_at = ?, error_type = ?, error_hash = ?{started} WHERE job_id = ?",
                 (
@@ -179,16 +190,12 @@ class SqliteDatabase(Database):
             event = await self._write_event(
                 job_id, STATUS_EVENT[status], status, error_type if failed else None, error_hash if failed else None
             )
-            await self.conn.commit()
-        except BaseException:
-            await self.conn.rollback()
-            raise
         self._publish(event)
         log = logger.warning if failed else logger.info
         log("job_status job_id=%s status=%s error_type=%s", job_id, status.value, error_type if failed else None)
 
     async def request_job_cancel(self, job_id: str) -> bool:
-        try:
+        async with self.transaction():
             async with self.conn.execute(
                 "SELECT status, cancel_requested FROM jobs WHERE job_id = ?", (job_id,)
             ) as cur:
@@ -199,13 +206,52 @@ class SqliteDatabase(Database):
                 return True  # asked already: nothing changes, no second event
             await self.conn.execute("UPDATE jobs SET cancel_requested = 1 WHERE job_id = ?", (job_id,))
             event = await self._write_event(job_id, "cancel_requested", RunStatus(row["status"]))
-            await self.conn.commit()
-        except BaseException:
-            await self.conn.rollback()
-            raise
         self._publish(event)
         logger.info("job_cancel_requested job_id=%s", job_id)
         return True
+
+    async def start_job(self, job_id: str) -> bool:
+        return await self._take(
+            job_id,
+            "UPDATE jobs SET status = ?, started_at = ?, completed_at = NULL, error_type = NULL, error_hash = NULL "
+            "WHERE job_id = ? AND status = ? AND cancel_requested = 0",
+            (RunStatus.RUNNING.value, now().isoformat(), job_id, RunStatus.INIT.value),
+            "running",
+            RunStatus.RUNNING,
+        )
+
+    async def cancel_queued_job(self, job_id: str) -> bool:
+        return await self._take(
+            job_id,
+            "UPDATE jobs SET status = ?, completed_at = ? WHERE job_id = ? AND status = ?",
+            (RunStatus.CANCELLED.value, now().isoformat(), job_id, RunStatus.INIT.value),
+            "cancelled",
+            RunStatus.CANCELLED,
+        )
+
+    async def _take(self, job_id: str, sql: str, params: tuple[Any, ...], type: EventType, status: RunStatus) -> bool:
+        """A compare-and-set on a job: the update has the old status in its `WHERE`, and the event is written in the same
+        transaction only if the update changed a row."""
+        async with self.transaction():
+            cur = await self.conn.execute(sql, params)
+            if cur.rowcount == 0:
+                return False
+            event = await self._write_event(job_id, type, status)
+        self._publish(event)
+        logger.info("job_status job_id=%s status=%s", job_id, status.value)
+        return True
+
+    async def list_cancel_requested(self, job_ids: Sequence[str]) -> set[str]:
+        if not job_ids:
+            return set()
+        marks = ", ".join("?" for _ in job_ids)
+        final = [status.value for status in FINAL]
+        async with self.conn.execute(
+            f"SELECT job_id FROM jobs WHERE job_id IN ({marks}) AND cancel_requested = 1 "
+            f"AND status NOT IN ({', '.join('?' for _ in final)})",
+            [*job_ids, *final],
+        ) as cur:
+            return {row["job_id"] for row in await cur.fetchall()}
 
     async def get_job(self, job_id: str) -> JobRow | None:
         async with self.conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)) as cur:
@@ -250,36 +296,36 @@ class SqliteDatabase(Database):
     # agent runs
 
     async def create_run(self, run: RunStart) -> str:
-        await self.conn.execute(
-            """INSERT INTO agent_runs (
-                   agent_run_id, invocation_id, attempt, job_id, parent_agent_run_id, depth, agent_name, agent_version,
-                   agent_hash, system_prompt_hash, tools_hash, provider, model_name, reasoning, settings, input_hash,
-                   reused_from_agent_run_id, thread_id, status, created_at
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                run.agent_run_id,
-                run.invocation_id,
-                run.attempt,
-                run.job_id,
-                run.parent_agent_run_id,
-                run.depth,
-                run.agent_name,
-                run.agent_version,
-                run.agent_hash,
-                run.system_prompt_hash,
-                run.tools_hash,
-                run.provider,
-                run.model_name,
-                run.reasoning,
-                json.dumps(run.settings),
-                run.input_hash,
-                run.reused_from_agent_run_id,
-                run.thread_id,
-                RunStatus.INIT.value,
-                now().isoformat(),
-            ),
-        )
-        await self.conn.commit()
+        async with self.transaction() as conn:
+            await conn.execute(
+                """INSERT INTO agent_runs (
+                       agent_run_id, invocation_id, attempt, job_id, parent_agent_run_id, depth, agent_name, agent_version,
+                       agent_hash, system_prompt_hash, tools_hash, provider, model_name, reasoning, settings, input_hash,
+                       reused_from_agent_run_id, thread_id, status, created_at
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    run.agent_run_id,
+                    run.invocation_id,
+                    run.attempt,
+                    run.job_id,
+                    run.parent_agent_run_id,
+                    run.depth,
+                    run.agent_name,
+                    run.agent_version,
+                    run.agent_hash,
+                    run.system_prompt_hash,
+                    run.tools_hash,
+                    run.provider,
+                    run.model_name,
+                    run.reasoning,
+                    json.dumps(run.settings),
+                    run.input_hash,
+                    run.reused_from_agent_run_id,
+                    run.thread_id,
+                    RunStatus.INIT.value,
+                    now().isoformat(),
+                ),
+            )
         logger.info(
             "run_created agent_run_id=%s invocation_id=%s attempt=%d job_id=%s agent=%s version=%s model=%s "
             "parent_agent_run_id=%s depth=%d",
@@ -355,10 +401,10 @@ class SqliteDatabase(Database):
 
     async def _set_run(self, agent_run_id: str, **columns: Any) -> None:
         assignments = ", ".join(f"{c} = ?" for c in columns)
-        cur = await self.conn.execute(
-            f"UPDATE agent_runs SET {assignments} WHERE agent_run_id = ?", (*columns.values(), agent_run_id)
-        )
-        await self.conn.commit()
+        async with self.transaction() as conn:
+            cur = await conn.execute(
+                f"UPDATE agent_runs SET {assignments} WHERE agent_run_id = ?", (*columns.values(), agent_run_id)
+            )
         if cur.rowcount == 0:
             raise LookupError(f"No such run: {agent_run_id}")
 
