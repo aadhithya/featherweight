@@ -5,6 +5,8 @@ Status: implemented. How to use it is in [agents.md](../agents.md#jobs-and-traci
 [migrations.py](../../src/featherweight/migrations.py), [jobs.py](../../src/featherweight/jobs.py) and [log.py](../../src/featherweight/log.py). The
 run log holds metadata only: see the [persistence spec](persistence.md) for why, and for [`PostgresDatabase`](../../src/featherweight/postgres.py).
 
+> **Change in progress:** jobs can be submitted to a queue and run by a separate worker, with new job columns, `CANCELLED` for jobs and job events. See the [submitted jobs spec](submitted-jobs.md).
+
 - [Goal](#goal)
 - [Jobs](#jobs)
 - [The run log](#the-run-log)
