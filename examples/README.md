@@ -1,6 +1,6 @@
 # Examples
 
-Each folder here is an example you can run. They use the real model, so they need `GOOGLE_API_KEY` in `.env` (copy
+Each folder here is an example you can run. Most use the real model, so they need `GOOGLE_API_KEY` in `.env` (copy
 `.env.example`) and make real, small API calls. `mcp` also needs a read-only `GITHUB_TOKEN`. They use `gemini-3.5-flash-lite`, except the `doclearn` agents, which use `gemini-3.8-flash` for the harder steps, and `resume`,
 which use `claude-haiku-5-5` and need `ANTHROPIC_API_KEY` (so does `chat`).
 
@@ -10,6 +10,7 @@ which use `claude-haiku-5-5` and need `ANTHROPIC_API_KEY` (so does `chat`).
 | [`mcp`](mcp) | An agent that uses the tools of an MCP server (GitHub's, read-only), with an allow-list and a token read by name | `make example-mcp` |
 | [`resume`](resume) | Resuming a job: a pipeline that crashes halfway, and a second run with `resume_from` that reuses the first half | `make example-resume` |
 | [`chat`](chat) | A streaming chat agent: a chat in the terminal (about 30 lines), and the same agent behind FastAPI for AG-UI and the Vercel AI SDK | `make example-chat`, `make example-chat-api` |
+| [`results`](results) | Writing a result store for resuming a job, and checking it with the conformance kit (no model, no key) | `make example-results` |
 | [`skills`](skills) | An agent that reads skills (the Agent Skills format) when a request needs them | `make example-skills` |
 | [`doclearn`](doclearn) | A whole pipeline: learn a template from example documents, then write a new document from it | `make pipeline ARGS="examples/doclearn/samples/project_proposals --category project_proposals"` |
 

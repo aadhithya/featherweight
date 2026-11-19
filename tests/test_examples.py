@@ -3,6 +3,7 @@
 import asyncio
 import importlib.util
 import json
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -16,8 +17,8 @@ from featherweight.runner import AgentRunner
 EXAMPLES = Path(__file__).parent.parent / "examples"
 
 
-def load(name: str):
-    spec = importlib.util.spec_from_file_location(f"example_{name}", EXAMPLES / name / "agent.py")
+def load(name: str, file: str = "agent.py"):
+    spec = importlib.util.spec_from_file_location(f"example_{name}", EXAMPLES / name / file)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -264,3 +265,22 @@ async def test_the_api_stops_a_response(db, monkeypatch):
         events = sse((await request).text)
     assert events[-1]["outcome"]["type"] == "cancelled"
     assert (await db.get_run(row.agent_run_id)).status is RunStatus.CANCELLED
+
+
+# the result store example: no model, no key
+
+
+async def test_the_results_example_store_follows_the_contract():
+    example = load("results", "store.py")
+    await example.main()  # raises AssertionError if the store breaks a rule
+
+
+async def test_the_contract_catches_a_store_of_the_example_that_forgets_to_delete():
+    example = load("results", "store.py")
+
+    class Forgetful(example.FileResultStore):
+        async def delete_job(self, job_id: str) -> None:
+            return None
+
+    with pytest.raises(AssertionError, match="delete_job must remove every result"):
+        await example.ftw.testing.check_result_store(lambda: Forgetful(Path(tempfile.mkdtemp())))
