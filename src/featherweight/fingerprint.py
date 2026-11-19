@@ -13,7 +13,7 @@ from typing import Any
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel
 
-from featherweight.models import AgentBase, AgentInput, AgentOutput
+from featherweight.models import AgentBase, AgentOutput
 
 
 def _tool(tool: BaseTool) -> dict[str, Any]:
@@ -72,8 +72,8 @@ def agent_hash(agent: AgentBase) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-def input_hash(agent_input: AgentInput) -> str:
-    """SHA-256 of the input as canonical JSON, so that equal inputs give equal hashes."""
+def input_hash(agent_input: BaseModel) -> str:
+    """SHA-256 of the input (an agent's or a job's) as canonical JSON, so that equal inputs give equal hashes."""
     text = json.dumps(agent_input.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(text.encode()).hexdigest()
 
