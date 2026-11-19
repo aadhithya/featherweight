@@ -189,6 +189,37 @@ class Editor(AgentBase):
     subagents: list[type] = [Summariser]  # classes: the only agents this one may launch
 ```
 
+## A chat agent that streams
+
+```python
+from contextlib import aclosing
+
+from micro.adapters import agui
+from micro.model_settings import Claude
+from micro.streaming import ChatInput, StreamingAgent
+
+
+class Support(StreamingAgent):
+    name: str = "support"
+    description: str = "Answers customers"
+    version: str = "1"
+    prompt: str = "You help customers. Be short."
+    model: ModelSettings = Claude(model="claude-haiku-5-5", effort="low", thinking="off")
+
+
+run = runner.stream(Support, ChatInput.from_langchain([*history.messages, user_message]))
+try:
+    async with aclosing(agui.encode(run)) as pieces:  # SSE strings: send them with any web framework
+        async for piece in pieces:
+            yield piece
+finally:
+    history.add_messages([user_message, *run.new_messages])  # you keep the conversation; micro keeps none
+```
+
+`runner.cancel(run.run_id)` stops it. `micro.adapters.vercel` does the same for `useChat`. A whole app is in
+`examples/chat/agent.py`; `references/streaming.md` has the details. Test it with a fake streaming chat model: the
+`Streams` double in the repository's `tests/fakes.py` shows how.
+
 ## A different provider
 
 ```python

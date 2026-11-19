@@ -37,6 +37,7 @@ openai = [
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "langchain-anthropic>=1.7",
     "langchain-mcp-adapters>=0.3.2",
     "langchain-openai>=1.8",
@@ -44,7 +45,9 @@ dev = [
     "pytest",
     "pytest-asyncio",
     "ruff>=0.17.5",
+    "starlette>=1.10.0",
     "ty>=0.0.105",
+    "uvicorn>=0.54.0",
 ]
 
 [tool.uv]

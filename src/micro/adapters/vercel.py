@@ -12,7 +12,7 @@ Written against the protocol as documented at ai-sdk.dev (checked 2026-11-19): s
 
 import json
 import logging
-from collections.abc import AsyncIterator, Iterable
+from collections.abc import AsyncGenerator, Iterable
 from typing import Any
 
 from ag_ui.core import (
@@ -226,7 +226,7 @@ def translate(events: Iterable[BaseEvent]) -> list[str]:
     return [*out, DONE]
 
 
-async def encode(run: StreamingRun) -> AsyncIterator[str]:
+async def encode(run: StreamingRun) -> AsyncGenerator[str, None]:
     """The server-sent events of a run, as it streams, ending with `[DONE]`. Send them with the headers in `HEADERS`.
     Stopping the iteration (a client that went away) stops the run."""
     translator = Translator()
