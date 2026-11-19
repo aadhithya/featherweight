@@ -6,11 +6,12 @@ import sqlite3
 from typing import ClassVar
 
 import pytest
-from fakes import Reactive, Scripted, runner_with, structured_reply, tool_reply
+from fakes import FakeSettings, Reactive, Scripted, runner_with, structured_reply, tool_reply
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 
 from micro.context import RunContext
 from micro.db import Database
+from micro.model_settings import ModelSettings
 from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus
 from micro.runner import AgentRunner, _Slot
 from micro.store import RunStore
@@ -29,6 +30,7 @@ class Child(AgentBase):
     description: str = "Summarises a topic"
     version: str = "0.1.0"
     prompt: str = "Summarise the topic."
+    model: ModelSettings = FakeSettings()
     input_model: ClassVar[type[AgentInput]] = ChildInput
     output_model: ClassVar[type[AgentOutput]] = ChildOutput
 
@@ -46,6 +48,7 @@ class Parent(AgentBase):
     description: str = "Does a task with the help of a child"
     version: str = "0.1.0"
     prompt: str = "Do the task."
+    model: ModelSettings = FakeSettings()
     subagents: list[type] = [Child]
     input_model: ClassVar[type[AgentInput]] = ParentInput
     output_model: ClassVar[type[AgentOutput]] = ParentOutput

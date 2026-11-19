@@ -21,6 +21,7 @@ The reasons and the details are in the [spec](https://github.com/aadhithya/micro
 - [No temperature](#no-temperature)
 - [Add a model: GPT-5.x](#add-a-model-gpt-5x)
 - [Add a provider: Ollama](#add-a-provider-ollama)
+- [Testing your agents](#testing-your-agents)
 - [Tokens and the run log](#tokens-and-the-run-log)
 - [Limits](#limits)
 
@@ -147,6 +148,42 @@ class Local(AgentBase):
 
 Ollama's tool support depends on the model you pull, and its docs list token usage as unsupported, so check what your model
 reports.
+
+## Testing your agents
+
+The runner has no argument for choosing a model: an agent's own `model` settings decide it, and the runner calls
+`agent.model.build()`. So a fake is model settings too. Write a settings class whose `build()` returns a fake chat model,
+and run the agent with it:
+
+```python
+from typing import Any, ClassVar
+
+from pydantic import Field
+
+from micro.model_settings import ModelSettings
+
+
+class FakeSettings(ModelSettings):
+    provider: ClassVar[str] = "fake"
+    model: str = "fake-model"
+    chat: Any = Field(default=None, exclude=True)  # the fake chat model; not part of the settings' data
+
+    def build(self):
+        return self.chat
+
+
+fake = ...  # a chat model that replays a script
+
+
+class UnderTest(PeopleExtractor):  # the same agent, run by the fake
+    model: ModelSettings = Field(default_factory=lambda: FakeSettings(chat=fake))
+
+
+result = await AgentRunner(db).run(UnderTest, ExtractInput(text="..."))
+```
+
+Nothing in the runner exists for tests, so the test runs the same code as production. The skill's
+[recipes](https://github.com/aadhithya/micro/blob/main/skills/micro/references/recipes.md) have a whole test file with a fake chat model.
 
 ## Tokens and the run log
 

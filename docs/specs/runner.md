@@ -138,7 +138,6 @@ keeps servers up between runs and stops them at the end. A runner with no MCP ag
 |---|---|---|---|
 | `max_attempts` | | 3 | At least 1 |
 | `retry_delay_s` | | 1.0 | |
-| `model_factory` | | `agent.model.build()` | `agent -> chat model`. A fake in tests, or a setup that is not a model class ([models](models.md)) |
 | `store` | | a new `RunStore` | What the store tools read and write |
 | `max_concurrent` | `MAX_CONCURRENT_AGENT_RUNS` | 10 | At least 1 |
 | `max_depth` | `MAX_AGENT_DEPTH` | 3 | At least 1 |
@@ -156,6 +155,9 @@ is needed for the real model. A missing key is a setup error: the run fails at o
 
 ## Decisions
 
+- **The runner does not choose the model.** The agent's `model` settings are the only way to pick one, and the runner calls
+  `agent.model.build()`. A test replaces the settings with fake ones, so tests take the production path
+  ([models](models.md#testing)).
 - **Failures are values.** A pipeline decides what a failed run means: skip a document, stop the job, ask again.
 - **A retry resamples, and does not feed the error back.** Feeding it back is a different feature, and the pipeline can do
   it by building a new input.

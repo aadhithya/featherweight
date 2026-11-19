@@ -48,20 +48,37 @@ for _ in range(2):
 
 ## Testing with a fake model
 
-No test makes a real model call. Give the runner a fake chat model. The structured reply is a tool call named after the
+No test makes a real model call. A fake is **model settings**, like a real provider: a `ModelSettings` subclass whose
+`build()` returns a fake chat model. The test runs the same agent with its `model` replaced by the fake settings, and the
+runner takes the path it takes in production, `agent.model.build()`. The structured reply is a tool call named after the
 output class. This is a whole test file for the agent in `SKILL.md` (saved as `app.py`). Tests need
 `asyncio_mode = auto` (in `pyproject.toml`, `[tool.pytest.ini_options]`) or `pytest -o asyncio_mode=auto`, and
 `pytest-asyncio`.
 
 ```python
+from typing import Any, ClassVar
+
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
+from pydantic import Field
 
 from app import ExtractInput, PeopleExtractor  # your agent module
 from micro.db import Database
+from micro.model_settings import ModelSettings
 from micro.models import RunStatus
 from micro.runner import AgentRunner
+
+
+class FakeSettings(ModelSettings):
+    """Model settings that build the fake chat model they hold. Any provider's settings work the same way."""
+
+    provider: ClassVar[str] = "fake"
+    model: str = "fake-model"
+    chat: Any = Field(default=None, exclude=True)  # the fake chat model; not part of the settings' data
+
+    def build(self):
+        return self.chat
 
 
 class FakeModel(BaseChatModel):
@@ -92,9 +109,13 @@ class FakeModel(BaseChatModel):
 
 async def run(tmp_path, answers, text="Anna came."):
     fake = FakeModel(answers=answers)  # one fake for all attempts, so its counters last
+
+    class UnderTest(PeopleExtractor):  # the same agent, run by the fake
+        model: ModelSettings = Field(default_factory=lambda: FakeSettings(chat=fake))
+
     async with Database(tmp_path / "test.db") as db:
-        runner = AgentRunner(db, model_factory=lambda agent: fake, retry_delay_s=0)
-        return await runner.run(PeopleExtractor, ExtractInput(text=text)), fake
+        runner = AgentRunner(db, retry_delay_s=0)
+        return await runner.run(UnderTest, ExtractInput(text=text)), fake
 
 
 async def test_success(tmp_path):

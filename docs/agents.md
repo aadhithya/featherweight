@@ -100,10 +100,12 @@ async with Database("micro.db") as db:
 |---|---|---|
 | `max_attempts` | 3 | Attempts per run |
 | `retry_delay_s` | 1.0 | Wait between attempts, without holding a concurrency slot |
-| `model_factory` | `agent.model.build()` | `agent -> chat model`. Replace it for a fake in tests, or a setup that is not a model class |
 | `store` | a new `RunStore` | What the store tools read and write |
 | `max_concurrent` | `MAX_CONCURRENT_AGENT_RUNS`, else 10 | Model attempts running at once |
 | `max_depth`, `max_launches` | 3, 10 | See [launching-agents.md](launching-agents.md) |
+
+The runner has no argument for choosing the model: an agent's own `model` settings decide it. To run an agent on a fake in
+a test, give it fake model settings ([testing your agents](models.md#testing-your-agents)).
 
 ## The result
 

@@ -6,11 +6,10 @@ import json
 import logging
 import os
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from typing import Any
 
 from langchain.agents import create_agent
-from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.tools import BaseTool, tool
 from pydantic import ValidationError
@@ -36,8 +35,6 @@ from micro.store import RunStore
 
 logger = logging.getLogger(__name__)
 
-ModelFactory = Callable[[AgentBase], BaseChatModel]
-
 ENV_MAX_CONCURRENT = "MAX_CONCURRENT_AGENT_RUNS"
 DEFAULT_MAX_CONCURRENT = 10
 # How far agents may launch agents: the most agents in one chain (A launches B launches C is 3), and the most launches
@@ -52,11 +49,6 @@ MAX_ERROR_CHARS = 2000
 
 class ModelSetupError(SetupError):
     """The chat model could not be built (e.g. no API key). Retrying cannot help."""
-
-
-def default_model_factory(agent: AgentBase) -> BaseChatModel:
-    """The chat model of the agent: its model settings build it."""
-    return agent.model.build()
 
 
 def is_non_retryable(exc: BaseException) -> bool:
@@ -160,7 +152,6 @@ class AgentRunner:
         *,
         max_attempts: int = 3,
         retry_delay_s: float = 1.0,
-        model_factory: ModelFactory = default_model_factory,
         store: RunStore | None = None,
         max_concurrent: int | None = None,
         max_depth: int | None = None,
@@ -192,7 +183,6 @@ class AgentRunner:
         self.db = db
         self.max_attempts = max_attempts
         self.retry_delay_s = retry_delay_s
-        self._model_factory = model_factory
         self._keep_open = False  # True inside `async with`: MCP servers stay up between runs
         self._mcp: MCPConnections | None = None  # created when a run first needs an MCP server
 
@@ -553,7 +543,7 @@ class AgentRunner:
         registry: ToolRegistry,
     ) -> tuple[AgentOutput, int, int, str | None]:
         try:
-            model = self._model_factory(agent)
+            model = agent.model.build()  # the agent's own settings build its chat model
         except Exception as exc:
             raise ModelSetupError(str(exc)) from exc
 

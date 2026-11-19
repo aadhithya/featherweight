@@ -5,10 +5,11 @@ from pathlib import Path
 from typing import ClassVar
 
 import pytest
-from fakes import Scripted, runner_with, structured_reply, tool_reply
+from fakes import FakeSettings, Scripted, runner_with, structured_reply, tool_reply
 from langchain_core.messages import SystemMessage, ToolMessage
 from pydantic import ValidationError
 
+from micro.model_settings import ModelSettings
 from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus
 from micro.skills import Skill, SkillError
 
@@ -214,6 +215,7 @@ class Writer(AgentBase):
     description: str = "Writes notes"
     version: str = "0.1.0"
     prompt: str = "Write the notes."
+    model: ModelSettings = FakeSettings()
     input_model: ClassVar[type[AgentInput]] = TaskInput
     output_model: ClassVar[type[AgentOutput]] = TaskOutput
 

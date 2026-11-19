@@ -3,7 +3,7 @@
 Status: implemented. How to use it is in [models.md](../models.md). The code is [model_settings.py](../../src/micro/model_settings.py).
 
 It was designed in [issue #2](https://github.com/aadhithya/micro/issues/2). It changes
-[agents](agents.md) (the `model_name` and `reasoning` fields), [the runner](runner.md#configuration) (the model factory)
+[agents](agents.md) (the `model_name` and `reasoning` fields), [the runner](runner.md#configuration) (the model factory is removed)
 and [jobs and tracing](jobs-and-tracing.md) (two columns).
 
 - [Goal](#goal)
@@ -14,6 +14,7 @@ and [jobs and tracing](jobs-and-tracing.md) (two columns).
 - [Extending it](#extending-it)
 - [Tokens and the run log](#tokens-and-the-run-log)
 - [What changes](#what-changes)
+- [Testing](#testing)
 - [Decisions](#decisions)
 - [Not supported](#not-supported)
 - [Findings](#findings)
@@ -215,10 +216,19 @@ spec and the [guide](../agents.md) are updated.
   released, and the examples, docs and tests change with it.
 - `ModelName` and `Reasoning` are removed. `ModelSettings`, `ModelInfo`, `Gemini`, `Gemma`, `Claude` and `OpenAI` are
   in `micro.model_settings`.
-- `default_model_factory(agent)` becomes `agent.model.build()`. The `model_factory` argument stays, for tests and for a
-  setup that is not a class.
+- `default_model_factory(agent)` becomes `agent.model.build()`, and the `model_factory` argument is removed
+  ([testing](#testing)). The agent's settings are the only way to choose a model.
 - `pyproject.toml`: extras `anthropic` and `openai`, and both in the dev group.
 - `.env.example` has the three keys.
+
+## Testing
+
+A fake is model settings. A test defines a `ModelSettings` subclass whose `build()` returns a scripted chat model, and runs
+the agent with its `model` replaced by that settings object. The runner calls `agent.model.build()` as in production, and
+nothing in the runner exists for tests. The suite does this with `FakeSettings` in `tests/fakes.py`, which looks up the
+scripted model a test registered under a key, so that an agent can be declared once and a test can choose its model. The
+[guide](../models.md#testing-your-agents) and the agent skill show the pattern for users, with the fake chat model held by
+the settings.
 
 ## Decisions
 
@@ -226,6 +236,8 @@ spec and the [guide](../agents.md) are updated.
   be wrong for one of them. The label in the log is what is shared.
 - **A catalog per class, checked when the setting is built.** A typo, or an effort a model refuses, fails at definition time.
   The cost is a change in [micro.] when a model ships, and a user class is the way round it.
+- **No hook on the runner.** A second way to choose the model, used only by tests, would let a run use a model its
+  declaration does not name, and would leave the declaration unable to say what ran. Tests use fake settings instead.
 - **No registry.** The class is the extension point and the runner calls `build()`. Nothing is registered.
 - **No temperature.** The vendors have removed or discourage it, and silently ignoring it is worse than refusing it.
 - **Only current families.** Older models need other parameters (`budget_tokens`, `thinking_budget`), and a user class can

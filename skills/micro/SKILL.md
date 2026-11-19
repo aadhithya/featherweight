@@ -118,9 +118,9 @@ asyncio.run(main())
 
 ## Tests and cost
 
-- **Never call a real model in tests.** Pass a fake chat model: `AgentRunner(db, model_factory=lambda agent: fake)`.
-  `references/recipes.md` has a whole test file with a fake that works with `run_many`. Tests need `pytest-asyncio` with
-  `asyncio_mode = auto`.
+- **Never call a real model in tests.** A fake is model settings: a `ModelSettings` subclass whose `build()` returns a fake
+  chat model, put on a subclass of the agent under test. `references/recipes.md` has a whole test file, with a fake that
+  works with `run_many`. Tests need `pytest-asyncio` with `asyncio_mode = auto`.
 - Real calls cost money. Ask the user before running one, use the smallest model (`gemini-3.5-flash-lite`,
   `claude-haiku-5-5`, `gpt-6-luna`) at the lowest effort, and keep the input small.
 

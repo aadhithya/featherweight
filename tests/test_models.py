@@ -8,13 +8,23 @@ from micro.models import (
     ASK_FORBIDDEN,
     CONFLICTS_ALLOWED,
     CONFLICTS_FORBIDDEN,
+    AgentBase,
     AgentResult,
     RunStatus,
 )
 
 
+class Plain(AgentBase):
+    """An agent that keeps every default, the model settings included (the test agents run on fake settings)."""
+
+    name: str = "plain"
+    description: str = "Keeps the defaults"
+    version: str = "0.1.0"
+    prompt: str = "Do nothing."
+
+
 def test_defaults():
-    agent = Echo()
+    agent = Plain()
     assert agent.model == Gemini()
     assert (agent.model.model, agent.model.thinking) == ("gemini-3.5-flash-lite", "medium")
     assert agent.allow_user_questions is False
