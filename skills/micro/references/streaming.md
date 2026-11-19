@@ -14,6 +14,7 @@ as events, and nothing is validated at the end.
 - [Thoughts](#thoughts)
 - [AG-UI](#ag-ui)
 - [The conversation is yours](#the-conversation-is-yours)
+- [Keeping the conversation](#keeping-the-conversation)
 - [Vercel AI SDK](#vercel-ai-sdk)
 - [What is logged](#what-is-logged)
 - [How it differs from an agent](#how-it-differs-from-an-agent)
@@ -92,7 +93,7 @@ model: ModelSettings = Claude(model="claude-sonnet-5-5", effort="medium", show_t
 `show_thoughts` is a setting of [every model class](models.md): it asks the provider to return the model's thoughts, and
 the reasoning events carry them. Off by default; with it off there are no reasoning events. It is a summary of the thinking
 for most providers, not the raw reasoning. A provider's thoughts that must go back with the next request are kept whether
-they are shown or not (that comes with the messages part of the epic).
+they are shown or not: they are in [`run.new_messages`](#keeping-the-conversation).
 
 ## AG-UI
 
@@ -133,9 +134,43 @@ Sending the events as binary (protobuf) is not supported.
 - **`system` and `developer` messages are refused**: the agent has its own prompt, and a client must not be able to replace it;
 - `thread_id` is optional. It names the conversation in the run log. It does not load anything.
 
-For now the history may have text from the user and the assistant only. Tool calls, tool results and thoughts in the history
-come with the messages part of the epic, together with converters to and from LangChain messages, so that you can keep the
-conversation in any LangChain chat message store.
+The history can hold everything a conversation has: text, an assistant message with tool calls, the tool results (with their
+error), and thoughts with their signature. Text is the only content that is accepted: an image or a file in a message is
+refused when the `ChatInput` is built.
+
+## Keeping the conversation
+
+`micro` stores nothing, so the application keeps the messages, with whatever it likes. The format to keep them in is
+**LangChain's messages**: its chat message histories read and write them, and they hold what the model needs on the next
+request (tool call ids, results, thoughts with their signature). The wire format with a client is AG-UI's. `micro` converts
+between the two:
+
+```python
+run = runner.stream(Support, ChatInput.from_langchain([*history.messages, user_message], thread_id=thread_id))
+async for event in run:
+    yield encoder.encode(event)  # to the browser
+history.add_messages([user_message, *run.new_messages])  # to your store
+```
+
+| | |
+|---|---|
+| `run.new_messages` | The LangChain messages of the turn: the assistant messages (with their tool calls and thoughts) and the tool results, in order. They fill up while the turn runs and are complete when the loop ends. After a failure it holds what had finished |
+| `ChatInput.from_langchain(messages, thread_id=None)` | The conversation from LangChain messages, such as `history.messages`. The last one is the user's |
+| `ChatInput.from_agui(request_or_messages, thread_id=None)` | The conversation from what an AG-UI client sent: a `RunAgentInput` (its `thread_id` is kept) or its messages |
+| `micro.messages.to_langchain(messages)`, `to_agui(messages)` | The converters, in both directions |
+
+The converters keep tool call ids, tool results, and thoughts with their signature, so that a stored conversation can go back
+to the model. A round trip in either direction gives the same messages, with these exceptions:
+
+- A thought is a message of its own in AG-UI (`reasoning`) and a content block of the assistant message in LangChain. The
+  converter folds it into the assistant message that follows it, and unfolds it again.
+- A failed tool result has an `error` in AG-UI and one text with `status="error"` in LangChain, so the two texts are one.
+- An AG-UI `activity` message is a UI element, not part of the conversation, and is left out.
+- A provider's own block format (Claude's `thinking`) is read through LangChain's standard `reasoning` blocks, and kept in that
+  form when it comes back from AG-UI.
+
+Any store that takes LangChain messages works: a `BaseChatMessageHistory` from LangChain's packages, or a list in your own
+table. There is no LangGraph checkpointer: `micro` does not forward one.
 
 ## Vercel AI SDK
 
@@ -215,6 +250,5 @@ The slot is held for the whole stream. A streaming run is never reused when a jo
 
 ## What is not there yet
 
-Tracked in [epic #29](https://github.com/aadhithya/micro/issues/29): messages in and out
-(#32), stopping a response (#33), the Vercel AI SDK adapter (#35), an example and the full guide (#36).
+Tracked in [epic #29](https://github.com/aadhithya/micro/issues/29): stopping a response (#33), an example and the full guide (#36).
 Background agents, jobs across processes and stored conversations are not part of it.
