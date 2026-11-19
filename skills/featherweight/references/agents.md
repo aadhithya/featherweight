@@ -207,12 +207,20 @@ The database is a choice of one line, and the runner does not change:
 
 ```python
 db = ftw.SqliteDatabase("featherweight.db")  # local development
+db = ftw.PostgresDatabase("postgresql://user:pass@host/db")  # a deployment: pip install 'featherweight[postgres]'
 runner = ftw.AgentRunner(db)
 ```
 
 `ftw.Database` is the abstract class that a database implements (the typed rows and records, and a conformance kit,
-`ftw.testing.check_database`, check an implementation); `SqliteDatabase` is the one we ship. The tables are made by numbered
-migrations when you connect. A database from before migrations is refused: delete it and run again.
+`ftw.testing.check_database`, check an implementation); `SqliteDatabase` and `PostgresDatabase` are the two we ship. The tables
+are made by numbered migrations when you connect. A database from before migrations is refused: delete it and run again.
+
+**Postgres** (`psycopg`, version 3) keeps its tables in a schema of their own, `featherweight` unless you pass
+`schema="..."` (a lowercase identifier), so they never collide with your application's tables, and uses native types
+(`timestamptz`, `jsonb`, `boolean`, an identity column). It has no default result store: where a deployment keeps the outputs
+that [resuming a job](#resuming-a-job) reads back is for you to decide (a database per tenant, a table per tenant, a bucket), so
+pass `results=` to the runner, or leave resume off. To try it locally, `docker compose up -d postgres` starts one, and the tests
+of `PostgresDatabase` run against it when `FTW_TEST_POSTGRES_URL` is set (`make test` does).
 
 Two tables record everything. `jobs`: id, name, status, whether it is `resumable`, `resumed_from` (the job this one resumes, or
 empty), the error's type and hash, and when it was created and completed. `agent_runs`: one row **per attempt**:

@@ -18,6 +18,7 @@ clean-all:
 	docker compose down --rmi local --volumes --remove-orphans
 	rm -f featherweight.db e2e.db
 
+# Starts the `postgres` service too: the tests of PostgresDatabase run against it (FTW_TEST_POSTGRES_URL is set in compose.yaml).
 test:
 	docker compose run --rm featherweight pytest
 

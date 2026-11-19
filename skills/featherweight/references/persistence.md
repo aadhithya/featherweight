@@ -6,7 +6,6 @@ Featherweight keeps **the state of the orchestration**, and none of **the data**
 ran, in what order, with what outcome, at what cost. It never holds an input, an output, a message or the text of an error. Where
 data has to be kept for a feature (resuming a job), you provide the place.
 
-> **Status:** `SqliteDatabase`, the result store and resume are built. `PostgresDatabase` is [being built](https://github.com/aadhithya/featherweight/issues/62).
 > The design is in the [spec](https://github.com/aadhithya/featherweight/blob/main/docs/specs/persistence.md).
 
 - [What the run log holds](#what-the-run-log-holds)
@@ -79,7 +78,8 @@ runner = ftw.AgentRunner(db)
   migrations is refused: delete it.
 - **Postgres** (`pip install 'featherweight[postgres]'`, `psycopg` 3) is the deployment choice. It uses native types
   (`timestamptz`, `jsonb`) and keeps its tables in their own schema, so they never collide with your application's. It has no
-  default result store: pass `results=`.
+  default result store: pass `results=`. To try it, `docker compose up -d postgres` starts one (`postgresql://postgres:postgres@localhost:5432/postgres`),
+  and `make test` runs the tests of `PostgresDatabase` against it.
 
 Rows come back as Pydantic models (`JobRow`, `AgentRunRow`) with timezone-aware `datetime`s, whichever database it is.
 
