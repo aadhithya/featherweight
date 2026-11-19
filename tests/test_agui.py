@@ -119,10 +119,10 @@ async def test_stopping_the_reader_stops_the_run_and_frees_the_slot(db):
     await stream.aclose()
     for _ in range(50):
         row = await db.get_run(run.run_id)
-        if row.status in (RunStatus.FAILED, RunStatus.SUCCESS):
+        if row.status in (RunStatus.CANCELLED, RunStatus.FAILED, RunStatus.SUCCESS):
             break
         await asyncio.sleep(0.02)
-    assert row.status is RunStatus.FAILED and "Stopped" in row.error
+    assert row.status is RunStatus.CANCELLED
     second = runner_with(db, Streams(turns=[["fine"]]), max_concurrent=1)
     assert decode([c async for c in encode(second.stream(Chat, say("again")))])[-1].type == EventType.RUN_FINISHED
 

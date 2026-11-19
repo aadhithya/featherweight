@@ -217,7 +217,7 @@ async def test_stopping_the_iteration_stops_the_run(db: Database):
         if row.status is not RunStatus.RUNNING:
             break
         await asyncio.sleep(0.02)
-    assert row.status is RunStatus.FAILED
+    assert row.status is RunStatus.CANCELLED
     second = runner_with(db, Streams(turns=[["fine"]]), max_concurrent=1)
     assert parts([p async for p in encode(second.stream(Chat, parse_request([user("again")])))])[-1] == {
         "type": "finish"

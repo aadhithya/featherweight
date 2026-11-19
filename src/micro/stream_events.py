@@ -5,6 +5,7 @@ protocol requires: a thing is opened before it has content, closed before anothe
 open is closed when the run ends or fails.
 """
 
+import json
 import uuid
 from typing import Any
 
@@ -26,7 +27,7 @@ from ag_ui.core import (
     ToolCallResultEvent,
     ToolCallStartEvent,
 )
-from langchain_core.messages import AIMessageChunk, ToolMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
 
 STEP_NAME = "model"  # a step is one model turn, with the tool results that follow it
 _NO_TURN = object()  # before the first chunk: a chunk's id can be None, so None cannot say "no turn yet"
@@ -75,6 +76,8 @@ class EventMapper:
         self._block: Any = None  # the `index` of the block that is open, to tell where the next one starts
         self._calls: dict[Any, str] = {}  # tool call id by the index its chunks carry, for the calls of this turn
         self._open_calls: list[str] = []  # the tool calls that have no end yet, in the order they started
+        self._partial: list[dict[str, Any]] = []  # what the turn that is streaming has written so far, in order
+        self._partial_calls: dict[str, dict[str, Any]] = {}  # its tool calls by id: name and the arguments so far
 
     def feed(self, chunk: object) -> list[BaseEvent]:
         if isinstance(chunk, ToolMessage):
@@ -105,6 +108,48 @@ class EventMapper:
                 events += self._write_tool_call(block)
         return events
 
+    def complete_turn(self) -> None:
+        """The model turn that was streaming has finished as a whole message (the node returned it): what was kept of it
+        as it streamed is not needed any more."""
+        self._partial = []
+        self._partial_calls = {}
+
+    def partial_message(self) -> AIMessage | None:
+        """The message of a model turn that did not finish, as far as it is valid to send back to a provider, or None.
+
+        Text is kept. A thought is kept only with its signature (a provider rejects one without). A tool call is kept only
+        when its arguments are complete JSON; one that was still streaming is dropped."""
+        content: list[str | dict[Any, Any]] = []
+        for part in self._partial:
+            if part["kind"] == "text" and part["text"]:
+                content.append({"type": "text", "text": part["text"]})
+            elif part["kind"] == "reasoning" and part.get("signature"):
+                content.append(
+                    {
+                        "type": "reasoning",
+                        "reasoning": part["text"],
+                        "id": part["id"],
+                        "extras": {"signature": part["signature"]},
+                    }
+                )
+        tool_calls: list[Any] = []
+        for call_id, call in self._partial_calls.items():
+            try:
+                args = json.loads(call["args"] or "{}")
+            except ValueError:
+                continue
+            if isinstance(args, dict):
+                tool_calls.append({"name": call["name"], "args": args, "id": call_id, "type": "tool_call"})
+        if not content and not tool_calls:
+            return None
+        first = content[0] if len(content) == 1 else None
+        only_text = isinstance(first, dict) and first["type"] == "text"
+        return AIMessage(
+            content=first["text"] if isinstance(first, dict) and only_text else content,
+            tool_calls=tool_calls,
+            id=self._turn_message_id,
+        )
+
     def finish(self) -> list[BaseEvent]:
         """Close what is open. Called at the end of a run, and before an error."""
         events = self._end_turn()
@@ -121,6 +166,11 @@ class EventMapper:
             self._text, self._text_used, self._block = message_id, True, block.get("index")
             events.append(TextMessageStartEvent(message_id=message_id, role="assistant"))
         events.append(TextMessageContentEvent(message_id=self._text, delta=block["text"]))
+        last = self._partial[-1] if self._partial else None
+        if last and last["kind"] == "text" and last["block"] == block.get("index"):
+            last["text"] += block["text"]
+        else:
+            self._partial.append({"kind": "text", "block": block.get("index"), "text": block["text"]})
         return events
 
     def _write_reasoning(self, block: Any) -> list[BaseEvent]:
@@ -135,6 +185,18 @@ class EventMapper:
             self._reasoning, self._block = message_id, block.get("index")
             events.append(ReasoningStartEvent(message_id=message_id))
             events.append(ReasoningMessageStartEvent(message_id=message_id, role="reasoning"))
+        thought: dict[str, Any] = self._partial[-1] if self._partial else {}
+        if not (thought.get("kind") == "reasoning" and thought.get("block") == block.get("index")):
+            thought = {
+                "kind": "reasoning",
+                "block": block.get("index"),
+                "id": self._reasoning,
+                "text": "",
+                "signature": None,
+            }
+            self._partial.append(thought)
+        thought["text"] = (thought["text"] or "") + text
+        thought["signature"] = signature or thought["signature"]
         if text:
             events.append(ReasoningMessageContentEvent(message_id=self._reasoning, delta=text))
         if signature:
@@ -165,6 +227,7 @@ class EventMapper:
             events += self._close_blocks()
             self._calls[index] = call_id
             self._open_calls.append(call_id)
+            self._partial_calls[call_id] = {"name": block.get("name") or "", "args": ""}
             events.append(
                 ToolCallStartEvent(
                     tool_call_id=call_id,
@@ -174,6 +237,7 @@ class EventMapper:
             )
         known = self._calls.get(index)
         if known is not None and block.get("args"):
+            self._partial_calls[known]["args"] += block["args"]
             events.append(ToolCallArgsEvent(tool_call_id=known, delta=block["args"]))
         return events
 
@@ -202,4 +266,5 @@ class EventMapper:
         self._step_open = False
         self._calls = {}
         self._text_used = False
+        self.complete_turn()
         return events

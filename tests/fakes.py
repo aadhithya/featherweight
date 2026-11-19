@@ -179,6 +179,19 @@ def flat_blocks(nodes: list[dict]) -> list[dict]:
     return blocks
 
 
+class Hold:
+    """A point in a script where a fake stops until the test lets it go: `await hold.reached.wait()` says the stream is
+    there, `hold.release.set()` lets it go on. In `Streams.turns`, or awaited by a tool."""
+
+    def __init__(self) -> None:
+        self.reached = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def wait(self) -> None:
+        self.reached.set()
+        await self.release.wait()
+
+
 class Streams(BaseChatModel):
     """A chat model that streams a script. Each model call streams the next turn of `turns`: a list of pieces of text,
     each piece one chunk, or an exception to raise. A piece may also be an `AIMessageChunk` (for a tool call). The last
@@ -208,6 +221,9 @@ class Streams(BaseChatModel):
         for index, piece in enumerate(turn):
             if isinstance(piece, Exception):
                 raise piece
+            if isinstance(piece, Hold):
+                await piece.wait()
+                continue
             if self.delay_s:
                 await asyncio.sleep(self.delay_s)
             last = index == len(turn) - 1
@@ -217,6 +233,11 @@ class Streams(BaseChatModel):
             else:
                 chunk = AIMessageChunk(content=piece, id=turn_id, usage_metadata=usage if last else None)
             yield ChatGenerationChunk(message=chunk)
+
+
+def raw_call_chunk(name: str, args_text: str, call_id: str) -> AIMessageChunk:
+    """A tool call chunk whose arguments are the text given, which may be half of a JSON."""
+    return AIMessageChunk(content="", tool_call_chunks=[{"name": name, "args": args_text, "id": call_id, "index": 0}])
 
 
 def tool_call_chunk(name: str, args: dict, call_id: str) -> AIMessageChunk:

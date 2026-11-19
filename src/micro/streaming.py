@@ -75,7 +75,7 @@ class StreamingRun:
     """One streamed turn. Loop over it to get the events; it can be looped over once.
 
     The run starts when the loop starts, and ends when the loop ends. Leaving the loop early stops the run.
-    `status` is `INIT` until the loop starts, then `RUNNING`, then `SUCCESS` or `FAILED`; `error` says why it failed.
+    `status` is `INIT` until the loop starts, then `RUNNING`, then `SUCCESS`, `FAILED` or `CANCELLED`; `error` says why it failed.
     `usage` is the tokens of the turn, known when the run ends. `new_messages` is what the turn produced."""
 
     def __init__(self, run_id: str, start: Callable[["StreamingRun", Callable[[BaseEvent], None]], Awaitable[None]]):
@@ -86,6 +86,8 @@ class StreamingRun:
         self._new_messages: list[BaseMessage] = []
         self._start = start
         self._used = False
+        self._cancel_requested = False
+        self._interrupt: Callable[[], object] | None = None  # set by the runner while the model is streaming
 
     @property
     def new_messages(self) -> list[BaseMessage]:
@@ -93,6 +95,15 @@ class StreamingRun:
         tool results, in order. They fill up as the turn goes and are complete when the loop ends. Store them next to the
         history you sent: `history.add_messages(run.new_messages)`."""
         return list(self._new_messages)
+
+    def cancel(self) -> None:
+        """Stop the run, from anywhere in the same process. The model call is cancelled, the stream ends cleanly (the open
+        things are closed and `RUN_FINISHED` has the `cancelled` outcome), the row is `CANCELLED`, and `new_messages` has what
+        the turn had said and done. A tool that was running is cancelled where it can be (an async tool); a synchronous tool
+        or an MCP call may finish anyway. Safe to call before the loop starts, after the run ended, or twice."""
+        self._cancel_requested = True
+        if self._interrupt is not None:
+            self._interrupt()
 
     def __aiter__(self) -> AsyncIterator[BaseEvent]:
         if self._used:

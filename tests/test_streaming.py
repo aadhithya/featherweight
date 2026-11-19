@@ -304,10 +304,10 @@ async def test_leaving_the_loop_early_stops_the_run_and_frees_the_slot(db):
             break
     for _ in range(50):  # the run finishes its cleanup in its own task
         row = await db.get_run(run.run_id)
-        if row.status in (RunStatus.FAILED, RunStatus.SUCCESS):
+        if row.status in (RunStatus.CANCELLED, RunStatus.FAILED, RunStatus.SUCCESS):
             break
         await asyncio.sleep(0.02)
-    assert row.status is RunStatus.FAILED and "Stopped" in row.error
+    assert row.status is RunStatus.CANCELLED
     # the slot is free: another turn runs
     second = runner_with(db, Streams(turns=[["fine"]]), max_concurrent=1)
     assert (await collect(second.stream(Chat, say("again"))))[-1].type == EventType.RUN_FINISHED
