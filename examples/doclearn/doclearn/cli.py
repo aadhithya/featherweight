@@ -27,13 +27,13 @@ from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
 
-import featherweight as ftw
 from doclearn.autofill import AutofillError, FilledForm, check_form, fill_form
 from doclearn.generation import GeneratedDocument, GenerationError, generate_document
 from doclearn.models import Document, FactsSchema, FieldValue
 from doclearn.pipeline import LearningResult, learn_document_tree
 from doclearn.report import GUIDANCE_KEY, form_file_content, overview, write_learned_files
 from doclearn.store import LearnedDocument, LearnedStore
+from featherweight import AgentRunner, Database, RunStatus, SqliteDatabase, default_db_path, run_job
 
 DONE, FAILED, STOPPED = 0, 1, 2
 DEFAULT_OUT_DIR = "runs"
@@ -161,19 +161,19 @@ def setup_run_logging(run_dir: Path, verbose: bool) -> Callable[[], None]:
 
 
 async def learn(
-    runner: ftw.AgentRunner,
+    runner: AgentRunner,
     store: LearnedStore,
-    db: ftw.Database,
+    db: Database,
     documents: list[Document],
     category: str,
     console: Console,
 ) -> tuple[LearnedDocument, LearningResult]:
-    outcome = await ftw.run_job(
+    outcome = await run_job(
         db,
         "learn",
         lambda job_id: learn_document_tree(runner, store, documents, category, job_id=job_id, progress=console.step),
     )
-    if outcome.status != ftw.RunStatus.SUCCESS:
+    if outcome.status != RunStatus.SUCCESS:
         raise CliError(f"Learning failed: {outcome.error} (job {outcome.job_id}; the agent runs are in the database)")
     learned = await store.get(outcome.result.learned_id)
     assert learned is not None
@@ -211,15 +211,15 @@ def show_form(console: Console, form: FilledForm, schema: FactsSchema) -> None:
 
 
 async def auto_form(
-    runner: ftw.AgentRunner, db: ftw.Database, learned: LearnedDocument, console: Console, path: Path
+    runner: AgentRunner, db: Database, learned: LearnedDocument, console: Console, path: Path
 ) -> FilledForm:
     """Have the agent invent a case; the user accepts it, edits it or has it redone."""
     schema = learned.facts_schema
     while True:
-        outcome = await ftw.run_job(
+        outcome = await run_job(
             db, "autofill", lambda job_id: fill_form(runner, learned, job_id=job_id, progress=console.step)
         )
-        if outcome.status != ftw.RunStatus.SUCCESS:
+        if outcome.status != RunStatus.SUCCESS:
             raise CliError(f"Filling the form failed: {outcome.error} (job {outcome.job_id})")
         form = outcome.result
         while True:
@@ -236,14 +236,14 @@ async def auto_form(
 
 
 async def generate(
-    runner: ftw.AgentRunner, db: ftw.Database, learned: LearnedDocument, form: FilledForm, console: Console
+    runner: AgentRunner, db: Database, learned: LearnedDocument, form: FilledForm, console: Console
 ) -> GeneratedDocument:
-    outcome = await ftw.run_job(
+    outcome = await run_job(
         db,
         "generate",
         lambda job_id: generate_document(runner, learned, form.facts, form.story, job_id=job_id, progress=console.step),
     )
-    if outcome.status != ftw.RunStatus.SUCCESS:
+    if outcome.status != RunStatus.SUCCESS:
         raise CliError(f"Generation failed: {outcome.error} (job {outcome.job_id})")
     return outcome.result
 
@@ -287,9 +287,9 @@ async def run(args: argparse.Namespace, console: Console, run_dir: Path) -> None
     documents = read_documents(args.folder)
     started = time.monotonic()
     console.say(f"Learning '{category}' from {len(documents)} documents in {args.folder}")
-    async with ftw.SqliteDatabase(ftw.default_db_path()) as db:
+    async with SqliteDatabase(default_db_path()) as db:
         store = await LearnedStore.open(db)
-        runner = ftw.AgentRunner(db)
+        runner = AgentRunner(db)
 
         learned, result = await learn(runner, store, db, documents, category, console)
         console.say(f"  ✓ Learned in {time.monotonic() - started:.0f}s\n")

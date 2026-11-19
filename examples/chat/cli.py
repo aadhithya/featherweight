@@ -12,15 +12,15 @@ from ag_ui.core import TextMessageContentEvent, ToolCallStartEvent
 from langchain_core.messages import BaseMessage, HumanMessage
 from support import Support
 
-import featherweight as ftw
+from featherweight import AgentRunner, ChatInput, SqliteDatabase, default_db_path
 
 
 async def main() -> None:
     history: list[BaseMessage] = []  # featherweight keeps no conversation: you do
-    async with ftw.SqliteDatabase(ftw.default_db_path()) as db, ftw.AgentRunner(db) as runner:
+    async with SqliteDatabase(default_db_path()) as db, AgentRunner(db) as runner:
         while text := input("\nyou> ").strip():
             user = HumanMessage(text)
-            run = runner.stream(Support, ftw.ChatInput.from_langchain([*history, user]))
+            run = runner.stream(Support, ChatInput.from_langchain([*history, user]))
             asyncio.get_running_loop().add_signal_handler(signal.SIGINT, run.cancel)  # Ctrl-C stops the answer
             async for event in run:
                 if isinstance(event, TextMessageContentEvent):

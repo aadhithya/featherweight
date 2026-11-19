@@ -4,8 +4,8 @@ from typing import ClassVar
 
 from pydantic import Field, model_validator
 
-import featherweight as ftw
 from doclearn.models import DocumentTemplate, ElementType, FieldExamples, NameMapping
+from featherweight import AgentBase, AgentInput, AgentOutput, Gemini, ModelSettings
 
 PROMPT = """\
 You reconcile the element types and field names found in several documents of the same category into one \
@@ -26,13 +26,13 @@ Every raw type name and every name in `fields` appears in exactly one entry, and
 """
 
 
-class ReconcilerInput(ftw.AgentInput):
+class ReconcilerInput(AgentInput):
     category: str = Field(description="The document category, provided by the user.")
     templates: list[DocumentTemplate] = Field(description="The template found in each analyzed document.")
     fields: list[FieldExamples] = Field(description="Every span name across the documents, with counts and contexts.")
 
 
-class ReconcilerOutput(ftw.AgentOutput):
+class ReconcilerOutput(AgentOutput):
     type_mapping: list[NameMapping] = Field(default_factory=list, description="Standard element type to its raw names.")
     field_mapping: list[NameMapping] = Field(default_factory=list, description="Standard field name to its raw names.")
     element_types: list[ElementType] = Field(
@@ -82,13 +82,13 @@ class ReconcilerOutput(ftw.AgentOutput):
         return DocumentTemplate(category=category, element_types=sorted(self.element_types, key=lambda e: e.name))
 
 
-class ReconciliationAgent(ftw.AgentBase):
+class ReconciliationAgent(AgentBase):
     name: str = "reconciliation_agent"
     description: str = "Reconciles element type names and field names across documents into one standard vocabulary"
     version: str = "0.8.1"
     prompt: str = PROMPT
-    model: ftw.ModelSettings = ftw.Gemini(
+    model: ModelSettings = Gemini(
         model="gemini-3.8-flash", thinking="medium"
     )  # judging whether two names mean the same needs a stronger model
-    input_model: ClassVar[type[ftw.AgentInput]] = ReconcilerInput
-    output_model: ClassVar[type[ftw.AgentOutput]] = ReconcilerOutput
+    input_model: ClassVar[type[AgentInput]] = ReconcilerInput
+    output_model: ClassVar[type[AgentOutput]] = ReconcilerOutput

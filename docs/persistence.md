@@ -35,12 +35,12 @@ are in [agents](agents.md#jobs-and-tracing).
 A job keeps the outputs of its steps only if it **opts in, before it runs**:
 
 ```python
-first = await ftw.run_job(db, "notes", pipeline, resumable=True)  # fails halfway
-second = await ftw.run_job(db, "notes", pipeline, resume_from=first.job_id)  # the finished steps are not paid for again
+first = await run_job(db, "notes", pipeline, resumable=True)  # fails halfway
+second = await run_job(db, "notes", pipeline, resume_from=first.job_id)  # the finished steps are not paid for again
 ```
 
 The outputs go to a **result store**. With a `SqliteDatabase` the default is a table in the same file, which is for local
-development; a deployment passes its own: `ftw.AgentRunner(db, results=MyStore())`. `results=None` keeps nothing. Resuming a job
+development; a deployment passes its own: `AgentRunner(db, results=MyStore())`. `results=None` keeps nothing. Resuming a job
 that was not `resumable`, or with no store, raises before any model call. A step whose result is missing runs again. A reused step
 copies its result to the new job, so deleting an old job never affects a newer one. [Resuming a job](agents.md#resuming-a-job)
 has the rest, and says why resuming is always up to you.
@@ -54,24 +54,24 @@ Where results live (a folder, a bucket, a database per tenant) is your decision,
 input), and an output is a JSON `dict`. One that misses a method cannot be built, and **the conformance kit** checks the rest:
 
 ```python
-class FileResultStore(ftw.ResultStore): ...  # three methods, see examples/results/store.py
+class FileResultStore(ResultStore): ...  # three methods, see examples/results/store.py
 
 
-await ftw.testing.check_result_store(lambda: FileResultStore(folder))  # raises AssertionError: which rule it breaks
+await testing.check_result_store(lambda: FileResultStore(folder))  # raises AssertionError: which rule it breaks
 ```
 
 [`examples/results`](../examples/results) is a whole store, in about a dozen lines (`make example-results`, no model or key).
-`ftw.testing.MemoryResultStore` is the smallest, for tests. There is no Postgres result store: how results are kept in a
+`testing.MemoryResultStore` is the smallest, for tests. There is no Postgres result store: how results are kept in a
 deployment is for you to decide.
 
 ## Choosing a database
 
-`ftw.Database` is an abstract class, and choosing one is a line of code; the runner does not change:
+`Database` is an abstract class, and choosing one is a line of code; the runner does not change:
 
 ```python
-db = ftw.SqliteDatabase("featherweight.db")  # local development
-db = ftw.PostgresDatabase("postgresql://...", schema="featherweight")  # deployment
-runner = ftw.AgentRunner(db)
+db = SqliteDatabase("featherweight.db")  # local development
+db = PostgresDatabase("postgresql://...", schema="featherweight")  # deployment
+runner = AgentRunner(db)
 ```
 
 - **sqlite** is for local development. Its tables are made by numbered migrations when you connect, and a database from before
@@ -85,10 +85,10 @@ Rows come back as Pydantic models (`JobRow`, `AgentRunRow`) with timezone-aware 
 
 ## Adding another database
 
-Implement `ftw.Database` (write every abstract method) and run the conformance kit against it:
+Implement `Database` (write every abstract method) and run the conformance kit against it:
 
 ```python
-await ftw.testing.check_database(lambda: MyDatabase(...))  # an unopened database; the kit opens and closes it
+await testing.check_database(lambda: MyDatabase(...))  # an unopened database; the kit opens and closes it
 ```
 
 Records go in as frozen Pydantic models (`RunStart`, `RunEnd`), so statuses, hash formats and non-negative numbers are checked

@@ -20,20 +20,32 @@ from typing import ClassVar
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE.parent.parent / "src"))  # so that this runs without installing anything
 
-import featherweight as ftw  # noqa: E402
+from featherweight import (  # noqa: E402
+    AgentBase,
+    AgentInput,
+    AgentOutput,
+    AgentRunner,
+    Gemini,
+    ModelSettings,
+    RunStatus,
+    Skill,
+    SqliteDatabase,
+    default_db_path,
+    setup_logging,
+)
 
-SKILLS = [ftw.Skill.from_directory(path) for path in sorted(HERE.iterdir()) if (path / "SKILL.md").is_file()]
+SKILLS = [Skill.from_directory(path) for path in sorted(HERE.iterdir()) if (path / "SKILL.md").is_file()]
 
 
-class AssistantInput(ftw.AgentInput):
+class AssistantInput(AgentInput):
     request: str
 
 
-class AssistantOutput(ftw.AgentOutput):
+class AssistantOutput(AgentOutput):
     answer: str | None = None
 
 
-class Assistant(ftw.AgentBase):
+class Assistant(AgentBase):
     name: str = "assistant"
     description: str = "Helps with short writing tasks"
     version: str = "0.1.0"
@@ -41,10 +53,10 @@ class Assistant(ftw.AgentBase):
         "You help with short writing tasks. If one of your skills fits the request, use it. "
         "Return the finished text, and nothing else, in `answer`."
     )
-    model: ftw.ModelSettings = ftw.Gemini(model="gemini-3.5-flash-lite", thinking="low")
-    skills: list[ftw.Skill] = SKILLS
-    input_model: ClassVar[type[ftw.AgentInput]] = AssistantInput
-    output_model: ClassVar[type[ftw.AgentOutput]] = AssistantOutput
+    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
+    skills: list[Skill] = SKILLS
+    input_model: ClassVar[type[AgentInput]] = AssistantInput
+    output_model: ClassVar[type[AgentOutput]] = AssistantOutput
 
 
 SAMPLES = [
@@ -72,19 +84,19 @@ class ShowSkillReads(logging.Handler):
 
 async def main(requests: list[str]) -> int:
     if os.environ.get("FTW_LOG_LEVEL"):  # the log is for when you ask for it: the answers are what this prints
-        ftw.setup_logging()
+        setup_logging()
     runner_log = logging.getLogger("featherweight.runner")
     runner_log.setLevel(logging.INFO)
     runner_log.addHandler(ShowSkillReads())
     failed = 0
-    async with ftw.SqliteDatabase(ftw.default_db_path()) as db:
-        runner = ftw.AgentRunner(db)
+    async with SqliteDatabase(default_db_path()) as db:
+        runner = AgentRunner(db)
         for request in requests:
             print(f"\n> {request}")
             result = await runner.run(
                 Assistant, AssistantInput(request=request), job_id=await db.create_job("skills-demo")
             )
-            if result.status == ftw.RunStatus.SUCCESS and result.output is not None:
+            if result.status == RunStatus.SUCCESS and result.output is not None:
                 print(f"\n{result.output.answer}\n  ({result.input_tokens} tokens in, {result.output_tokens} out)")
             else:
                 failed += 1

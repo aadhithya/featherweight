@@ -121,14 +121,14 @@ def job(fn: Callable[..., Awaitable[Any]], /) -> type[Job]: ...
 @overload
 def job(*, name: str | None = None, version: str = "1") -> Callable[[Callable[..., Awaitable[Any]]], type[Job]]: ...
 def job(fn: Callable[..., Awaitable[Any]] | None = None, /, *, name: str | None = None, version: str = "1") -> Any:
-    """Make a `Job` class from an async function: `async def summarise(ctx: ftw.JobContext, input: In) -> Out`. The name is the
+    """Make a `Job` class from an async function: `async def summarise(ctx: JobContext, input: In) -> Out`. The name is the
     function's (or `name=`), the version `"1"` (or `version=`), and the input and output models are the annotations of `input` and
     the return value. The function becomes the class, usable wherever a `Job` is; the function itself is `Summarise.function`.
 
-        @ftw.job
-        async def summarise(ctx: ftw.JobContext, input: SummariseInput) -> SummariseOutput: ...
+        @job
+        async def summarise(ctx: JobContext, input: SummariseInput) -> SummariseOutput: ...
 
-        @ftw.job(name="summarise", version="2")
+        @job(name="summarise", version="2")
         async def summarise(ctx, input: SummariseInput) -> SummariseOutput: ...
     """
     if fn is not None:

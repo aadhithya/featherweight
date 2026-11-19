@@ -7,7 +7,7 @@ browser that reconnects sends `Last-Event-ID` and the stream resumes after it.
     @app.get("/jobs/{job_id}/events")
     async def events(job_id: str, request: Request):
         after = int(request.headers.get("last-event-id", 0))
-        return StreamingResponse(ftw.sse.encode(ftw.job_events(db, job_id, after)), headers=ftw.sse.HEADERS)
+        return StreamingResponse(sse.encode(job_events(db, job_id, after)), headers=sse.HEADERS)
 """
 
 import asyncio

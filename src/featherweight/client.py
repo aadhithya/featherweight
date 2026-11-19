@@ -112,7 +112,7 @@ class JobClient:
 
     def events(self, job_id: str, after: int = 0) -> AsyncGenerator[JobEvent, None]:
         """The events of the job after `after`: the stored ones, then each as it happens, ending at a final one. Send it as SSE
-        with `ftw.sse.encode`."""
+        with `sse.encode`."""
         return job_events(self.db, job_id, after)
 
     async def wait(self, job_id: str, timeout: float | None = None) -> JobRow:

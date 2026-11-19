@@ -146,13 +146,13 @@ Subclass the class and add to its catalog. For example, GPT-5.x:
 ```python
 from typing import ClassVar
 
-import featherweight as ftw
+from featherweight import ModelInfo, OpenAI
 
 
-class OpenAI5(ftw.OpenAI):
-    models: ClassVar[dict[str, ftw.ModelInfo]] = {
-        **ftw.OpenAI.models,
-        "gpt-5.5": ftw.ModelInfo(efforts=("none", "low", "medium", "high"), default="medium"),
+class OpenAI5(OpenAI):
+    models: ClassVar[dict[str, ModelInfo]] = {
+        **OpenAI.models,
+        "gpt-5.5": ModelInfo(efforts=("none", "low", "medium", "high"), default="medium"),
     }
 
 

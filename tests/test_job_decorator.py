@@ -1,4 +1,4 @@
-"""@ftw.job: a Job class from an async function. Fake models only."""
+"""@job: a Job class from an async function. Fake models only."""
 
 import json
 
@@ -6,7 +6,6 @@ import pytest
 from fakes import Echo, EchoInput, EchoOutput, Reactive, runner_with, structured_reply
 from pydantic import BaseModel
 
-import featherweight as ftw
 from featherweight.jobs import Job, JobContext, job
 
 
@@ -27,9 +26,7 @@ def test_a_bare_decorator_makes_a_job_class_from_the_function():
     assert isinstance(shout, type) and issubclass(shout, Job)
     assert (shout.name, shout.version, shout.input_model, shout.output_model) == ("shout", "1", In, Out)
     assert shout.__doc__ == "Shouts." and shout.__name__ == "shout"
-    assert (
-        shout.job_hash() == ftw.job.__wrapped__(shout.function).job_hash() if hasattr(ftw.job, "__wrapped__") else True
-    )
+    assert shout.job_hash() == job.__wrapped__(shout.function).job_hash() if hasattr(job, "__wrapped__") else True
 
 
 def test_the_name_and_the_version_can_be_given():
@@ -106,4 +103,4 @@ def test_missing_or_wrong_annotations_are_refused_when_decorated():
 
 
 def test_it_is_on_the_package():
-    assert ftw.job is job and ftw.Job is Job
+    assert job is job and Job is Job

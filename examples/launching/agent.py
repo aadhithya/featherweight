@@ -18,57 +18,68 @@ from typing import ClassVar
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))  # so that this runs without installing anything
 
-import featherweight as ftw  # noqa: E402
+from featherweight import (  # noqa: E402
+    AgentBase,
+    AgentInput,
+    AgentOutput,
+    AgentRunner,
+    Gemini,
+    ModelSettings,
+    RunStatus,
+    SqliteDatabase,
+    default_db_path,
+    setup_logging,
+)
 
 
-class SummariserInput(ftw.AgentInput):
+class SummariserInput(AgentInput):
     text: str
     max_words: int
 
 
-class SummariserOutput(ftw.AgentOutput):
+class SummariserOutput(AgentOutput):
     summary: str | None = None
 
 
-class Summariser(ftw.AgentBase):
+class Summariser(AgentBase):
     name: str = "summariser"
     description: str = "Summarises a text in at most the given number of words"
     version: str = "0.1.0"
     prompt: str = "Summarise the text in at most `max_words` words. Keep the figures."
-    model: ftw.ModelSettings = ftw.Gemini(model="gemini-3.5-flash-lite", thinking="low")
-    input_model: ClassVar[type[ftw.AgentInput]] = SummariserInput
-    output_model: ClassVar[type[ftw.AgentOutput]] = SummariserOutput
+    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
+    input_model: ClassVar[type[AgentInput]] = SummariserInput
+    output_model: ClassVar[type[AgentOutput]] = SummariserOutput
 
 
-class TranslatorInput(ftw.AgentInput):
+class TranslatorInput(AgentInput):
     text: str
     language: str
 
 
-class TranslatorOutput(ftw.AgentOutput):
+class TranslatorOutput(AgentOutput):
     translation: str | None = None
 
 
-class Translator(ftw.AgentBase):
+class Translator(AgentBase):
     name: str = "translator"
     description: str = "Translates a text into the given language"
     version: str = "0.1.0"
     prompt: str = "Translate the text into the given language. Return only the translation."
-    model: ftw.ModelSettings = ftw.Gemini(model="gemini-3.5-flash-lite", thinking="low")
-    input_model: ClassVar[type[ftw.AgentInput]] = TranslatorInput
-    output_model: ClassVar[type[ftw.AgentOutput]] = TranslatorOutput
+    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
+    input_model: ClassVar[type[AgentInput]] = TranslatorInput
+    output_model: ClassVar[type[AgentOutput]] = TranslatorOutput
 
 
-class EditorInput(ftw.AgentInput):
+class EditorInput(AgentInput):
     request: str
 
 
-class EditorOutput(ftw.AgentOutput):
+class EditorOutput(AgentOutput):
     headline: str | None = None
     summary: str | None = None
 
 
-class Editor(ftw.AgentBase):
+class Editor(AgentBase):
     name: str = "editor"
     description: str = "Writes a headline and a short summary for an article, in the language asked for"
     version: str = "0.1.0"
@@ -77,10 +88,10 @@ class Editor(ftw.AgentBase):
         "request asks for another language, get the translator to translate the headline and the summary. Return "
         "the headline and the summary in `headline` and `summary`."
     )
-    model: ftw.ModelSettings = ftw.Gemini(model="gemini-3.5-flash-lite", thinking="low")
+    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
     subagents: list[type] = [Summariser, Translator]  # the only agents the editor can launch
-    input_model: ClassVar[type[ftw.AgentInput]] = EditorInput
-    output_model: ClassVar[type[ftw.AgentOutput]] = EditorOutput
+    input_model: ClassVar[type[AgentInput]] = EditorInput
+    output_model: ClassVar[type[AgentOutput]] = EditorOutput
 
 
 ARTICLE = (
@@ -111,15 +122,15 @@ def print_tree(rows) -> None:
 
 async def main(requests: list[str]) -> int:
     if os.environ.get("FTW_LOG_LEVEL"):  # the log is for when you ask for it: the answers are what this prints
-        ftw.setup_logging()
+        setup_logging()
     failed = 0
-    async with ftw.SqliteDatabase(ftw.default_db_path()) as db:
-        runner = ftw.AgentRunner(db)
+    async with SqliteDatabase(default_db_path()) as db:
+        runner = AgentRunner(db)
         for request in requests:
             print(f"\n> {request}")
             job_id = await db.create_job("launching-demo")
             result = await runner.run(Editor, EditorInput(request=request), job_id=job_id)
-            if result.status == ftw.RunStatus.SUCCESS and result.output is not None:
+            if result.status == RunStatus.SUCCESS and result.output is not None:
                 print(f"\n{result.output.headline}\n{result.output.summary}\n\nruns of this job:")
             else:
                 failed += 1

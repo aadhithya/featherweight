@@ -14,21 +14,21 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))  # so that this runs without installing anything
 
-import featherweight as ftw  # noqa: E402
+from featherweight import ResultKey, ResultStore, testing  # noqa: E402
 
 
-class FileResultStore(ftw.ResultStore):
+class FileResultStore(ResultStore):
     def __init__(self, folder: Path):
         self.folder = folder
 
-    def _file(self, key: ftw.ResultKey) -> Path:
+    def _file(self, key: ResultKey) -> Path:
         return self.folder / key.job_id / f"{key.agent_hash}-{key.input_hash}.json"
 
-    async def put(self, key: ftw.ResultKey, output: dict) -> None:
+    async def put(self, key: ResultKey, output: dict) -> None:
         self._file(key).parent.mkdir(parents=True, exist_ok=True)
         self._file(key).write_text(json.dumps(output))
 
-    async def get(self, key: ftw.ResultKey) -> dict | None:
+    async def get(self, key: ResultKey) -> dict | None:
         file = self._file(key)
         return json.loads(file.read_text()) if file.exists() else None
 
@@ -38,9 +38,7 @@ class FileResultStore(ftw.ResultStore):
 
 
 async def main() -> None:
-    await ftw.testing.check_result_store(
-        lambda: FileResultStore(Path(tempfile.mkdtemp()))
-    )  # raises if a rule is broken
+    await testing.check_result_store(lambda: FileResultStore(Path(tempfile.mkdtemp())))  # raises if a rule is broken
     print("FileResultStore follows the ResultStore contract")
 
 

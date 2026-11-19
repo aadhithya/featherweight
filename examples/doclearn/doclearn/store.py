@@ -9,8 +9,9 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel
 
-import featherweight as ftw
 from doclearn.models import DocumentTemplate, FactsSchema, LearnedTree
+from featherweight import Database
+from featherweight.db import new_id
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +41,11 @@ class LearnedDocument(BaseModel):
 
 
 class LearnedStore:
-    def __init__(self, db: ftw.Database):
+    def __init__(self, db: Database):
         self.db = db
 
     @classmethod
-    async def open(cls, db: ftw.Database) -> "LearnedStore":
+    async def open(cls, db: Database) -> "LearnedStore":
         """Create the table if needed and return the store."""
         await db.conn.executescript(SCHEMA)
         await db.conn.commit()
@@ -59,7 +60,7 @@ class LearnedStore:
         facts_schema: FactsSchema,
         job_id: str | None = None,
     ) -> str:
-        learned_id = ftw.db.new_id()
+        learned_id = new_id()
         await self.db.conn.execute(
             """INSERT INTO learned_documents (learned_id, job_id, category, template, tree, facts_schema, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",

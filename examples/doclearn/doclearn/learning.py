@@ -8,7 +8,6 @@ from statistics import fmean
 
 from pydantic import BaseModel, Field
 
-import featherweight as ftw
 from doclearn.alignment import SemanticAlignmentAgent, SemanticAlignmentInput
 from doclearn.analyzer import AnalyzerInput, DocumentAnalyzer
 from doclearn.facts import (
@@ -33,6 +32,7 @@ from doclearn.models import (
     UnitDocument,
 )
 from doclearn.reconciler import ReconcilerInput, ReconciliationAgent
+from featherweight import AgentRunner, RunStatus
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ class AnalysisResult(BaseModel):
 
 
 async def analyze_documents(
-    runner: ftw.AgentRunner, documents: Sequence[Document], category: str, *, job_id: str | None = None
+    runner: AgentRunner, documents: Sequence[Document], category: str, *, job_id: str | None = None
 ) -> AnalysisResult:
     """Run the Document Analyzer over every document concurrently and collect the results.
 
@@ -73,7 +73,7 @@ async def analyze_documents(
 
     analysis = AnalysisResult()
     for document, result in zip(documents, results, strict=True):
-        if result.status == ftw.RunStatus.SUCCESS:
+        if result.status == RunStatus.SUCCESS:
             facts = result.output.to_facts(document.document_id)
             analysis.analyzed.append(AnalyzedDocument(facts=facts, template=result.output.to_template(category)))
             logger.info(
@@ -152,7 +152,7 @@ def build_reconciler_input(analysis: AnalysisResult, category: str) -> Reconcile
 
 
 async def reconcile(
-    runner: ftw.AgentRunner, analysis: AnalysisResult, category: str, *, job_id: str | None = None
+    runner: AgentRunner, analysis: AnalysisResult, category: str, *, job_id: str | None = None
 ) -> ReconciledAnalysis:
     """Run the Reconciliation Agent once over all analyzed documents, then apply its mappings to every
     document's facts so that all of them use the same type and field names.
@@ -164,7 +164,7 @@ async def reconcile(
         raise LearningError("No document could be analyzed, so there is nothing to reconcile")
 
     result = await runner.run(ReconciliationAgent, build_reconciler_input(analysis, category), job_id=job_id)
-    if result.status != ftw.RunStatus.SUCCESS:
+    if result.status != RunStatus.SUCCESS:
         raise LearningError(f"The Reconciliation Agent failed: {result.error}")
     output = result.output
     if not output.element_types:
@@ -305,7 +305,7 @@ def normalize_spans(node: LearnedNode, fields: list[FieldInfo]) -> tuple[Learned
 
 
 async def align_units(
-    runner: ftw.AgentRunner, reconciled: ReconciledAnalysis, category: str, *, job_id: str | None = None
+    runner: AgentRunner, reconciled: ReconciledAnalysis, category: str, *, job_id: str | None = None
 ) -> list[AlignedUnit]:
     """Run the Semantic Alignment agent on every unit concurrently, in position order.
 
@@ -321,9 +321,9 @@ async def align_units(
     results = await runner.run_many(SemanticAlignmentAgent, units, job_id=job_id)
 
     failures = [
-        f"unit {unit.position}: {result.error if result.status != ftw.RunStatus.SUCCESS else 'no blocks returned'}"
+        f"unit {unit.position}: {result.error if result.status != RunStatus.SUCCESS else 'no blocks returned'}"
         for unit, result in zip(units, results, strict=True)
-        if result.status != ftw.RunStatus.SUCCESS or not result.output.blocks
+        if result.status != RunStatus.SUCCESS or not result.output.blocks
     ]
     if failures:
         raise LearningError("Semantic Alignment failed for " + "; ".join(failures))

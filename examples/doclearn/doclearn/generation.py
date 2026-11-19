@@ -21,11 +21,12 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
-import featherweight as ftw
 from doclearn.assembly import LEADING_NUMBER, conditions_hold
 from doclearn.facts import SPAN_RE, find_spans, walk
 from doclearn.models import ElementType, FieldValue, InputField, LearnedNode, LearnedTree
 from doclearn.store import LearnedDocument
+from featherweight import AgentBase, AgentInput, AgentOutput, AgentRunner, Gemini, ModelSettings, RunContext, RunStatus
+from featherweight.tools import NO_JOB, add_to_date, calculate, current_datetime, days_between
 
 logger = logging.getLogger(__name__)
 
@@ -70,12 +71,12 @@ class GenerationError(Exception):
 
 
 @tool
-async def check_document(markdown: str, runtime: ToolRuntime[ftw.RunContext]) -> str:
+async def check_document(markdown: str, runtime: ToolRuntime[RunContext]) -> str:
     """Hand in the whole document you wrote. It is checked against the structure and the facts: if it passes it is
     delivered, if not you get the problems back; fix them and hand it in again."""
     ctx = runtime.context
     if ctx.job_id is None:
-        return ftw.tools.NO_JOB
+        return NO_JOB
     state = await ctx.store.get(ctx.job_id, STATE_KEY)
     if state is None:
         return "There is nothing to check the document against."
@@ -94,7 +95,7 @@ async def check_document(markdown: str, runtime: ToolRuntime[ftw.RunContext]) ->
     return f"Problems ({state['failed_checks']} of {MAX_CHECKS} failed checks):\n{listed}"
 
 
-class GeneratorInput(ftw.AgentInput):
+class GeneratorInput(AgentInput):
     category: str = Field(description="The document category.")
     structure: str = Field(description="The learned document tree as an outline: one block per line, nested by indent.")
     styles: list[ElementType] = Field(description="The markdown pattern of each element type.")
@@ -103,25 +104,25 @@ class GeneratorInput(ftw.AgentInput):
     guidance: str = Field(default="", description="Optional extra instructions from the user.")
 
 
-class GeneratorOutput(ftw.AgentOutput):
+class GeneratorOutput(AgentOutput):
     notes: list[str] = Field(default_factory=list, description="What was left out and which wordings were chosen.")
 
 
-class GeneratorAgent(ftw.AgentBase):
+class GeneratorAgent(AgentBase):
     name: str = "document_generator"
     description: str = "Writes a document from a learned tree and the facts of a new case"
     version: str = "0.4.0"
     prompt: str = PROMPT
-    model: ftw.ModelSettings = ftw.Gemini(model="gemini-3.8-flash", thinking="low")
+    model: ModelSettings = Gemini(model="gemini-3.8-flash", thinking="low")
     tools: list[BaseTool] = [
-        ftw.tools.calculate,
-        ftw.tools.current_datetime,
-        ftw.tools.add_to_date,
-        ftw.tools.days_between,
+        calculate,
+        current_datetime,
+        add_to_date,
+        days_between,
         check_document,
     ]
-    input_model: ClassVar[type[ftw.AgentInput]] = GeneratorInput
-    output_model: ClassVar[type[ftw.AgentOutput]] = GeneratorOutput
+    input_model: ClassVar[type[AgentInput]] = GeneratorInput
+    output_model: ClassVar[type[AgentOutput]] = GeneratorOutput
 
 
 class GeneratedDocument(BaseModel):
@@ -275,7 +276,7 @@ def _clean(facts: Mapping[str, str]) -> dict[str, str]:
 
 
 async def generate_document(
-    runner: ftw.AgentRunner,
+    runner: AgentRunner,
     learned: LearnedDocument,
     facts: Mapping[str, str],
     guidance: str = "",
@@ -329,7 +330,7 @@ async def generate_document(
     if progress:
         progress("Writing the document")
     result = await runner.run(GeneratorAgent, agent_input, job_id=job_id)
-    if result.status != ftw.RunStatus.SUCCESS:
+    if result.status != RunStatus.SUCCESS:
         raise GenerationError(f"The Generator failed: {result.error}")
     state = await runner.store.get(job_id, STATE_KEY)
     if state is None or state["document"] is None:

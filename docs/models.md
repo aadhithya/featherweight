@@ -4,11 +4,11 @@ An agent's `model` says which model runs it and how hard it thinks. Each provide
 differ: a thinking level, an effort, an on/off switch.
 
 ```python
-import featherweight as ftw
+from featherweight import Claude
 
 
 class Triager(AgentBase):
-    model: ModelSettings = ftw.Claude(model="claude-haiku-5-5", effort="low")
+    model: ModelSettings = Claude(model="claude-haiku-5-5", effort="low")
 ```
 
 The reasons and the details are in the [spec](specs/models.md). This page is how to use it.
@@ -95,13 +95,13 @@ The built-in `OpenAI` class lists the GPT-6 models. To use GPT-5.5, subclass it 
 ```python
 from typing import ClassVar
 
-import featherweight as ftw
+from featherweight import ModelInfo, OpenAI
 
 
-class OpenAI5(ftw.OpenAI):
-    models: ClassVar[dict[str, ftw.ModelInfo]] = {
-        **ftw.OpenAI.models,
-        "gpt-5.5": ftw.ModelInfo(efforts=("none", "low", "medium", "high"), default="medium"),
+class OpenAI5(OpenAI):
+    models: ClassVar[dict[str, ModelInfo]] = {
+        **OpenAI.models,
+        "gpt-5.5": ModelInfo(efforts=("none", "low", "medium", "high"), default="medium"),
     }
 
 
@@ -125,10 +125,10 @@ from typing import ClassVar
 
 from pydantic import Field
 
-import featherweight as ftw
+from featherweight import ModelSettings
 
 
-class Ollama(ftw.ModelSettings):
+class Ollama(ModelSettings):
     provider: ClassVar[str] = "ollama"
     temperature: float | None = Field(default=None, ge=0, le=1)  # its own field, so it is accepted
     reasoning: bool | None = None
@@ -140,7 +140,7 @@ class Ollama(ftw.ModelSettings):
 
 
 class Local(AgentBase):
-    model: ftw.ModelSettings = Ollama(model="gpt-oss:20b", temperature=0.2)
+    model: ModelSettings = Ollama(model="gpt-oss:20b", temperature=0.2)
 ```
 
 - **`build()` is required.** It is the only method you must write, and it returns the LangChain chat model. The base class
@@ -167,10 +167,10 @@ from typing import Any, ClassVar
 
 from pydantic import Field
 
-import featherweight as ftw
+from featherweight import ModelSettings
 
 
-class FakeSettings(ftw.ModelSettings):
+class FakeSettings(ModelSettings):
     provider: ClassVar[str] = "fake"
     model: str = "fake-model"
     chat: Any = Field(default=None, exclude=True)  # the fake chat model; not part of the settings' data
@@ -183,7 +183,7 @@ fake = ...  # a chat model that replays a script
 
 
 class UnderTest(PeopleExtractor):  # the same agent, run by the fake
-    model: ftw.ModelSettings = Field(default_factory=lambda: FakeSettings(chat=fake))
+    model: ModelSettings = Field(default_factory=lambda: FakeSettings(chat=fake))
 
 
 result = await AgentRunner(db).run(UnderTest, ExtractInput(text="..."))
