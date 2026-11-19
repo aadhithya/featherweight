@@ -123,6 +123,7 @@ make build
 make example-skills           # an agent with three skills (examples/skills); add ARGS="your request"
 make example-launching        # an agent that launches two other agents (examples/launching)
 make example-mcp              # an agent that uses GitHub's MCP server (examples/mcp; needs GITHUB_TOKEN)
+make example-resume           # a pipeline that crashes halfway and resumes (examples/resume; Claude Haiku, needs ANTHROPIC_API_KEY)
 make pipeline ARGS="examples/doclearn/samples/project_proposals --category project_proposals"   # an example pipeline (examples/doclearn)
 ```
 
@@ -139,12 +140,14 @@ make pipeline ARGS="examples/doclearn/samples/project_proposals --category proje
 | `make example-skills` | Run the skills example agent |
 | `make example-launching` | Run the example agent that launches agents |
 | `make example-mcp` | Run the example agent that uses an MCP server |
+| `make example-resume` | Run the example that resumes a failed job |
 
 ```
 src/micro/            the harness
 examples/launching/   an agent that launches other agents (make example-launching)
 examples/skills/      an agent that uses skills, with three skills (make example-skills)
 examples/mcp/         an agent that uses GitHub's MCP server (make example-mcp)
+examples/resume/      a pipeline that crashes halfway and resumes (make example-resume)
 examples/doclearn/    an example pipeline: its package and sample documents (make pipeline)
 docs/                 documentation
 tests/                the harness's tests; tests/e2e uses the real model

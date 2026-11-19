@@ -1,4 +1,4 @@
-.PHONY: skill build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching example-mcp shell
+.PHONY: skill build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching example-resume example-mcp shell
 
 build:
 	docker compose build
@@ -63,6 +63,11 @@ example-launching:
 # `make example-mcp ARGS="your question"` for your own question.
 example-mcp:
 	docker compose run --rm micro python examples/mcp/agent.py $(ARGS)
+
+# Resuming a job: a pipeline that crashes halfway and a second run that reuses the first half (real Claude Haiku calls; needs
+# ANTHROPIC_API_KEY in .env, see examples/resume).
+example-resume:
+	docker compose run --rm micro python examples/resume/agent.py $(ARGS)
 
 shell:
 	docker compose exec micro bash
