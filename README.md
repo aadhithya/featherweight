@@ -26,7 +26,7 @@ It has opinions. Take them, or fork off.
 | **Run it in the background** | Submit from your API, run on a worker, follow it live, cancel it. The two sides never talk to each other directly. |
 | **Streams to your UI** | Live job status and chat answers stream over standard protocols, so a browser can listen as is. |
 | **Any model, any tool** | Gemini, Gemma, Claude, OpenAI or your own. MCP servers and skills plug in and stay out of the context until needed. |
-| **Your data is yours** | You decide how your customers' data is handled and stored. We keep only metadata (status, tokens, timing); inputs, outputs and results go wherever you put them. |
+| **Your data is yours** | You decide how your application's data is handled and stored. We keep only metadata (status, tokens, timing); inputs, outputs and results go wherever you put them. |
 | **Your storage, your call** | Where and how things are stored is up to you. Implement the interface, and we don't care what is behind it. sqlite and Postgres are there to get you going. |
 
 ## Why does this exist? Pydantic AI and LangGraph are right there.
