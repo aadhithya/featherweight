@@ -87,10 +87,19 @@ class SqliteDatabase(Database):
 
     # jobs
 
-    async def insert_job(self, job_id: str, name: str, resumed_from: str | None, resumable: bool) -> str:
+    async def insert_job(
+        self,
+        job_id: str,
+        name: str,
+        resumed_from: str | None,
+        resumable: bool,
+        job_hash: str | None,
+        input_hash: str | None,
+    ) -> str:
         await self.conn.execute(
-            "INSERT INTO jobs (job_id, name, status, resumable, resumed_from, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (job_id, name, RunStatus.INIT.value, int(resumable), resumed_from, now().isoformat()),
+            "INSERT INTO jobs (job_id, name, status, resumable, resumed_from, job_hash, input_hash, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (job_id, name, RunStatus.INIT.value, int(resumable), resumed_from, job_hash, input_hash, now().isoformat()),
         )
         await self.conn.commit()
         logger.info("job_created job_id=%s name=%s resumed_from=%s resumable=%s", job_id, name, resumed_from, resumable)
@@ -102,13 +111,15 @@ class SqliteDatabase(Database):
         status = RunStatus(status)
         terminal = status in (RunStatus.SUCCESS, RunStatus.FAILED, RunStatus.CANCELLED)
         failed = status is RunStatus.FAILED
+        started = ", started_at = ?" if status in (RunStatus.RUNNING, RunStatus.INIT) else ""
         cur = await self.conn.execute(
-            "UPDATE jobs SET status = ?, completed_at = ?, error_type = ?, error_hash = ? WHERE job_id = ?",
+            f"UPDATE jobs SET status = ?, completed_at = ?, error_type = ?, error_hash = ?{started} WHERE job_id = ?",
             (
                 status.value,
                 now().isoformat() if terminal else None,
                 error_type if failed else None,
                 error_hash if failed else None,
+                *([now().isoformat() if status is RunStatus.RUNNING else None] if started else []),
                 job_id,
             ),
         )
@@ -127,8 +138,9 @@ class SqliteDatabase(Database):
     def _job(row: aiosqlite.Row) -> JobRow:
         data: dict[str, Any] = dict(row)
         data["resumable"] = bool(data["resumable"])
-        data["created_at"] = datetime.fromisoformat(data["created_at"])
-        data["completed_at"] = datetime.fromisoformat(data["completed_at"]) if data["completed_at"] else None
+        data["cancel_requested"] = bool(data["cancel_requested"])
+        for column in ("created_at", "started_at", "completed_at"):
+            data[column] = datetime.fromisoformat(data[column]) if data[column] else None
         return JobRow(**data)
 
     # agent runs

@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from langchain_core.tools import BaseTool
+from pydantic import BaseModel
 
 from featherweight.models import AgentBase, AgentInput, AgentOutput
 
@@ -102,3 +103,15 @@ def error_fields(exc: BaseException) -> tuple[str, str]:
     """What the run log keeps of an error: its class name, and the SHA-256 of its message. The message can quote data (a
     validation error quotes the value, `check_output` is the user's code), so the log never keeps it."""
     return type(exc).__name__, text_hash(str(exc))
+
+
+def job_hash(name: str, version: str, input_model: type[BaseModel], output_model: type[BaseModel]) -> str:
+    """SHA-256 of a job's declaration: its name, its version, and the JSON schemas of its input and output."""
+    return _digest(
+        {
+            "name": name,
+            "version": version,
+            "input_schema": input_model.model_json_schema(),
+            "output_schema": output_model.model_json_schema(),
+        }
+    )

@@ -87,9 +87,13 @@ class JobRow(_Model):
     status: RunStatus
     resumable: bool
     resumed_from: str | None
+    job_hash: str | None  # a submitted job: the hash of its declaration; None for a job made by `run_job`
+    input_hash: str | None  # a submitted job: the hash of its input
+    cancel_requested: bool
     error_type: str | None
     error_hash: str | None
     created_at: datetime
+    started_at: datetime | None  # when it began to run (cleared when it goes back to the queue)
     completed_at: datetime | None
 
 
@@ -150,7 +154,14 @@ class Database(ABC):
     # jobs
 
     async def create_job(
-        self, name: str, job_id: str | None = None, *, resume_from: str | None = None, resumable: bool = False
+        self,
+        name: str,
+        job_id: str | None = None,
+        *,
+        resume_from: str | None = None,
+        resumable: bool = False,
+        job_hash: str | None = None,
+        input_hash: str | None = None,
     ) -> str:
         """Create a job. `resumable=True` keeps the outputs of its steps (in the runner's result store), so that a later job
         can resume it; it is decided here, before the pipeline runs.
@@ -169,17 +180,26 @@ class Database(ABC):
                     "nothing to resume from. To run everything again, run the pipeline without resume_from."
                 )
             resumable = True
-        return await self.insert_job(job_id or new_id(), name, resume_from, resumable)
+        return await self.insert_job(job_id or new_id(), name, resume_from, resumable, job_hash, input_hash)
 
     @abstractmethod
-    async def insert_job(self, job_id: str, name: str, resumed_from: str | None, resumable: bool) -> str:
+    async def insert_job(
+        self,
+        job_id: str,
+        name: str,
+        resumed_from: str | None,
+        resumable: bool,
+        job_hash: str | None,
+        input_hash: str | None,
+    ) -> str:
         """Write a new job in status `INIT`, and return its id. The rules are checked in `create_job`."""
 
     @abstractmethod
     async def set_job_status(
         self, job_id: str, status: RunStatus, *, error_type: str | None = None, error_hash: str | None = None
     ) -> None:
-        """Set the status of a job. The error is kept only for FAILED. `LookupError` for a job that does not exist."""
+        """Set the status of a job. The error is kept only for FAILED. `RUNNING` sets `started_at`; going back to `INIT` (a job
+        that returns to the queue) clears it. `LookupError` for a job that does not exist."""
 
     @abstractmethod
     async def get_job(self, job_id: str) -> JobRow | None: ...
