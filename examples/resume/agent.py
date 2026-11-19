@@ -5,8 +5,10 @@
 Needs ANTHROPIC_API_KEY and the `anthropic` extra. A release-notes pipeline: a `Summariser` summarises each of four commit
 messages, then a `ReleaseNotes` agent writes the notes from the summaries. The first run is made to crash in the
 pipeline's own code after the summaries, as if the process had died. The second run uses `resume_from` the first: the
-four summaries are answered from the log (no model call, no tokens), and only the notes are written. After each run the
-script prints the runs of the job, so you can see which were reused.
+four summaries are answered from the results the first job kept (no model call, no tokens), and only the notes are written.
+The results are kept by the **default result store**, a table in the run log's sqlite file: the example does not pass one.
+To keep them somewhere else, write your own (see examples/results). After each run the script prints the runs of the job, so
+you can see which were reused.
 
 Set FTW_LOG_LEVEL=INFO (`FTW_LOG_LEVEL=INFO make example-resume`) to see the log lines, including `run_reused`.
 """

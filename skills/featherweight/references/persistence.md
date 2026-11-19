@@ -47,6 +47,8 @@ that was not `resumable`, or with no store, raises before any model call. A step
 copies its result to the new job, so deleting an old job never affects a newer one. [Resuming a job](agents.md#resuming-a-job)
 has the rest, and says why resuming is always up to you.
 
+[`examples/resume`](https://github.com/aadhithya/featherweight/blob/main/examples/resume) uses the default store: it passes none. [`examples/results`](https://github.com/aadhithya/featherweight/blob/main/examples/results) shows how to write your own.
+
 ## A result store of your own
 
 Where results live (a folder, a bucket, a database per tenant) is your decision, so the store is an abstract class you implement:
