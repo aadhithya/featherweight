@@ -9,6 +9,7 @@ from typing import Any
 
 from featherweight.db import Database, RunEnd, RunStart
 from featherweight.models import RunStatus
+from featherweight.queue import Delivery, JobMessage, JobQueue
 from featherweight.results import ResultKey, ResultStore
 
 
@@ -255,3 +256,123 @@ async def check_database(make_db: Callable[[], Database]) -> None:
         )
         await db.create_run(_run(keeps, "run-5", agent_hash=_hash("agent 2")))
         assert await db.find_reusable_run(keeps, _hash("agent 2"), _hash("input")) is None, "only a SUCCESS run matches"
+
+
+class MemoryQueue(JobQueue):
+    """A `JobQueue` in memory: nothing survives the process. For tests, and the smallest example of the class."""
+
+    def __init__(self) -> None:
+        self._seq = 0
+        self._ready: list[tuple[int, JobMessage]] = []
+        self._claimed: dict[str, tuple[int, JobMessage]] = {}
+
+    async def enqueue(self, message: JobMessage) -> None:
+        self._seq += 1
+        self._ready.append((self._seq, message.model_copy(deep=True)))
+
+    async def receive(self, timeout: float) -> Delivery | None:
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        while True:
+            if self._ready:
+                seq, message = self._ready.pop(0)  # a claim is one step: no other receiver can take it too
+                self._claimed[str(seq)] = (seq, message)
+                return Delivery(message=message.model_copy(deep=True), token=str(seq))
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                return None
+            await asyncio.sleep(min(0.005, remaining))
+
+    async def ack(self, delivery: Delivery) -> None:
+        self._claimed.pop(delivery.token, None)
+
+    async def nack(self, delivery: Delivery, *, requeue: bool) -> None:
+        claimed = self._claimed.pop(delivery.token, None)
+        if claimed is not None and requeue:
+            self._ready.append(claimed)
+            self._ready.sort(key=lambda item: item[0])  # back in its place in the order
+
+
+async def check_queue(make_queue: Callable[[], JobQueue | Awaitable[JobQueue]]) -> None:
+    """Run the `JobQueue` contract against a queue. `make_queue` returns a fresh, empty queue (it may be async). Raises
+    `AssertionError` that says which rule a queue breaks.
+
+        async def test_my_queue():
+            await check_queue(lambda: MyQueue(...))
+    """
+
+    async def fresh() -> JobQueue:
+        made = make_queue()
+        return await made if isinstance(made, Awaitable) else made
+
+    def message(n: int, **input: Any) -> JobMessage:
+        return JobMessage(job_id=f"job-{n}", job_name="shout", input=input or {"n": n})
+
+    queue = await fresh()
+    assert await queue.receive(0.05) is None, "receive on an empty queue must return None after the timeout"
+
+    payload = {"text": "héllo", "n": 3, "ok": True, "none": None, "list": [1, 2.5, "x"], "nested": {"é": ["ü"]}}
+    await queue.enqueue(JobMessage(job_id="job-a", job_name="shout", input=payload))
+    got = await queue.receive(1.0)
+    assert got is not None, "a message that was enqueued must be received"
+    assert got.message == JobMessage(job_id="job-a", job_name="shout", input=payload), (
+        "the message must come back equal as JSON"
+    )
+    assert await queue.receive(0.05) is None, (
+        "a received message must be invisible to other receivers until it is acked or nacked"
+    )
+    await queue.ack(got)
+    assert await queue.receive(0.05) is None, "an acked message must be gone"
+
+    queue = await fresh()
+    for n in range(5):
+        await queue.enqueue(message(n))
+    order = []
+    for _ in range(5):
+        delivery = await queue.receive(1.0)
+        assert delivery is not None
+        order.append(delivery.message.job_id)
+        await queue.ack(delivery)
+    assert order == [f"job-{n}" for n in range(5)], "messages must come out in the order they went in"
+
+    queue = await fresh()
+    await queue.enqueue(message(1))
+    await queue.enqueue(message(2))
+    first = await queue.receive(1.0)
+    assert first is not None and first.message.job_id == "job-1"
+    await queue.nack(first, requeue=True)
+    again = await queue.receive(1.0)
+    assert again is not None and again.message.job_id == "job-1", (
+        "nack(requeue=True) must make the message available again, in its place"
+    )
+    await queue.nack(again, requeue=False)
+    rest = await queue.receive(1.0)
+    assert rest is not None and rest.message.job_id == "job-2", "nack(requeue=False) must drop the message"
+    await queue.ack(rest)
+    assert await queue.receive(0.05) is None, "a dropped message must not come back"
+
+    queue = await fresh()
+    await queue.enqueue(message(1))
+    await queue.enqueue(message(2))
+    a, b = await asyncio.gather(queue.receive(1.0), queue.receive(1.0))
+    assert a is not None and b is not None, "two receivers of two messages must both get one"
+    assert {a.message.job_id, b.message.job_id} == {"job-1", "job-2"}, (
+        "two concurrent receivers must get different messages"
+    )
+    assert a.token != b.token, "two deliveries must have different tokens"
+    await queue.ack(a)
+    await queue.ack(b)
+
+    queue = await fresh()
+    await asyncio.gather(*(queue.enqueue(message(n)) for n in range(40)))
+    seen: list[str] = []
+
+    async def worker() -> None:
+        while (delivery := await queue.receive(0.1)) is not None:
+            seen.append(delivery.message.job_id)
+            await queue.ack(delivery)
+
+    await asyncio.gather(*(worker() for _ in range(4)))
+    assert sorted(seen) == sorted(f"job-{n}" for n in range(40)), (
+        "many concurrent enqueues must each be delivered exactly once"
+    )

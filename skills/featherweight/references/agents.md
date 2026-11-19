@@ -218,6 +218,13 @@ either schema) does. `ctx.run` and `ctx.run_many` run agents **in the job**, so 
 agent can be a job too (`ftw.as_job(Shouter)`: its name, its models, and its `agent_hash`); a streaming agent cannot. Submitting
 jobs to a queue for a separate worker is being built ([epic #71](https://github.com/aadhithya/featherweight/issues/71)).
 
+**The job queue.** What connects a client to a worker is an abstract class, `ftw.JobQueue` (`enqueue`, `receive`, `ack`,
+`nack`), whose message carries the job id, the job's name and its input as JSON (or references inside it). `ftw.SqliteQueue(db)`
+is a table in the run log's sqlite file, for local development, and is the one we ship; for a deployment you write a queue of your
+own (Redis, SQS, a database) and check it: `await ftw.testing.check_queue(lambda: MyQueue(...))`. `ftw.testing.MemoryQueue` is
+the smallest example, for tests. Delivery is at-least-once; a message whose receiver dies stays claimed in the sqlite queue (leases
+come later).
+
 **What is on record, and what is not.** The run log is the state of the orchestration: what ran, in what order, which agent
 launched which, with what outcome, at what cost. It holds **no inputs, outputs, messages or error text**: where a name or a
 text could carry a client's data, there is a hash instead. The data stays with your application.

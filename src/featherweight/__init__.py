@@ -58,6 +58,10 @@ _EXPORTS = {
     "ResultStore": "results",
     "ResultKey": "results",
     "SqliteResultStore": "results",
+    "JobQueue": "queue",
+    "JobMessage": "queue",
+    "Delivery": "queue",
+    "SqliteQueue": "queue",
     "RunContext": "context",
     "SetupError": "errors",
     "BadRequest": "adapters.errors",
@@ -76,6 +80,7 @@ _MODULES = (
     "model_settings",
     "models",
     "postgres",
+    "queue",
     "registry",
     "results",
     "runner",
@@ -124,6 +129,10 @@ if TYPE_CHECKING:  # for editors and type checkers: the same names, imported
     from featherweight.models import AgentResult as AgentResult
     from featherweight.models import RunStatus as RunStatus
     from featherweight.postgres import PostgresDatabase as PostgresDatabase
+    from featherweight.queue import Delivery as Delivery
+    from featherweight.queue import JobMessage as JobMessage
+    from featherweight.queue import JobQueue as JobQueue
+    from featherweight.queue import SqliteQueue as SqliteQueue
     from featherweight.results import ResultKey as ResultKey
     from featherweight.results import ResultStore as ResultStore
     from featherweight.results import SqliteResultStore as SqliteResultStore
