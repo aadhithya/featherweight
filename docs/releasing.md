@@ -5,18 +5,18 @@ request**, and merging that pull request is the approval.
 
 ## Cut a release
 
-Nothing runs on its own. Both steps are a run of the `release` workflow by hand: in GitHub, Actions, `release`, Run
-workflow, and choose the step (or `gh workflow run release -f step=prepare`).
+Only the release pull request is a manual step. Merging it is how you choose when a release is made.
 
-1. **`prepare`.** The workflow reads the commit messages since the last release and opens, or updates, **one release pull
-   request**. The pull request changes three things: the version in `pyproject.toml`, `__version__` in
-   `src/micro/__init__.py`, and a new section at the top of [`CHANGELOG.md`](../CHANGELOG.md).
-2. **Review and merge it** when its checks are green. Read the version and the changelog section first. This is the
-   approval. Merging does not release anything.
-3. **`publish`.** Run the workflow again with this step. It makes the tag `vX.Y.Z` and a GitHub release whose notes are
-   the changelog section, from the merged release pull request. You can run it any time after the merge.
+1. **Run the workflow.** In GitHub, Actions, `release`, Run workflow (or `gh workflow run release`). It reads the commit
+   messages since the last release and opens, or updates, **one release pull request**. The pull request changes three
+   things: the version in `pyproject.toml`, `__version__` in `src/micro/__init__.py`, and a new section at the top of
+   [`CHANGELOG.md`](../CHANGELOG.md). Nothing is tagged or released yet.
+2. **Review and merge it** when its checks are green. Read the version and the changelog section first.
+3. **That is all.** The merge makes the tag `vX.Y.Z` and a GitHub release whose notes are the changelog section, by itself.
+   A push to `main` that is not a merged release pull request does nothing.
 
-Nothing is tagged or released until `publish` is run, and no pull request is opened until `prepare` is run.
+No pull request is opened unless someone runs the workflow, and nothing is tagged or released until a release pull request
+is merged.
 
 ## How the version is chosen
 
@@ -50,7 +50,7 @@ run, so the secret is the way to go.
 
 | File | |
 |---|---|
-| `.github/workflows/release.yml` | The workflow, started by hand only: step `prepare` opens the release pull request, and step `publish` makes the tag and the GitHub release of the merged one |
+| `.github/workflows/release.yml` | The workflow: by hand it opens the release pull request, and on a push to `main` it makes the tag and the GitHub release if that push is the merged release pull request |
 | `release-please-config.json` | The release type, the pre-1.0 rule, the changelog sections |
 | `.release-please-manifest.json` | The last released version. The workflow keeps it up to date |
 | `CHANGELOG.md` | The changelog. Written by the release pull request, not by hand |
@@ -58,4 +58,6 @@ run, so the secret is the way to go.
 ## Not yet
 
 Publishing to PyPI is not part of the release yet: it waits for the package name to be decided
-([issue #24](https://github.com/aadhithya/micro/issues/24)).
+([issue #24](https://github.com/aadhithya/micro/issues/24)). When it is built, it will be a job of this workflow that runs
+after the tag is made, so merging the release pull request will publish the package too. Opening the release pull request
+stays the only manual step.

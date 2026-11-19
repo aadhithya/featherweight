@@ -1,26 +1,20 @@
 name: release
 
-# Releases are manual, in two steps, because main is protected. Run this workflow by hand (Actions, release, Run workflow):
+# Only the release pull request is a manual step, because main is protected and you choose when a release is made.
 #
-#   1. step "prepare": opens or updates one release pull request: the next version, worked out from the commit messages,
-#      and the new section of CHANGELOG.md. Nothing is tagged or released.
-#   2. Review the pull request, and merge it when its checks are green.
-#   3. step "publish": makes the tag and the GitHub release, whose notes are the changelog section, from the merged
-#      release pull request.
+#   1. Run this workflow by hand (Actions, release, Run workflow). It opens or updates one release pull request: the next
+#      version, worked out from the commit messages, and the new section of CHANGELOG.md. Nothing is tagged or released.
+#   2. Review that pull request, and merge it when its checks are green. Merging it is your decision to release.
+#   3. The merge makes the tag and the GitHub release (the notes are the changelog section) by itself. Later, a job that
+#      publishes to PyPI will follow it here (issue #24).
 #
-# Nothing runs on its own: there is no trigger but the button. See docs/releasing.md. The secret RELEASE_TOKEN lets the
-# release pull request start the `test` check (a pull request made with the default token does not).
+# Any other push to main does nothing here. See docs/releasing.md. The secret RELEASE_TOKEN lets the release pull request
+# start the `test` check (a pull request made with the default token does not).
 
 on:
   workflow_dispatch:
-    inputs:
-      step:
-        description: "prepare: open the release pull request. publish: tag and release a merged release pull request."
-        type: choice
-        required: true
-        options:
-          - prepare
-          - publish
+  push:
+    branches: [main]
 
 permissions:
   contents: write
@@ -31,9 +25,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Step 1: open or update the release pull request. Nothing is tagged or released here.
-  prepare:
-    if: inputs.step == 'prepare'
+  # By hand: open or update the release pull request. Nothing is tagged or released here.
+  release-pr:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: googleapis/release-please-action@v4
@@ -43,9 +37,10 @@ jobs:
           manifest-file: .release-please-manifest.json
           skip-github-release: true
 
-  # Step 3: make the tag and the GitHub release of the merged release pull request. It never opens a pull request.
-  publish:
-    if: inputs.step == 'publish'
+  # On a push to main: if the push is a merged release pull request, make the tag and the GitHub release. For any other push
+  # it does nothing, and it never opens a pull request.
+  release:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
