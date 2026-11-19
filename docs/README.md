@@ -70,5 +70,5 @@ runner ──────────── runs agents: attempts, retries, conc
 - **A spec** is written from the code. It states the rules as they are, the decisions with their reasons, and what was left
   out on purpose. If a guide and a spec disagree, the spec and the code are right, and the guide should be fixed.
 - **An example** is a folder you can run (`make example-skills`, `make example-launching`, `make example-mcp`, `make
-  pipeline`). Each has a README that says what to look at.
+  example-resume`, `make pipeline`). Each has a README that says what to look at.
 - **The tests** are in [`tests/`](../tests), and each spec says which files cover it. `tests/e2e` uses the real model.

@@ -244,7 +244,8 @@ outcome = await run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, jo
 This creates a **new job** that records `resumed_from`. Your pipeline runs again from the top, with its own loops and
 decisions. Only the agent runs are answered from the log. It is replay, not pausing: [micro.] is not a workflow engine.
 To create the job first, use `db.create_job(name, resume_from=old_job_id)` and pass its id with `job_id` (`run_job`
-refuses `job_id` and `resume_from` together).
+refuses `job_id` and `resume_from` together). [`examples/resume`](https://github.com/aadhithya/micro/blob/main/examples/resume) runs a pipeline that crashes halfway and
+resumes, with Claude Haiku (`make example-resume`).
 
 For each run that your pipeline starts in the new job, the runner looks in the old job for a row that
 

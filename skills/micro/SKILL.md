@@ -143,7 +143,7 @@ Read only the reference for the task. Each is a guide from the [micro.] reposito
 | See a whole pipeline of several agents | `references/example-pipeline.md` |
 
 The full specs, which say what each part does and why, are in `docs/specs` of the repository, and runnable examples are in
-`examples/` (`launching`, `skills`, `mcp`, `doclearn`): https://github.com/aadhithya/micro
+`examples/` (`launching`, `skills`, `mcp`, `resume`, `doclearn`): https://github.com/aadhithya/micro
 
 ## Before you say it works
 
