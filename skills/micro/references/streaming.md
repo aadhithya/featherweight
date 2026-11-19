@@ -7,11 +7,12 @@ as events, and nothing is validated at the end.
 
 > **Status: being built** ([epic #29](https://github.com/aadhithya/micro/issues/29)). What works today is on this page. The
 > design is in the [spec](https://github.com/aadhithya/micro/blob/main/docs/specs/streaming.md), which also lists what is still to come: tool calls in the history, stopping a
-> response, and the AG-UI and Vercel AI SDK adapters.
+> response, and the Vercel AI SDK adapter.
 
 - [A streaming agent](#a-streaming-agent)
 - [Streaming a turn](#streaming-a-turn)
 - [Thoughts](#thoughts)
+- [AG-UI](#ag-ui)
 - [The conversation is yours](#the-conversation-is-yours)
 - [What is logged](#what-is-logged)
 - [How it differs from an agent](#how-it-differs-from-an-agent)
@@ -92,6 +93,37 @@ the reasoning events carry them. Off by default; with it off there are no reason
 for most providers, not the raw reasoning. A provider's thoughts that must go back with the next request are kept whether
 they are shown or not (that comes with the messages part of the epic).
 
+## AG-UI
+
+The events are already [AG-UI's](https://docs.ag-ui.com), so the adapter is only the edge with HTTP
+(`micro.adapters.agui`). There is no server and no router, and it needs no web framework:
+
+| | |
+|---|---|
+| `parse_request(body)` | The JSON body of an AG-UI request (a dict, text or bytes) as a `ChatInput`. `threadId` is kept. The client's `tools`, `state`, `context` and `forwardedProps` are **ignored** (the agent has its own tools); sending tools logs a warning |
+| `encode(run)` | The events of a run as server-sent events, one string each. Leaving the loop early stops the run |
+| `CONTENT_TYPE`, `HEADERS` | `text/event-stream`, and headers that stop the stream being cached or buffered |
+| `BadRequest` | What `parse_request` raises (a `ValueError`) for a body that is not JSON, is not an AG-UI request, or has a message a `ChatInput` refuses (`system`, `developer`, a last message that is not the user's). The message says what is wrong |
+
+With Starlette (FastAPI is the same):
+
+```python
+from micro.adapters import BadRequest
+from micro.adapters.agui import CONTENT_TYPE, HEADERS, encode, parse_request
+from starlette.responses import JSONResponse, StreamingResponse
+
+
+async def chat(request):
+    try:
+        chat_input = parse_request(await request.body())
+    except BadRequest as exc:
+        return JSONResponse({"error": str(exc)}, status_code=422)
+    run = runner.stream(Support, chat_input)
+    return StreamingResponse(encode(run), media_type=CONTENT_TYPE, headers=HEADERS)
+```
+
+Sending the events as binary (protobuf) is not supported.
+
 ## The conversation is yours
 
 `micro` keeps no conversation. A `ChatInput` is the whole conversation so far, and the agent sees only that:
@@ -134,5 +166,5 @@ The slot is held for the whole stream. A streaming run is never reused when a jo
 ## What is not there yet
 
 Tracked in [epic #29](https://github.com/aadhithya/micro/issues/29): messages in and out
-(#32), stopping a response (#33), the AG-UI adapter (#34), the Vercel AI SDK adapter (#35), an example and the full guide (#36).
+(#32), stopping a response (#33), the Vercel AI SDK adapter (#35), an example and the full guide (#36).
 Background agents, jobs across processes and stored conversations are not part of it.

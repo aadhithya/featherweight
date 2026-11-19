@@ -1,6 +1,6 @@
 # Spec: streaming agents
 
-Status: being built. #30 (the class, `ChatInput`, `runner.stream()`, the run log) and #31 (the events: text, tool calls, thoughts, steps; `show_thoughts`) are done; the other issues are not. It is tracked in [epic #29](https://github.com/aadhithya/micro/issues/29), and each part has its own
+Status: being built. #30 (the class, `ChatInput`, `runner.stream()`, the run log) and #31 (the events: text, tool calls, thoughts, steps; `show_thoughts`) and #34 (the AG-UI adapter) are done; the other issues are not. It is tracked in [epic #29](https://github.com/aadhithya/micro/issues/29), and each part has its own
 issue (listed [at the end](#the-work)). When a part is built, this page says so and the guide `docs/streaming.md` shows how to use it.
 
 It changes [agents](agents.md) (a new kind of agent), [the runner](runner.md) (`stream()`, and `run()` refuses a streaming
@@ -224,12 +224,12 @@ The run's `job_id` works as for `run()`. Marking a *job* `CANCELLED` is part of 
 An adapter has two parts: **read the request** into a `ChatInput`, and **encode the events** for the wire. Neither is a server:
 no router, no web framework dependency. A one-line Starlette example goes in the guide.
 
-**AG-UI** (`micro.streaming.agui`): the events are already AG-UI's, so this is the thin edge.
-- `parse_request(body)`: a `RunAgentInput` becomes a `ChatInput`. The client's `tools`, `state` and `context` are **ignored**
+**AG-UI** (`micro.adapters.agui`, built): the events are already AG-UI's, so this is the thin edge.
+- `parse_request(body)`: a `RunAgentInput` (a dict, text or bytes) becomes a `ChatInput`; a body it cannot read raises `BadRequest`, a `ValueError` that a framework turns into a 422. The client's `tools`, `state` and `context` are **ignored**
   (the agent has its own tools), and sending tools logs a warning.
-- `encode(run)`: SSE strings from the official `EventEncoder`. The binary encoding is not supported.
+- `encode(run)`: SSE strings from the official `EventEncoder`, plus `CONTENT_TYPE` and `HEADERS` for the response. The binary encoding is not supported.
 
-**Vercel AI SDK** (`micro.streaming.vercel`): a translation from AG-UI events to the documented UI message stream, written by us
+**Vercel AI SDK** (`micro.adapters.vercel`): a translation from AG-UI events to the documented UI message stream, written by us
 because no small official package exists (the one from vercel-labs is a whole agent framework, at 0.x).
 
 | AG-UI | Vercel part |
