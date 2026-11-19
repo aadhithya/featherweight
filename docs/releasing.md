@@ -5,15 +5,18 @@ request**, and merging that pull request is the approval.
 
 ## Cut a release
 
-1. **Run the workflow.** In GitHub, Actions, `release`, Run workflow (or `gh workflow run release`). It reads the commit
-   messages since the last release and opens, or updates, **one release pull request**. The pull request changes three
-   things: the version in `pyproject.toml`, `__version__` in `src/micro/__init__.py`, and a new section at the top of
-   [`CHANGELOG.md`](../CHANGELOG.md).
-2. **Review and merge it** when its checks are green. Read the version and the changelog section first.
-3. **That is all.** The merge makes the tag `vX.Y.Z` and a GitHub release whose notes are the changelog section.
+Nothing runs on its own. Both steps are a run of the `release` workflow by hand: in GitHub, Actions, `release`, Run
+workflow, and choose the step (or `gh workflow run release -f step=prepare`).
 
-Nothing is tagged or released until the release pull request is merged, and no pull request is opened unless someone runs
-the workflow.
+1. **`prepare`.** The workflow reads the commit messages since the last release and opens, or updates, **one release pull
+   request**. The pull request changes three things: the version in `pyproject.toml`, `__version__` in
+   `src/micro/__init__.py`, and a new section at the top of [`CHANGELOG.md`](../CHANGELOG.md).
+2. **Review and merge it** when its checks are green. Read the version and the changelog section first. This is the
+   approval. Merging does not release anything.
+3. **`publish`.** Run the workflow again with this step. It makes the tag `vX.Y.Z` and a GitHub release whose notes are
+   the changelog section, from the merged release pull request. You can run it any time after the merge.
+
+Nothing is tagged or released until `publish` is run, and no pull request is opened until `prepare` is run.
 
 ## How the version is chosen
 
@@ -37,14 +40,17 @@ everything since the repository was opened.
 A pull request made with the default `GITHUB_TOKEN` does not start other workflows, so the required `test` check would
 never run on the release pull request, and it could not be merged. The workflow therefore uses the secret `RELEASE_TOKEN`:
 a fine-grained personal access token for this repository, with **Contents** and **Pull requests** read and write. Create it
-once in Settings, Secrets and variables, Actions. Without it the release pull request is still opened, but its check does
-not run.
+once in Settings, Secrets and variables, Actions.
+
+Without the secret the workflow falls back to `GITHUB_TOKEN`. That works only if the setting "Allow GitHub Actions to create
+and approve pull requests" (Settings, Actions, General) is on, and even then the release pull request's check does not
+run, so the secret is the way to go.
 
 ## Files
 
 | File | |
 |---|---|
-| `.github/workflows/release.yml` | The workflow: by hand it opens the pull request, and on a push to `main` it makes the tag and the release if that push is the merged release pull request |
+| `.github/workflows/release.yml` | The workflow, started by hand only: step `prepare` opens the release pull request, and step `publish` makes the tag and the GitHub release of the merged one |
 | `release-please-config.json` | The release type, the pre-1.0 rule, the changelog sections |
 | `.release-please-manifest.json` | The last released version. The workflow keeps it up to date |
 | `CHANGELOG.md` | The changelog. Written by the release pull request, not by hand |
