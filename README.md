@@ -29,6 +29,8 @@ It has opinions. Take them, or fork off.
   write in a dozen lines ([persistence](https://github.com/aadhithya/featherweight/blob/main/docs/persistence.md)).
 - **Talks while it works.** A streaming agent streams its answer as [AG-UI](https://github.com/aadhithya/featherweight/blob/main/docs/streaming.md) events, with no output to
   validate and no retry, for chat. The Vercel AI SDK works too, and the user can stop it midway and correct it.
+- **Submit jobs.** A client submits a named, typed job to a queue; a separate worker runs it and writes the result to your store, with
+  status events you can stream as SSE ([submitted jobs](https://github.com/aadhithya/featherweight/blob/main/docs/submitted-jobs.md)).
 - **Plug things in.** The model (Gemini, Gemma, Claude, OpenAI, or your own subclass), MCP servers and skills are
   declared on the agent. Tool schemas and skill instructions stay out of the context until the agent needs them.
 

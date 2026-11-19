@@ -22,6 +22,7 @@ GUIDES = [
     "skills.md",
     "streaming.md",
     "persistence.md",
+    "submitted-jobs.md",
     "example-pipeline.md",
 ]
 REPO_URL = "https://github.com/aadhithya/featherweight/blob/main"

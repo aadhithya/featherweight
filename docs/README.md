@@ -40,6 +40,7 @@ or finding out why it behaves as it does.
 | [MCP tools](mcp.md) | Declaring servers, connections, what the model gets, failures, finding tools by search | [MCP tools](specs/mcp-tools.md), [tool discovery](specs/tool-discovery.md) |
 | [Streaming agents](streaming.md) | `StreamingAgent`, `runner.stream()`, the events, thoughts, the AG-UI and Vercel adapters, stopping a response, keeping the conversation, the example | [Streaming agents](specs/streaming.md) |
 | [Persistence](persistence.md) | What is kept and what is not, resuming a job, result stores, choosing a database, tenants | [Persistence](specs/persistence.md) |
+| [Submitted jobs](submitted-jobs.md) | A job as a class or a decorator, `JobClient`, `JobWorker`, `JobQueue`, cancelling, job events and SSE, the example | [Submitted jobs](specs/submitted-jobs.md) |
 | [Skills](skills.md) | The skill model, how an agent reads its skills, loading, what the specification covers | [Skills](specs/skills.md) |
 | [Example pipeline](example-pipeline.md) | `doclearn`: what it does, its agents, how it handles failures, and its limits | |
 
