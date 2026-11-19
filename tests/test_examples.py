@@ -9,10 +9,13 @@ from pathlib import Path
 import pytest
 from fakes import FakeSettings, Reactive, Scripted, structured_reply, use_model
 
+from featherweight.client import JobClient
 from featherweight.jobs import run_job
 from featherweight.model_settings import ModelSettings
 from featherweight.models import AgentInput, AgentOutput, RunStatus
+from featherweight.queue import SqliteQueue
 from featherweight.runner import AgentRunner
+from featherweight.worker import JobWorker
 
 EXAMPLES = Path(__file__).parent.parent / "examples"
 
@@ -284,3 +287,46 @@ async def test_the_contract_catches_a_store_of_the_example_that_forgets_to_delet
 
     with pytest.raises(AssertionError, match="delete_job must remove every result"):
         await example.ftw.testing.check_result_store(lambda: Forgetful(Path(tempfile.mkdtemp())))
+
+
+# the jobs example: plain code, no model, no key
+
+
+def jobs_example(monkeypatch, name: str):
+    monkeypatch.syspath_prepend(str(EXAMPLES / "jobs"))
+    monkeypatch.delitem(__import__("sys").modules, name, raising=False)
+    return __import__(name)
+
+
+async def test_the_jobs_example_submits_a_job_and_a_worker_runs_it(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("FTW_DB_PATH", str(tmp_path / "jobs.db"))
+    await jobs_example(monkeypatch, "run").main()
+    out = capsys.readouterr().out.split()
+    assert out[:3] == ["queued", "running", "succeeded"] and "HELLO" in " ".join(out)
+
+
+async def test_the_jobs_example_api_submits_follows_over_sse_and_reads_the_result(db, monkeypatch):
+    import httpx
+
+    shout = jobs_example(monkeypatch, "shout")
+    api = jobs_example(monkeypatch, "api")
+    queue = SqliteQueue(db)
+    api.app.state.client = JobClient(db, queue)  # the lifespan opens its own; a test shares the database
+    worker = JobWorker(db, queue, AgentRunner(db), jobs=[shout.shout], receive_timeout=0.05)
+    running = asyncio.create_task(worker.run())
+    try:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=api.app), base_url="http://test") as http:
+            job_id = (await http.post("/jobs", json={"text": "hello"})).json()["job_id"]
+            stream = await http.get(f"/jobs/{job_id}/events")
+            assert stream.headers["content-type"].startswith("text/event-stream")
+            assert [line for line in stream.text.splitlines() if line.startswith("event:")] == [
+                "event: queued",
+                "event: running",
+                "event: succeeded",
+            ]
+            assert (await http.get(f"/jobs/{job_id}/result")).json() == {"shouted": "HELLO"}
+            resumed = await http.get(f"/jobs/{job_id}/events", headers={"last-event-id": "0"})
+            assert resumed.text.count("event:") == 3
+    finally:
+        await worker.stop(grace=1)
+        await asyncio.wait_for(running, timeout=5)

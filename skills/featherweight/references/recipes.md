@@ -240,6 +240,25 @@ runner = ftw.AgentRunner(db, results=MyStore())
 
 The first job has to be created `resumable=True`. `examples/results/store.py` is a whole store (a JSON file per result).
 
+## A job that a worker runs
+
+```python
+@ftw.job
+async def shout(ctx: ftw.JobContext, input: Text) -> Shouted:
+    return Shouted(shouted=input.text.upper())
+
+
+queue = ftw.SqliteQueue(db)
+worker = ftw.JobWorker(db, queue, ftw.AgentRunner(db), jobs=[shout])  # its own process: await worker.run()
+client = ftw.JobClient(db, queue)
+job_id = await client.submit(shout, Text(text="hello"))
+async for event in client.events(job_id):
+    ...  # or ftw.sse.encode(...) from a web handler
+print(await client.result(shout, job_id))
+```
+
+`references/submitted-jobs.md` has cancelling, shutdown, and writing your own queue. `examples/jobs` runs it.
+
 ## A different provider
 
 ```python

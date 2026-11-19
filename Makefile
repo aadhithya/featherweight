@@ -1,4 +1,4 @@
-.PHONY: skill build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching example-resume example-results example-chat example-chat-api example-mcp shell
+.PHONY: skill build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching example-resume example-results example-jobs example-chat example-chat-api example-mcp shell
 
 build:
 	docker compose build
@@ -73,6 +73,10 @@ example-resume:
 # Writing a result store and checking it for conformance (no model, no key; see examples/results).
 example-results:
 	docker compose run --rm featherweight python examples/results/store.py
+
+# Submit a job and run a worker for it (no model, no key; see examples/jobs).
+example-jobs:
+	docker compose run --rm featherweight python examples/jobs/run.py
 
 # A chat in the terminal with a streaming agent (real Claude Haiku calls; needs ANTHROPIC_API_KEY in .env, see examples/chat).
 example-chat:
