@@ -12,6 +12,17 @@ pip install 'featherweight[anthropic]'    # or mcp, openai, postgres
 Python 3.12 or later. Import what you use: `from featherweight import AgentBase, AgentRunner`. (`import featherweight as ftw`
 works too, as a joke.)
 
+## With a coding agent
+
+There is a skill that teaches a coding agent to build with featherweight. In Claude Code:
+
+```
+/plugin marketplace add aadhithya/featherweight
+/plugin install featherweight@featherweight
+```
+
+Other tools that read Agent Skills: copy [`skills/featherweight`](../skills/featherweight) into their skills folder.
+
 ## An agent
 
 An agent is a class. Its input and output are Pydantic models, and `check_output` checks what a schema cannot.

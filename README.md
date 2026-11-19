@@ -26,44 +26,8 @@ It has opinions. Take them, or fork off.
 | **Run it in the background** | Submit from your API, run on a worker, follow it live, cancel it. The two sides never talk to each other directly. |
 | **Streams to your UI** | Live job status and chat answers stream over standard protocols, so a browser can listen as is. |
 | **Any model, any tool** | Gemini, Gemma, Claude, OpenAI or your own. MCP servers and skills plug in and stay out of the context until needed. |
-| **Your data is yours** | We keep metadata: status, tokens, timing. Inputs, outputs and anything your customers sent never touch us. |
+| **Your data is yours** | You decide how your customers' data is handled and stored. We keep only metadata (status, tokens, timing); inputs, outputs and results go wherever you put them. |
 | **Your storage, your call** | Where and how things are stored is up to you. Implement the interface, and we don't care what is behind it. sqlite and Postgres are there to get you going. |
-
-## featherweight next to LangChain
-
-The same job, an agent that returns a typed answer.
-
-```python
-# LangChain: the schema shapes the answer, and the rest is yours to write
-from langchain.agents import create_agent
-
-agent = create_agent("google_genai:gemini-3.8-flash", tools=[], response_format=People)
-result = await agent.ainvoke({"messages": [("user", text)]})
-people = result["structured_response"]  # retries, limits, a status and a run log: write them yourself
-```
-
-```python
-# featherweight: the class is the contract, and the runner does the rest
-result = await AgentRunner(db).run(PeopleExtractor, ExtractInput(text=text), job_id=job_id)
-if result.status == RunStatus.SUCCESS:
-    print(result.output.people)  # validated, checked by check_output, and retried until it is right
-```
-
-What differs: the agent is declared, not assembled. A bad declaration fails when the class is built, a bad answer fails
-inside the run, and every attempt lands in a run log. LangChain is the better pick for an open-ended chain of tools. This
-is for the agents that run in a pipeline.
-
-The `PeopleExtractor` is in [getting started](https://github.com/aadhithya/featherweight/blob/main/docs/getting-started.md).
-
-## Install
-
-```
-pip install featherweight
-pip install 'featherweight[anthropic]'    # or mcp, openai, postgres
-```
-
-Python 3.12 or later. Import what you use: `from featherweight import AgentBase, AgentRunner`. (`import featherweight as ftw`
-works too, as a joke.) [Getting started](https://github.com/aadhithya/featherweight/blob/main/docs/getting-started.md) has a first agent and how to run it.
 
 ## Why does this exist? Pydantic AI and LangGraph are right there.
 
@@ -76,9 +40,77 @@ They are. Use them. This is built on LangChain and LangGraph anyway.
 
 Want durable execution, evals or OpenTelemetry? Pydantic AI. Want a graph that pauses and resumes? LangGraph.
 
-## Build with a coding agent
+### Next to LangChain
 
-There is a skill that teaches a coding agent to build with `featherweight`. In Claude Code:
+The same agent, one that finds the people in a text.
+
+```python
+# LangChain: you assemble it, and the schema only shapes the answer
+from langchain.agents import create_agent
+from pydantic import BaseModel
+
+
+class People(BaseModel):
+    people: list[str] = []
+
+
+agent = create_agent(
+    "google_genai:gemini-3.8-flash",
+    system_prompt="List every person named in the text.",
+    response_format=People,
+)
+result = await agent.ainvoke({"messages": [("user", text)]})
+people = result["structured_response"]  # retries, limits, a status and a run log: write them yourself
+```
+
+```python
+# featherweight: you declare it, and the runner does the rest
+from typing import ClassVar
+
+from featherweight import AgentBase, AgentInput, AgentOutput, AgentRunner, RunStatus
+
+
+class ExtractInput(AgentInput):
+    text: str
+
+
+class ExtractOutput(AgentOutput):
+    people: list[str] = []
+
+
+class PeopleExtractor(AgentBase):
+    name: str = "people_extractor"
+    description: str = "Finds the people named in a text"
+    version: str = "0.1.0"
+    prompt: str = "List every person named in the text."
+    input_model: ClassVar[type[AgentInput]] = ExtractInput
+    output_model: ClassVar[type[AgentOutput]] = ExtractOutput
+
+    def check_output(self, agent_input, output):  # what a schema can't say; raise and the model tries again
+        if missing := [p for p in output.people if p not in agent_input.text]:
+            raise ValueError(f"Not in the text: {missing}")
+
+
+result = await AgentRunner(db).run(PeopleExtractor, ExtractInput(text=text), job_id=job_id)
+if result.status == RunStatus.SUCCESS:
+    print(result.output.people)  # validated, checked, and retried until it is right
+```
+
+What differs: the agent is declared, not assembled. A bad declaration fails when the class is built, a bad answer fails
+inside the run and is retried, and every attempt lands in a run log. LangChain is the better pick for an open-ended chain of
+tools. This is for the agents that run in a pipeline.
+
+## Getting started
+
+```
+pip install featherweight
+pip install 'featherweight[anthropic]'    # or mcp, openai, postgres
+```
+
+Python 3.12 or later. Import what you use: `from featherweight import AgentBase, AgentRunner`. (`import featherweight as ftw`
+works too, as a joke.) [Getting started](https://github.com/aadhithya/featherweight/blob/main/docs/getting-started.md) has a first agent and how to run it.
+
+**With a coding agent.** There is a skill that teaches a coding agent to build with `featherweight`. In Claude Code:
 
 ```
 /plugin marketplace add aadhithya/featherweight
