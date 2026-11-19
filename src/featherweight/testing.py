@@ -113,12 +113,16 @@ async def _check_job_events(db: Database) -> None:
     assert seen[0].job_id == job and seen[0].at.tzinfo is not None and seen[0].error_type is None
 
     await db.set_job_status(job, RunStatus.RUNNING)
+    assert await db.list_cancel_requested([job]) == set(), "a job nobody asked to cancel is not listed"
+    assert await db.list_cancel_requested([]) == set()
     assert await db.request_job_cancel(job) is True
     assert await db.request_job_cancel(job) is True, "asking again is not an error"
+    assert await db.list_cancel_requested([job, "no-such-job"]) == {job}, "a job that was asked to cancel is listed"
     row = await db.get_job(job)
     assert row is not None and row.cancel_requested is True and row.status is RunStatus.RUNNING
     await db.set_job_status(job, RunStatus.FAILED, error_type="ValueError", error_hash=_hash("boom"))
     events = await db.list_job_events(job)
+    assert await db.list_cancel_requested([job]) == set(), "a final job is not listed, whatever its flag"
     assert [e.type for e in events] == ["queued", "running", "cancel_requested", "failed"], (
         "one event per change, none for a repeat"
     )

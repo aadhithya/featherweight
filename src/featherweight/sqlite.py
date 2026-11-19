@@ -207,6 +207,18 @@ class SqliteDatabase(Database):
         logger.info("job_cancel_requested job_id=%s", job_id)
         return True
 
+    async def list_cancel_requested(self, job_ids: Sequence[str]) -> set[str]:
+        if not job_ids:
+            return set()
+        marks = ", ".join("?" for _ in job_ids)
+        final = [status.value for status in FINAL]
+        async with self.conn.execute(
+            f"SELECT job_id FROM jobs WHERE job_id IN ({marks}) AND cancel_requested = 1 "
+            f"AND status NOT IN ({', '.join('?' for _ in final)})",
+            [*job_ids, *final],
+        ) as cur:
+            return {row["job_id"] for row in await cur.fetchall()}
+
     async def get_job(self, job_id: str) -> JobRow | None:
         async with self.conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)) as cur:
             row = await cur.fetchone()

@@ -243,6 +243,11 @@ class Database(ABC):
         transaction. Returns False, and changes nothing, for a job that does not exist or is already final. Asking twice writes
         one event. The job's worker does the cancelling."""
 
+    @abstractmethod
+    async def list_cancel_requested(self, job_ids: Sequence[str]) -> set[str]:
+        """Which of these jobs have `cancel_requested` set and are not final yet, in one query. It is what a job worker asks, about
+        the jobs it is running, to learn that a client wants one of them cancelled."""
+
     # job events
 
     @abstractmethod

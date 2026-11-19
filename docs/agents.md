@@ -280,6 +280,30 @@ async def events(job_id: str, request: Request):
     return StreamingResponse(ftw.sse.encode(ftw.job_events(db, job_id, after)), headers=ftw.sse.HEADERS)
 ```
 
+**Running jobs: the job worker.** `ftw.JobWorker(db, queue, runner, jobs=[...], results=...)` is the process that runs submitted
+jobs. It holds no state of its own: it is the database, the queue and your result store.
+
+```python
+worker = ftw.JobWorker(db, queue, runner, jobs=[Summarise, Shouter], results=my_store, concurrency=10)
+await worker.run()  # until `await worker.stop()` is called
+```
+
+- **A message** names a job. The worker skips (and acknowledges) one whose job is already `CANCELLED`, fails one it has no job
+  for (`UnknownJob`) or whose input does not fit the job's model (`InvalidJobInput`), and otherwise marks the job `RUNNING` and
+  runs it as a task, up to `concurrency` at a time. Jobs are given as `Job` classes, or as plain agent classes.
+- **Success:** the output is written through your `ResultStore` under `ResultKey(job_id, job_hash, input_hash)`, the job is
+  `SUCCESS`, the message is acknowledged. If the store cannot keep it, the job is `FAILED`: the output is its product.
+  `results=None` keeps nothing; the default with a `SqliteDatabase` is the sqlite store.
+- **Failure:** `FAILED` with the error's type and hash (the text is in the log), and the message is acknowledged. **A failed job is
+  never retried by the worker**: you resume it. A failure is an outcome, not a delivery failure, so nothing is dead-lettered.
+- **Cancelling:** `worker.cancel(job_id)` cancels a job at once, in the same process. A client in another process sets
+  `cancel_requested` (`request_job_cancel`), and the worker checks, every `cancel_poll` seconds and in one query for all its own
+  running jobs, and cancels them. A cancelled job is `CANCELLED`.
+- **Shutdown:** `await worker.stop(grace)` takes no new messages and waits up to `grace` seconds; jobs still running are cancelled
+  and **returned to the queue** (back to `INIT`, the message `nack`ed with `requeue=True`), and run again from the start. If the
+  task that runs the worker is cancelled, the same happens at once.
+- A worker that dies without stopping leaves its messages claimed: recovering from that is for the next release.
+
 **What is on record, and what is not.** The run log is the state of the orchestration: what ran, in what order, which agent
 launched which, with what outcome, at what cost. It holds **no inputs, outputs, messages or error text**: where a name or a
 text could carry a client's data, there is a hash instead. The data stays with your application.

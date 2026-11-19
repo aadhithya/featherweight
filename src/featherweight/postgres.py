@@ -185,6 +185,15 @@ class PostgresDatabase(Database):
         logger.info("job_cancel_requested job_id=%s", job_id)
         return True
 
+    async def list_cancel_requested(self, job_ids: Sequence[str]) -> set[str]:
+        if not job_ids:
+            return set()
+        cur = await self.conn.execute(
+            "SELECT job_id FROM jobs WHERE job_id = ANY(%s) AND cancel_requested AND status <> ALL(%s)",
+            (list(job_ids), [status.value for status in FINAL]),
+        )
+        return {row["job_id"] for row in await cur.fetchall()}
+
     async def get_job(self, job_id: str) -> JobRow | None:
         cur = await self.conn.execute("SELECT * FROM jobs WHERE job_id = %s", (job_id,))
         row = await cur.fetchone()
