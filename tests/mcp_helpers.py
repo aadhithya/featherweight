@@ -8,6 +8,7 @@ from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
 
 from micro.mcp import HttpMCPServer, StdioMCPServer
+from micro.model_settings import ModelSettings
 
 SERVER_SCRIPT = str(Path(__file__).parent / "mcp_fake_server.py")
 
@@ -18,14 +19,15 @@ def fake(name="fake", **kwargs) -> StdioMCPServer:
     return StdioMCPServer(name=name, command=sys.executable, args=(SERVER_SCRIPT,), **kwargs)
 
 
-def worker(*servers, tools=(), name="worker"):
-    """An agent class with the given servers and local tools."""
-    server_list, tool_list, agent_name = list(servers), list(tools), name
+def worker(*servers, tools=(), name="worker", model=None):
+    """An agent class with the given servers and local tools, and optionally its own model settings."""
+    server_list, tool_list, agent_name, settings = list(servers), list(tools), name, model or Echo().model
 
     class Worker(Echo):
         name: str = agent_name
         tools: list[BaseTool] = tool_list
         mcp_servers: list[StdioMCPServer | HttpMCPServer] = server_list
+        model: ModelSettings = settings
 
     return Worker
 

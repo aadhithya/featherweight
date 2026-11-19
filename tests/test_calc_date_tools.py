@@ -4,13 +4,13 @@ import datetime as dt
 from typing import ClassVar
 
 import pytest
-from fakes import Scripted, structured_reply, tool_reply
+from fakes import FakeSettings, Scripted, runner_with, structured_reply, tool_reply
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
 
 from micro import tools as tools_module
+from micro.model_settings import ModelSettings
 from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus
-from micro.runner import AgentRunner
 from micro.tools import add_to_date, calculate, current_datetime, days_between
 
 
@@ -143,6 +143,7 @@ class Helper(AgentBase):
     description: str = "Uses the calculate and date tools"
     version: str = "0.1.0"
     prompt: str = "Use the tools."
+    model: ModelSettings = FakeSettings()
     tools: list[BaseTool] = [calculate, current_datetime, add_to_date, days_between]
     input_model: ClassVar[type[AgentInput]] = TaskInput
     output_model: ClassVar[type[AgentOutput]] = TaskOutput
@@ -157,7 +158,7 @@ async def test_an_agent_can_call_the_tools_through_the_runner(db, fixed_now):
             structured_reply("TaskOutput", {"result": "done"}),
         ]
     )
-    runner = AgentRunner(db, model_factory=lambda agent: model, retry_delay_s=0.0)
+    runner = runner_with(db, model)
 
     result = await runner.run(Helper, TaskInput(task="x"))
 

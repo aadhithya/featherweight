@@ -2,11 +2,12 @@ import json
 import logging
 
 import pytest
-from fakes import Echo, EchoInput, EchoOutput, Scripted, runner_with, structured_reply, tool_reply
+from fakes import Echo, EchoInput, EchoOutput, FakeSettings, Scripted, runner_with, structured_reply, tool_reply
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.tools import BaseTool, tool
 
 from micro import runner as runner_module
+from micro.model_settings import Gemini, ModelSettings
 from micro.models import AgentInput, RunStatus
 from micro.runner import AgentRunner, ModelSetupError, is_non_retryable
 
@@ -54,9 +55,9 @@ async def test_success(db):
     assert (row.input_tokens, row.output_tokens) == (5, 7)
     assert row.reported_model_name == "gemini-3.5-flash-lite"
     assert row.system_prompt_hash == Echo().system_prompt_hash
-    assert row.model_name == "gemini-3.5-flash-lite"
-    assert (row.provider, row.reasoning) == ("google", "medium")
-    assert row.settings == {"model": "gemini-3.5-flash-lite", "max_output_tokens": None, "thinking": "medium"}
+    assert row.model_name == "fake-model"  # what the agent's settings name, as against what the API reported
+    assert (row.provider, row.reasoning) == ("fake", "")
+    assert row.settings == {"model": "fake-model", "max_output_tokens": None, "key": "default"}
     assert row.completed_at is not None
 
     messages = model.seen[0]  # what the model was sent
@@ -208,14 +209,23 @@ async def test_non_retryable_error_fails_fast_without_waiting(db, monkeypatch, m
     assert len(await db.list_runs()) == 1
 
 
-def broken_factory(agent):
-    raise ValueError("API key required")
+class RealEcho(Echo):
+    model: ModelSettings = Gemini()  # a real provider: conftest has removed the API keys, so it cannot be built
 
 
-@pytest.mark.parametrize("kwargs", [{}, {"model_factory": broken_factory}], ids=["no_api_key", "factory_raises"])
-async def test_model_setup_error_fails_fast_and_is_returned_not_raised(db, kwargs):
-    # With no factory, conftest has removed the API keys, so the real model cannot be built: no network is touched.
-    result = await AgentRunner(db, retry_delay_s=0.0, **kwargs).run(Echo, EchoInput(text="x"))
+class BrokenSettings(FakeSettings):
+    def build(self):
+        raise ValueError("API key required")
+
+
+class BrokenEcho(Echo):
+    model: ModelSettings = BrokenSettings()
+
+
+@pytest.mark.parametrize("agent", [RealEcho, BrokenEcho], ids=["no_api_key", "build_raises"])
+async def test_model_setup_error_fails_fast_and_is_returned_not_raised(db, agent):
+    # No network is touched: the real provider fails at setup, and the broken one raises.
+    result = await AgentRunner(db, retry_delay_s=0.0).run(agent, EchoInput(text="x"))
 
     assert result.status == RunStatus.FAILED
     assert result.attempts == 1

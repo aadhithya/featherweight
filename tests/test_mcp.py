@@ -5,7 +5,7 @@ import logging
 import os
 
 import pytest
-from fakes import Echo, EchoInput, Reactive, Scripted, runner_with, tool_reply
+from fakes import Echo, EchoInput, FakeSettings, Reactive, Scripted, runner_with, tool_reply, use_model
 from langchain_core.messages import AIMessage
 from langchain_core.tools import tool
 from mcp_helpers import INPUT, done, fake, shown, texts, worker
@@ -275,7 +275,7 @@ async def test_agents_with_equal_connection_settings_share_one_process(db):
     two = Scripted(script=[tool_reply("other_pid", {}, "c1"), done()])
     async with runner_with(db, one) as runner:
         await runner.run(worker(fake(name="fake")), INPUT)
-        runner._model_factory = lambda agent: two
+        use_model(two)
         await runner.run(worker(fake(name="other", tools=("pid",))), INPUT)
 
     assert texts(one) == texts(two)
@@ -286,7 +286,7 @@ async def test_servers_with_different_settings_get_their_own_process(db):
     two = Scripted(script=[tool_reply("fake_pid", {}, "c1"), done()])
     async with runner_with(db, one) as runner:
         await runner.run(worker(fake(name="fake")), INPUT)
-        runner._model_factory = lambda agent: two
+        use_model(two)
         await runner.run(worker(fake(name="fake", env_from=("PATH",))), INPUT)
 
     assert texts(one) != texts(two)
@@ -300,7 +300,7 @@ async def test_a_server_that_dies_gives_text_to_the_model_and_the_next_run_gets_
         assert result.status == RunStatus.SUCCESS  # the run was not lost with the server
         assert "unavailable" in texts(first)[1]
 
-        runner._model_factory = lambda agent: second
+        use_model(second)
         result = await runner.run(worker(fake()), INPUT)
 
     assert result.status == RunStatus.SUCCESS
@@ -427,7 +427,7 @@ async def test_concurrent_first_leases_open_one_connection():
 
 
 async def test_a_sub_agent_uses_the_servers_it_declares_itself(db):
-    child_cls = worker(fake(), name="child_worker")
+    child_cls = worker(fake(), name="child_worker", model=FakeSettings(key="child"))
     parent_model = Scripted(
         script=[
             tool_reply("launch_agent", {"agent_name": "child_worker", "input_json": '{"text": "x"}'}, "p1"),
@@ -440,9 +440,8 @@ async def test_a_sub_agent_uses_the_servers_it_declares_itself(db):
         name: str = "boss"
         subagents: list[type] = [child_cls]
 
-    models = {"boss": parent_model, "child_worker": child_model}
     runner = runner_with(db, parent_model)
-    runner._model_factory = lambda agent: models[agent.name]
+    use_model(child_model, key="child")  # the child declares its own settings, which name this model
     result = await runner.run(Boss, INPUT)  # the runner is not open: the child's server starts and stops by itself
 
     assert result.status == RunStatus.SUCCESS

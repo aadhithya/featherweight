@@ -8,14 +8,40 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 
+from micro.model_settings import ModelSettings
 from micro.models import AgentBase, AgentInput, AgentOutput
 from micro.runner import AgentRunner
 
+MODELS: dict[str, BaseChatModel] = {}  # the scripted chat models of the running test, by key; emptied for each test
+
+
+class FakeSettings(ModelSettings):
+    """Model settings for tests. `build()` returns the scripted chat model the test registered under `key`, so a test
+    agent is declared with model settings like a production agent, and the runner takes the production path:
+    `agent.model.build()`."""
+
+    provider: ClassVar[str] = "fake"
+    model: str = "fake-model"
+    key: str = "default"  # which scripted model of the test this agent gets
+
+    def build(self):
+        if self.key not in MODELS:
+            raise AssertionError(
+                f"no fake model {self.key!r} in this test: use runner_with(db, model) or use_model(model)"
+            )
+        return MODELS[self.key]
+
+
+def use_model(model: BaseChatModel, key: str = "default") -> None:
+    """From now on, agents whose settings have this `key` are run by `model`."""
+    MODELS[key] = model
+
 
 def runner_with(db, model, **kwargs) -> AgentRunner:
-    """An AgentRunner on `db` that always uses `model`, with no delay between retries."""
+    """An AgentRunner on `db`, whose agents run on `model`, with no delay between retries."""
+    use_model(model)
     kwargs.setdefault("retry_delay_s", 0.0)
-    return AgentRunner(db, model_factory=lambda agent: model, **kwargs)
+    return AgentRunner(db, **kwargs)
 
 
 class EchoInput(AgentInput):
@@ -31,6 +57,7 @@ class Echo(AgentBase):
     description: str = "Echoes the input"
     version: str = "0.1.0"
     prompt: str = "Echo the input text."
+    model: ModelSettings = FakeSettings()
     input_model: ClassVar[type[AgentInput]] = EchoInput
     output_model: ClassVar[type[AgentOutput]] = EchoOutput
 

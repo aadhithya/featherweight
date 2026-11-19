@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 import pytest_asyncio
+from fakes import MODELS
 
 from micro.db import Database
 from micro.log import setup_logging
@@ -34,6 +35,7 @@ def no_real_llm_calls(request, monkeypatch):
     """
     if is_e2e(request.node):
         return
+    MODELS.clear()  # a test registers its own fake models (tests/fakes.py)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     for name in ("MAX_CONCURRENT_AGENT_RUNS", "MAX_AGENT_DEPTH", "MAX_AGENT_LAUNCHES"):

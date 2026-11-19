@@ -4,7 +4,7 @@ import json
 import logging
 
 import pytest
-from fakes import Scripted, runner_with, tool_reply
+from fakes import Scripted, runner_with, tool_reply, use_model
 from langchain_core.messages import SystemMessage
 from langchain_core.tools import tool
 from mcp_helpers import INPUT, done, fake, shown, texts, worker
@@ -232,7 +232,7 @@ async def test_a_dead_server_gives_text_and_the_next_run_gets_a_new_one(db):
     assert (await runner.run(worker(finder()), INPUT)).status == RunStatus.SUCCESS
     assert "unavailable" in texts(first)[1]
 
-    runner._model_factory = lambda agent: second
+    use_model(second)
     await runner.run(worker(finder()), INPUT)
     assert texts(second)[0] != texts(first)[0]
 

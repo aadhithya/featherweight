@@ -3,10 +3,11 @@
 import json
 from typing import ClassVar
 
-from fakes import Scripted, runner_with, structured_reply, tool_reply
+from fakes import FakeSettings, Scripted, runner_with, structured_reply, tool_reply
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
 
+from micro.model_settings import ModelSettings
 from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus
 from micro.store import RunStore
 from micro.tools import store_get, store_set
@@ -25,6 +26,7 @@ class Notetaker(AgentBase):
     description: str = "Saves and reads notes"
     version: str = "0.1.0"
     prompt: str = "Save and read notes."
+    model: ModelSettings = FakeSettings()
     tools: list[BaseTool] = [store_get, store_set]
     input_model: ClassVar[type[AgentInput]] = TaskInput
     output_model: ClassVar[type[AgentOutput]] = TaskOutput
