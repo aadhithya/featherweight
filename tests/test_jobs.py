@@ -58,7 +58,7 @@ async def _jobs(db):
         return await cur.fetchall()
 
 
-async def test_a_cancelled_job_is_marked_failed_and_the_cancellation_is_not_swallowed(db):
+async def test_a_cancelled_job_is_marked_cancelled_and_the_cancellation_is_not_swallowed(db):
     started = asyncio.Event()
 
     async def pipeline(job_id):
@@ -73,4 +73,5 @@ async def test_a_cancelled_job_is_marked_failed_and_the_cancellation_is_not_swal
     with pytest.raises(asyncio.CancelledError):
         await task
     job = await db.get_job(job_id)
-    assert (job.status, job.error_type, job.error_hash) == (RunStatus.FAILED, "CancelledError", text_hash("Cancelled"))
+    assert (job.status, job.error_type, job.error_hash) == (RunStatus.CANCELLED, None, None)
+    assert job.completed_at is not None and job.started_at is not None

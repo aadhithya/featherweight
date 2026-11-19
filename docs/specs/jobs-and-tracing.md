@@ -71,7 +71,7 @@ for every implementation; timestamps are timezone-aware `datetime`s. The tables 
 when the database connects and recorded in `schema_migrations`; a database from before migrations is refused (`SetupError`).
 There is **no input, output, message or error text in any of them**. Foreign keys are on.
 
-**`jobs`**: `job_id`, `name`, `status`, `resumable` (the job keeps the outputs of its steps, so that it can be resumed),
+**`jobs`**: `job_id`, `name`, `status`, `job_hash` and `input_hash` (a submitted job: see [submitted jobs](submitted-jobs.md); `NULL` for a job made by `run_job`), `cancel_requested`, `started_at`, `resumable` (the job keeps the outputs of its steps, so that it can be resumed),
 `resumed_from` (the job this one resumes; `NULL` otherwise), `error_type`, `error_hash`, `created_at`, `completed_at`.
 
 **`agent_runs`**, one row **per attempt**:
@@ -107,7 +107,7 @@ A reused or cancelled-while-queued run has no `started_at`. The whole launch tre
 | `RUNNING` | The pipeline runs | Holds a slot and runs |
 | `SUCCESS` | The pipeline returned | The output validated |
 | `FAILED` | The pipeline raised, or was cancelled | The attempt failed |
-| `CANCELLED` | Not used yet: a cancelled job is `FAILED` with "Cancelled" (the jobs epic changes it) | The attempt was cancelled: the task that awaited it was cancelled, a launched agent whose parent was, or a [streaming](streaming.md) run that was stopped |
+| `CANCELLED` | The task running the pipeline was cancelled (`run_job`), or the job was cancelled before it ran | The attempt was cancelled: the task that awaited it was cancelled, a launched agent whose parent was, or a [streaming](streaming.md) run that was stopped |
 
 `finish_run` accepts only a terminal status (`SUCCESS`, `FAILED` or `CANCELLED`).
 

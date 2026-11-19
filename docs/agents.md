@@ -197,6 +197,25 @@ outcome = await ftw.run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner
 To run in the background and hand the caller the id first, create the job with `db.create_job` and use
 `asyncio.create_task(run_job(db, name, pipeline, job_id=job_id))`.
 
+**A job as a class.** A job that a worker is to run by name is a declared class, like an agent:
+
+```python
+class Shout(ftw.Job):
+    name = "shout"
+    version = "1"
+    input_model = ShoutInput  # Pydantic
+    output_model = ShoutOutput
+
+    async def run(self, ctx: ftw.JobContext, input: ShoutInput) -> ShoutOutput:
+        result = await ctx.run(Shouter, ShouterInput(text=input.text))  # an agent, run in this job
+        ...
+```
+
+The name, the version and both models are checked when the class is defined, and `Shout.job_hash()` changes when any of them (or
+either schema) does. `ctx.run` and `ctx.run_many` run agents **in the job**, so they share its trace and its resume. A plain
+agent can be a job too (`ftw.as_job(Shouter)`: its name, its models, and its `agent_hash`); a streaming agent cannot. Submitting
+jobs to a queue for a separate worker is being built ([epic #71](https://github.com/aadhithya/featherweight/issues/71)).
+
 **What is on record, and what is not.** The run log is the state of the orchestration: what ran, in what order, which agent
 launched which, with what outcome, at what cost. It holds **no inputs, outputs, messages or error text**: where a name or a
 text could carry a client's data, there is a hash instead. The data stays with your application.
@@ -221,7 +240,8 @@ pass `results=` to the runner, or leave resume off. To try it locally, `docker c
 of `PostgresDatabase` run against it when `FTW_TEST_POSTGRES_URL` is set (`make test` does).
 
 Two tables record everything. `jobs`: id, name, status, whether it is `resumable`, `resumed_from` (the job this one resumes, or
-empty), the error's type and hash, and when it was created and completed. `agent_runs`: one row **per attempt**:
+empty), for a submitted job its `job_hash` and `input_hash`, `cancel_requested`, the error's type and hash, and when it was created,
+started and completed. A job whose task is cancelled is `CANCELLED`. `agent_runs`: one row **per attempt**:
 
 | Column | |
 |---|---|

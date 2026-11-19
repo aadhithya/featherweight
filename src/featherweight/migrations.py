@@ -27,9 +27,13 @@ CREATE TABLE jobs (
     status        TEXT NOT NULL CHECK (status IN {STATUSES}),
     resumable     INTEGER NOT NULL DEFAULT 0 CHECK (resumable IN (0, 1)),
     resumed_from  TEXT REFERENCES jobs(job_id),
+    job_hash      TEXT,
+    input_hash    TEXT,
+    cancel_requested INTEGER NOT NULL DEFAULT 0 CHECK (cancel_requested IN (0, 1)),
     error_type    TEXT,
     error_hash    TEXT,
     created_at    TEXT NOT NULL,
+    started_at    TEXT,
     completed_at  TEXT
 );
 
@@ -90,9 +94,13 @@ CREATE TABLE jobs (
     status        text NOT NULL CHECK (status IN {STATUSES}),
     resumable     boolean NOT NULL DEFAULT false,
     resumed_from  text REFERENCES jobs(job_id),
+    job_hash      text,
+    input_hash    text,
+    cancel_requested boolean NOT NULL DEFAULT false,
     error_type    text,
     error_hash    text,
     created_at    timestamptz NOT NULL,
+    started_at    timestamptz,
     completed_at  timestamptz
 );
 

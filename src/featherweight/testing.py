@@ -138,6 +138,29 @@ async def check_database(make_db: Callable[[], Database]) -> None:
         else:
             raise AssertionError("set_job_status of a job that does not exist must raise LookupError")
 
+        # the columns of a submitted job: its hashes, when it started, and the flag
+        hashed = await db.create_job("p", job_hash=_hash("job"), input_hash=_hash("in"))
+        row = await db.get_job(hashed)
+        assert row is not None and (row.job_hash, row.input_hash) == (_hash("job"), _hash("in"))
+        assert row.started_at is None and row.cancel_requested is False
+        plain = await db.get_job(job_id)
+        assert plain is not None and plain.job_hash is None and plain.input_hash is None
+        await db.set_job_status(hashed, RunStatus.RUNNING)
+        row = await db.get_job(hashed)
+        assert row is not None and row.started_at is not None, "RUNNING sets started_at"
+        await db.set_job_status(hashed, RunStatus.INIT)
+        row = await db.get_job(hashed)
+        assert row is not None and row.started_at is None and row.status is RunStatus.INIT, (
+            "back to INIT clears started_at"
+        )
+        await db.set_job_status(hashed, RunStatus.RUNNING)
+        await db.set_job_status(hashed, RunStatus.CANCELLED, error_type="Ignored", error_hash=_hash("x"))
+        row = await db.get_job(hashed)
+        assert row is not None and row.status is RunStatus.CANCELLED and row.completed_at is not None
+        assert row.started_at is not None and row.error_type is None, (
+            "CANCELLED is final, keeps started_at, has no error"
+        )
+
         # resuming: the rules are in `Database.create_job`, so this checks that the implementation stores what it is given
         keeps = await db.create_job("p", resumable=True)
         retry = await db.create_job("p", resume_from=keeps)

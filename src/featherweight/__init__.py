@@ -47,6 +47,9 @@ _EXPORTS = {
     "default_db_path": "db",
     "run_job": "jobs",
     "JobOutcome": "jobs",
+    "Job": "jobs",
+    "JobContext": "jobs",
+    "as_job": "jobs",
     # what an agent can have, and what a tool can use
     "Skill": "skills",
     "StdioMCPServer": "mcp",
@@ -99,7 +102,10 @@ if TYPE_CHECKING:  # for editors and type checkers: the same names, imported
     from featherweight.db import RunStart as RunStart
     from featherweight.db import default_db_path as default_db_path
     from featherweight.errors import SetupError as SetupError
+    from featherweight.jobs import Job as Job
+    from featherweight.jobs import JobContext as JobContext
     from featherweight.jobs import JobOutcome as JobOutcome
+    from featherweight.jobs import as_job as as_job
     from featherweight.jobs import run_job as run_job
     from featherweight.log import setup_logging as setup_logging
     from featherweight.mcp import HttpMCPServer as HttpMCPServer

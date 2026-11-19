@@ -90,10 +90,19 @@ class PostgresDatabase(Database):
 
     # jobs
 
-    async def insert_job(self, job_id: str, name: str, resumed_from: str | None, resumable: bool) -> str:
+    async def insert_job(
+        self,
+        job_id: str,
+        name: str,
+        resumed_from: str | None,
+        resumable: bool,
+        job_hash: str | None,
+        input_hash: str | None,
+    ) -> str:
         await self.conn.execute(
-            "INSERT INTO jobs (job_id, name, status, resumable, resumed_from, created_at) VALUES (%s, %s, %s, %s, %s, %s)",
-            (job_id, name, RunStatus.INIT.value, resumable, resumed_from, now()),
+            "INSERT INTO jobs (job_id, name, status, resumable, resumed_from, job_hash, input_hash, created_at) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+            (job_id, name, RunStatus.INIT.value, resumable, resumed_from, job_hash, input_hash, now()),
         )
         logger.info("job_created job_id=%s name=%s resumed_from=%s resumable=%s", job_id, name, resumed_from, resumable)
         return job_id
@@ -104,13 +113,15 @@ class PostgresDatabase(Database):
         status = RunStatus(status)
         terminal = status in (RunStatus.SUCCESS, RunStatus.FAILED, RunStatus.CANCELLED)
         failed = status is RunStatus.FAILED
+        started = ", started_at = %s" if status in (RunStatus.RUNNING, RunStatus.INIT) else ""
         cur = await self.conn.execute(
-            "UPDATE jobs SET status = %s, completed_at = %s, error_type = %s, error_hash = %s WHERE job_id = %s",
+            f"UPDATE jobs SET status = %s, completed_at = %s, error_type = %s, error_hash = %s{started} WHERE job_id = %s",
             (
                 status.value,
                 now() if terminal else None,
                 error_type if failed else None,
                 error_hash if failed else None,
+                *([now() if status is RunStatus.RUNNING else None] if started else []),
                 job_id,
             ),
         )
