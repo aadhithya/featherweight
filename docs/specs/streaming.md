@@ -1,6 +1,6 @@
 # Spec: streaming agents
 
-Status: being built. #30 (the class, `ChatInput`, `runner.stream()`, the run log), #31 (the events: text, tool calls, thoughts, steps; `show_thoughts`), #32 (messages in and out: the converters, `from_langchain`, `from_agui`, `new_messages`), #34 (the AG-UI adapter) and #35 (the Vercel adapter) are done; the other issues are not. It is tracked in [epic #29](https://github.com/aadhithya/micro/issues/29), and each part has its own
+Status: being built. #33 (stopping a response) is done too. #30 (the class, `ChatInput`, `runner.stream()`, the run log), #31 (the events: text, tool calls, thoughts, steps; `show_thoughts`), #32 (messages in and out: the converters, `from_langchain`, `from_agui`, `new_messages`), #34 (the AG-UI adapter) and #35 (the Vercel adapter) are done; the other issues are not. It is tracked in [epic #29](https://github.com/aadhithya/micro/issues/29), and each part has its own
 issue (listed [at the end](#the-work)). When a part is built, this page says so and the guide `docs/streaming.md` shows how to use it.
 
 It changes [agents](agents.md) (a new kind of agent), [the runner](runner.md) (`stream()`, and `run()` refuses a streaming
@@ -189,19 +189,20 @@ had its effect. So after a cancel, `new_messages` holds the partial turn, cleane
 | State when stopped | What `new_messages` has |
 |---|---|
 | Text was streaming | The assistant message with the text so far |
-| Thoughts were streaming | The reasoning so far |
-| A tool call's arguments were still streaming | That tool call is **dropped** (it is not complete) |
-| A tool call was complete, the tool had not returned | The tool call, **and a tool message with an error: "cancelled by the user"**, because a provider rejects a tool call that has no result |
+| Thoughts were streaming | The reasoning so far, **only when it has its signature** (or opaque value): a provider rejects a thinking block without one. The text is kept either way |
+| A tool call's arguments were still streaming | That tool call is **dropped** (it is not complete: its arguments are not valid JSON yet) |
+| A tool call was complete, the tool had not returned | The tool call, **and a tool message with an error: "This tool did not return: cancelled by the user."**, because a provider rejects a tool call that has no result |
 | A tool had returned | The call and its real result |
 
-`new_messages` is filled in a `finally` inside the runner, so it is there after a disconnect too.
+`new_messages` is filled when the run ends, whatever ended it, so it is there after a disconnect too. **A turn that fails** is
+closed the same way (its text so far, no call without a result, with "the run failed" as the reason).
 
 **What a stop does not do**
 
 - A synchronous tool running in a thread cannot be interrupted, and an MCP call may finish on the server. **A side effect can
   still complete after the person pressed stop.** The guide says it.
 - A cancelled call's token usage may be unknown. The row records what is known.
-- A launched sub-agent is cancelled with its parent.
+- A launched sub-agent is cancelled with its parent, and its row is `CANCELLED` (this also changes `run()`: a run whose task is cancelled is marked `CANCELLED`, not left `RUNNING`).
 - The concurrency slot is released (tested at each point above, and while waiting for the slot).
 
 ## The run log

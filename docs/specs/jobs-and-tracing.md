@@ -100,8 +100,9 @@ cheap.
 | `RUNNING` | The pipeline runs | Holds a slot and runs |
 | `SUCCESS` | The pipeline returned | The output validated |
 | `FAILED` | The pipeline raised, or was cancelled | The attempt failed |
+| `CANCELLED` | Not used yet: a cancelled job is `FAILED` with "Cancelled" (the jobs epic changes it) | The attempt was cancelled: the task that awaited it was cancelled, a launched agent whose parent was, or a [streaming](streaming.md) run that was stopped |
 
-`finish_run` accepts only a terminal status.
+`finish_run` accepts only a terminal status (`SUCCESS`, `FAILED` or `CANCELLED`).
 
 ## Logging
 

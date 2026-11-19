@@ -12,6 +12,7 @@ from typing import Any
 from ag_ui.core import (
     BaseEvent,
     RunErrorEvent,
+    RunFinishedCancelledOutcome,
     RunFinishedEvent,
     RunFinishedSuccessOutcome,
     RunStartedEvent,
@@ -157,6 +158,36 @@ class _Slot:
             await self.acquire()  # if this is cancelled, `held` stays False and the final release does nothing
 
 
+class _Turn:
+    """What the end of a streamed turn needs to know: the mapper and the text written so far."""
+
+    def __init__(self, mapper: EventMapper):
+        self.mapper = mapper
+        self.output_length = 0
+        self.output_digest = hashlib.sha256()
+
+
+def _close_turn(partial: AIMessage | None, messages: list[BaseMessage], why: str) -> list[BaseMessage]:
+    """The messages that end a turn that stopped halfway: the message the model was writing (when there is something to keep
+    of it), and a tool message for every tool call that has no result, because a provider rejects a call without one."""
+    out: list[BaseMessage] = [partial] if partial is not None else []
+    answered = {m.tool_call_id for m in messages if isinstance(m, ToolMessage)}
+    for message in [*messages, *out]:
+        if isinstance(message, AIMessage):
+            for call in message.tool_calls:
+                if call["id"] and call["id"] not in answered:
+                    answered.add(call["id"])
+                    out.append(
+                        ToolMessage(
+                            content=f"This tool did not return: {why}.",
+                            tool_call_id=call["id"],
+                            name=call["name"],
+                            status="error",
+                        )
+                    )
+    return out
+
+
 class AgentRunner:
     def __init__(
         self,
@@ -197,6 +228,7 @@ class AgentRunner:
         self.retry_delay_s = retry_delay_s
         self._keep_open = False  # True inside `async with`: MCP servers stay up between runs
         self._mcp: MCPConnections | None = None  # created when a run first needs an MCP server
+        self._streams: dict[str, StreamingRun] = {}  # the streaming runs going on now, by run id, for `cancel()`
 
     async def __aenter__(self) -> "AgentRunner":
         """Optional. Without it, an MCP server is started when a run needs it and stopped when the last run using it
@@ -250,6 +282,15 @@ class AgentRunner:
             raise TypeError(f"{agent_cls.__name__} expects a ChatInput, got {type(chat_input).__name__}")
         return StreamingRun(new_id(), lambda run, emit: self._stream(agent_cls, chat_input, run, emit, job_id=job_id))
 
+    def cancel(self, run_id: str) -> bool:
+        """Stop a streaming run of this runner by its id (the `run_id` of its `RUN_STARTED` event). It ends as `run.cancel()`
+        does. Returns False when no such run is going on here."""
+        run = self._streams.get(run_id)
+        if run is None:
+            return False
+        run.cancel()
+        return True
+
     async def _stream(
         self,
         agent_cls: type[StreamingAgent],
@@ -259,13 +300,16 @@ class AgentRunner:
         *,
         job_id: str | None,
     ) -> None:
-        """The whole of a streamed turn, in the task of the run: the row, the slot, the MCP servers, the events."""
+        """The whole of a streamed turn, in the task of the run: the row, the MCP servers, the events, and the end.
+
+        The model is streamed by a task of its own, so that `run.cancel()` can stop it and this task can then end the run
+        cleanly, with the events and the row. When the reader leaves instead, this task itself is cancelled: the run ends the
+        same way, with no one to send the events to."""
         agent = agent_cls()  # ty: ignore[missing-argument]  # a subclass supplies the defaults
         started = time.perf_counter()
         thread_id = chat_input.thread_id or new_id()  # the protocol needs one; the log keeps only a named one
         can_launch = bool(agent.subagents) and 1 < self.max_depth
         system_prompt = agent.build_system_prompt(can_launch=can_launch)
-        invocation_id = new_id()
         CURRENT_AGENT_RUN_ID.set(run.run_id)  # this task has its own context, so nothing needs undoing
         logger.info(
             "stream_started agent_run_id=%s agent=%s version=%s model=%s reasoning=%s job_id=%s thread_id=%s",
@@ -278,8 +322,6 @@ class AgentRunner:
             chat_input.thread_id,
         )
         lease = Lease(self._connections)
-        slot = _Slot(self._slots)
-        finished = False
         try:
             registry = ToolRegistry()
             setup_error: Exception | None = None
@@ -292,7 +334,7 @@ class AgentRunner:
                 setup_error = exc
             await self.db.create_run(
                 agent_run_id=run.run_id,
-                invocation_id=invocation_id,
+                invocation_id=new_id(),
                 attempt=1,
                 job_id=job_id,
                 agent_name=agent.name,
@@ -308,87 +350,119 @@ class AgentRunner:
                 input={"messages": len(chat_input.messages)},  # the words stay with the application
                 thread_id=chat_input.thread_id,
             )
-            await slot.acquire()  # the row stays INIT while it waits
-            mapper = EventMapper(show_thoughts=agent.model.show_thoughts)
-            output_length = 0
-            output_digest = hashlib.sha256()
+            self._streams[run.run_id] = run
+            turn = _Turn(EventMapper(show_thoughts=agent.model.show_thoughts))
+            emit(RunStartedEvent(thread_id=thread_id, run_id=run.run_id))
+            consumer = asyncio.create_task(
+                self._consume(
+                    agent, chat_input, system_prompt, can_launch, registry, setup_error, job_id, run, turn, emit
+                )
+            )
+            run._interrupt = consumer.cancel
+            if run._cancel_requested:
+                consumer.cancel()
+            outcome, error = "success", None
             try:
-                await self.db.mark_run_running(run.run_id)
-                run.status = RunStatus.RUNNING
-                emit(RunStartedEvent(thread_id=thread_id, run_id=run.run_id))
-                try:
-                    if setup_error is not None:
-                        raise setup_error
-                    context = RunContext(store=self.store, job_id=job_id, agent_run_id=run.run_id)
-                    async for event in self._stream_events(
-                        agent, chat_input, system_prompt, context, slot, can_launch, registry, mapper, run._new_messages
-                    ):
-                        emit(event)
-                        if isinstance(event, TextMessageContentEvent):
-                            output_length += len(event.delta)
-                            output_digest.update(event.delta.encode())
-                except Exception as exc:
-                    error = _format_error(exc)
-                    for event in mapper.finish():  # everything that was opened is closed before the error
-                        emit(event)
-                    run.status, run.error = RunStatus.FAILED, error
-                    emit(RunErrorEvent(message=error))
-                    await self.db.finish_run(
-                        run.run_id,
-                        status=RunStatus.FAILED,
-                        error=error,
-                        output={"chars": output_length},
-                        latency_ms=(time.perf_counter() - started) * 1000,
-                    )
-                    finished = True
-                    logger.warning("stream_failed agent_run_id=%s error=%s", run.run_id, error)
-                else:
-                    for event in mapper.finish():
-                        emit(event)
-                    usage = TokenUsage(
-                        provider=agent.model.provider,
-                        model=agent.model.model,
-                        input_tokens=mapper.input_tokens,
-                        output_tokens=mapper.output_tokens,
-                        total_tokens=mapper.input_tokens + mapper.output_tokens,
-                    )
-                    run.usage = usage
-                    run.status = RunStatus.SUCCESS
-                    await self.db.finish_run(
-                        run.run_id,
-                        status=RunStatus.SUCCESS,
-                        output={"chars": output_length},
-                        input_tokens=mapper.input_tokens,
-                        output_tokens=mapper.output_tokens,
-                        latency_ms=(time.perf_counter() - started) * 1000,
-                        output_hash=output_digest.hexdigest(),
-                    )
-                    finished = True
-                    emit(
-                        RunFinishedEvent(
-                            thread_id=thread_id, run_id=run.run_id, outcome=RunFinishedSuccessOutcome(), usage=[usage]
-                        )
-                    )
-                    logger.info(
-                        "stream_finished agent_run_id=%s input_tokens=%d output_tokens=%d",
-                        run.run_id,
-                        mapper.input_tokens,
-                        mapper.output_tokens,
-                    )
+                await consumer
+            except asyncio.CancelledError:
+                current = asyncio.current_task()
+                if current is not None and current.cancelling():  # this task is cancelled: the reader left
+                    consumer.cancel()
+                    await asyncio.gather(consumer, return_exceptions=True)
+                    outcome = "left"
+                else:  # run.cancel() cancelled the consumer
+                    outcome = "cancelled"
+            except Exception as exc:
+                outcome, error = "failed", _format_error(exc)
             finally:
-                slot.release()
-                if not finished:  # the reader left before the end
-                    run.status, run.error = RunStatus.FAILED, "Stopped before it finished"
-                    await self.db.finish_run(
-                        run.run_id,
-                        status=RunStatus.FAILED,
-                        error=run.error,
-                        output={"chars": output_length},
-                        latency_ms=(time.perf_counter() - started) * 1000,
-                    )
-                    logger.warning("stream_stopped agent_run_id=%s", run.run_id)
+                run._interrupt = None
+            await self._end_stream(run, turn, emit, outcome, error, agent, thread_id, started)
+            if outcome == "left":
+                raise asyncio.CancelledError
         finally:
+            self._streams.pop(run.run_id, None)
             await lease.release()
+
+    async def _consume(
+        self,
+        agent: StreamingAgent,
+        chat_input: ChatInput,
+        system_prompt: str,
+        can_launch: bool,
+        registry: ToolRegistry,
+        setup_error: Exception | None,
+        job_id: str | None,
+        run: StreamingRun,
+        turn: "_Turn",
+        emit: Callable[[BaseEvent], None],
+    ) -> None:
+        """Wait for a slot, then stream the model and emit what it writes. Cancelling this task stops the run."""
+        slot = _Slot(self._slots)
+        try:
+            await slot.acquire()  # the row stays INIT while it waits
+            await self.db.mark_run_running(run.run_id)
+            run.status = RunStatus.RUNNING
+            if setup_error is not None:
+                raise setup_error
+            context = RunContext(store=self.store, job_id=job_id, agent_run_id=run.run_id)
+            async for event in self._stream_events(
+                agent, chat_input, system_prompt, context, slot, can_launch, registry, turn.mapper, run._new_messages
+            ):
+                emit(event)
+                if isinstance(event, TextMessageContentEvent):
+                    turn.output_length += len(event.delta)
+                    turn.output_digest.update(event.delta.encode())
+        finally:
+            slot.release()
+
+    async def _end_stream(
+        self,
+        run: StreamingRun,
+        turn: "_Turn",
+        emit: Callable[[BaseEvent], None],
+        outcome: str,
+        error: str | None,
+        agent: StreamingAgent,
+        thread_id: str,
+        started: float,
+    ) -> None:
+        """End the run: the events (when someone reads them), the row, and the messages the turn leaves."""
+        mapper = turn.mapper
+        if outcome != "success":
+            # What the model had written when it stopped is a message too, and a tool call that has no result is closed, so
+            # that the next request is valid. (The partial message is read before `finish()` clears it.)
+            why = "cancelled by the user" if outcome != "failed" else "the run failed"
+            run._new_messages.extend(_close_turn(mapper.partial_message(), run._new_messages, why))
+        closing = mapper.finish()  # everything that was opened is closed
+        usage = TokenUsage(
+            provider=agent.model.provider,
+            model=agent.model.model,
+            input_tokens=mapper.input_tokens,
+            output_tokens=mapper.output_tokens,
+            total_tokens=mapper.input_tokens + mapper.output_tokens,
+        )
+        status = {"success": RunStatus.SUCCESS, "failed": RunStatus.FAILED}.get(outcome, RunStatus.CANCELLED)
+        run.status, run.error, run.usage = status, error, usage
+        if outcome != "left":
+            for event in closing:
+                emit(event)
+            if outcome == "failed":
+                emit(RunErrorEvent(message=error or ""))
+            else:
+                finished = RunFinishedCancelledOutcome() if outcome == "cancelled" else RunFinishedSuccessOutcome()
+                emit(RunFinishedEvent(thread_id=thread_id, run_id=run.run_id, outcome=finished, usage=[usage]))
+        await self.db.finish_run(
+            run.run_id,
+            status=status,
+            error=error,
+            output={"chars": turn.output_length},
+            input_tokens=mapper.input_tokens,
+            output_tokens=mapper.output_tokens,
+            latency_ms=(time.perf_counter() - started) * 1000,
+            output_hash=turn.output_digest.hexdigest(),
+        )
+        log = logger.info if outcome == "success" else logger.warning
+        log("stream_ended agent_run_id=%s outcome=%s error=%s", run.run_id, outcome, error)
 
     async def _stream_events(
         self,
@@ -425,6 +499,8 @@ class AgentRunner:
                     for message in (update or {}).get("messages", []):
                         if isinstance(message, AIMessage | ToolMessage):
                             new_messages.append(message)
+                        if isinstance(message, AIMessage):
+                            mapper.complete_turn()  # the turn is now a whole message: nothing partial is left of it
 
     @staticmethod
     def _runner_tool_names(agent: AgentBase, can_launch: bool) -> list[str]:
@@ -580,6 +656,18 @@ class AgentRunner:
                     output, input_tokens, output_tokens, reported_model = await self._attempt(
                         agent, agent_input, system_prompt, message, context, slot, depth, can_launch, registry
                     )
+                except asyncio.CancelledError:
+                    # The task that awaits this run was cancelled (a streaming agent that was stopped, a caller that
+                    # gave up): the row says so instead of staying RUNNING.
+                    await self.db.finish_run(
+                        agent_run_id,
+                        status=RunStatus.CANCELLED,
+                        latency_ms=(time.perf_counter() - attempt_started) * 1000,
+                    )
+                    logger.warning(
+                        "attempt_cancelled agent_run_id=%s attempt=%d/%d", agent_run_id, attempt, self.max_attempts
+                    )
+                    raise
                 except Exception as exc:
                     error = _format_error(exc)
                     non_retryable = is_non_retryable(exc)

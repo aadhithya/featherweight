@@ -58,6 +58,7 @@ class RunStatus(StrEnum):
     RUNNING = "RUNNING"
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"
+    CANCELLED = "CANCELLED"  # stopped on purpose (a streaming run stopped by the user, or by its reader leaving)
 
 
 class AgentInput(BaseModel):

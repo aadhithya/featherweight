@@ -16,6 +16,7 @@ as events, and nothing is validated at the end.
 - [The conversation is yours](#the-conversation-is-yours)
 - [Keeping the conversation](#keeping-the-conversation)
 - [Vercel AI SDK](#vercel-ai-sdk)
+- [Stopping a response](#stopping-a-response)
 - [What is logged](#what-is-logged)
 - [How it differs from an agent](#how-it-differs-from-an-agent)
 - [What is not there yet](#what-is-not-there-yet)
@@ -73,12 +74,8 @@ is closed before a step ends and before `RUN_FINISHED` or `RUN_ERROR`. A tool ca
 its turn in `parent_message_id`. A launched sub-agent shows as a tool call (`launch_agent`) with its result: its own words are
 not streamed.
 
-When the loop ends, `run.status` is `SUCCESS` or `FAILED`, `run.error` says why, and `run.usage` has the tokens.
+When the loop ends, `run.status` is `SUCCESS`, `FAILED` or `CANCELLED`, `run.error` says why it failed, and `run.usage` has the tokens.
 `run.run_id` is the id of the run in the [run log](#what-is-logged).
-
-To stop early, leave the loop and close the run (`contextlib.aclosing(run)` does it for you). The run is stopped, its row is
-`FAILED` ("Stopped before it finished"), and the slot is given back. A proper stop that keeps the partial turn comes with
-[the next parts of the epic](https://github.com/aadhithya/micro/blob/main/docs/specs/streaming.md#stopping-a-response).
 
 `stream()` raises for a mistake in your code: an agent that is not a `StreamingAgent`, an input that is not a `ChatInput`
 (`TypeError`), or a `job_id` that does not exist (raised when the loop starts). A `StreamingAgent` passed to `runner.run()` is a
@@ -221,6 +218,53 @@ async def chat(request: Request):
 - **A client that goes away.** Stop iterating `encode(...)` (a web framework does when the connection drops) and the run stops.
 - **The version.** Written against the protocol as documented on 2026-11-19. The stream is versioned by its header (`v1`).
 
+## Stopping a response
+
+The person stops the agent while it answers, and then corrects it. Two things stop a run:
+
+```python
+run.cancel()  # from anywhere in the same process
+runner.cancel(run_id)  # by the id of RUN_STARTED, for a stop button's request; False when no such run is going on here
+```
+
+and a **reader that leaves**: when the client drops the connection, your web framework stops iterating, and the run stops
+(close the run yourself with `contextlib.aclosing` if you break out of the loop).
+
+**A stop ends the stream cleanly.** The model call is cancelled, everything that was open is closed, and the last event is
+`RUN_FINISHED` with the `cancelled` outcome (Vercel: `abort`), so the code after your loop runs. The run's row is `CANCELLED`, its
+`output` holds the length of the text so far, and the concurrency slot is free at once. It also works while the run waits for
+a slot, and before the loop has started. A second `cancel()`, or one after the run ended, does nothing.
+
+**The partial turn is kept**, so that the person's next message has the context. `run.new_messages` holds what the turn had
+said and done, cleaned up so that it is valid to send back:
+
+| When it was stopped | What `new_messages` has |
+|---|---|
+| Text was streaming | An assistant message with the text so far |
+| A tool call's arguments were still streaming | Nothing of that call: it is not complete |
+| A tool call was complete and the tool had not returned | The call, and a **tool message that says it did not return** (`status="error"`: "cancelled by the user"), because a provider rejects a call with no result |
+| A tool had returned | The call and its real result |
+| A thought was streaming | The thought **only if it has its signature** (a provider rejects one without); the text is kept either way |
+
+`new_messages` is filled when the run ends, whatever ended it, so it is there after a reader that left too: save it in a
+`finally`. A turn that **fails** is closed the same way (its text so far, no call without a result).
+
+```python
+run = runner.stream(Support, ChatInput.from_langchain([*history.messages, user_message]))
+try:
+    async for event in run:
+        yield encoder.encode(event)
+finally:
+    history.add_messages([user_message, *run.new_messages])
+```
+
+**What a stop cannot undo**
+- A tool that is a synchronous function runs in a thread and cannot be interrupted, and an MCP call may finish on the server:
+  its **effect can still happen after the person pressed stop**. An `async` tool is cancelled where it waits.
+- A launched sub-agent is cancelled with its parent, and its row is `CANCELLED` too (it is not left `RUNNING`).
+- The tokens of a cancelled call are what had been counted when it stopped: the provider may bill for more.
+- Across processes: not here. `cancel()` works in the process that runs the stream.
+
 ## What is logged
 
 One `agent_runs` row per turn, in the same [run log](agents.md#jobs-and-tracing) as any run, **with no message content**:
@@ -231,7 +275,7 @@ One `agent_runs` row per turn, in the same [run log](agents.md#jobs-and-tracing)
 | `output` | Only `{"chars": 412}`, the length of the text |
 | `input_hash`, `output_hash` | SHA-256 of the `ChatInput`, and of the text |
 | `thread_id` | The conversation, when the client named one |
-| `status` | `INIT` while it waits for a [concurrency slot](agents.md#configuration), `RUNNING` while it streams, then `SUCCESS` or `FAILED` |
+| `status` | `INIT` while it waits for a [concurrency slot](agents.md#configuration), `RUNNING` while it streams, then `SUCCESS`, `FAILED` or `CANCELLED` |
 | tokens, latency, agent, model, `agent_hash` | As for any run |
 
 The words stay with your application. Save `run_id` next to each turn you store, and you can join your messages to the log.
@@ -250,5 +294,5 @@ The slot is held for the whole stream. A streaming run is never reused when a jo
 
 ## What is not there yet
 
-Tracked in [epic #29](https://github.com/aadhithya/micro/issues/29): stopping a response (#33), an example and the full guide (#36).
+Tracked in [epic #29](https://github.com/aadhithya/micro/issues/29): an example and the full guide (#36).
 Background agents, jobs across processes and stored conversations are not part of it.

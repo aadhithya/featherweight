@@ -200,7 +200,7 @@ class Database:
     async def set_job_status(self, job_id: str, status: RunStatus, error: str | None = None) -> None:
         """Set the job's status. `error` is kept only for FAILED; any other status clears it."""
         status = RunStatus(status)
-        terminal = status in (RunStatus.SUCCESS, RunStatus.FAILED)
+        terminal = status in (RunStatus.SUCCESS, RunStatus.FAILED, RunStatus.CANCELLED)
         error = error if status is RunStatus.FAILED else None
         cur = await self.conn.execute(
             "UPDATE jobs SET status = ?, completed_at = ?, error = ? WHERE job_id = ?",
@@ -307,8 +307,8 @@ class Database:
         output_hash: str | None = None,
     ) -> None:
         status = RunStatus(status)
-        if status not in (RunStatus.SUCCESS, RunStatus.FAILED):
-            raise ValueError("finish_run needs a terminal status (SUCCESS or FAILED)")
+        if status not in (RunStatus.SUCCESS, RunStatus.FAILED, RunStatus.CANCELLED):
+            raise ValueError("finish_run needs a terminal status (SUCCESS, FAILED or CANCELLED)")
         await self._set_run(
             agent_run_id,
             status=status.value,
