@@ -6,9 +6,18 @@ import json
 import logging
 import os
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any
 
+from ag_ui.core import (
+    BaseEvent,
+    RunErrorEvent,
+    RunFinishedEvent,
+    RunFinishedSuccessOutcome,
+    RunStartedEvent,
+    TextMessageContentEvent,
+    TokenUsage,
+)
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage
 from langchain_core.tools import BaseTool, tool
@@ -20,6 +29,7 @@ from micro.discovery import discovery_tools
 from micro.errors import RETRYABLE_4XX, SetupError
 from micro.fingerprint import agent_hash, input_hash
 from micro.mcp_connections import Lease, MCPConnections
+from micro.messages import to_langchain
 from micro.models import (
     DISCOVERY_TOOL_NAMES,
     LAUNCH_TOOL_NAMES,
@@ -32,6 +42,8 @@ from micro.models import (
 )
 from micro.registry import ToolRegistry
 from micro.store import RunStore
+from micro.stream_events import EventMapper
+from micro.streaming import ChatInput, StreamingAgent, StreamingRun
 
 logger = logging.getLogger(__name__)
 
@@ -215,9 +227,220 @@ class AgentRunner:
         """Run an agent. Runtime failures come back as a FAILED result; they are not raised.
 
         Programming errors still raise: an input that is not the agent's `input_model`, or a
-        `job_id` that does not exist.
+        `job_id` that does not exist. A streaming agent is run with `stream()`.
         """
+        if agent_cls.streaming:
+            raise TypeError(f"{agent_cls.__name__} is a streaming agent: run it with runner.stream()")
         return await self._run(agent_cls, agent_input, job_id=job_id)
+
+    def stream(
+        self, agent_cls: type[StreamingAgent], chat_input: ChatInput, *, job_id: str | None = None
+    ) -> StreamingRun:
+        """Run a streaming agent. Returns at once; the run starts when you loop over it, and its events (AG-UI's) come as
+        the model writes. A failure is an `RUN_ERROR` event and a FAILED row, not an exception; and nothing is retried.
+
+        Programming errors raise, as for `run()`: an agent that is not a streaming agent, an input that is not a
+        `ChatInput`, or a `job_id` that does not exist (raised when the loop starts).
+        """
+        if not (isinstance(agent_cls, type) and issubclass(agent_cls, StreamingAgent)):
+            raise TypeError(
+                f"{getattr(agent_cls, '__name__', agent_cls)} is not a streaming agent: run it with runner.run()"
+            )
+        if not isinstance(chat_input, ChatInput):
+            raise TypeError(f"{agent_cls.__name__} expects a ChatInput, got {type(chat_input).__name__}")
+        return StreamingRun(new_id(), lambda run, emit: self._stream(agent_cls, chat_input, run, emit, job_id=job_id))
+
+    async def _stream(
+        self,
+        agent_cls: type[StreamingAgent],
+        chat_input: ChatInput,
+        run: StreamingRun,
+        emit: Callable[[BaseEvent], None],
+        *,
+        job_id: str | None,
+    ) -> None:
+        """The whole of a streamed turn, in the task of the run: the row, the slot, the MCP servers, the events."""
+        agent = agent_cls()  # ty: ignore[missing-argument]  # a subclass supplies the defaults
+        started = time.perf_counter()
+        thread_id = chat_input.thread_id or new_id()  # the protocol needs one; the log keeps only a named one
+        can_launch = bool(agent.subagents) and 1 < self.max_depth
+        system_prompt = agent.build_system_prompt(can_launch=can_launch)
+        invocation_id = new_id()
+        CURRENT_AGENT_RUN_ID.set(run.run_id)  # this task has its own context, so nothing needs undoing
+        logger.info(
+            "stream_started agent_run_id=%s agent=%s version=%s model=%s reasoning=%s job_id=%s thread_id=%s",
+            run.run_id,
+            agent.name,
+            agent.version,
+            agent.model.model,
+            agent.model.label(),
+            job_id,
+            chat_input.thread_id,
+        )
+        lease = Lease(self._connections)
+        slot = _Slot(self._slots)
+        finished = False
+        try:
+            registry = ToolRegistry()
+            setup_error: Exception | None = None
+            try:
+                for local_tool in agent.tools:
+                    registry.add(local_tool, "local")
+                for server in agent.mcp_servers:
+                    await registry.add_mcp(server, lease)
+            except Exception as exc:
+                setup_error = exc
+            await self.db.create_run(
+                agent_run_id=run.run_id,
+                invocation_id=invocation_id,
+                attempt=1,
+                job_id=job_id,
+                agent_name=agent.name,
+                agent_version=agent.version,
+                model_name=agent.model.model,
+                reasoning=agent.model.label(),
+                provider=agent.model.provider,
+                settings=agent.model.model_dump_json(),
+                tool_names=registry.names + self._runner_tool_names(agent, can_launch),
+                system_prompt_hash=hashlib.sha256(system_prompt.encode()).hexdigest(),
+                agent_hash=agent_hash(agent),
+                input_hash=input_hash(chat_input),
+                input={"messages": len(chat_input.messages)},  # the words stay with the application
+                thread_id=chat_input.thread_id,
+            )
+            await slot.acquire()  # the row stays INIT while it waits
+            mapper = EventMapper()
+            output_length = 0
+            output_digest = hashlib.sha256()
+            try:
+                await self.db.mark_run_running(run.run_id)
+                run.status = RunStatus.RUNNING
+                emit(RunStartedEvent(thread_id=thread_id, run_id=run.run_id))
+                try:
+                    if setup_error is not None:
+                        raise setup_error
+                    context = RunContext(store=self.store, job_id=job_id, agent_run_id=run.run_id)
+                    async for event in self._stream_events(
+                        agent, chat_input, system_prompt, context, slot, can_launch, registry, mapper
+                    ):
+                        emit(event)
+                        if isinstance(event, TextMessageContentEvent):
+                            output_length += len(event.delta)
+                            output_digest.update(event.delta.encode())
+                except Exception as exc:
+                    error = _format_error(exc)
+                    for event in mapper.finish():  # everything that was opened is closed before the error
+                        emit(event)
+                    run.status, run.error = RunStatus.FAILED, error
+                    emit(RunErrorEvent(message=error))
+                    await self.db.finish_run(
+                        run.run_id,
+                        status=RunStatus.FAILED,
+                        error=error,
+                        output={"chars": output_length},
+                        latency_ms=(time.perf_counter() - started) * 1000,
+                    )
+                    finished = True
+                    logger.warning("stream_failed agent_run_id=%s error=%s", run.run_id, error)
+                else:
+                    for event in mapper.finish():
+                        emit(event)
+                    usage = TokenUsage(
+                        provider=agent.model.provider,
+                        model=agent.model.model,
+                        input_tokens=mapper.input_tokens,
+                        output_tokens=mapper.output_tokens,
+                        total_tokens=mapper.input_tokens + mapper.output_tokens,
+                    )
+                    run.usage = usage
+                    run.status = RunStatus.SUCCESS
+                    await self.db.finish_run(
+                        run.run_id,
+                        status=RunStatus.SUCCESS,
+                        output={"chars": output_length},
+                        input_tokens=mapper.input_tokens,
+                        output_tokens=mapper.output_tokens,
+                        latency_ms=(time.perf_counter() - started) * 1000,
+                        output_hash=output_digest.hexdigest(),
+                    )
+                    finished = True
+                    emit(
+                        RunFinishedEvent(
+                            thread_id=thread_id, run_id=run.run_id, outcome=RunFinishedSuccessOutcome(), usage=[usage]
+                        )
+                    )
+                    logger.info(
+                        "stream_finished agent_run_id=%s input_tokens=%d output_tokens=%d",
+                        run.run_id,
+                        mapper.input_tokens,
+                        mapper.output_tokens,
+                    )
+            finally:
+                slot.release()
+                if not finished:  # the reader left before the end
+                    run.status, run.error = RunStatus.FAILED, "Stopped before it finished"
+                    await self.db.finish_run(
+                        run.run_id,
+                        status=RunStatus.FAILED,
+                        error=run.error,
+                        output={"chars": output_length},
+                        latency_ms=(time.perf_counter() - started) * 1000,
+                    )
+                    logger.warning("stream_stopped agent_run_id=%s", run.run_id)
+        finally:
+            await lease.release()
+
+    async def _stream_events(
+        self,
+        agent: StreamingAgent,
+        chat_input: ChatInput,
+        system_prompt: str,
+        context: RunContext,
+        slot: _Slot,
+        can_launch: bool,
+        registry: ToolRegistry,
+        mapper: EventMapper,
+    ):
+        """Stream the LangChain agent and yield the events of what it writes."""
+        try:
+            model = agent.model.build()
+        except Exception as exc:
+            raise ModelSetupError(str(exc)) from exc
+        self._add_runner_tools(agent, context, slot, 1, can_launch, registry)
+        lc_agent = create_agent(model, tools=registry.tools, system_prompt=system_prompt, context_schema=RunContext)
+        async for chunk, _metadata in lc_agent.astream(
+            {"messages": to_langchain(chat_input.messages)},
+            config={"recursion_limit": agent.recursion_limit},
+            context=context,
+            stream_mode="messages",
+        ):
+            for event in mapper.feed(chunk):
+                yield event
+
+    @staticmethod
+    def _runner_tool_names(agent: AgentBase, can_launch: bool) -> list[str]:
+        """The names of the tools the runner gives `agent`, by what it declares."""
+        return (
+            (list(LAUNCH_TOOL_NAMES) if can_launch else [])
+            + (list(SKILL_TOOL_NAMES) if agent.skills else [])
+            + (list(DISCOVERY_TOOL_NAMES) if agent.has_discovery else [])
+        )
+
+    def _add_runner_tools(
+        self,
+        agent: AgentBase,
+        context: RunContext,
+        slot: _Slot,
+        depth: int,
+        can_launch: bool,
+        registry: ToolRegistry,
+    ) -> None:
+        for runner_tool in (
+            (self._launch_tools(agent, context, slot, depth) if can_launch else [])
+            + (self._skill_tools(agent) if agent.skills else [])
+            + (discovery_tools(registry) if agent.has_discovery else [])
+        ):
+            registry.add(runner_tool, "runner")
 
     async def _run(
         self,
@@ -258,11 +481,7 @@ class AgentRunner:
         can_launch = bool(agent.subagents) and depth < self.max_depth
         system_prompt = agent.build_system_prompt(can_launch=can_launch)
         prompt_hash = hashlib.sha256(system_prompt.encode()).hexdigest()
-        runner_tool_names = (
-            (list(LAUNCH_TOOL_NAMES) if can_launch else [])
-            + (list(SKILL_TOOL_NAMES) if agent.skills else [])
-            + (list(DISCOVERY_TOOL_NAMES) if agent.has_discovery else [])
-        )
+        runner_tool_names = self._runner_tool_names(agent, can_launch)
         message = agent_input.model_dump_json(indent=2)
         result_cls = AgentResult[agent.output_model]  # ty: ignore[invalid-type-form]  # the output model is known only now
         started = time.perf_counter()
@@ -618,12 +837,7 @@ class AgentRunner:
         except Exception as exc:
             raise ModelSetupError(str(exc)) from exc
 
-        for runner_tool in (
-            (self._launch_tools(agent, context, slot, depth) if can_launch else [])
-            + (self._skill_tools(agent) if agent.skills else [])
-            + (discovery_tools(registry) if agent.has_discovery else [])
-        ):
-            registry.add(runner_tool, "runner")
+        self._add_runner_tools(agent, context, slot, depth, can_launch, registry)
         lc_agent = create_agent(
             model,
             tools=registry.tools,  # only the allow-listed tools are ever bound

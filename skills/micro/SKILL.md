@@ -140,6 +140,7 @@ Read only the reference for the task. Each is a guide from the [micro.] reposito
 | An agent that launches other agents | `references/launching-agents.md` |
 | Use an MCP server, discovery, secrets, failures | `references/mcp.md` |
 | Give an agent skills | `references/skills.md` |
+| A chat agent that streams its answer (`StreamingAgent`, `runner.stream()`; being built) | `references/streaming.md` |
 | See a whole pipeline of several agents | `references/example-pipeline.md` |
 
 The full specs, which say what each part does and why, are in `docs/specs` of the repository, and runnable examples are in

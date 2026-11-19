@@ -36,6 +36,9 @@ results = await runner.run_many(AgentClass, inputs, job_id=job_id)
 - `job_id` is optional. Runs of one pipeline share a job. Without one, the runs have no job and no run store.
 - **Runtime failures are values.** `run` returns a `FAILED` result. It does not raise.
 - **Programming errors raise:** an input of the wrong type (`TypeError`), a `job_id` that does not exist.
+- **A streaming agent** is not run with `run`: it raises `TypeError` and names `stream`. `stream(StreamingAgent, ChatInput, job_id=...)`
+  returns a `StreamingRun` at once, whose events come as the model writes ([streaming agents](streaming.md)). It takes a
+  concurrency slot like any run, holds it for the whole stream, and is never retried.
 
 ## The result
 
@@ -197,6 +200,7 @@ is needed for the real model. A missing key is a setup error: the run fails at o
 - **Resuming inside a run.** An attempt that failed halfway runs whole. Reusing the result of a sub-agent when its
   parent is run again is not built: a parent that failed reruns with its children.
 - **A limit on launches per job**, or on cost or tokens.
+- **Streaming from `run()`.** A streaming agent has its own method, `stream()`.
 - **Cancelling one run.** Cancelling the task that awaits it cancels the run.
 - **A runner shared between processes.** The slots and the connections are per runner.
 

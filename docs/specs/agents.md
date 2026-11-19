@@ -119,7 +119,7 @@ equal declarations give the same hash in any process. The code inside tools and 
 - Models other than the three Gemini models, and provider-specific settings (a thinking budget).
 - Enforcing `allow_user_questions` and `raise_conflicts`.
 - Output validation that feeds the error back to the model. A retry resamples with the same input ([runner](runner.md)).
-- Streaming.
+- Streaming from an ordinary agent. A [streaming agent](streaming.md) is a subclass (`StreamingAgent`) with its own input, no output model and no retries.
 
 ## Tests
 

@@ -14,7 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 REFERENCES = ROOT / "skills" / "micro" / "references"
-GUIDES = ["agents.md", "models.md", "launching-agents.md", "mcp.md", "skills.md", "example-pipeline.md"]
+GUIDES = ["agents.md", "models.md", "launching-agents.md", "mcp.md", "skills.md", "streaming.md", "example-pipeline.md"]
 REPO_URL = "https://github.com/aadhithya/micro/blob/main"
 HEADER = "<!-- Copied from docs/{name} by scripts/build_skill.py. Edit the original, not this file. -->\n\n"
 

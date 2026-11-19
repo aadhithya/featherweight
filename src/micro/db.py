@@ -64,6 +64,8 @@ ADDED_COLUMNS = {
     "agent_hash": "TEXT",  # SHA-256 of the whole agent declaration; NULL before this column existed
     "input_hash": "TEXT",  # SHA-256 of the canonical input; NULL before this column existed
     "reused_from_agent_run_id": "TEXT",  # the row whose output this run reused instead of calling the model
+    "thread_id": "TEXT",  # the conversation a streaming run belongs to, when the client named one; NULL otherwise
+    "output_hash": "TEXT",  # SHA-256 of a streaming run's text (its `output` holds only the length); NULL otherwise
 }
 # The same for `jobs`.
 JOBS_ADDED_COLUMNS = {
@@ -129,6 +131,8 @@ class AgentRunRow(BaseModel):
     agent_hash: str | None = None
     input_hash: str | None = None
     reused_from_agent_run_id: str | None = None
+    thread_id: str | None = None
+    output_hash: str | None = None
 
 
 class Database:
@@ -236,13 +240,15 @@ class Database:
         agent_hash: str | None = None,
         input_hash: str | None = None,
         reused_from_agent_run_id: str | None = None,
+        thread_id: str | None = None,
     ) -> str:
         await self.conn.execute(
             """INSERT INTO agent_runs (
                    agent_run_id, invocation_id, attempt, job_id, agent_name, agent_version,
                    model_name, reasoning, tool_names, system_prompt_hash, status, input, created_at,
-                   parent_agent_run_id, depth, provider, settings, agent_hash, input_hash, reused_from_agent_run_id
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   parent_agent_run_id, depth, provider, settings, agent_hash, input_hash, reused_from_agent_run_id,
+                   thread_id
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 agent_run_id,
                 invocation_id,
@@ -264,6 +270,7 @@ class Database:
                 agent_hash,
                 input_hash,
                 reused_from_agent_run_id,
+                thread_id,
             ),
         )
         await self.conn.commit()
@@ -297,6 +304,7 @@ class Database:
         output_tokens: int | None = None,
         latency_ms: float | None = None,
         reported_model_name: str | None = None,
+        output_hash: str | None = None,
     ) -> None:
         status = RunStatus(status)
         if status not in (RunStatus.SUCCESS, RunStatus.FAILED):
@@ -311,6 +319,7 @@ class Database:
             output_tokens=output_tokens,
             latency_ms=latency_ms,
             reported_model_name=reported_model_name,
+            output_hash=output_hash,
         )
         log = logger.info if status is RunStatus.SUCCESS else logger.warning
         log(

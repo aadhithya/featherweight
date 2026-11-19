@@ -78,15 +78,17 @@ connection, with foreign keys on.
 | `agent_hash` | SHA-256 of the whole agent declaration (see [agents](agents.md)); `NULL` for rows from before it existed |
 | `input_hash` | SHA-256 of the input's `model_dump(mode='json')`, serialised with sorted keys and fixed separators; `NULL` for rows from before it existed |
 | `reused_from_agent_run_id` | For a run that reused an earlier one: that row. `NULL` otherwise |
+| `thread_id` | For a [streaming](streaming.md) run, the conversation the client named. `NULL` otherwise |
+| `output_hash` | For a streaming run, SHA-256 of its text. `NULL` otherwise |
 | `status`, `error` | See below |
-| `input`, `output` | JSON. A failed attempt keeps its error, not the model's raw reply |
+| `input`, `output` | JSON. A failed attempt keeps its error, not the model's raw reply. A [streaming](streaming.md) run keeps **no content**: `{"messages": n}` and `{"chars": n}` |
 | `input_tokens`, `output_tokens`, `latency_ms` | Of the attempt |
 | `created_at`, `completed_at` | UTC, ISO 8601 |
 
 Rows come back in insertion order (`rowid`), filtered by `job_id` and `invocation_id` if given. The whole launch tree of a
 job is one query on `parent_agent_run_id` and `depth`.
 
-**Older databases** get the columns added after the first version (`parent_agent_run_id`, `depth`, `provider`, `settings`, `agent_hash`, `input_hash`, `reused_from_agent_run_id`, and
+**Older databases** get the columns added after the first version (`parent_agent_run_id`, `depth`, `provider`, `settings`, `agent_hash`, `input_hash`, `reused_from_agent_run_id`, `thread_id`, `output_hash`, and
 `resumed_from` on `jobs`) when they are opened. An index on `(job_id, agent_hash, input_hash)` makes the lookup for reuse
 cheap.
 
