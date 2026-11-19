@@ -60,6 +60,7 @@ ADDED_COLUMNS = {
     "depth": "INTEGER NOT NULL DEFAULT 1",  # 1 for a top-level run, 2 for the agent it launched, and so on
     "provider": "TEXT",  # `google`, `anthropic`, `openai`, or a user class's own; NULL before this column existed
     "settings": "TEXT",  # the agent's model settings as JSON; NULL before this column existed
+    "agent_hash": "TEXT",  # SHA-256 of the whole agent declaration; NULL before this column existed
 }
 
 
@@ -117,6 +118,7 @@ class AgentRunRow(BaseModel):
     depth: int = 1
     provider: str | None = None
     settings: dict[str, Any] | None = None
+    agent_hash: str | None = None
 
 
 class Database:
@@ -214,13 +216,14 @@ class Database:
         depth: int = 1,
         provider: str | None = None,
         settings: str | None = None,
+        agent_hash: str | None = None,
     ) -> str:
         await self.conn.execute(
             """INSERT INTO agent_runs (
                    agent_run_id, invocation_id, attempt, job_id, agent_name, agent_version,
                    model_name, reasoning, tool_names, system_prompt_hash, status, input, created_at,
-                   parent_agent_run_id, depth, provider, settings
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   parent_agent_run_id, depth, provider, settings, agent_hash
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 agent_run_id,
                 invocation_id,
@@ -239,6 +242,7 @@ class Database:
                 depth,
                 provider,
                 settings,
+                agent_hash,
             ),
         )
         await self.conn.commit()
