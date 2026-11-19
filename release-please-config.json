@@ -5,6 +5,7 @@
   "bump-patch-for-minor-pre-major": false,
   "include-v-in-tag": true,
   "include-component-in-tag": false,
+  "pull-request-title-pattern": "chore(release): bump version to ${version}",
   "packages": {
     ".": {
       "changelog-path": "CHANGELOG.md",

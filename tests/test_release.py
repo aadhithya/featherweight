@@ -22,6 +22,12 @@ def test_the_release_config_and_the_manifest_are_valid_and_agree():
     assert config["packages"]["."]["extra-files"] == ["src/micro/__init__.py"]
     assert "x-release-please-version" in (ROOT / "src" / "micro" / "__init__.py").read_text()
     assert config["bump-minor-pre-major"] is True  # below 1.0, a breaking change bumps the minor version
+    title = config[
+        "pull-request-title-pattern"
+    ]  # the release pull request, and so its commit, is a semantic bump commit
+    assert title == "chore(release): bump version to ${version}"
+    hidden = {section["type"] for section in config["changelog-sections"] if section.get("hidden")}
+    assert "chore" in hidden  # so the bump commit itself is not a line of the changelog
 
 
 def test_only_the_release_pull_request_is_manual_and_the_tag_is_made_when_it_is_merged():
