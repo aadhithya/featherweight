@@ -234,17 +234,32 @@ a span needs are already recorded.
 
 ## Resuming a job
 
-A pipeline fails at step 2. Run it again with `resume_from`, and step 1 is not paid for twice:
+A pipeline fails at step 2. Run it again with `resume_from`, and step 1 is not paid for twice. **The first job has to opt in
+before it runs**, because Featherweight keeps no outputs unless you ask:
 
 ```python
-outcome = await run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, job_id), resume_from=failed_job_id)
+first = await ftw.run_job(
+    db, "my_pipeline", lambda job_id: my_pipeline(runner, job_id), resumable=True
+)  # fails at step 2
+outcome = await ftw.run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, job_id), resume_from=first.job_id)
 ```
 
-This creates a **new job** that records `resumed_from`. Your pipeline runs again from the top, with its own loops and
-decisions. Only the agent runs are answered from the log. It is replay, not pausing: Featherweight is not a workflow engine.
-To create the job first, use `db.create_job(name, resume_from=old_job_id)` and pass its id with `job_id` (`run_job`
-refuses `job_id` and `resume_from` together). [`examples/resume`](https://github.com/aadhithya/featherweight/blob/main/examples/resume) runs a pipeline that crashes halfway and
-resumes, with Claude Haiku (`make example-resume`).
+- **`resumable=True`** keeps the output of each step of the job, in a **result store**. Without it nothing is kept, and
+  `resume_from` that job raises `ValueError` ("it did not keep its results"), before any model call. To run everything
+  again, run the pipeline without `resume_from`.
+- **The result store** is where the outputs are kept: `AgentRunner(db, results=...)`. The default is a `SqliteResultStore`, a
+  table in the run log's sqlite file, which is for local development. `results=None` keeps nothing, and then resuming a job
+  is a `SetupError`. To keep outputs somewhere else (a database per tenant, a bucket), write a [`ResultStore`](#writing-a-result-store).
+- **Resuming is up to you.** Nothing retries a failed job by itself. The attempts of one agent run are retried
+  automatically (`max_attempts`), but a failed job is resumed by the person or the code that decides to, for example a
+  retry button that calls `run_job(..., resume_from=...)`.
+
+This creates a **new job** that records `resumed_from`, and is resumable itself, so that a third attempt is possible. Your
+pipeline runs again from the top, with its own loops and decisions. Only the agent runs are answered from kept results. It is
+replay, not pausing: Featherweight is not a workflow engine. To create the job first, use `db.create_job(name,
+resume_from=old_job_id)` and pass its id with `job_id` (`run_job` refuses `job_id` together with `resume_from` or
+`resumable`). [`examples/resume`](https://github.com/aadhithya/featherweight/blob/main/examples/resume) runs a pipeline that crashes halfway and resumes, with Claude Haiku
+(`make example-resume`).
 
 For each run that your pipeline starts in the new job, the runner looks in the old job for a row that
 
@@ -253,11 +268,14 @@ For each run that your pipeline starts in the new job, the runner looks in the o
 - has the same input (`input_hash`), and
 - is a top-level run (`depth` 1).
 
-If there is one, the runner checks that the stored output still validates against the output model and passes
-`check_output`. If so, it does not call the model and takes no concurrency slot. It writes a `SUCCESS` row of its own in
-the new job, with zero tokens, the stored output and `reused_from_agent_run_id`, and returns an `AgentResult` with
+If there is one, the runner gets its output from the result store, and checks that it still validates against the output model
+and passes `check_output`. If so, it does not call the model and takes no concurrency slot. It writes a `SUCCESS` row of its own in
+the new job, with zero tokens, the kept output and `reused_from_agent_run_id`, copies the result to the new job (so deleting the old job
+never affects it), and returns an `AgentResult` with
 `reused=True` and zero tokens. The log says `run_reused ...`. If the output no longer validates, the log says
-`run_reuse_rejected reason=...` and the agent runs as usual. With several matches (the same input twice in one
+`run_reuse_rejected reason=...` and the agent runs as usual. If the store has no result for a step that the log says
+succeeded (it was never kept, or was lost), the log says `result_missing` and the agent runs. A store that fails to keep a
+result never fails the run: that step just cannot be reused later. With several matches (the same input twice in one
 `run_many`), any one answers. `run_many` resumes per input: one failed section of ten reruns only that section.
 
 Changing the prompt, bumping `version` or changing a model setting changes `agent_hash`, so that step runs again, and so
@@ -268,7 +286,7 @@ What to know:
 - **The code between agents must be deterministic**: no clock, no `random`, no unordered iteration. It is your code, so
   it is your responsibility, and Featherweight does not check it. If it takes another path, the agents get other inputs,
   nothing matches, and they run again.
-- **The run store is not used for resumption.** Outputs come from the run log. A reused step does not run, so a
+- **The run store is not used for resumption.** Outputs come from the result store. A reused step does not run, so a
   `store_set` it made does not happen again. Do not rely on the store for anything a resume needs.
 - **Side effects are not undone or repeated.** A tool that sent an email in the failed job is not rerun when its agent's
   result is reused. An agent that failed halfway runs whole again.
@@ -277,6 +295,18 @@ What to know:
   and its children never launch. A parent that failed runs again, and so do its children. Reusing children is not
   included.
 - **A crash inside your pipeline code** runs that code again, and its agent calls are answered from the log.
+
+## Writing a result store
+
+A `ResultStore` is an abstract class with three methods: `put(key, output)`, `get(key)` and `delete_job(job_id)`. The key is a
+`ResultKey` (the job, the agent hash and the input hash), and an output is a JSON `dict`. Subclass it; one that misses a method
+cannot be built. `featherweight.testing.check_result_store` runs the contract against it, so that you know it behaves:
+
+```python
+await ftw.testing.check_result_store(lambda: MyStore(...))
+```
+
+`ftw.testing.MemoryResultStore` is the smallest example. Delete what you no longer need with `delete_job`.
 
 ## Configuration
 

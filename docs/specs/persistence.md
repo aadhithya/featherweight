@@ -1,6 +1,6 @@
 # Spec: the run log and the persistence boundary
 
-Status: designed, not built. #59 (the agent hash includes the input and output schemas) is done. It is tracked in [epic #58](https://github.com/aadhithya/featherweight/issues/58), and each part has
+Status: being built. #59 (the agent hash includes the input and output schemas) and #60 (resumable jobs and the result store) are done; the other parts are not. It is tracked in [epic #58](https://github.com/aadhithya/featherweight/issues/58), and each part has
 its own issue (listed [at the end](#the-work)). When a part is built, this page says so, and the guide `docs/persistence.md`
 shows how to use it.
 

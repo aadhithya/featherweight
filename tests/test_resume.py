@@ -1,4 +1,4 @@
-"""Resuming a job: a run that the old job already finished is answered from its row. Fake models only."""
+"""Resuming a job: a step that the old job already finished is answered from its kept result. Fake models only."""
 
 import json
 import sqlite3
@@ -23,6 +23,7 @@ from featherweight.fingerprint import agent_hash, input_hash
 from featherweight.jobs import run_job
 from featherweight.model_settings import ModelSettings
 from featherweight.models import RunStatus
+from featherweight.results import ResultKey, SqliteResultStore
 
 
 def model(broken: set[str] | None = None, echoed: str | None = None) -> Reactive:
@@ -56,6 +57,7 @@ def steps(runner, inputs, agent=Echo):
 
 
 async def run_steps(db, inputs, fake=None, agent=Echo, **kwargs):
+    kwargs.setdefault("resumable", True)  # a job that is to be resumed keeps its results: decided before it runs
     return await run_job(db, "p", steps(runner_with(db, fake or model(), max_attempts=1), inputs, agent), **kwargs)
 
 
@@ -181,8 +183,8 @@ async def test_an_output_that_check_output_now_rejects_runs_the_agent(db, monkey
 
 async def test_an_output_that_no_longer_validates_runs_the_agent(db):
     first = await run_steps(db, "a")
-    await db.conn.execute("UPDATE agent_runs SET output = ? WHERE job_id = ?", ('{"echoed": 5}', first.job_id))
-    await db.conn.commit()
+    key = ResultKey(job_id=first.job_id, agent_hash=agent_hash(Echo()), input_hash=input_hash(EchoInput(text="a")))
+    await SqliteResultStore(db).put(key, {"echoed": 5})  # the kept result no longer fits the output model
     counting = model()
 
     outcome = await run_steps(db, "a", counting, resume_from=first.job_id)
@@ -214,11 +216,14 @@ async def old_row(db, job_id, status, with_hash=True):
         "UPDATE agent_runs SET status = ?, output = ? WHERE agent_run_id = ?", (status, '{"echoed": "a"}', run_id)
     )
     await db.conn.commit()
+    if with_hash:
+        key = ResultKey(job_id=job_id, agent_hash=agent_hash(Echo()), input_hash=input_hash(input_))
+        await SqliteResultStore(db).put(key, {"echoed": "a"})
 
 
 @pytest.mark.parametrize("status", ["FAILED", "INIT", "RUNNING"])
 async def test_a_row_that_did_not_succeed_is_never_reused(db, status):
-    old = await db.create_job("p")
+    old = await db.create_job("p", resumable=True)
     await old_row(db, old, status)
     counting = model()
 
@@ -230,7 +235,7 @@ async def test_a_row_that_did_not_succeed_is_never_reused(db, status):
 
 
 async def test_the_helper_row_is_reused_when_it_succeeded_and_has_a_hash(db):
-    old = await db.create_job("p")
+    old = await db.create_job("p", resumable=True)
     await old_row(db, old, "SUCCESS")
     counting = model()
 
@@ -240,7 +245,7 @@ async def test_the_helper_row_is_reused_when_it_succeeded_and_has_a_hash(db):
 
 
 async def test_a_row_with_no_agent_hash_is_never_reused(db):
-    old = await db.create_job("p")
+    old = await db.create_job("p", resumable=True)
     await old_row(db, old, "SUCCESS", with_hash=False)
     counting = model()
 
@@ -254,7 +259,7 @@ async def test_run_many_with_one_failed_input_reruns_only_that_input(db):
         return await runner.run_many(Echo, [EchoInput(text=t) for t in "abc"], job_id=job_id)
 
     runner = runner_with(db, model({"b"}), max_attempts=1)
-    failed = await run_job(db, "p", lambda job_id: fan_out(runner, job_id))
+    failed = await run_job(db, "p", lambda job_id: fan_out(runner, job_id), resumable=True)
     assert [r.status for r in failed.result or []] == [RunStatus.SUCCESS, RunStatus.FAILED, RunStatus.SUCCESS]
 
     healthy = model()
@@ -271,7 +276,7 @@ async def test_identical_inputs_in_one_run_many_are_all_reused(db):
         return await runner.run_many(Echo, [EchoInput(text="a")] * 2, job_id=job_id)
 
     runner = runner_with(db, model(), max_attempts=1)
-    first = await run_job(db, "p", lambda job_id: fan_out(runner, job_id))
+    first = await run_job(db, "p", lambda job_id: fan_out(runner, job_id), resumable=True)
     resumed = await run_job(db, "p", lambda job_id: fan_out(runner, job_id), resume_from=first.job_id)
 
     assert [r.reused for r in resumed.result or []] == [True, True]
@@ -288,7 +293,7 @@ def parent_script(topic):
 
 async def test_a_succeeded_parent_is_reused_whole_and_its_children_never_launch(db):
     runner = runner_with(db, Scripted(script=parent_script("x")), max_attempts=1)
-    old = await db.create_job("p")
+    old = await db.create_job("p", resumable=True)
     first = await runner.run(Parent, ParentInput(task="go"), job_id=old)
     assert first.status == RunStatus.SUCCESS and len(await db.list_runs(job_id=old)) == 2  # the parent and its child
 
@@ -304,7 +309,7 @@ async def test_a_succeeded_parent_is_reused_whole_and_its_children_never_launch(
 
 async def test_a_failed_parent_reruns_and_its_child_is_not_looked_up(db):
     runner = runner_with(db, Scripted(script=parent_script("x")), max_attempts=1)
-    old = await db.create_job("p")
+    old = await db.create_job("p", resumable=True)
     await runner.run(Parent, ParentInput(task="go"), job_id=old)
     # Only the child (depth 2) is left as a SUCCESS row of the old job.
     await db.conn.execute("UPDATE agent_runs SET status = 'FAILED' WHERE job_id = ? AND depth = 1", (old,))
@@ -335,7 +340,7 @@ async def test_resuming_an_unknown_job_is_refused(db):
 
 
 async def test_resume_from_and_job_id_cannot_be_combined(db):
-    old = await db.create_job("p")
+    old = await db.create_job("p", resumable=True)
     new = await db.create_job("p")
 
     async def pipeline(job_id):
@@ -361,7 +366,7 @@ INSERT INTO agent_runs VALUES ('old', 'inv', 1, 'old-job', 'echo', '0.1.0', 'm',
 """
 
 
-async def test_a_migrated_older_database_can_be_resumed_from_and_its_old_rows_are_never_reused(tmp_path):
+async def test_a_migrated_older_database_cannot_be_resumed_from_and_its_old_rows_are_never_reused(tmp_path):
     path = tmp_path / "old.db"
     conn = sqlite3.connect(path)
     conn.executescript(OLD_SCHEMA)
@@ -369,12 +374,13 @@ async def test_a_migrated_older_database_can_be_resumed_from_and_its_old_rows_ar
     conn.close()
 
     async with Database(path) as db:
-        assert (await db.get_job("old-job")).resumed_from is None
+        old = await db.get_job("old-job")
+        assert old is not None and old.resumed_from is None and old.resumable is False  # it kept nothing
+        with pytest.raises(ValueError, match="did not keep its results"):
+            await db.create_job("p", resume_from="old-job")
         counting = model()
-        outcome = await run_steps(db, "a", counting, resume_from="old-job")
-
-        assert outcome.status == RunStatus.SUCCESS and texts(counting) == ["a"]  # the old row has no hash
-        assert (await db.get_job(outcome.job_id)).resumed_from == "old-job"
-        again = await run_steps(db, "a", resume_from=outcome.job_id)  # rows written after the migration are reused
+        outcome = await run_steps(db, "a", counting)  # a job after the migration keeps its results
+        assert outcome.status == RunStatus.SUCCESS and texts(counting) == ["a"]
+        again = await run_steps(db, "a", resume_from=outcome.job_id)
         (row,) = await db.list_runs(job_id=again.job_id)
         assert row.reused_from_agent_run_id is not None

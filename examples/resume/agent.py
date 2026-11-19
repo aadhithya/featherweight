@@ -104,7 +104,9 @@ async def main() -> int:
         runner = ftw.AgentRunner(db)
 
         print("first run: the process dies after the summaries")
-        first = await ftw.run_job(db, "release-notes", lambda job_id: pipeline(runner, job_id, COMMITS, crash=True))
+        first = await ftw.run_job(
+            db, "release-notes", lambda job_id: pipeline(runner, job_id, COMMITS, crash=True), resumable=True
+        )
         print(f"  job {first.status.value}: {first.error}")
         print_runs(await db.list_runs(job_id=first.job_id))
 

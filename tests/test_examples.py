@@ -97,7 +97,9 @@ async def test_the_resume_example_crashes_after_the_summaries_and_the_resumed_ru
     agents = {"summariser": FakeSummariser, "writer": FakeWriter}
     commits = example.COMMITS
 
-    first = await run_job(db, "t", lambda job_id: example.pipeline(runner, job_id, commits, crash=True, **agents))
+    first = await run_job(
+        db, "t", lambda job_id: example.pipeline(runner, job_id, commits, crash=True, **agents), resumable=True
+    )
     assert first.status == RunStatus.FAILED and "simulated crash" in (first.error or "")
     assert [r.agent_name for r in await db.list_runs(job_id=first.job_id)] == ["summariser"] * len(commits)
 

@@ -7,7 +7,7 @@ import logging
 import os
 import time
 from collections.abc import Callable, Sequence
-from typing import Any
+from typing import Any, Literal
 
 from ag_ui.core import (
     BaseEvent,
@@ -42,6 +42,7 @@ from featherweight.models import (
     RunStatus,
 )
 from featherweight.registry import ToolRegistry
+from featherweight.results import ResultKey, ResultStore, SqliteResultStore
 from featherweight.store import RunStore
 from featherweight.stream_events import EventMapper
 from featherweight.streaming import ChatInput, StreamingAgent, StreamingRun
@@ -199,6 +200,7 @@ class AgentRunner:
         max_concurrent: int | None = None,
         max_depth: int | None = None,
         max_launches: int | None = None,
+        results: ResultStore | None | Literal["default"] = "default",
     ):
         """`store` is what the `store_get` / `store_set` tools read and write (default: a new RunStore).
 
@@ -208,6 +210,10 @@ class AgentRunner:
         `max_depth` is the most agents in one chain of launches, the first agent included (A launches B launches C is
         3). Default: `MAX_AGENT_DEPTH`, else 3. At 1 no agent can launch another. `max_launches` is the most launches
         one attempt of one agent may make. Default: `MAX_AGENT_LAUNCHES`, else 10.
+
+        `results` is where the outputs that resuming a job reads back are kept (a `ResultStore`), for the jobs created
+        `resumable=True`. The default is a sqlite store in the run log's file. `None` keeps nothing, and then a job that resumes
+        another is a `SetupError`.
         """
         if max_attempts < 1:
             raise ValueError("max_attempts must be at least 1")
@@ -224,6 +230,7 @@ class AgentRunner:
         self._slots = asyncio.Semaphore(max_concurrent)
         self.store = store or RunStore()
         self.db = db
+        self.results: ResultStore | None = SqliteResultStore(db) if isinstance(results, str) else results
         self.max_attempts = max_attempts
         self.retry_delay_s = retry_delay_s
         self._keep_open = False  # True inside `async with`: MCP servers stay up between runs
@@ -695,6 +702,8 @@ class AgentRunner:
                         latency_ms=(time.perf_counter() - attempt_started) * 1000,
                         reported_model_name=reported_model,
                     )
+                    if depth == 1 and job_id is not None:  # only a step of a pipeline can be resumed
+                        await self._keep_result(job_id, declaration_hash, input_hash(agent_input), output)
                     latency_ms = (time.perf_counter() - started) * 1000
                     logger.info(
                         "invocation_finished invocation_id=%s status=SUCCESS attempts=%d input_tokens=%d output_tokens=%d latency_ms=%.0f",
@@ -755,12 +764,24 @@ class AgentRunner:
         job = await self.db.get_job(job_id)
         if job is None or job.resumed_from is None:
             return None
+        if self.results is None:
+            raise SetupError(
+                f"Job {job_id} resumes {job.resumed_from}, which needs the outputs of its steps, and this runner has no "
+                "result store: pass `results=` to AgentRunner (the default keeps them in the run log's sqlite file)"
+            )
         this_input_hash = input_hash(agent_input)
-        old = await self.db.find_reusable_run(job.resumed_from, declaration_hash, this_input_hash)
+        old = await self.db.find_reusable_run(
+            job.resumed_from, declaration_hash, this_input_hash
+        )  # did the step succeed
         if old is None:
             return None
+        key = ResultKey(job_id=job.resumed_from, agent_hash=declaration_hash, input_hash=this_input_hash)
+        stored = await self.results.get(key)  # and what was its output
+        if stored is None:
+            logger.warning("result_missing reused_from=%s agent=%s: the agent runs", old.agent_run_id, agent.name)
+            return None
         try:
-            output = agent.output_model.model_validate(old.output)
+            output = agent.output_model.model_validate(stored)
             agent.check_output(agent_input, output)
         except Exception as exc:
             logger.warning(
@@ -794,6 +815,9 @@ class AgentRunner:
             latency_ms=0.0,
             reported_model_name=old.reported_model_name,
         )
+        await self._keep_result(
+            job_id, declaration_hash, this_input_hash, output
+        )  # a later attempt resumes from this job too
         logger.info("run_reused agent_run_id=%s reused_from=%s agent=%s", agent_run_id, old.agent_run_id, agent.name)
         return result_cls(
             status=RunStatus.SUCCESS,
@@ -802,6 +826,22 @@ class AgentRunner:
             model_name=old.reported_model_name,
             reused=True,
         )
+
+    async def _keep_result(self, job_id: str, declaration_hash: str, this_input_hash: str, output: AgentOutput) -> None:
+        """Put the output of a step in the result store, if the job is resumable, so that a later job can resume from it. A
+        store that fails does not fail the run, which succeeded: the step just cannot be reused."""
+        if self.results is None:
+            return
+        try:
+            job = await self.db.get_job(job_id)
+            if job is None or not job.resumable:
+                return
+            key = ResultKey(job_id=job_id, agent_hash=declaration_hash, input_hash=this_input_hash)
+            await self.results.put(key, output.model_dump(mode="json"))
+        except Exception as exc:
+            logger.warning(
+                "result_not_kept job_id=%s agent_hash=%s reason=%s", job_id, declaration_hash[:12], _format_error(exc)
+            )
 
     async def run_many(
         self,

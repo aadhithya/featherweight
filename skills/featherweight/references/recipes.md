@@ -33,13 +33,15 @@ failed outcome, not an exception.
 
 ## Resuming a failed job
 
-Run the same pipeline again, and point it at the failed job:
+Create the first job with `resumable=True` (it keeps the outputs of its steps), and when it fails, run the same pipeline again
+and point it at the failed job:
 
 ```python
-outcome = await run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, job_id), resume_from=failed.job_id)
+first = await run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, job_id), resumable=True)
+outcome = await run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, job_id), resume_from=first.job_id)
 ```
 
-Agent runs that succeeded with the same agent and input are answered from the log (`result.reused`, zero tokens). Keep
+Agent runs that succeeded with the same agent and input are answered from the kept results (`result.reused`, zero tokens). Keep
 the code between agents deterministic (no clock, no `random`), and do not rely on the run store for a resume.
 
 ## Telling a retry what went wrong

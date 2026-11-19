@@ -104,9 +104,9 @@ They are. Use them. This is built on LangChain and LangGraph anyway.
   ([streaming agents](https://github.com/aadhithya/featherweight/blob/main/docs/streaming.md)), but there is no UI, and no stored conversations.
 - **Very opinionated.** Sorry, not sorry. Don't like them? Fork off.
 
-Want durable execution, evals or OpenTelemetry? Pydantic AI. Want a graph that pauses and resumes? LangGraph. Here, a failed job is run again with
+Want durable execution, evals or OpenTelemetry? Pydantic AI. Want a graph that pauses and resumes? LangGraph. Here, a job created `resumable=True` that failed is run again with
 `run_job(..., resume_from=old_job_id)`: your pipeline code runs again, and the agent runs that already succeeded are
-answered from the run log ([resuming a job](https://github.com/aadhithya/featherweight/blob/main/docs/agents.md#resuming-a-job)).
+answered from the results it kept ([resuming a job](https://github.com/aadhithya/featherweight/blob/main/docs/agents.md#resuming-a-job)).
 
 ## Build with a coding agent
 

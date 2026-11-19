@@ -42,9 +42,10 @@ A job is one run of a pipeline. `run_job(db, name, pipeline, job_id=None)`:
 
 ## Resuming a job
 
-A pipeline that failed at step 2 is run again with `resume_from=<failed job>`. This is replay with memoised agent calls,
-not pausing: the pipeline's own code, loops and decisions run again, and the runner answers an agent run from the old
-job's rows when it can ([runner](runner.md#resuming) has the rules). The new job's trace has every step: a reused step
+A pipeline that failed at step 2 is run again with `resume_from=<failed job>`, if the failed job was created `resumable=True`
+(decided before it ran; otherwise nothing was kept and `create_job` raises). This is replay with memoised agent calls, not
+pausing: the pipeline's own code, loops and decisions run again, and the runner answers an agent run from the old job's
+kept results when it can ([runner](runner.md#resuming) has the rules). A job created with `resume_from` is resumable too. The new job's trace has every step: a reused step
 is a `SUCCESS` row with zero tokens and `reused_from_agent_run_id` pointing at the original, so the totals of the new job
 count only the calls it made. The old job is not changed.
 
@@ -53,7 +54,7 @@ The limits:
 - **The code between agents must be deterministic** (no clock, no `random`, no unordered iteration). It is the user's code
   and the user's responsibility; nothing checks it. If it takes another path, the inputs change, nothing matches, and the
   agents run again.
-- **The run store is not used for resumption.** A reused step does not run, so its `store_set` does not happen again.
+- **The run store is not used for resumption**; the result store is. A reused step does not run, so its `store_set` does not happen again.
 - **Side effects** of tools in the failed job are not undone or repeated. An agent that failed halfway runs whole.
 - **Rows from before `agent_hash`** existed are never reused. Neither are `FAILED`, `INIT` and `RUNNING` rows.
 - **Depth 1 only.** Sub-agent runs are not looked up. A parent that succeeded is reused whole; one that failed runs again

@@ -46,6 +46,9 @@ _EXPORTS = {
     "StdioMCPServer": "mcp",
     "HttpMCPServer": "mcp",
     "RunStore": "store",
+    "ResultStore": "results",
+    "ResultKey": "results",
+    "SqliteResultStore": "results",
     "RunContext": "context",
     "SetupError": "errors",
     "BadRequest": "adapters.errors",
@@ -64,10 +67,12 @@ _MODULES = (
     "model_settings",
     "models",
     "registry",
+    "results",
     "runner",
     "skills",
     "store",
     "streaming",
+    "testing",
     "tools",
 )
 
@@ -100,6 +105,9 @@ if TYPE_CHECKING:  # for editors and type checkers: the same names, imported
     from featherweight.models import AgentOutput as AgentOutput
     from featherweight.models import AgentResult as AgentResult
     from featherweight.models import RunStatus as RunStatus
+    from featherweight.results import ResultKey as ResultKey
+    from featherweight.results import ResultStore as ResultStore
+    from featherweight.results import SqliteResultStore as SqliteResultStore
     from featherweight.runner import AgentRunner as AgentRunner
     from featherweight.skills import Skill as Skill
     from featherweight.store import RunStore as RunStore
