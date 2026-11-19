@@ -83,6 +83,18 @@ CREATE TABLE results (
     created_at   TEXT NOT NULL,
     PRIMARY KEY (job_id, agent_hash, input_hash)
 );
+
+CREATE TABLE job_queue (
+    seq          INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id       TEXT NOT NULL,
+    job_name     TEXT NOT NULL,
+    input        TEXT NOT NULL,
+    state        TEXT NOT NULL CHECK (state IN ('ready', 'claimed')),
+    enqueued_at  TEXT NOT NULL,
+    claimed_at   TEXT
+);
+
+CREATE INDEX idx_job_queue_state ON job_queue(state, seq);
 """
 
 # Postgres has native types (timestamptz, jsonb, boolean, an identity column). There is no `results` table: we ship no Postgres
