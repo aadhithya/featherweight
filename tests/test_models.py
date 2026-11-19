@@ -2,7 +2,8 @@ import pytest
 from fakes import Echo, EchoOutput
 from pydantic import ValidationError
 
-from micro.model_settings import Claude, Gemini, ModelSettings
+from micro.mcp import HttpMCPServer, StdioMCPServer
+from micro.model_settings import Claude, Gemini, Gemma, ModelSettings, OpenAI
 from micro.models import (
     ASK_ALLOWED,
     ASK_FORBIDDEN,
@@ -12,6 +13,7 @@ from micro.models import (
     AgentResult,
     RunStatus,
 )
+from micro.skills import Skill
 
 
 class Plain(AgentBase):
@@ -64,3 +66,21 @@ def test_system_prompt_hash_tracks_the_assembled_prompt():
 def test_result_rejects_non_terminal_status(status):
     with pytest.raises(ValidationError):
         AgentResult[EchoOutput](status=status, agent_run_id="run-4")
+
+
+@pytest.mark.parametrize(
+    "declaration,field",
+    [
+        (Gemini(), "thinking"),
+        (Claude(), "effort"),
+        (OpenAI(), "effort"),
+        (Gemma(), "thinking"),
+        (StdioMCPServer(name="fs", command="npx"), "name"),
+        (HttpMCPServer(name="web", url="https://example.com/mcp"), "name"),
+        (Skill(name="notes", description="Notes.", instructions="One."), "name"),
+    ],
+    ids=lambda value: type(value).__name__ if not isinstance(value, str) else value,
+)
+def test_declarations_are_frozen(declaration, field):
+    with pytest.raises(ValidationError):
+        setattr(declaration, field, "other")

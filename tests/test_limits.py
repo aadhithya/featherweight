@@ -6,7 +6,7 @@ import pytest
 from fakes import Echo, EchoInput, Reactive, respond, runner_with
 
 from micro.models import RunStatus
-from micro.runner import ENV_MAX_CONCURRENT, AgentRunner, max_concurrent_from_env
+from micro.runner import ENV_MAX_CONCURRENT, AgentRunner
 
 
 async def run_many(runner, texts):
@@ -24,10 +24,6 @@ async def test_never_more_than_the_limit_in_flight_and_everything_completes(db):
     assert [r.output.echoed for r in results] == texts
 
 
-def test_default_limit_is_10():
-    assert runner_with(None, Reactive(respond=respond)).max_concurrent == 10
-
-
 async def test_limit_comes_from_the_environment(db, monkeypatch):
     monkeypatch.setenv(ENV_MAX_CONCURRENT, "2")
     model = Reactive(respond=respond)
@@ -37,25 +33,6 @@ async def test_limit_comes_from_the_environment(db, monkeypatch):
 
     assert runner.max_concurrent == 2
     assert model.max_in_flight == 2
-
-
-async def test_explicit_argument_beats_the_environment(db, monkeypatch):
-    monkeypatch.setenv(ENV_MAX_CONCURRENT, "2")
-    assert runner_with(db, Reactive(respond=respond), max_concurrent=5).max_concurrent == 5
-
-
-def test_blank_environment_value_means_default(monkeypatch):
-    monkeypatch.setenv(ENV_MAX_CONCURRENT, "  ")
-    assert max_concurrent_from_env() == 10
-
-
-@pytest.mark.parametrize("value", ["abc", "1.5", "0", "-3"])
-def test_invalid_environment_value_is_rejected(monkeypatch, value):
-    monkeypatch.setenv(ENV_MAX_CONCURRENT, value)
-    with pytest.raises(ValueError, match=ENV_MAX_CONCURRENT):
-        max_concurrent_from_env()
-    with pytest.raises(ValueError):
-        AgentRunner(None)
 
 
 async def test_a_waiting_attempt_is_INIT_until_it_gets_a_slot(db):
@@ -123,3 +100,40 @@ async def test_run_many_returns_failures_as_results_and_handles_the_job_id_and_n
     assert results[1].error == "RuntimeError: down fail-1"
     assert results[2].attempts == 2
     assert len(await db.list_runs(job_id=job_id)) == 1 + 3 + 2  # ok-1, fail-1 x3, flaky-1 x2
+
+
+LIMITS = [  # the argument, its environment variable and its default
+    ("max_concurrent", "MAX_CONCURRENT_AGENT_RUNS", 10),
+    ("max_depth", "MAX_AGENT_DEPTH", 3),
+    ("max_launches", "MAX_AGENT_LAUNCHES", 10),
+]
+
+
+@pytest.mark.parametrize("arg,var,default", LIMITS)
+def test_a_limit_has_a_default_comes_from_the_environment_and_the_argument_wins(monkeypatch, arg, var, default):
+    assert getattr(AgentRunner(None), arg) == default
+    monkeypatch.setenv(var, "4")
+    assert getattr(AgentRunner(None), arg) == 4
+    assert getattr(AgentRunner(None, **{arg: 2}), arg) == 2  # the argument wins over the variable
+    monkeypatch.setenv(var, "  ")
+    assert getattr(AgentRunner(None), arg) == default  # a blank value means the default
+
+
+@pytest.mark.parametrize("arg,var,default", LIMITS)
+@pytest.mark.parametrize(
+    "value,message",
+    [("0", "at least 1"), ("-3", "at least 1"), ("many", "must be an integer"), ("1.5", "must be an integer")],
+)
+def test_a_bad_limit_in_the_environment_is_refused_and_names_the_variable(
+    monkeypatch, arg, var, default, value, message
+):
+    monkeypatch.setenv(var, value)
+    with pytest.raises(ValueError, match=message) as error:
+        AgentRunner(None)
+    assert var in str(error.value)
+
+
+@pytest.mark.parametrize("kwargs", [{"max_attempts": 0}, {"max_concurrent": 0}, {"max_depth": 0}, {"max_launches": 0}])
+def test_a_limit_argument_below_one_is_refused(kwargs):
+    with pytest.raises(ValueError, match="at least 1"):
+        AgentRunner(None, **kwargs)

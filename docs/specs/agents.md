@@ -122,8 +122,9 @@ equal declarations give the same hash in any process. The code inside tools and 
 
 ## Tests
 
-[test_models.py](../../tests/test_models.py) covers the defaults, the allowed models and reasoning levels, the prompt flags
-and the prompt hash; [test_runner.py](../../tests/test_runner.py) covers input type errors, output validation and
+[test_models.py](../../tests/test_models.py) covers the defaults, that declarations are frozen, the prompt flags and the
+prompt hash, and [test_model_settings.py](../../tests/test_model_settings.py) the models and efforts each provider class
+accepts; [test_runner.py](../../tests/test_runner.py) covers input type errors, output validation and
 `check_output`; the build-time checks are in [test_subagents.py](../../tests/test_subagents.py) (sub-agents),
 [test_skills.py](../../tests/test_skills.py) (skills), [test_mcp.py](../../tests/test_mcp.py) (servers and the reserved tool
 names) and [test_registry.py](../../tests/test_registry.py) (duplicate tools).

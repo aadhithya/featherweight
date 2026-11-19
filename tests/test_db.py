@@ -179,8 +179,11 @@ async def test_an_older_database_gets_the_new_columns_when_it_is_opened(tmp_path
         await db.create_run(
             **run_kwargs(parent_agent_run_id="old", depth=2, provider="openai", settings='{"model": "x"}')
         )
-        await db.create_run(**run_kwargs(agent_hash="f" * 64))
+        await db.create_run(
+            **run_kwargs(agent_hash="f" * 64, input={"text": "as a dict"})
+        )  # an input can be a dict too
         assert (await db.list_runs())[-1].agent_hash == "f" * 64
+        assert (await db.list_runs())[-1].input == {"text": "as a dict"}
         newest = (await db.list_runs())[1]
         assert (
             newest.agent_hash is None

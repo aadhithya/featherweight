@@ -179,8 +179,9 @@ is needed for the real model. A missing key is a setup error: the run fails at o
 ## Tests
 
 [test_runner.py](../../tests/test_runner.py) (results, retries, non-retryable errors, token sums),
-[test_limits.py](../../tests/test_limits.py) (the environment variables and arguments),
-[test_concurrency.py](../../tests/test_concurrency.py) (the slot limit and `run_many`),
+[test_limits.py](../../tests/test_limits.py) (the three limits: defaults, environment variables, arguments, and the slot
+limit with `run_many`),
+[test_concurrency.py](../../tests/test_concurrency.py) (many runs at once do not interfere),
 [test_subagents.py](../../tests/test_subagents.py) (the allow-list, the two tools, depth and breadth, the slot hand-over
 with deadlock tests, tracing), and [test_mcp.py](../../tests/test_mcp.py) (leases). A real-model test of launching is in
 [tests/e2e/test_subagents_e2e.py](../../tests/e2e/test_subagents_e2e.py).

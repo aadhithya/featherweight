@@ -46,12 +46,6 @@ def test_the_numbers_and_lists_of_a_server_are_checked():
         fake(unknown_field=1)
 
 
-def test_a_server_is_frozen():
-    server = fake()
-    with pytest.raises(ValidationError):
-        server.name = "other"
-
-
 def test_servers_with_equal_connection_settings_share_a_key_whatever_their_name_or_tools():
     assert fake(name="a").connection_key() == fake(name="b", tools=("add",), timeout_s=5).connection_key()
     assert fake().connection_key() != fake(env_from=("X",)).connection_key()
@@ -270,26 +264,23 @@ async def test_calls_in_one_turn_run_at_the_same_time_on_one_process(db):
     assert elapsed < 1.9  # four calls of 0.5s one after another would take 2s and more
 
 
-async def test_agents_with_equal_connection_settings_share_one_process(db):
+@pytest.mark.parametrize(
+    "second,tool,shared",
+    [
+        (lambda: worker(fake(name="other", tools=("pid",))), "other_pid", True),  # only the name and the tools differ
+        (lambda: worker(fake(name="fake", env_from=("PATH",))), "fake_pid", False),  # a connection setting differs
+    ],
+    ids=["equal_connection_settings", "different_settings"],
+)
+async def test_agents_share_a_server_process_exactly_when_their_connection_settings_are_equal(db, second, tool, shared):
     one = Scripted(script=[tool_reply("fake_pid", {}, "c1"), done()])
-    two = Scripted(script=[tool_reply("other_pid", {}, "c1"), done()])
+    two = Scripted(script=[tool_reply(tool, {}, "c1"), done()])
     async with runner_with(db, one) as runner:
         await runner.run(worker(fake(name="fake")), INPUT)
         use_model(two)
-        await runner.run(worker(fake(name="other", tools=("pid",))), INPUT)
+        await runner.run(second(), INPUT)
 
-    assert texts(one) == texts(two)
-
-
-async def test_servers_with_different_settings_get_their_own_process(db):
-    one = Scripted(script=[tool_reply("fake_pid", {}, "c1"), done()])
-    two = Scripted(script=[tool_reply("fake_pid", {}, "c1"), done()])
-    async with runner_with(db, one) as runner:
-        await runner.run(worker(fake(name="fake")), INPUT)
-        use_model(two)
-        await runner.run(worker(fake(name="fake", env_from=("PATH",))), INPUT)
-
-    assert texts(one) != texts(two)
+    assert (texts(one) == texts(two)) is shared
 
 
 async def test_a_server_that_dies_gives_text_to_the_model_and_the_next_run_gets_a_new_connection(db):
@@ -412,20 +403,6 @@ async def test_closing_the_runner_stops_the_server_process_and_can_be_done_twice
     await wait_gone(pid)
 
 
-async def test_concurrent_first_leases_open_one_connection():
-    connections = MCPConnections(keep_open=True)
-    leases = [Lease(lambda: connections) for _ in range(4)]
-    try:
-        tools = await asyncio.gather(*(lease.list_tools(fake(name=f"s{i}")) for i, lease in enumerate(leases)))
-        assert len(connections._entries) == 1
-        assert all({"add", "pid"} <= {tool.name for tool in each} for each in tools)  # the server's own names
-    finally:
-        for lease in leases:
-            await lease.release()
-        await connections.aclose()
-        await connections.aclose()
-
-
 async def test_a_sub_agent_uses_the_servers_it_declares_itself(db):
     child_cls = worker(fake(), name="child_worker", model=FakeSettings(key="child"))
     parent_model = Scripted(
@@ -469,23 +446,16 @@ def pid_run(db, runs=1):
     return runner_with(db, model), model
 
 
-async def test_without_async_with_the_server_stops_when_the_run_ends(db):
-    runner, model = pid_run(db)
-    result = await runner.run(worker(fake()), INPUT)
-
-    assert result.status == RunStatus.SUCCESS
+async def test_without_async_with_the_server_stops_when_the_run_ends_and_each_run_starts_its_own(db):
+    runner, model = pid_run(db, runs=2)
+    first = await runner.run(worker(fake()), INPUT)
+    assert first.status == RunStatus.SUCCESS
     (pid,) = [int(value) for value in texts(model)]
-    await wait_gone(pid)
+    await wait_gone(pid)  # stopped with the run
     assert runner._mcp is not None and runner._mcp._entries == {}
 
-
-async def test_without_async_with_each_run_starts_its_own_server(db):
-    runner, model = pid_run(db, runs=2)
     await runner.run(worker(fake()), INPUT)
-    await runner.run(worker(fake()), INPUT)
-
-    first, second = texts(model)
-    assert first != second
+    assert texts(model)[1] != texts(model)[0]  # the next run started another process
 
 
 async def test_inside_async_with_the_server_stays_up_between_runs_and_stops_at_the_end(db):

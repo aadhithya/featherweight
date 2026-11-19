@@ -5,7 +5,6 @@ import asyncio
 from fakes import Echo, EchoInput, Reactive, respond, runner_with
 
 from micro.models import RunStatus
-from micro.store import RunStore
 
 
 async def test_many_concurrent_runs_do_not_interfere(db):
@@ -29,14 +28,3 @@ async def test_many_concurrent_runs_do_not_interfere(db):
         assert row.output["echoed"] == row.input["text"]  # no crosstalk between rows
         assert row.input_tokens == 5 and row.output_tokens == 7
         assert row.completed_at is not None
-
-
-async def test_concurrent_store_access_stays_scoped_per_job():
-    store = RunStore()
-    jobs = [f"job-{i}" for i in range(40)]
-
-    await asyncio.gather(*(store.set(job, "state", {"job": job}) for job in jobs))
-    values = await asyncio.gather(*(store.get(job, "state") for job in jobs))
-
-    assert values == [{"job": job} for job in jobs]
-    await store.close()

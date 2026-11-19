@@ -109,5 +109,5 @@ The shared MCP tools cannot take a `RunContext`, because one tool object serves 
 
 [test_tools.py](../../tests/test_tools.py) (the store tools and the run context),
 [test_calc_date_tools.py](../../tests/test_calc_date_tools.py) (`calculate` and the date tools, including errors),
-[test_store.py](../../tests/test_store.py), [test_registry.py](../../tests/test_registry.py) (names and collisions), and
+[test_store.py](../../tests/test_store.py), [test_registry.py](../../tests/test_registry.py) (names, collisions, and the direct and discoverable modes), and
 [test_mcp.py](../../tests/test_mcp.py) (`add_mcp`, reserved names).
