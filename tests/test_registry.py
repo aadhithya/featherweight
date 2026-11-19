@@ -4,9 +4,9 @@ import pytest
 from langchain_core.tools import tool
 from pydantic import ValidationError
 
-from micro.errors import SetupError
-from micro.models import AgentBase
-from micro.registry import DIRECT, DISCOVERABLE, ToolRegistry
+from featherweight.errors import SetupError
+from featherweight.models import AgentBase
+from featherweight.registry import DIRECT, DISCOVERABLE, ToolRegistry
 
 
 def named(name: str, description: str = "A tool."):

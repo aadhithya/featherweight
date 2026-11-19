@@ -6,21 +6,21 @@ from pathlib import Path
 
 import yaml
 
-import micro
+import featherweight
 
 ROOT = Path(__file__).resolve().parent.parent
 
 
 def test_the_package_version_is_the_version_in_pyproject():
-    assert micro.__version__ == tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
+    assert featherweight.__version__ == tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
 
 
 def test_the_release_config_and_the_manifest_are_valid_and_agree():
     config = json.loads((ROOT / "release-please-config.json").read_text())
     manifest = json.loads((ROOT / ".release-please-manifest.json").read_text())
     assert set(config["packages"]) == set(manifest) == {"."}
-    assert config["packages"]["."]["extra-files"] == ["src/micro/__init__.py"]
-    assert "x-release-please-version" in (ROOT / "src" / "micro" / "__init__.py").read_text()
+    assert config["packages"]["."]["extra-files"] == ["src/featherweight/__init__.py"]
+    assert "x-release-please-version" in (ROOT / "src" / "featherweight" / "__init__.py").read_text()
     assert config["bump-minor-pre-major"] is True  # below 1.0, a breaking change bumps the minor version
     title = config[
         "pull-request-title-pattern"

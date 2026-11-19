@@ -4,7 +4,7 @@ import asyncio
 
 from fakes import Echo, EchoInput, Reactive, respond, runner_with
 
-from micro.models import RunStatus
+from featherweight.models import RunStatus
 
 
 async def test_many_concurrent_runs_do_not_interfere(db):

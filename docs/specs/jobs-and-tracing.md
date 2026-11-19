@@ -1,7 +1,7 @@
 # Spec: jobs and tracing
 
 Status: implemented. How to use it is in [agents.md](../agents.md#jobs-and-tracing). The code is
-[db.py](../../src/micro/db.py), [jobs.py](../../src/micro/jobs.py) and [log.py](../../src/micro/log.py).
+[db.py](../../src/featherweight/db.py), [jobs.py](../../src/featherweight/jobs.py) and [log.py](../../src/featherweight/log.py).
 
 - [Goal](#goal)
 - [Jobs](#jobs)
@@ -59,7 +59,7 @@ The limits:
 
 ## The run log
 
-A sqlite file (`MICRO_DB_PATH`, default `micro.db`) with two tables. `Database` is an async context manager over one
+A sqlite file (`FTW_DB_PATH`, default `featherweight.db`) with two tables. `Database` is an async context manager over one
 connection, with foreign keys on.
 
 **`jobs`**: `job_id`, `name`, `status`, `created_at`, `completed_at`, `error`, `resumed_from` (the job this one resumes; `NULL` otherwise).
@@ -106,8 +106,8 @@ cheap.
 
 ## Logging
 
-`setup_logging()` sends `micro.*` logs to stdout as plain text (`time level logger key=value ...`). The level is the
-argument, else `MICRO_LOG_LEVEL`, else INFO. Calling it twice adds one handler. The libraries only use
+`setup_logging()` sends `featherweight.*` logs to stdout as plain text (`time level logger key=value ...`). The level is the
+argument, else `FTW_LOG_LEVEL`, else INFO. Calling it twice adds one handler. The libraries only use
 `logging.getLogger(__name__)`; entry points call `setup_logging`.
 
 The events: `db_connected`, `db_migrated`, `job_created`, `job_status`, `job_started`, `job_finished`, `job_failed`,

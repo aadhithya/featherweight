@@ -3,7 +3,7 @@ name: release-notes
 description: Turns a list of code changes or commits into user-facing release notes. Use when asked for release notes, a changelog, or a summary of what changed in a version.
 license: Apache-2.0
 metadata:
-  author: micro
+  author: featherweight
   version: "1.0"
 ---
 

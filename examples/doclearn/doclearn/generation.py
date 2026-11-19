@@ -21,15 +21,11 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
+import featherweight as ftw
 from doclearn.assembly import LEADING_NUMBER, conditions_hold
 from doclearn.facts import SPAN_RE, find_spans, walk
 from doclearn.models import ElementType, FieldValue, InputField, LearnedNode, LearnedTree
 from doclearn.store import LearnedDocument
-from micro.context import RunContext
-from micro.model_settings import Gemini, ModelSettings
-from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus
-from micro.runner import AgentRunner
-from micro.tools import NO_JOB, add_to_date, calculate, current_datetime, days_between
 
 logger = logging.getLogger(__name__)
 
@@ -74,12 +70,12 @@ class GenerationError(Exception):
 
 
 @tool
-async def check_document(markdown: str, runtime: ToolRuntime[RunContext]) -> str:
+async def check_document(markdown: str, runtime: ToolRuntime[ftw.RunContext]) -> str:
     """Hand in the whole document you wrote. It is checked against the structure and the facts: if it passes it is
     delivered, if not you get the problems back; fix them and hand it in again."""
     ctx = runtime.context
     if ctx.job_id is None:
-        return NO_JOB
+        return ftw.tools.NO_JOB
     state = await ctx.store.get(ctx.job_id, STATE_KEY)
     if state is None:
         return "There is nothing to check the document against."
@@ -98,7 +94,7 @@ async def check_document(markdown: str, runtime: ToolRuntime[RunContext]) -> str
     return f"Problems ({state['failed_checks']} of {MAX_CHECKS} failed checks):\n{listed}"
 
 
-class GeneratorInput(AgentInput):
+class GeneratorInput(ftw.AgentInput):
     category: str = Field(description="The document category.")
     structure: str = Field(description="The learned document tree as an outline: one block per line, nested by indent.")
     styles: list[ElementType] = Field(description="The markdown pattern of each element type.")
@@ -107,19 +103,25 @@ class GeneratorInput(AgentInput):
     guidance: str = Field(default="", description="Optional extra instructions from the user.")
 
 
-class GeneratorOutput(AgentOutput):
+class GeneratorOutput(ftw.AgentOutput):
     notes: list[str] = Field(default_factory=list, description="What was left out and which wordings were chosen.")
 
 
-class GeneratorAgent(AgentBase):
+class GeneratorAgent(ftw.AgentBase):
     name: str = "document_generator"
     description: str = "Writes a document from a learned tree and the facts of a new case"
     version: str = "0.4.0"
     prompt: str = PROMPT
-    model: ModelSettings = Gemini(model="gemini-3.8-flash", thinking="low")
-    tools: list[BaseTool] = [calculate, current_datetime, add_to_date, days_between, check_document]
-    input_model: ClassVar[type[AgentInput]] = GeneratorInput
-    output_model: ClassVar[type[AgentOutput]] = GeneratorOutput
+    model: ftw.ModelSettings = ftw.Gemini(model="gemini-3.8-flash", thinking="low")
+    tools: list[BaseTool] = [
+        ftw.tools.calculate,
+        ftw.tools.current_datetime,
+        ftw.tools.add_to_date,
+        ftw.tools.days_between,
+        check_document,
+    ]
+    input_model: ClassVar[type[ftw.AgentInput]] = GeneratorInput
+    output_model: ClassVar[type[ftw.AgentOutput]] = GeneratorOutput
 
 
 class GeneratedDocument(BaseModel):
@@ -273,7 +275,7 @@ def _clean(facts: Mapping[str, str]) -> dict[str, str]:
 
 
 async def generate_document(
-    runner: AgentRunner,
+    runner: ftw.AgentRunner,
     learned: LearnedDocument,
     facts: Mapping[str, str],
     guidance: str = "",
@@ -285,7 +287,7 @@ async def generate_document(
 
     Raises `GenerationError` before any model call if a fact is not a field of the tree, or a required input is
     missing, and if the Generator fails. The agent checks its own document with `check_document` and reports in
-    `notes` what it could not fix. Run it through `micro.jobs.run_job` like the learning pipeline. Optional inputs
+    `notes` what it could not fix. Run it through `featherweight.jobs.run_job` like the learning pipeline. Optional inputs
     without a value are listed in `not_provided`. `progress`, if given, is called with a line before the agent runs.
     """
     schema = learned.facts_schema
@@ -327,7 +329,7 @@ async def generate_document(
     if progress:
         progress("Writing the document")
     result = await runner.run(GeneratorAgent, agent_input, job_id=job_id)
-    if result.status != RunStatus.SUCCESS:
+    if result.status != ftw.RunStatus.SUCCESS:
         raise GenerationError(f"The Generator failed: {result.error}")
     state = await runner.store.get(job_id, STATE_KEY)
     if state is None or state["document"] is None:

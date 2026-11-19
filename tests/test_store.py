@@ -1,4 +1,4 @@
-from micro.store import RunStore
+from featherweight.store import RunStore
 
 
 async def test_set_get_roundtrip():

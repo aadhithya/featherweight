@@ -2,8 +2,8 @@ import asyncio
 
 import pytest
 
-from micro.jobs import run_job
-from micro.models import RunStatus
+from featherweight.jobs import run_job
+from featherweight.models import RunStatus
 
 
 async def test_a_successful_pipeline_marks_the_job_success_and_returns_its_result(db):

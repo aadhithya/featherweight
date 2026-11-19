@@ -1,12 +1,12 @@
 services:
-  micro:
+  featherweight:
     build: .
     env_file:
       - path: .env
         required: false
     environment:
-      MICRO_DB_PATH: /app/micro.db  # the project directory is bind-mounted at /app, so this is ./micro.db on the host
-      MICRO_LOG_LEVEL: ${MICRO_LOG_LEVEL:-}  # from your shell, or .env: `MICRO_LOG_LEVEL=INFO make example-mcp`
+      FTW_DB_PATH: /app/featherweight.db  # the project directory is bind-mounted at /app, so this is ./featherweight.db on the host
+      FTW_LOG_LEVEL: ${FTW_LOG_LEVEL:-}  # from your shell, or .env: `FTW_LOG_LEVEL=INFO make example-mcp`
     volumes:
       - .:/app
     # No app entry point yet; keep the container alive for `make shell` / `make test`.

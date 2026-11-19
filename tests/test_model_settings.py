@@ -6,8 +6,8 @@ from typing import ClassVar
 import pytest
 from pydantic import Field, ValidationError
 
-from micro.errors import SetupError
-from micro.model_settings import Claude, Gemini, Gemma, ModelInfo, ModelSettings, OpenAI
+from featherweight.errors import SetupError
+from featherweight.model_settings import Claude, Gemini, Gemma, ModelInfo, ModelSettings, OpenAI
 
 PROVIDERS = [Gemini, Gemma, Claude, OpenAI]
 
@@ -130,7 +130,7 @@ def test_openai_none_effort_is_for_the_models_that_accept_it():
 )
 def test_a_missing_provider_package_is_a_setup_error_that_names_the_extra(monkeypatch, cls, module, extra):
     monkeypatch.setitem(sys.modules, module, None)  # makes the import fail
-    with pytest.raises(SetupError, match=f"micro\\[{extra}\\]"):
+    with pytest.raises(SetupError, match=f"featherweight\\[{extra}\\]"):
         cls().build()
 
 

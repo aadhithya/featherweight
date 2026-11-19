@@ -4,10 +4,9 @@ from typing import ClassVar
 
 from pydantic import Field, model_validator
 
+import featherweight as ftw
 from doclearn.facts import find_spans, walk
 from doclearn.models import ElementType, FieldInfo, LearnedBlock, LearnedNode, UnitDocument
-from micro.model_settings import Gemini, ModelSettings
-from micro.models import AgentBase, AgentInput, AgentOutput
 
 MIN_COVERAGE_DIVISOR = 2  # the learned tree must have at least 1/2 of the largest document's blocks
 
@@ -53,7 +52,7 @@ types, and never use a condition for such a difference.
 """
 
 
-class SemanticAlignmentInput(AgentInput):
+class SemanticAlignmentInput(ftw.AgentInput):
     category: str = Field(description="The document category, provided by the user.")
     position: int = Field(
         description="Which section this is, starting at 1: the same section is matched across the documents by its heading."
@@ -63,7 +62,7 @@ class SemanticAlignmentInput(AgentInput):
     styles: list[ElementType] = Field(description="Reconciled formatting of each element type used in the subtree.")
 
 
-class SemanticAlignmentOutput(AgentOutput):
+class SemanticAlignmentOutput(ftw.AgentOutput):
     blocks: list[LearnedBlock] = Field(
         default_factory=list, description="The learned section as a flat list of blocks."
     )
@@ -155,18 +154,18 @@ def _reachable(blocks: list[LearnedBlock], root_id: str) -> set[str]:
     return seen
 
 
-class SemanticAlignmentAgent(AgentBase):
+class SemanticAlignmentAgent(ftw.AgentBase):
     name: str = "semantic_alignment"
     description: str = (
         "Aligns one section across documents into a learned subtree with kinds, alternatives and conditions"
     )
     version: str = "0.6.1"
     prompt: str = PROMPT
-    model: ModelSettings = Gemini(model="gemini-3.8-flash", thinking="low")
-    input_model: ClassVar[type[AgentInput]] = SemanticAlignmentInput
-    output_model: ClassVar[type[AgentOutput]] = SemanticAlignmentOutput
+    model: ftw.ModelSettings = ftw.Gemini(model="gemini-3.8-flash", thinking="low")
+    input_model: ClassVar[type[ftw.AgentInput]] = SemanticAlignmentInput
+    output_model: ClassVar[type[ftw.AgentOutput]] = SemanticAlignmentOutput
 
-    def check_output(self, agent_input: AgentInput, output: AgentOutput) -> None:
+    def check_output(self, agent_input: ftw.AgentInput, output: ftw.AgentOutput) -> None:
         """Reject output that drops content: the tree must not be far smaller than the largest document's section.
 
         Matching merges blocks across documents, so the learned tree can be smaller than the largest

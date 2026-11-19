@@ -10,8 +10,8 @@ from langchain_core.tools import tool
 from mcp_helpers import INPUT, done, fake, shown, texts, worker
 from pydantic import ValidationError
 
-from micro.mcp import StdioMCPServer
-from micro.models import RunStatus
+from featherweight.mcp import StdioMCPServer
+from featherweight.models import RunStatus
 
 
 def finder(**kwargs) -> StdioMCPServer:

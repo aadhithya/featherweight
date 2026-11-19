@@ -7,10 +7,10 @@ from fakes import FakeSettings, Scripted, runner_with, structured_reply, tool_re
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
 
-from micro.model_settings import ModelSettings
-from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus
-from micro.store import RunStore
-from micro.tools import store_get, store_set
+from featherweight.model_settings import ModelSettings
+from featherweight.models import AgentBase, AgentInput, AgentOutput, RunStatus
+from featherweight.store import RunStore
+from featherweight.tools import store_get, store_set
 
 
 class TaskInput(AgentInput):

@@ -4,7 +4,7 @@ from ag_ui.core import RunFinishedEvent, RunStartedEvent
 from langchain_core.messages import AIMessageChunk, ToolMessage
 from stream_check import assert_valid
 
-from micro.stream_events import EventMapper
+from featherweight.stream_events import EventMapper
 
 
 def run(chunks, *, show_thoughts=False):

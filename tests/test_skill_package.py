@@ -1,4 +1,4 @@
-"""The skill in `skills/micro`: it loads as a skill, its guides match the docs, and its code runs (on a fake model)."""
+"""The skill in `skills/featherweight`: it loads as a skill, its guides match the docs, and its code runs (on a fake model)."""
 
 import ast
 import importlib.util
@@ -11,11 +11,11 @@ from pathlib import Path
 import pytest
 from fakes import Scripted, structured_reply
 
-from micro.model_settings import Gemini
-from micro.skills import Skill
+from featherweight.model_settings import Gemini
+from featherweight.skills import Skill
 
 ROOT = Path(__file__).resolve().parent.parent
-SKILL = ROOT / "skills" / "micro"
+SKILL = ROOT / "skills" / "featherweight"
 
 
 def python_blocks(path: Path) -> list[str]:
@@ -24,8 +24,8 @@ def python_blocks(path: Path) -> list[str]:
 
 def test_the_skill_loads_with_our_own_skill_model():
     skill = Skill.from_directory(SKILL)
-    assert skill.name == "micro"
-    assert "micro" in skill.description and "Use when" in skill.description
+    assert skill.name == "featherweight"
+    assert "Featherweight" in skill.description and "Use when" in skill.description
     assert len(skill.instructions.splitlines()) < 500  # the specification's advice
     assert {"references/agents.md", "references/models.md", "references/recipes.md"} <= set(skill.resources)
 
@@ -63,7 +63,7 @@ def test_the_working_app_in_the_skill_runs_on_a_fake_model(monkeypatch, tmp_path
     exec(pipeline, namespace)  # defines main() and runs it
 
     assert "['Anna Berger', 'Tom Okafor']" in capsys.readouterr().out
-    assert (tmp_path / "micro.db").exists()
+    assert (tmp_path / "featherweight.db").exists()
 
 
 def test_the_recipes_pipeline_defines_and_the_fake_model_test_file_passes_as_written(tmp_path):

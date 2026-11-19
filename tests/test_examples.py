@@ -8,10 +8,10 @@ from pathlib import Path
 import pytest
 from fakes import FakeSettings, Reactive, Scripted, structured_reply, use_model
 
-from micro.jobs import run_job
-from micro.model_settings import ModelSettings
-from micro.models import AgentInput, AgentOutput, RunStatus
-from micro.runner import AgentRunner
+from featherweight.jobs import run_job
+from featherweight.model_settings import ModelSettings
+from featherweight.models import AgentInput, AgentOutput, RunStatus
+from featherweight.runner import AgentRunner
 
 EXAMPLES = Path(__file__).parent.parent / "examples"
 
@@ -157,7 +157,7 @@ async def test_the_cli_streams_the_answer_and_remembers_the_conversation(db, mon
         ]
     )
     runner_with(db, model)  # the fake model is registered; the CLI builds its own runner on the same file
-    monkeypatch.setattr(cli, "default_db_path", lambda: db.path)
+    monkeypatch.setenv("FTW_DB_PATH", str(db.path))
     lines = iter(["where is order 1001?", "thanks", ""])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(lines))
 
@@ -181,7 +181,7 @@ async def test_ctrl_c_stops_the_answer_and_the_next_turn_has_what_was_said(db, m
     gate = Hold()
     model = Streams(turns=[["Let me check ", gate, "the whole order."], ["Understood."]])
     runner_with(db, model)
-    monkeypatch.setattr(cli, "default_db_path", lambda: db.path)
+    monkeypatch.setenv("FTW_DB_PATH", str(db.path))
     lines = iter(["where is my order?", "no, order 1002", ""])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(lines))
     loop = asyncio.get_running_loop()

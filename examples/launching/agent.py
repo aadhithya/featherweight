@@ -7,7 +7,7 @@ Needs GOOGLE_API_KEY. The `Editor` may launch two agents, and only those: it is 
 for the input one expects with `get_agent_schema`, and launches it with `launch_agent`. After each request the script
 prints the runs of the job as a tree, which is how launches are recorded: every row knows the attempt that launched it.
 
-Set MICRO_LOG_LEVEL=INFO (`MICRO_LOG_LEVEL=INFO make example-launching`) to see the log lines: each attempt, each launch and each token count.
+Set FTW_LOG_LEVEL=INFO (`FTW_LOG_LEVEL=INFO make example-launching`) to see the log lines: each attempt, each launch and each token count.
 """
 
 import asyncio
@@ -18,61 +18,57 @@ from typing import ClassVar
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))  # so that this runs without installing anything
 
-from micro.db import Database, default_db_path  # noqa: E402
-from micro.log import setup_logging  # noqa: E402
-from micro.model_settings import Gemini, ModelSettings  # noqa: E402
-from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus  # noqa: E402
-from micro.runner import AgentRunner  # noqa: E402
+import featherweight as ftw  # noqa: E402
 
 
-class SummariserInput(AgentInput):
+class SummariserInput(ftw.AgentInput):
     text: str
     max_words: int
 
 
-class SummariserOutput(AgentOutput):
+class SummariserOutput(ftw.AgentOutput):
     summary: str | None = None
 
 
-class Summariser(AgentBase):
+class Summariser(ftw.AgentBase):
     name: str = "summariser"
     description: str = "Summarises a text in at most the given number of words"
     version: str = "0.1.0"
     prompt: str = "Summarise the text in at most `max_words` words. Keep the figures."
-    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
-    input_model: ClassVar[type[AgentInput]] = SummariserInput
-    output_model: ClassVar[type[AgentOutput]] = SummariserOutput
+    model: ftw.ModelSettings = ftw.Gemini(model="gemini-3.5-flash-lite", thinking="low")
+    input_model: ClassVar[type[ftw.AgentInput]] = SummariserInput
+    output_model: ClassVar[type[ftw.AgentOutput]] = SummariserOutput
 
 
-class TranslatorInput(AgentInput):
+class TranslatorInput(ftw.AgentInput):
     text: str
     language: str
 
 
-class TranslatorOutput(AgentOutput):
+class TranslatorOutput(ftw.AgentOutput):
     translation: str | None = None
 
 
-class Translator(AgentBase):
+class Translator(ftw.AgentBase):
     name: str = "translator"
     description: str = "Translates a text into the given language"
     version: str = "0.1.0"
     prompt: str = "Translate the text into the given language. Return only the translation."
-    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
-    input_model: ClassVar[type[AgentInput]] = TranslatorInput
-    output_model: ClassVar[type[AgentOutput]] = TranslatorOutput
+    model: ftw.ModelSettings = ftw.Gemini(model="gemini-3.5-flash-lite", thinking="low")
+    input_model: ClassVar[type[ftw.AgentInput]] = TranslatorInput
+    output_model: ClassVar[type[ftw.AgentOutput]] = TranslatorOutput
 
 
-class EditorInput(AgentInput):
+class EditorInput(ftw.AgentInput):
     request: str
 
 
-class EditorOutput(AgentOutput):
+class EditorOutput(ftw.AgentOutput):
     headline: str | None = None
     summary: str | None = None
 
 
-class Editor(AgentBase):
+class Editor(ftw.AgentBase):
     name: str = "editor"
     description: str = "Writes a headline and a short summary for an article, in the language asked for"
     version: str = "0.1.0"
@@ -81,10 +77,10 @@ class Editor(AgentBase):
         "request asks for another language, get the translator to translate the headline and the summary. Return "
         "the headline and the summary in `headline` and `summary`."
     )
-    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
+    model: ftw.ModelSettings = ftw.Gemini(model="gemini-3.5-flash-lite", thinking="low")
     subagents: list[type] = [Summariser, Translator]  # the only agents the editor can launch
-    input_model: ClassVar[type[AgentInput]] = EditorInput
-    output_model: ClassVar[type[AgentOutput]] = EditorOutput
+    input_model: ClassVar[type[ftw.AgentInput]] = EditorInput
+    output_model: ClassVar[type[ftw.AgentOutput]] = EditorOutput
 
 
 ARTICLE = (
@@ -114,16 +110,16 @@ def print_tree(rows) -> None:
 
 
 async def main(requests: list[str]) -> int:
-    if os.environ.get("MICRO_LOG_LEVEL"):  # the log is for when you ask for it: the answers are what this prints
-        setup_logging()
+    if os.environ.get("FTW_LOG_LEVEL"):  # the log is for when you ask for it: the answers are what this prints
+        ftw.setup_logging()
     failed = 0
-    async with Database(default_db_path()) as db:
-        runner = AgentRunner(db)
+    async with ftw.Database(ftw.default_db_path()) as db:
+        runner = ftw.AgentRunner(db)
         for request in requests:
             print(f"\n> {request}")
             job_id = await db.create_job("launching-demo")
             result = await runner.run(Editor, EditorInput(request=request), job_id=job_id)
-            if result.status == RunStatus.SUCCESS and result.output is not None:
+            if result.status == ftw.RunStatus.SUCCESS and result.output is not None:
                 print(f"\n{result.output.headline}\n{result.output.summary}\n\nruns of this job:")
             else:
                 failed += 1

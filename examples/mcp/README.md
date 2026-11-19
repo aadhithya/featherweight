@@ -16,7 +16,7 @@ GitHub's MCP server needs a token, even to read public repositories. Use a **fin
 only read public data**. There is no command for creating one (the `gh` CLI cannot), so it is made on the website:
 
 1. Open <https://github.com/settings/personal-access-tokens/new>.
-2. **Token name:** `micro-mcp-example`. **Expiration:** 7 days, or whatever you are comfortable with.
+2. **Token name:** `featherweight-mcp-example`. **Expiration:** 7 days, or whatever you are comfortable with.
 3. **Repository access:** *Public repositories (read-only)*. Leave every permission empty. Public data needs none.
 4. Generate it, copy the token (it starts with `github_pat_`) and add it to `.env`:
 
@@ -58,18 +58,18 @@ GITHUB = HttpMCPServer(
 - **A tool that errors is text for the model.** If GitHub says a repository does not exist, the agent reads that and
   answers accordingly. It does not crash the run.
 
-Each request is a job in `micro.db`. `select tool_names from agent_runs` shows which tools the model was bound to: the six
+Each request is a job in `featherweight.db`. `select tool_names from agent_runs` shows which tools the model was bound to: the six
 `github_*` tools with `discover=False`, or just `search_tools` and `call_tool` when the server is found by search.
 
 The script prints only the answers. To see what happens underneath, turn the log on:
 
 ```
-MICRO_LOG_LEVEL=INFO make example-mcp
+FTW_LOG_LEVEL=INFO make example-mcp
 ```
 
 You will see the server start (`mcp_open`), each search (`tool_search ... keywords=[...] hits=3`), each call
 (`tool_call_via_search ... tool=github_list_releases status=ok`, and `mcp_call ... status=ok ms=...`), and the model's token
-counts. Without `MICRO_LOG_LEVEL` nothing is logged. The variable reaches the container from your shell or from `.env`.
+counts. Without `FTW_LOG_LEVEL` nothing is logged. The variable reaches the container from your shell or from `.env`.
 
 ## Things to try
 

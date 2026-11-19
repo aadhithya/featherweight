@@ -1,7 +1,7 @@
 # Spec: tools, the tool registry and the run store
 
-Status: implemented. How to use them is in [agents.md](../agents.md#tools). The code is [tools.py](../../src/micro/tools.py),
-[registry.py](../../src/micro/registry.py), [store.py](../../src/micro/store.py) and [context.py](../../src/micro/context.py).
+Status: implemented. How to use them is in [agents.md](../agents.md#tools). The code is [tools.py](../../src/featherweight/tools.py),
+[registry.py](../../src/featherweight/registry.py), [store.py](../../src/featherweight/store.py) and [context.py](../../src/featherweight/context.py).
 
 - [Goal](#goal)
 - [Tools on an agent](#tools-on-an-agent)
@@ -53,7 +53,7 @@ Each entry has a **mode**: `direct` (bound to the model) or `discoverable` (foun
 
 ## Ready-made tools
 
-In `micro.tools`. All return text, never raise, and the model can read what went wrong.
+In `featherweight.tools`. All return text, never raise, and the model can read what went wrong.
 
 | Tool | |
 |---|---|

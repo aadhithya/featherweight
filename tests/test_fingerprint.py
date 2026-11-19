@@ -9,11 +9,11 @@ from fakes import Echo, EchoInput, Scripted, runner_with, structured_reply
 from langchain_core.tools import tool
 from pydantic import model_validator
 
-from micro.fingerprint import agent_hash
-from micro.mcp import HttpMCPServer, StdioMCPServer
-from micro.model_settings import Gemini
-from micro.models import AgentBase
-from micro.skills import Skill
+from featherweight.fingerprint import agent_hash
+from featherweight.mcp import HttpMCPServer, StdioMCPServer
+from featherweight.model_settings import Gemini
+from featherweight.models import AgentBase
+from featherweight.skills import Skill
 
 ROOT = Path(__file__).parent.parent
 
@@ -71,7 +71,7 @@ def test_the_hash_is_the_same_in_another_process():
         import sys
         sys.path.insert(0, "tests")
         from fakes import Echo
-        from micro.fingerprint import agent_hash
+        from featherweight.fingerprint import agent_hash
         print(agent_hash(Echo()))
         """
     )

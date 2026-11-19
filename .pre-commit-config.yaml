@@ -45,7 +45,7 @@ repos:
     hooks:
       - id: pytest
         name: unit tests (docker)
-        entry: docker compose run --rm -e GOOGLE_API_KEY= -e ANTHROPIC_API_KEY= -e OPENAI_API_KEY= micro pytest -q -m "not e2e"
+        entry: docker compose run --rm -e GOOGLE_API_KEY= -e ANTHROPIC_API_KEY= -e OPENAI_API_KEY= featherweight pytest -q -m "not e2e"
         language: system
         files: ^(src|tests|examples)/|^pyproject\.toml$|^uv\.lock$
         pass_filenames: false

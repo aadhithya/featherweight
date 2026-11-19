@@ -1,16 +1,16 @@
 {
-  "name": "micro",
+  "name": "featherweight",
   "owner": {
     "name": "aadhithya"
   },
   "plugins": [
     {
-      "name": "micro",
+      "name": "featherweight",
       "source": "./",
-      "description": "A skill for building background AI agents and pipelines with the micro Python framework."
+      "description": "A skill for building background AI agents and pipelines with the Featherweight Python framework."
     }
   ],
   "metadata": {
-    "description": "The micro agent framework: a skill that teaches a coding agent to build with it."
+    "description": "The Featherweight agent framework: a skill that teaches a coding agent to build with it."
   }
 }

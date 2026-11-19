@@ -11,11 +11,11 @@ from langchain_core.tools import tool
 from mcp_helpers import INPUT, done, fake, shown, texts, worker
 from pydantic import ValidationError
 
-from micro.errors import SetupError
-from micro.mcp import HttpMCPServer, StdioMCPServer
-from micro.mcp_connections import Lease, MCPConnections, connection_config
-from micro.mcp_tools import present
-from micro.models import RunStatus
+from featherweight.errors import SetupError
+from featherweight.mcp import HttpMCPServer, StdioMCPServer
+from featherweight.mcp_connections import Lease, MCPConnections, connection_config
+from featherweight.mcp_tools import present
+from featherweight.models import RunStatus
 
 # the declaration
 
@@ -517,7 +517,7 @@ async def test_a_lease_gives_the_raw_tools_and_leaves_names_and_filters_to_the_a
         raw = await lease.list_tools(fake(name="x", tools=("add",)))  # the connection ignores the allow-list
         assert {"add", "pid", "boom"} <= {tool.name for tool in raw}
 
-        from micro.registry import ToolRegistry
+        from featherweight.registry import ToolRegistry
 
         registry = ToolRegistry()
         await registry.add_mcp(fake(name="x", tools=("add",)), lease)

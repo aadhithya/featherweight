@@ -9,9 +9,9 @@ from fakes import FakeSettings, Scripted, runner_with, structured_reply, tool_re
 from langchain_core.messages import SystemMessage, ToolMessage
 from pydantic import ValidationError
 
-from micro.model_settings import ModelSettings
-from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus
-from micro.skills import Skill, SkillError
+from featherweight.model_settings import ModelSettings
+from featherweight.models import AgentBase, AgentInput, AgentOutput, RunStatus
+from featherweight.skills import Skill, SkillError
 
 EXAMPLE = Path(__file__).parent.parent / "examples" / "skills" / "meeting-notes"
 VALID = (
@@ -151,7 +151,7 @@ def test_from_markdown_requires_the_name_and_the_description():
 
 def test_the_example_skill_loads_with_its_reference_file():
     s = Skill.from_directory(EXAMPLE)
-    assert s.name == "meeting-notes" and s.metadata == {"author": "micro", "version": "1.0"}
+    assert s.name == "meeting-notes" and s.metadata == {"author": "featherweight", "version": "1.0"}
     assert list(s.resources) == ["references/tags.md"] and "[DECISION]" in s.resources["references/tags.md"]
     assert s.instructions.startswith("# Meeting notes")
 
@@ -182,7 +182,7 @@ def test_from_directory_loads_nested_text_files_and_skips_hidden_and_binary_ones
     (root / "scripts" / "run.py").write_text("print(1)", encoding="utf-8")
     (root / ".DS_Store").write_text("junk")
     (root / "logo.png").write_bytes(b"\x89PNG\xff\xfe\x00")
-    with caplog.at_level(logging.WARNING, logger="micro.skills"):
+    with caplog.at_level(logging.WARNING, logger="featherweight.skills"):
         s = Skill.from_directory(root)
     assert s.resources == {"scripts/run.py": "print(1)"}
     assert "skill_file_skipped skill=pdf-processing file=logo.png" in caplog.text

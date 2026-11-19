@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [project]
-name = "micro"
+name = "featherweight"
 version = "0.1.0"
 description = "An opinionated agent harness where Pydantic is the specification: typed agents, sub-agents and skills, with retries, failures as values, and a trace of every attempt."
 readme = "README.md"

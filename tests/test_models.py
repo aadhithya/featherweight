@@ -2,9 +2,9 @@ import pytest
 from fakes import Echo, EchoOutput
 from pydantic import ValidationError
 
-from micro.mcp import HttpMCPServer, StdioMCPServer
-from micro.model_settings import Claude, Gemini, Gemma, ModelSettings, OpenAI
-from micro.models import (
+from featherweight.mcp import HttpMCPServer, StdioMCPServer
+from featherweight.model_settings import Claude, Gemini, Gemma, ModelSettings, OpenAI
+from featherweight.models import (
     ASK_ALLOWED,
     ASK_FORBIDDEN,
     CONFLICTS_ALLOWED,
@@ -13,7 +13,7 @@ from micro.models import (
     AgentResult,
     RunStatus,
 )
-from micro.skills import Skill
+from featherweight.skills import Skill
 
 
 class Plain(AgentBase):

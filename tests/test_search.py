@@ -1,6 +1,6 @@
 """The keyword matcher: words, BM25 scores, and what counts as a match."""
 
-from micro.search import Bm25, tokens
+from featherweight.search import Bm25, tokens
 
 
 def test_words_are_lowercase_letters_and_digits_split_at_underscores_punctuation_and_camel_case():

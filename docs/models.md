@@ -4,11 +4,11 @@ An agent's `model` says which model runs it and how hard it thinks. Each provide
 differ: a thinking level, an effort, an on/off switch.
 
 ```python
-from micro.model_settings import Claude, Gemini, OpenAI
+import featherweight as ftw
 
 
 class Triager(AgentBase):
-    model: ModelSettings = Claude(model="claude-haiku-5-5", effort="low")
+    model: ModelSettings = ftw.Claude(model="claude-haiku-5-5", effort="low")
 ```
 
 The reasons and the details are in the [spec](specs/models.md). This page is how to use it.
@@ -47,11 +47,11 @@ a run recorded before it existed is no longer matched when a job is resumed.
 
 ## Install and keys
 
-Gemini and Gemma come with [micro.]. The other two are extras:
+Gemini and Gemma come with Featherweight. The other two are extras:
 
 ```
-pip install 'micro[anthropic]'     # ANTHROPIC_API_KEY
-pip install 'micro[openai]'        # OPENAI_API_KEY
+pip install 'featherweight[anthropic]'     # ANTHROPIC_API_KEY
+pip install 'featherweight[openai]'        # OPENAI_API_KEY
 ```
 
 A package that is missing, or a key that is not set, fails the run at once with a message that says what to do, and is not
@@ -95,13 +95,13 @@ The built-in `OpenAI` class lists the GPT-6 models. To use GPT-5.5, subclass it 
 ```python
 from typing import ClassVar
 
-from micro.model_settings import ModelInfo, OpenAI
+import featherweight as ftw
 
 
-class OpenAI5(OpenAI):
-    models: ClassVar[dict[str, ModelInfo]] = {
-        **OpenAI.models,
-        "gpt-5.5": ModelInfo(efforts=("none", "low", "medium", "high"), default="medium"),
+class OpenAI5(ftw.OpenAI):
+    models: ClassVar[dict[str, ftw.ModelInfo]] = {
+        **ftw.OpenAI.models,
+        "gpt-5.5": ftw.ModelInfo(efforts=("none", "low", "medium", "high"), default="medium"),
     }
 
 
@@ -125,22 +125,22 @@ from typing import ClassVar
 
 from pydantic import Field
 
-from micro.model_settings import ModelSettings
+import featherweight as ftw
 
 
-class Ollama(ModelSettings):
+class Ollama(ftw.ModelSettings):
     provider: ClassVar[str] = "ollama"
     temperature: float | None = Field(default=None, ge=0, le=1)  # its own field, so it is accepted
     reasoning: bool | None = None
 
     def build(self):
-        from langchain_ollama import ChatOllama  # imported here, so `micro` does not need it
+        from langchain_ollama import ChatOllama  # imported here, so `featherweight` does not need it
 
         return ChatOllama(model=self.model, temperature=self.temperature, reasoning=self.reasoning)
 
 
 class Local(AgentBase):
-    model: ModelSettings = Ollama(model="gpt-oss:20b", temperature=0.2)
+    model: ftw.ModelSettings = Ollama(model="gpt-oss:20b", temperature=0.2)
 ```
 
 - **`build()` is required.** It is the only method you must write, and it returns the LangChain chat model. The base class
@@ -150,7 +150,7 @@ class Local(AgentBase):
 - With no `models` catalog, any model name is accepted and efforts are not checked. Add a `models` catalog, and an
   `effort_field` naming the field that holds the effort, to get the checks of the built-in classes.
 - `label()` is the short text the run log keeps. It is the effort field by default, and can be overridden.
-- Raise `SetupError` (from `micro.errors`) for a problem that a retry cannot fix. `require("langchain_ollama", "ollama")`
+- Raise `SetupError` (from `featherweight.errors`) for a problem that a retry cannot fix. `require("langchain_ollama", "ollama")`
   imports a package and raises one that names the install command.
 
 Ollama's tool support depends on the model you pull, and its docs list token usage as unsupported, so check what your model
@@ -167,10 +167,10 @@ from typing import Any, ClassVar
 
 from pydantic import Field
 
-from micro.model_settings import ModelSettings
+import featherweight as ftw
 
 
-class FakeSettings(ModelSettings):
+class FakeSettings(ftw.ModelSettings):
     provider: ClassVar[str] = "fake"
     model: str = "fake-model"
     chat: Any = Field(default=None, exclude=True)  # the fake chat model; not part of the settings' data
@@ -183,14 +183,14 @@ fake = ...  # a chat model that replays a script
 
 
 class UnderTest(PeopleExtractor):  # the same agent, run by the fake
-    model: ModelSettings = Field(default_factory=lambda: FakeSettings(chat=fake))
+    model: ftw.ModelSettings = Field(default_factory=lambda: FakeSettings(chat=fake))
 
 
 result = await AgentRunner(db).run(UnderTest, ExtractInput(text="..."))
 ```
 
 Nothing in the runner exists for tests, so the test runs the same code as production. The skill's
-[recipes](../skills/micro/references/recipes.md) have a whole test file with a fake chat model.
+[recipes](../skills/featherweight/references/recipes.md) have a whole test file with a fake chat model.
 
 ## Tokens and the run log
 

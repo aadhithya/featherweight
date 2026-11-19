@@ -1,6 +1,6 @@
 """Storage for what the learning pipeline learns: one row per learning run in `learned_documents`.
 
-The tables are specific to this task, so they live here and not in `micro`; they are created on the shared
+The tables are specific to this task, so they live here and not in `featherweight`; they are created on the shared
 sqlite connection. Each run adds a row (history is kept); `latest` returns the newest for a category.
 """
 
@@ -9,8 +9,8 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel
 
+import featherweight as ftw
 from doclearn.models import DocumentTemplate, FactsSchema, LearnedTree
-from micro.db import Database, new_id
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +40,11 @@ class LearnedDocument(BaseModel):
 
 
 class LearnedStore:
-    def __init__(self, db: Database):
+    def __init__(self, db: ftw.Database):
         self.db = db
 
     @classmethod
-    async def open(cls, db: Database) -> "LearnedStore":
+    async def open(cls, db: ftw.Database) -> "LearnedStore":
         """Create the table if needed and return the store."""
         await db.conn.executescript(SCHEMA)
         await db.conn.commit()
@@ -59,7 +59,7 @@ class LearnedStore:
         facts_schema: FactsSchema,
         job_id: str | None = None,
     ) -> str:
-        learned_id = new_id()
+        learned_id = ftw.db.new_id()
         await self.db.conn.execute(
             """INSERT INTO learned_documents (learned_id, job_id, category, template, tree, facts_schema, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",

@@ -5,9 +5,9 @@ schema, launch it with the input as a JSON string and use what comes back. About
 
 from typing import ClassVar
 
-from micro.model_settings import Gemini, ModelSettings
-from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus
-from micro.runner import AgentRunner
+from featherweight.model_settings import Gemini, ModelSettings
+from featherweight.models import AgentBase, AgentInput, AgentOutput, RunStatus
+from featherweight.runner import AgentRunner
 
 ARTICLE = (
     "The harbour authority has approved a new cold-storage warehouse at Pier 4. Construction starts in March and "

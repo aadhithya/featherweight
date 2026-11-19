@@ -48,7 +48,7 @@ came from.
 - Change a prompt, or bump `version` of the `Summariser`, and run again: its agent hash changes, so nothing is reused and
   every summary is paid for again.
 - Add a commit to `COMMITS`: the four old summaries are reused, and only the new one runs.
-- `MICRO_LOG_LEVEL=INFO make example-resume` also prints `run_reused` for each reused run.
+- `FTW_LOG_LEVEL=INFO make example-resume` also prints `run_reused` for each reused run.
 
 ## Where to look
 
