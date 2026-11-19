@@ -12,6 +12,7 @@ Set MICRO_LOG_LEVEL=INFO (`MICRO_LOG_LEVEL=INFO make example-resume`) to see the
 """
 
 import asyncio
+import logging
 import os
 import sys
 from pathlib import Path
@@ -100,6 +101,8 @@ async def main() -> int:
         return 2
     if os.environ.get("MICRO_LOG_LEVEL"):  # the log is for when you ask for it: the answers are what this prints
         setup_logging()
+    else:  # the first run fails on purpose: leave its error and traceback out of the output
+        logging.getLogger("micro").setLevel(logging.CRITICAL)
     async with Database(default_db_path()) as db:
         runner = AgentRunner(db)
 
