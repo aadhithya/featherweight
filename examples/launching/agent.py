@@ -113,7 +113,7 @@ async def main(requests: list[str]) -> int:
     if os.environ.get("FTW_LOG_LEVEL"):  # the log is for when you ask for it: the answers are what this prints
         ftw.setup_logging()
     failed = 0
-    async with ftw.Database(ftw.default_db_path()) as db:
+    async with ftw.SqliteDatabase(ftw.default_db_path()) as db:
         runner = ftw.AgentRunner(db)
         for request in requests:
             print(f"\n> {request}")

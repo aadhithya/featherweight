@@ -14,14 +14,14 @@ async def pipeline(runner, job_id, texts):
     results = await runner.run_many(PeopleExtractor, [ExtractInput(text=t) for t in texts], job_id=job_id)
     people = []
     for result in results:
-        if result.status == RunStatus.SUCCESS:  # decide here what a failed run means: skip, stop, ask again
+        if result.status == ftw.RunStatus.SUCCESS:  # decide here what a failed run means: skip, stop, ask again
             people.extend(result.output.people)
     return sorted(set(people))
 
 
 async def main():
-    async with Database("featherweight.db") as db:
-        runner = AgentRunner(db)
+    async with ftw.SqliteDatabase("featherweight.db") as db:
+        runner = ftw.AgentRunner(db)
         outcome = await ftw.run_job(
             db, "people", lambda job_id: pipeline(runner, job_id, ["Anna met Tom.", "Li came."])
         )
@@ -125,7 +125,7 @@ async def run(tmp_path, answers, text="Anna came."):
     class UnderTest(PeopleExtractor):  # the same agent, run by the fake
         model: ftw.ModelSettings = Field(default_factory=lambda: FakeSettings(chat=fake))
 
-    async with ftw.Database(tmp_path / "test.db") as db:
+    async with ftw.SqliteDatabase(tmp_path / "test.db") as db:
         runner = ftw.AgentRunner(db, retry_delay_s=0)
         return await runner.run(UnderTest, ExtractInput(text=text)), fake
 

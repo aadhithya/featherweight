@@ -4,6 +4,7 @@ import asyncio
 
 from fakes import Echo, EchoInput, Reactive, respond, runner_with
 
+from featherweight.fingerprint import input_hash, output_hash
 from featherweight.models import RunStatus
 
 
@@ -23,8 +24,11 @@ async def test_many_concurrent_runs_do_not_interfere(db):
     rows = await db.list_runs(job_id=job_id)
     assert len(rows) == 25
     assert len({r.invocation_id for r in rows}) == 25
+    by_run = {r.agent_run_id: r for r in results}
     for row in rows:
         assert row.status == RunStatus.SUCCESS
-        assert row.output["echoed"] == row.input["text"]  # no crosstalk between rows
+        result = by_run[row.agent_run_id]
+        assert row.input_hash == input_hash(EchoInput(text=result.output.echoed))  # no crosstalk between rows
+        assert row.output_hash == output_hash(result.output)
         assert row.input_tokens == 5 and row.output_tokens == 7
-        assert row.completed_at is not None
+        assert row.started_at is not None and row.completed_at is not None

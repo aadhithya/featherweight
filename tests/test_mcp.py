@@ -169,8 +169,7 @@ async def test_the_tools_of_a_server_are_named_after_it_and_bound_to_the_model(d
 
     assert result.status == RunStatus.SUCCESS
     assert texts(model) == ["5"]
-    (row,) = await db.list_runs()
-    assert {"fake_add", "fake_pid", "fake_boom"} <= set(row.tool_names)
+    assert {"fake_add", "fake_pid", "fake_boom"} <= set(model.bound[0])  # what the model was bound to
 
 
 async def test_the_allow_list_keeps_only_the_named_tools(db):
@@ -178,8 +177,7 @@ async def test_the_allow_list_keeps_only_the_named_tools(db):
     async with runner_with(db, model) as runner:
         await runner.run(worker(fake(tools=("add", "pid"))), INPUT)
 
-    (row,) = await db.list_runs()
-    assert sorted(row.tool_names) == ["fake_add", "fake_pid"]
+    assert sorted(name for name in model.bound[0] if name.startswith("fake_")) == ["fake_add", "fake_pid"]
 
 
 async def test_a_tool_the_server_does_not_have_fails_the_attempt_without_a_retry(db):
@@ -423,8 +421,9 @@ async def test_a_sub_agent_uses_the_servers_it_declares_itself(db):
 
     assert result.status == RunStatus.SUCCESS
     assert texts(child_model) == ["9"]
-    rows = {row.agent_name: row for row in await db.list_runs()}
-    assert "fake_add" in rows["child_worker"].tool_names and "fake_add" not in rows["boss"].tool_names
+    assert (
+        "fake_add" in child_model.bound[0] and "fake_add" not in parent_model.bound[0]
+    )  # only the child has the server
 
 
 async def wait_gone(pid: int) -> None:

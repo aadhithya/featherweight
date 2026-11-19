@@ -25,10 +25,10 @@ from langchain_core.tools import BaseTool, tool
 from pydantic import ValidationError
 
 from featherweight.context import CURRENT_AGENT_RUN_ID, RunContext
-from featherweight.db import Database, new_id
+from featherweight.db import Database, RunEnd, RunStart, new_id
 from featherweight.discovery import discovery_tools
 from featherweight.errors import RETRYABLE_4XX, SetupError
-from featherweight.fingerprint import agent_hash, input_hash
+from featherweight.fingerprint import agent_hash, error_fields, input_hash, output_hash, text_hash, tools_hash
 from featherweight.mcp_connections import Lease, MCPConnections
 from featherweight.messages import to_langchain
 from featherweight.models import (
@@ -43,6 +43,7 @@ from featherweight.models import (
 )
 from featherweight.registry import ToolRegistry
 from featherweight.results import ResultKey, ResultStore, SqliteResultStore
+from featherweight.sqlite import SqliteDatabase
 from featherweight.store import RunStore
 from featherweight.stream_events import EventMapper
 from featherweight.streaming import ChatInput, StreamingAgent, StreamingRun
@@ -164,7 +165,6 @@ class _Turn:
 
     def __init__(self, mapper: EventMapper):
         self.mapper = mapper
-        self.output_length = 0
         self.output_digest = hashlib.sha256()
 
 
@@ -212,8 +212,8 @@ class AgentRunner:
         one attempt of one agent may make. Default: `MAX_AGENT_LAUNCHES`, else 10.
 
         `results` is where the outputs that resuming a job reads back are kept (a `ResultStore`), for the jobs created
-        `resumable=True`. The default is a sqlite store in the run log's file. `None` keeps nothing, and then a job that resumes
-        another is a `SetupError`.
+        `resumable=True`. With a `SqliteDatabase` the default is a sqlite store in the same file; with any other database there is
+        no default, so pass your own. `None` keeps nothing, and then a job that resumes another is a `SetupError`.
         """
         if max_attempts < 1:
             raise ValueError("max_attempts must be at least 1")
@@ -230,7 +230,11 @@ class AgentRunner:
         self._slots = asyncio.Semaphore(max_concurrent)
         self.store = store or RunStore()
         self.db = db
-        self.results: ResultStore | None = SqliteResultStore(db) if isinstance(results, str) else results
+        self.results: ResultStore | None = (
+            results
+            if not isinstance(results, str)
+            else (SqliteResultStore(db) if isinstance(db, SqliteDatabase) else None)
+        )
         self.max_attempts = max_attempts
         self.retry_delay_s = retry_delay_s
         self._keep_open = False  # True inside `async with`: MCP servers stay up between runs
@@ -340,22 +344,23 @@ class AgentRunner:
             except Exception as exc:
                 setup_error = exc
             await self.db.create_run(
-                agent_run_id=run.run_id,
-                invocation_id=new_id(),
-                attempt=1,
-                job_id=job_id,
-                agent_name=agent.name,
-                agent_version=agent.version,
-                model_name=agent.model.model,
-                reasoning=agent.model.label(),
-                provider=agent.model.provider,
-                settings=agent.model.model_dump_json(),
-                tool_names=registry.names + self._runner_tool_names(agent, can_launch),
-                system_prompt_hash=hashlib.sha256(system_prompt.encode()).hexdigest(),
-                agent_hash=agent_hash(agent),
-                input_hash=input_hash(chat_input),
-                input={"messages": len(chat_input.messages)},  # the words stay with the application
-                thread_id=chat_input.thread_id,
+                RunStart(
+                    agent_run_id=run.run_id,
+                    invocation_id=new_id(),
+                    attempt=1,
+                    job_id=job_id,
+                    agent_name=agent.name,
+                    agent_version=agent.version,
+                    agent_hash=agent_hash(agent),
+                    system_prompt_hash=text_hash(system_prompt),
+                    tools_hash=tools_hash(registry.tools, self._runner_tool_names(agent, can_launch)),
+                    provider=agent.model.provider,
+                    model_name=agent.model.model,
+                    reasoning=agent.model.label(),
+                    settings=agent.model.model_dump(mode="json"),
+                    input_hash=input_hash(chat_input),  # the words stay with the application
+                    thread_id=chat_input.thread_id,
+                )
             )
             self._streams[run.run_id] = run
             turn = _Turn(EventMapper(show_thoughts=agent.model.show_thoughts))
@@ -368,7 +373,7 @@ class AgentRunner:
             run._interrupt = consumer.cancel
             if run._cancel_requested:
                 consumer.cancel()
-            outcome, error = "success", None
+            outcome, failure = "success", None
             try:
                 await consumer
             except asyncio.CancelledError:
@@ -380,10 +385,10 @@ class AgentRunner:
                 else:  # run.cancel() cancelled the consumer
                     outcome = "cancelled"
             except Exception as exc:
-                outcome, error = "failed", _format_error(exc)
+                outcome, failure = "failed", exc
             finally:
                 run._interrupt = None
-            await self._end_stream(run, turn, emit, outcome, error, agent, thread_id, started)
+            await self._end_stream(run, turn, emit, outcome, failure, agent, thread_id, started)
             if outcome == "left":
                 raise asyncio.CancelledError
         finally:
@@ -417,7 +422,6 @@ class AgentRunner:
             ):
                 emit(event)
                 if isinstance(event, TextMessageContentEvent):
-                    turn.output_length += len(event.delta)
                     turn.output_digest.update(event.delta.encode())
         finally:
             slot.release()
@@ -428,7 +432,7 @@ class AgentRunner:
         turn: "_Turn",
         emit: Callable[[BaseEvent], None],
         outcome: str,
-        error: str | None,
+        failure: BaseException | None,
         agent: StreamingAgent,
         thread_id: str,
         started: float,
@@ -449,6 +453,7 @@ class AgentRunner:
             total_tokens=mapper.input_tokens + mapper.output_tokens,
         )
         status = {"success": RunStatus.SUCCESS, "failed": RunStatus.FAILED}.get(outcome, RunStatus.CANCELLED)
+        error = _format_error(failure) if failure is not None else None  # the client and the logs get the text
         run.status, run.error, run.usage = status, error, usage
         if outcome != "left":
             for event in closing:
@@ -458,15 +463,18 @@ class AgentRunner:
             else:
                 finished = RunFinishedCancelledOutcome() if outcome == "cancelled" else RunFinishedSuccessOutcome()
                 emit(RunFinishedEvent(thread_id=thread_id, run_id=run.run_id, outcome=finished, usage=[usage]))
+        error_type, error_digest = error_fields(failure) if failure is not None else (None, None)
         await self.db.finish_run(
             run.run_id,
-            status=status,
-            error=error,
-            output={"chars": turn.output_length},
-            input_tokens=mapper.input_tokens,
-            output_tokens=mapper.output_tokens,
-            latency_ms=(time.perf_counter() - started) * 1000,
-            output_hash=turn.output_digest.hexdigest(),
+            RunEnd(
+                status=status,
+                output_hash=turn.output_digest.hexdigest() if outcome == "success" else None,
+                error_type=error_type,
+                error_hash=error_digest,
+                input_tokens=mapper.input_tokens,
+                output_tokens=mapper.output_tokens,
+                latency_ms=(time.perf_counter() - started) * 1000,
+            ),
         )
         log = logger.info if outcome == "success" else logger.warning
         log("stream_ended agent_run_id=%s outcome=%s error=%s", run.run_id, outcome, error)
@@ -614,23 +622,24 @@ class AgentRunner:
             except Exception as exc:
                 setup_error = exc
             await self.db.create_run(
-                agent_run_id=agent_run_id,
-                invocation_id=invocation_id,
-                attempt=attempt,
-                job_id=job_id,
-                agent_name=agent.name,
-                agent_version=agent.version,
-                model_name=agent.model.model,
-                reasoning=agent.model.label(),
-                provider=agent.model.provider,
-                settings=agent.model.model_dump_json(),
-                tool_names=registry.names + runner_tool_names,
-                system_prompt_hash=prompt_hash,
-                agent_hash=declaration_hash,
-                input_hash=input_hash(agent_input),
-                input=agent_input,
-                parent_agent_run_id=parent_agent_run_id,
-                depth=depth,
+                RunStart(
+                    agent_run_id=agent_run_id,
+                    invocation_id=invocation_id,
+                    attempt=attempt,
+                    job_id=job_id,
+                    parent_agent_run_id=parent_agent_run_id,
+                    depth=depth,
+                    agent_name=agent.name,
+                    agent_version=agent.version,
+                    agent_hash=declaration_hash,
+                    system_prompt_hash=prompt_hash,
+                    tools_hash=tools_hash(registry.tools, runner_tool_names),
+                    provider=agent.model.provider,
+                    model_name=agent.model.model,
+                    reasoning=agent.model.label(),
+                    settings=agent.model.model_dump(mode="json"),
+                    input_hash=input_hash(agent_input),
+                )
             )
             # The attempt row stays INIT while it waits for a slot, and is RUNNING only once it holds one.
             queued = self._slots.locked()
@@ -648,11 +657,14 @@ class AgentRunner:
                     )
                 await self.db.mark_run_running(agent_run_id)
                 logger.info(
-                    "attempt_started agent_run_id=%s invocation_id=%s attempt=%d/%d",
+                    "attempt_started agent_run_id=%s invocation_id=%s attempt=%d/%d tools=%s",
                     agent_run_id,
                     invocation_id,
                     attempt,
                     self.max_attempts,
+                    ",".join(
+                        registry.names + runner_tool_names
+                    ),  # in the log only: the run log keeps a hash of the tools
                 )
                 attempt_started = time.perf_counter()
 
@@ -668,8 +680,7 @@ class AgentRunner:
                     # gave up): the row says so instead of staying RUNNING.
                     await self.db.finish_run(
                         agent_run_id,
-                        status=RunStatus.CANCELLED,
-                        latency_ms=(time.perf_counter() - attempt_started) * 1000,
+                        RunEnd(status=RunStatus.CANCELLED, latency_ms=(time.perf_counter() - attempt_started) * 1000),
                     )
                     logger.warning(
                         "attempt_cancelled agent_run_id=%s attempt=%d/%d", agent_run_id, attempt, self.max_attempts
@@ -678,11 +689,17 @@ class AgentRunner:
                 except Exception as exc:
                     error = _format_error(exc)
                     non_retryable = is_non_retryable(exc)
+                    error_type, error_digest = error_fields(
+                        exc
+                    )  # the text goes to the logs and the result, not the run log
                     await self.db.finish_run(
                         agent_run_id,
-                        status=RunStatus.FAILED,
-                        error=error,
-                        latency_ms=(time.perf_counter() - attempt_started) * 1000,
+                        RunEnd(
+                            status=RunStatus.FAILED,
+                            error_type=error_type,
+                            error_hash=error_digest,
+                            latency_ms=(time.perf_counter() - attempt_started) * 1000,
+                        ),
                     )
                     logger.warning(
                         "attempt_failed agent_run_id=%s attempt=%d/%d non_retryable=%s error=%s",
@@ -695,12 +712,14 @@ class AgentRunner:
                 else:
                     await self.db.finish_run(
                         agent_run_id,
-                        status=RunStatus.SUCCESS,
-                        output=output,
-                        input_tokens=input_tokens,
-                        output_tokens=output_tokens,
-                        latency_ms=(time.perf_counter() - attempt_started) * 1000,
-                        reported_model_name=reported_model,
+                        RunEnd(
+                            status=RunStatus.SUCCESS,
+                            output_hash=output_hash(output),
+                            input_tokens=input_tokens,
+                            output_tokens=output_tokens,
+                            latency_ms=(time.perf_counter() - attempt_started) * 1000,
+                            reported_model_name=reported_model,
+                        ),
                     )
                     if depth == 1 and job_id is not None:  # only a step of a pipeline can be resumed
                         await self._keep_result(job_id, declaration_hash, input_hash(agent_input), output)
@@ -789,31 +808,34 @@ class AgentRunner:
             )
             return None
         agent_run_id = await self.db.create_run(
-            agent_run_id=new_id(),
-            invocation_id=invocation_id,
-            attempt=1,
-            job_id=job_id,
-            agent_name=agent.name,
-            agent_version=agent.version,
-            model_name=agent.model.model,
-            reasoning=agent.model.label(),
-            provider=agent.model.provider,
-            settings=agent.model.model_dump_json(),
-            tool_names=old.tool_names,
-            system_prompt_hash=old.system_prompt_hash,
-            agent_hash=declaration_hash,
-            input_hash=this_input_hash,
-            input=agent_input,
-            reused_from_agent_run_id=old.agent_run_id,
+            RunStart(
+                agent_run_id=new_id(),
+                invocation_id=invocation_id,
+                attempt=1,
+                job_id=job_id,
+                agent_name=agent.name,
+                agent_version=agent.version,
+                agent_hash=declaration_hash,
+                system_prompt_hash=old.system_prompt_hash,
+                tools_hash=old.tools_hash,
+                provider=agent.model.provider,
+                model_name=agent.model.model,
+                reasoning=agent.model.label(),
+                settings=agent.model.model_dump(mode="json"),
+                input_hash=this_input_hash,
+                reused_from_agent_run_id=old.agent_run_id,
+            )
         )
         await self.db.finish_run(
             agent_run_id,
-            status=RunStatus.SUCCESS,
-            output=output,
-            input_tokens=0,
-            output_tokens=0,
-            latency_ms=0.0,
-            reported_model_name=old.reported_model_name,
+            RunEnd(
+                status=RunStatus.SUCCESS,
+                output_hash=output_hash(output),
+                input_tokens=0,
+                output_tokens=0,
+                latency_ms=0.0,
+                reported_model_name=old.reported_model_name,
+            ),
         )
         await self._keep_result(
             job_id, declaration_hash, this_input_hash, output

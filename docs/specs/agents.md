@@ -2,7 +2,6 @@
 
 Status: implemented. How to use it is in [agents.md](../agents.md). The code is [models.py](../../src/featherweight/models.py).
 
-> **Change in progress:** resuming a job goes through a result store. See the [persistence spec](persistence.md).
 
 - [Goal](#goal)
 - [The definition](#the-definition)

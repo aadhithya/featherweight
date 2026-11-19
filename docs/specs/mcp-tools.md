@@ -110,7 +110,7 @@ An internal class, built by the runner for each attempt. It holds every tool the
   tool `b_c`.) A local tool against an injected tool is caught when the agent is built.
 - **Filtering.** `tools` on a server keeps only the listed tools. A listed name the server does not have is a setup
   failure, because it is usually a typo.
-- **Binding.** The direct entries are what the model is bound to. `tool_names` in the run log lists them.
+- **Binding.** The direct entries are what the model is bound to. The `attempt_started` log line lists them (`tools=`); the run log keeps `tools_hash`.
 
 ## Separation of concerns
 

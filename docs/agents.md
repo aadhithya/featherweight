@@ -80,7 +80,7 @@ The model's system prompt is assembled from the pieces below, in this order. Its
 ```python
 import featherweight as ftw
 
-async with ftw.Database("featherweight.db") as db:
+async with ftw.SqliteDatabase("featherweight.db") as db:
     job_id = await db.create_job("demo")
     runner = ftw.AgentRunner(db)
     result = await runner.run(PeopleExtractor, ExtractInput(text="..."), job_id=job_id)
@@ -197,31 +197,48 @@ outcome = await ftw.run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner
 To run in the background and hand the caller the id first, create the job with `db.create_job` and use
 `asyncio.create_task(run_job(db, name, pipeline, job_id=job_id))`.
 
-Two tables in sqlite record everything. `jobs`: id, name, status, error, created and completed times, and `resumed_from` (the job this one resumes, or empty). `agent_runs`: one
-row **per attempt**:
+**What is on record, and what is not.** The run log is the state of the orchestration: what ran, in what order, which agent
+launched which, with what outcome, at what cost. It holds **no inputs, outputs, messages or error text**: where a name or a
+text could carry a client's data, there is a hash instead. The data stays with your application.
+
+The database is a choice of one line, and the runner does not change:
+
+```python
+db = ftw.SqliteDatabase("featherweight.db")  # local development
+runner = ftw.AgentRunner(db)
+```
+
+`ftw.Database` is the abstract class that a database implements (the typed rows and records, and a conformance kit,
+`ftw.testing.check_database`, check an implementation); `SqliteDatabase` is the one we ship. The tables are made by numbered
+migrations when you connect. A database from before migrations is refused: delete it and run again.
+
+Two tables record everything. `jobs`: id, name, status, whether it is `resumable`, `resumed_from` (the job this one resumes, or
+empty), the error's type and hash, and when it was created and completed. `agent_runs`: one row **per attempt**:
 
 | Column | |
 |---|---|
-| `agent_run_id`, `invocation_id`, `attempt` | Attempts of one `run()` call share an `invocation_id` |
+| `seq`, `agent_run_id` | The order the rows were made in, and the attempt |
+| `invocation_id`, `attempt` | Attempts of one `run()` call share an `invocation_id` |
 | `job_id` | The job |
 | `parent_agent_run_id`, `depth` | For an agent launched by another: the attempt that launched it, and its depth (1 for a top-level run) |
-| `agent_name`, `agent_version`, `tool_names` | The agent. `tool_names` includes the tools the runner added |
-| `model_name`, `reasoning`, `provider`, `settings`, `reported_model_name` | What was asked for (the model, the effort, the provider, all settings as JSON), and what the API reported |
-| `system_prompt_hash` | The hash of the assembled system prompt |
-| `agent_hash` | The hash of the whole agent: its prompt, version, limits, model settings (and the settings class), tools, sub-agents, skills and MCP servers, and the JSON schemas of its input and output models. Same hash, same agent. `NULL` for older rows |
-| `status`, `error` | `INIT` (queued for a slot), `RUNNING`, `SUCCESS`, `FAILED` or `CANCELLED` (the task that awaited it was cancelled, or a [streaming](streaming.md) run was stopped) |
-| `input`, `output` | JSON. A failed attempt keeps its error, not the model's raw reply |
-| `input_hash` | The SHA-256 of the input as canonical JSON. `NULL` for older rows |
+| `agent_name`, `agent_version` | The agent, readable |
+| `agent_hash` | The hash of the whole agent: its prompt, version, limits, model settings (and the settings class), tools, sub-agents, skills and MCP servers, and the JSON schemas of its input and output models. Same hash, same agent |
+| `system_prompt_hash`, `tools_hash` | The hash of the assembled system prompt, and of the tools bound to the model. They say *what* changed when `agent_hash` does (a tool's name can be client-specific, so tool names are not kept) |
+| `provider`, `model_name`, `reasoning`, `settings`, `reported_model_name` | What was asked for (the provider, the model, the effort, all settings as JSON), and what the API reported |
+| `status` | `INIT` (queued for a slot), `RUNNING`, `SUCCESS`, `FAILED` or `CANCELLED` (the task that awaited it was cancelled, or a [streaming](streaming.md) run was stopped) |
+| `error_type`, `error_hash` | For a failed attempt: the class of the exception (`ValidationError`, `RateLimitError`) and the hash of its message. Recurring errors group; the text is in the logs and in the `AgentResult` you get back, not in the run log (a message can quote the data) |
+| `input_hash`, `output_hash` | The SHA-256 of the input and of the output, as canonical JSON. A reused or repeated step is recognised by them, with no content kept |
 | `reused_from_agent_run_id` | For a run that reused an earlier one ([resuming a job](#resuming-a-job)): the row it took its output from |
+| `thread_id` | For a [streaming](streaming.md) run: the conversation the client named |
 | `input_tokens`, `output_tokens`, `latency_ms` | Of the attempt |
-| `created_at`, `completed_at` | |
+| `created_at`, `started_at`, `completed_at` | Created (queued for a slot), holds a slot and runs, ended. Times are `datetime`s |
 
 ```
-sqlite3 featherweight.db "select agent_name, attempt, status, depth, error from agent_runs where job_id = '<job id>' order by rowid"
+sqlite3 featherweight.db "select agent_name, attempt, status, depth, error_type from agent_runs where job_id = '<job id>' order by seq"
 ```
 
-A failed pipeline can be diagnosed from those rows, and resumed from them ([next section](#resuming-a-job)). An older
-database gets new columns when it is opened.
+A failed pipeline can be diagnosed from those rows (which step failed, and with what kind of error), and resumed from them
+([next section](#resuming-a-job)). To see what went in and out of a step, use the logs, or keep the content yourself.
 
 Log lines go to stdout through `setup_logging()` (`featherweight.log`), such as `attempt_started agent_run_id=... attempt=1/3`.
 

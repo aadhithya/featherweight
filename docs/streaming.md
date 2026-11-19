@@ -268,16 +268,16 @@ finally:
 
 ## What is logged
 
-One `agent_runs` row per turn, in the same [run log](agents.md#jobs-and-tracing) as any run, **with no message content**:
+One `agent_runs` row per turn, in the same [run log](agents.md#jobs-and-tracing) as any run, which holds **no content** for any
+agent: no messages, no text.
 
 | Column | |
 |---|---|
-| `input` | Only `{"messages": 7}`, the number of messages |
-| `output` | Only `{"chars": 412}`, the length of the text |
-| `input_hash`, `output_hash` | SHA-256 of the `ChatInput`, and of the text |
+| `input_hash`, `output_hash` | SHA-256 of the `ChatInput`, and of the text (set when the turn succeeds) |
 | `thread_id` | The conversation, when the client named one |
 | `status` | `INIT` while it waits for a [concurrency slot](agents.md#configuration), `RUNNING` while it streams, then `SUCCESS`, `FAILED` or `CANCELLED` |
-| tokens, latency, agent, model, `agent_hash` | As for any run |
+| `error_type`, `error_hash` | For a failed turn: the class of the exception and the hash of its message. The client gets the text in the `RUN_ERROR` event |
+| tokens, latency, agent, model, the hashes of the agent | As for any run |
 
 The words stay with your application. Save `run_id` next to each turn you store, and you can join your messages to the log.
 The slot is held for the whole stream. A streaming run is never reused when a job is [resumed](agents.md#resuming-a-job).

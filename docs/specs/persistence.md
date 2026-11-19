@@ -1,6 +1,6 @@
 # Spec: the run log and the persistence boundary
 
-Status: being built. #59 (the agent hash includes the input and output schemas) and #60 (resumable jobs and the result store) are done; the other parts are not. It is tracked in [epic #58](https://github.com/aadhithya/featherweight/issues/58), and each part has
+Status: being built. #59 (the agent hash includes the input and output schemas), #60 (resumable jobs and the result store) and #61 (the `Database` abstract class, typed records and rows, `SqliteDatabase`, migrations, the metadata-only schema) are done; Postgres and the guide are not. It is tracked in [epic #58](https://github.com/aadhithya/featherweight/issues/58), and each part has
 its own issue (listed [at the end](#the-work)). When a part is built, this page says so, and the guide `docs/persistence.md`
 shows how to use it.
 
@@ -110,7 +110,7 @@ Another database is an implementation of the class. To make that safe, the [sche
 type, nullability and constraint), the rows and records are models, and a **conformance kit** (`featherweight.testing`) runs the
 contract against any implementation. Our two pass it.
 
-Every `ftw.Database(path)` in today's docs, examples and tests becomes `ftw.SqliteDatabase(path)`.
+Every `ftw.SqliteDatabase(path)` in today's docs, examples and tests becomes `ftw.SqliteDatabase(path)`.
 
 ## Migrations
 
@@ -132,7 +132,7 @@ Types are given as *Postgres / sqlite*. A `CHECK` is in both.
 | Column | Type | |
 |---|---|---|
 | `seq` | `bigint` identity / `integer` autoincrement | Monotonic, for ordering (sqlite's `rowid` has no equal everywhere) |
-| `agent_run_id` | `text` primary key | The attempt |
+| `agent_run_id` | `text` primary key (sqlite: unique, `seq` is the key) | The attempt |
 | `invocation_id` | `text` not null | Attempts of one call share it |
 | `attempt` | `integer` not null, `>= 1` | |
 | `job_id` | `text` null, foreign key `jobs` | |
@@ -248,7 +248,7 @@ that must route by tenant can do so from the job id of its keys, or be one per t
 
 ## What changes
 
-- **API:** `ftw.Database(path)` becomes `ftw.SqliteDatabase(path)`, and `ftw.Database` is the abstract class. `AgentRunner(db,
+- **API:** `ftw.SqliteDatabase(path)` becomes `ftw.SqliteDatabase(path)`, and `ftw.Database` is the abstract class. `AgentRunner(db,
   results=...)`. `run_job(..., resumable=...)`, `db.create_job(..., resumable=...)`. `create_run` and `finish_run` take `RunStart` and
   `RunEnd`. `AgentRunRow` and `JobRow` lose the content and error-text fields and gain the new ones, and timestamps are `datetime`s.
 - **The log:** "Everything is on record" now means the orchestration, and the README says what is not on record.

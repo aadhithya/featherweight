@@ -17,7 +17,7 @@ import featherweight as ftw
 
 async def main() -> None:
     history: list[BaseMessage] = []  # featherweight keeps no conversation: you do
-    async with ftw.Database(ftw.default_db_path()) as db, ftw.AgentRunner(db) as runner:
+    async with ftw.SqliteDatabase(ftw.default_db_path()) as db, ftw.AgentRunner(db) as runner:
         while text := input("\nyou> ").strip():
             user = HumanMessage(text)
             run = runner.stream(Support, ftw.ChatInput.from_langchain([*history, user]))

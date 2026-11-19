@@ -3,7 +3,6 @@
 Status: implemented (epic #29 is done). #33 (stopping a response) and #36 (the example and the guide) are done too. #30 (the class, `ChatInput`, `runner.stream()`, the run log), #31 (the events: text, tool calls, thoughts, steps; `show_thoughts`), #32 (messages in and out: the converters, `from_langchain`, `from_agui`, `new_messages`), #34 (the AG-UI adapter) and #35 (the Vercel adapter) are done; the other issues are not. It is tracked in [epic #29](https://github.com/aadhithya/featherweight/issues/29), and each part has its own
 issue (listed [at the end](#the-work)). When a part is built, this page says so and the guide `docs/streaming.md` shows how to use it.
 
-> **Change in progress:** the run log keeps no placeholders for a streaming run's input and output (the columns go), and `error` becomes `error_type` and `error_hash`. See the [persistence spec](persistence.md).
 
 It changes [agents](agents.md) (a new kind of agent), [the runner](runner.md) (`stream()`, and `run()` refuses a streaming
 agent), [models](models.md) (`show_thoughts`) and [jobs and tracing](jobs-and-tracing.md) (a `thread_id` column and a
@@ -209,14 +208,15 @@ closed the same way (its text so far, no call without a result, with "the run fa
 
 ## The run log
 
-One `agent_runs` row per turn, as for any run, with these differences:
+One `agent_runs` row per turn, as for any run, with these differences. The run log holds no content for any agent (see the
+[persistence spec](persistence.md)): a streaming run has no placeholders for its input and output, only their hashes.
 
 | | |
 |---|---|
-| `status` | `INIT` while it waits for a slot, `RUNNING` while it streams, then `SUCCESS`, `FAILED` or **`CANCELLED`** (new; the column is text, so no migration) |
-| `input` | **No messages are stored.** A small placeholder with the message count, such as `{"messages": 7}` (the column is `NOT NULL` in sqlite, so it cannot be left empty), and `input_hash`, the hash of the whole `ChatInput` |
-| `output` | **No text is stored.** A placeholder with the length, such as `{"chars": 412}`, and an `output_hash` (new nullable column). For a cancel, the length so far |
-| `thread_id` | **New nullable column.** The conversation, so its turns can be found |
+| `status` | `INIT` while it waits for a slot, `RUNNING` while it streams, then `SUCCESS`, `FAILED` or **`CANCELLED`** |
+| `input_hash`, `output_hash` | SHA-256 of the `ChatInput`, and of the text when the turn succeeded |
+| `thread_id` | The conversation the client named. `NULL` when it named none |
+| `error_type`, `error_hash` | For a failed turn: the class of the exception and the hash of its message. The text goes to the client in `RUN_ERROR` |
 | `agent_hash` | Recorded as for any run |
 | Reuse | **None.** Resuming a job does not reuse a streaming run |
 

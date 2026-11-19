@@ -8,6 +8,7 @@ from typing import Generic, TypeVar
 from pydantic import BaseModel, ConfigDict
 
 from featherweight.db import Database
+from featherweight.fingerprint import error_fields, text_hash
 from featherweight.models import RunStatus
 
 logger = logging.getLogger(__name__)
@@ -60,12 +61,15 @@ async def run_job(
     try:
         result = await pipeline(job_id)
     except asyncio.CancelledError:
-        await db.set_job_status(job_id, RunStatus.FAILED, error="Cancelled")
+        await db.set_job_status(
+            job_id, RunStatus.FAILED, error_type="CancelledError", error_hash=text_hash("Cancelled")
+        )
         logger.warning("job_cancelled job_id=%s name=%s", job_id, name)
         raise
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"[:MAX_ERROR_CHARS]
-        await db.set_job_status(job_id, RunStatus.FAILED, error=error)
+        error_type, error_hash = error_fields(exc)  # the text is returned and logged, not kept
+        await db.set_job_status(job_id, RunStatus.FAILED, error_type=error_type, error_hash=error_hash)
         logger.error("job_failed job_id=%s name=%s error=%s", job_id, name, error, exc_info=exc)
         return JobOutcome[T](job_id=job_id, status=RunStatus.FAILED, error=error)
     await db.set_job_status(job_id, RunStatus.SUCCESS)

@@ -100,7 +100,7 @@ async def main() -> int:
         ftw.setup_logging()
     else:  # the first run fails on purpose: leave its error and traceback out of the output
         logging.getLogger("featherweight").setLevel(logging.CRITICAL)
-    async with ftw.Database(ftw.default_db_path()) as db:
+    async with ftw.SqliteDatabase(ftw.default_db_path()) as db:
         runner = ftw.AgentRunner(db)
 
         print("first run: the process dies after the summaries")

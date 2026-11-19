@@ -13,9 +13,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from featherweight.db import Database
-
-HASH = r"^[0-9a-f]{64}$"  # a SHA-256, in hex
+from featherweight.db import HASH
+from featherweight.sqlite import SqliteDatabase
 
 
 class ResultKey(BaseModel):
@@ -55,7 +54,7 @@ class ResultStore(ABC):
 class SqliteResultStore(ResultStore):
     """The default store: a `results` table in the file of the run log, through its connection. For local development."""
 
-    def __init__(self, db: Database):
+    def __init__(self, db: SqliteDatabase):
         self.db = db
 
     async def put(self, key: ResultKey, output: dict[str, Any]) -> None:

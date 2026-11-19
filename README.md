@@ -22,8 +22,9 @@ It has opinions. Take them, or fork off.
   edges to wire up. This is not a workflow engine, and it won't pretend to be one.
 - **Delegation on a leash.** Agents can launch other agents, but only the ones on their list, and only so deep and so
   wide. A runaway recursion dies.
-- **Everything is on record.** Every attempt goes in sqlite: tokens, errors, which agent launched which. OpenTelemetry?
-  Too big. (See [agents](https://github.com/aadhithya/featherweight/blob/main/docs/agents.md#jobs-and-tracing).)
+- **The orchestration is on record, your data is not.** Every attempt goes in the run log (sqlite to start, `SqliteDatabase`):
+  status, tokens, timing, which agent launched which, and hashes. No inputs, outputs, messages or error text: those are
+  yours. OpenTelemetry? Too big. (See [agents](https://github.com/aadhithya/featherweight/blob/main/docs/agents.md#jobs-and-tracing).)
 - **Talks while it works.** A streaming agent streams its answer as [AG-UI](https://github.com/aadhithya/featherweight/blob/main/docs/streaming.md) events, with no output to
   validate and no retry, for chat. The Vercel AI SDK works too, and the user can stop it midway and correct it.
 - **Plug things in.** The model (Gemini, Gemma, Claude, OpenAI, or your own subclass), MCP servers and skills are
@@ -78,7 +79,7 @@ import featherweight as ftw
 
 
 async def main():
-    async with ftw.Database("featherweight.db") as db:
+    async with ftw.SqliteDatabase("featherweight.db") as db:
         job_id = await db.create_job("demo")
         result = await ftw.AgentRunner(db).run(
             PeopleExtractor, ExtractInput(text="Anna Berger met Tom Okafor on Monday."), job_id=job_id
