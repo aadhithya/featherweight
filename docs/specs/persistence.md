@@ -1,6 +1,6 @@
 # Spec: the run log and the persistence boundary
 
-Status: being built. #59 (the agent hash includes the input and output schemas), #60 (resumable jobs and the result store) and #61 (the `Database` abstract class, typed records and rows, `SqliteDatabase`, migrations, the metadata-only schema) are done; Postgres and the guide are not. It is tracked in [epic #58](https://github.com/aadhithya/featherweight/issues/58), and each part has
+Status: being built. #59 (the agent hash includes the input and output schemas), #60 (resumable jobs and the result store) and #61 (the `Database` abstract class, typed records and rows, `SqliteDatabase`, migrations, the metadata-only schema) and #63 (the guide and the example) are done; Postgres is not. It is tracked in [epic #58](https://github.com/aadhithya/featherweight/issues/58), and each part has
 its own issue (listed [at the end](#the-work)). When a part is built, this page says so, and the guide `docs/persistence.md`
 shows how to use it.
 

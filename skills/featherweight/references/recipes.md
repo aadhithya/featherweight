@@ -219,6 +219,27 @@ finally:
 `examples/chat/cli.py`, and the same agent behind FastAPI is `examples/chat/api.py`; `references/streaming.md` has the details. Test it with a fake streaming chat model: the
 `Streams` double in the repository's `tests/fakes.py` shows how.
 
+## A result store of your own
+
+Resuming a job reads the outputs of finished steps from a `ResultStore`. Subclass it, write `put`, `get` and `delete_job`, and
+check it with the conformance kit (a missing method cannot be built; a broken rule raises `AssertionError`):
+
+```python
+import featherweight as ftw
+
+
+class MyStore(ftw.ResultStore):
+    async def put(self, key: ftw.ResultKey, output: dict) -> None: ...  # key: job_id, agent_hash, input_hash
+    async def get(self, key: ftw.ResultKey) -> dict | None: ...
+    async def delete_job(self, job_id: str) -> None: ...
+
+
+await ftw.testing.check_result_store(lambda: MyStore())
+runner = ftw.AgentRunner(db, results=MyStore())
+```
+
+The first job has to be created `resumable=True`. `examples/results/store.py` is a whole store (a JSON file per result).
+
 ## A different provider
 
 ```python

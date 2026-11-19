@@ -25,6 +25,8 @@ It has opinions. Take them, or fork off.
 - **The orchestration is on record, your data is not.** Every attempt goes in the run log (sqlite to start, `SqliteDatabase`):
   status, tokens, timing, which agent launched which, and hashes. No inputs, outputs, messages or error text: those are
   yours. OpenTelemetry? Too big. (See [agents](https://github.com/aadhithya/featherweight/blob/main/docs/agents.md#jobs-and-tracing).)
+- **You keep the data.** The run log holds no inputs, outputs or messages. Resume reads outputs from a result store that you can
+  write in a dozen lines ([persistence](https://github.com/aadhithya/featherweight/blob/main/docs/persistence.md)).
 - **Talks while it works.** A streaming agent streams its answer as [AG-UI](https://github.com/aadhithya/featherweight/blob/main/docs/streaming.md) events, with no output to
   validate and no retry, for chat. The Vercel AI SDK works too, and the user can stop it midway and correct it.
 - **Plug things in.** The model (Gemini, Gemma, Claude, OpenAI, or your own subclass), MCP servers and skills are
