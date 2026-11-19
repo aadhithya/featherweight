@@ -244,6 +244,18 @@ class Database(ABC):
         one event. The job's worker does the cancelling."""
 
     @abstractmethod
+    async def start_job(self, job_id: str) -> bool:
+        """Mark a queued job `RUNNING` (`started_at`, a `running` event) **only if it is still `INIT` and has no
+        `cancel_requested`**, in one atomic step, and say whether it did. It is what a worker calls to take a job: it and
+        `cancel_queued_job` cannot both succeed, so a job is never cancelled and run at once."""
+
+    @abstractmethod
+    async def cancel_queued_job(self, job_id: str) -> bool:
+        """Mark a job `CANCELLED` (a `cancelled` event) **only if it is still `INIT`**, in one atomic step, and say whether it
+        did. False means it was taken by a worker (or is final, or does not exist): the caller then asks for a running job to
+        be cancelled with `request_job_cancel`."""
+
+    @abstractmethod
     async def list_cancel_requested(self, job_ids: Sequence[str]) -> set[str]:
         """Which of these jobs have `cancel_requested` set and are not final yet, in one query. It is what a job worker asks, about
         the jobs it is running, to learn that a client wants one of them cancelled."""

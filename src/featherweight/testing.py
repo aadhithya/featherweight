@@ -105,6 +105,36 @@ def _run(job_id: str | None, agent_run_id: str, **changes: Any) -> RunStart:
     return RunStart(**{**fields, **changes})
 
 
+async def _check_taking_a_job(db: Database) -> None:
+    """Taking a queued job and cancelling it are compare-and-set steps: exactly one of them wins."""
+    taken = await db.create_job("take")
+    assert await db.start_job(taken) is True, "start_job takes a queued job"
+    row = await db.get_job(taken)
+    assert row is not None and row.status is RunStatus.RUNNING and row.started_at is not None
+    assert await db.start_job(taken) is False, "start_job does not take a job twice"
+    assert await db.cancel_queued_job(taken) is False, "a job that was taken cannot be cancelled while queued"
+    assert [e.type for e in await db.list_job_events(taken)] == ["queued", "running"], "a refused step writes no event"
+
+    asked = await db.create_job("asked")
+    assert await db.request_job_cancel(asked) is True
+    assert await db.start_job(asked) is False, "start_job does not take a job that was asked to be cancelled"
+    assert await db.cancel_queued_job(asked) is True
+    cancelled = await db.get_job(asked)
+    assert cancelled is not None and cancelled.status is RunStatus.CANCELLED and cancelled.completed_at is not None
+    assert [e.type for e in await db.list_job_events(asked)] == ["queued", "cancel_requested", "cancelled"]
+    assert await db.cancel_queued_job(asked) is False and await db.start_job(asked) is False, "a final job stays final"
+    assert await db.start_job("no-such-job") is False and await db.cancel_queued_job("no-such-job") is False
+
+    for _ in range(20):  # a race between a worker and a client: exactly one wins, and the job agrees with the winner
+        racing = await db.create_job("race")
+        started, cancelled_ = await asyncio.gather(db.start_job(racing), db.cancel_queued_job(racing))
+        assert started != cancelled_, "start_job and cancel_queued_job must not both win, or both lose"
+        row = await db.get_job(racing)
+        assert row is not None and row.status is (RunStatus.RUNNING if started else RunStatus.CANCELLED)
+        types = [e.type for e in await db.list_job_events(racing)]
+        assert types == ["queued", "running" if started else "cancelled"], "the winner writes exactly one event"
+
+
 async def _check_job_events(db: Database) -> None:
     """The events of a job and the request to cancel it."""
     job = await db.create_job("events", job_hash=_hash("job"), input_hash=_hash("in"))
@@ -319,6 +349,8 @@ async def check_database(make_db: Callable[[], Database]) -> None:
         assert await db.find_reusable_run(keeps, _hash("agent 2"), _hash("input")) is None, "only a SUCCESS run matches"
 
         await _check_job_events(db)
+
+        await _check_taking_a_job(db)
 
 
 class MemoryQueue(JobQueue):

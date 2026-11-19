@@ -155,10 +155,6 @@ class JobWorker:
             logger.info("worker_skipped job_id=%s status=%s", row.job_id, row.status.value)
             await self.queue.ack(delivery)
             return
-        if row.cancel_requested:  # asked to cancel before it started
-            await self.db.set_job_status(row.job_id, RunStatus.CANCELLED)
-            await self.queue.ack(delivery)
-            return
         job = self._jobs.get(message.job_name)
         if job is None:
             await self._fail(
@@ -170,8 +166,16 @@ class JobWorker:
         except ValidationError as exc:
             await self._fail(row.job_id, InvalidJobInput(str(exc)), delivery)
             return
-        # A real redelivery of a job that another worker is running is the next epic's: here a job that is not final runs.
-        await self.db.set_job_status(row.job_id, RunStatus.RUNNING)
+        # Take the job in one atomic step: it succeeds only if the job is still queued and nobody asked to cancel it. A client
+        # that cancels at the same moment loses or wins cleanly, and a job is never both cancelled and run. (A real redelivery
+        # of a job that another worker is running is the next epic's.)
+        if not await self.db.start_job(row.job_id):
+            current = await self.db.get_job(row.job_id)
+            if current is not None and current.status is RunStatus.INIT and current.cancel_requested:
+                await self.db.cancel_queued_job(row.job_id)  # asked to cancel before it started
+            logger.info("worker_skipped job_id=%s: it was cancelled, or is not queued any more", row.job_id)
+            await self.queue.ack(delivery)
+            return
         task = asyncio.create_task(self._run_job(delivery, row, job, job_input))
         self._tasks[row.job_id] = task
         self._deliveries[row.job_id] = delivery

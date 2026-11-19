@@ -185,6 +185,37 @@ class PostgresDatabase(Database):
         logger.info("job_cancel_requested job_id=%s", job_id)
         return True
 
+    async def start_job(self, job_id: str) -> bool:
+        return await self._take(
+            job_id,
+            "UPDATE jobs SET status = %s, started_at = %s, completed_at = NULL, error_type = NULL, error_hash = NULL "
+            "WHERE job_id = %s AND status = %s AND NOT cancel_requested",
+            (RunStatus.RUNNING.value, now(), job_id, RunStatus.INIT.value),
+            "running",
+            RunStatus.RUNNING,
+        )
+
+    async def cancel_queued_job(self, job_id: str) -> bool:
+        return await self._take(
+            job_id,
+            "UPDATE jobs SET status = %s, completed_at = %s WHERE job_id = %s AND status = %s",
+            (RunStatus.CANCELLED.value, now(), job_id, RunStatus.INIT.value),
+            "cancelled",
+            RunStatus.CANCELLED,
+        )
+
+    async def _take(self, job_id: str, sql: str, params: tuple[Any, ...], type: EventType, status: RunStatus) -> bool:
+        """A compare-and-set on a job: the update has the old status in its `WHERE`, and the event is written in the same
+        transaction only if the update changed a row."""
+        async with self.conn.transaction():
+            cur = await self.conn.execute(sql, params)
+            if cur.rowcount == 0:
+                return False
+            event = await self._write_event(job_id, type, status)
+        self._publish(event)
+        logger.info("job_status job_id=%s status=%s", job_id, status.value)
+        return True
+
     async def list_cancel_requested(self, job_ids: Sequence[str]) -> set[str]:
         if not job_ids:
             return set()

@@ -281,6 +281,21 @@ async def test_a_job_asked_to_cancel_before_it_started_is_cancelled_not_run(db, 
     assert row.status is RunStatus.CANCELLED and GATE.began == []
 
 
+async def test_a_job_cancelled_in_the_instant_before_the_worker_takes_it_is_not_run(db, queue, monkeypatch):
+    job_id = await submit(db, queue, Slow)
+    real = db.start_job
+
+    async def a_client_gets_in_first(job_id):
+        assert await db.cancel_queued_job(job_id) is True  # the client's cancel lands just before the worker's take
+        return await real(job_id)  # which then finds the job is not queued any more
+
+    monkeypatch.setattr(db, "start_job", a_client_gets_in_first)
+    async with Running(make(db, queue, [Slow])):
+        row = await final(db, job_id)
+    assert row.status is RunStatus.CANCELLED and GATE.began == [] and await queue.receive(0.05) is None
+    assert [e.type for e in await db.list_job_events(job_id)] == ["queued", "cancelled"]  # it never ran
+
+
 def test_two_jobs_with_one_name_are_refused(db):
     class Other(Job):
         name = "shout"

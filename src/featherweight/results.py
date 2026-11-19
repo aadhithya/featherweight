@@ -58,13 +58,13 @@ class SqliteResultStore(ResultStore):
         self.db = db
 
     async def put(self, key: ResultKey, output: dict[str, Any]) -> None:
-        await self.db.conn.execute(
-            """INSERT INTO results (job_id, agent_hash, input_hash, output, created_at) VALUES (?, ?, ?, ?, ?)
-               ON CONFLICT (job_id, agent_hash, input_hash) DO UPDATE SET output = excluded.output,
-               created_at = excluded.created_at""",
-            (key.job_id, key.agent_hash, key.input_hash, json.dumps(output), datetime.now(UTC).isoformat()),
-        )
-        await self.db.conn.commit()
+        async with self.db.transaction() as conn:
+            await conn.execute(
+                """INSERT INTO results (job_id, agent_hash, input_hash, output, created_at) VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT (job_id, agent_hash, input_hash) DO UPDATE SET output = excluded.output,
+                   created_at = excluded.created_at""",
+                (key.job_id, key.agent_hash, key.input_hash, json.dumps(output), datetime.now(UTC).isoformat()),
+            )
 
     async def get(self, key: ResultKey) -> dict[str, Any] | None:
         async with self.db.conn.execute(
@@ -75,5 +75,5 @@ class SqliteResultStore(ResultStore):
         return json.loads(row["output"]) if row else None
 
     async def delete_job(self, job_id: str) -> None:
-        await self.db.conn.execute("DELETE FROM results WHERE job_id = ?", (job_id,))
-        await self.db.conn.commit()
+        async with self.db.transaction() as conn:
+            await conn.execute("DELETE FROM results WHERE job_id = ?", (job_id,))

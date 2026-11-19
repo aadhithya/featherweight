@@ -199,19 +199,27 @@ async def test_cancelling_an_unknown_job_is_false(db, queue):
     assert await JobClient(db, queue).cancel("nope") is False
 
 
-async def test_a_job_that_started_while_it_was_being_cancelled_is_asked_to_stop(db, queue, monkeypatch):
+async def test_a_job_that_a_worker_takes_while_it_is_being_cancelled_is_asked_to_stop(db, queue, monkeypatch):
     client = JobClient(db, queue)
     job_id = await client.submit(Shout, In(text="a"))
-    real = db.set_job_status
+    real = db.cancel_queued_job
 
-    async def a_worker_gets_in_first(job_id, status, **kwargs):
-        await real(job_id, status, **kwargs)
-        if status is RunStatus.CANCELLED:
-            await real(job_id, RunStatus.RUNNING)  # the worker's start lands right after ours
+    async def a_worker_gets_in_first(job_id):
+        assert await db.start_job(job_id) is True  # the worker takes the job just before the client's step
+        return await real(job_id)  # which then finds it is not queued any more, and changes nothing
 
-    monkeypatch.setattr(db, "set_job_status", a_worker_gets_in_first)
+    monkeypatch.setattr(db, "cancel_queued_job", a_worker_gets_in_first)
     assert await client.cancel(job_id) is True
-    assert (await client.status(job_id)).cancel_requested is True
+    row = await client.status(job_id)
+    assert row.status is RunStatus.RUNNING and row.cancel_requested is True  # the worker is asked to stop it
+
+
+async def test_a_job_cancelled_while_queued_cannot_be_taken_by_a_worker(db, queue):
+    client = JobClient(db, queue)
+    job_id = await client.submit(Shout, In(text="a"))
+    assert await client.cancel(job_id) is True
+    assert await db.start_job(job_id) is False
+    assert (await client.status(job_id)).status is RunStatus.CANCELLED
 
 
 # result

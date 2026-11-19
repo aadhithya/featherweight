@@ -81,21 +81,21 @@ class SqliteQueue(JobQueue):
         self.db = db
 
     async def enqueue(self, message: JobMessage) -> None:
-        await self.db.conn.execute(
-            "INSERT INTO job_queue (job_id, job_name, input, state, enqueued_at) VALUES (?, ?, ?, 'ready', ?)",
-            (message.job_id, message.job_name, json.dumps(message.input), now().isoformat()),
-        )
-        await self.db.conn.commit()
+        async with self.db.transaction() as conn:
+            await conn.execute(
+                "INSERT INTO job_queue (job_id, job_name, input, state, enqueued_at) VALUES (?, ?, ?, 'ready', ?)",
+                (message.job_id, message.job_name, json.dumps(message.input), now().isoformat()),
+            )
 
     async def _claim(self) -> Delivery | None:
-        async with self.db.conn.execute(
-            """UPDATE job_queue SET state = 'claimed', claimed_at = ?
-               WHERE seq = (SELECT seq FROM job_queue WHERE state = 'ready' ORDER BY seq LIMIT 1)
-               RETURNING seq, job_id, job_name, input""",
-            (now().isoformat(),),
-        ) as cur:
-            row = await cur.fetchone()
-        await self.db.conn.commit()
+        async with self.db.transaction() as conn:
+            async with conn.execute(
+                """UPDATE job_queue SET state = 'claimed', claimed_at = ?
+                   WHERE seq = (SELECT seq FROM job_queue WHERE state = 'ready' ORDER BY seq LIMIT 1)
+                   RETURNING seq, job_id, job_name, input""",
+                (now().isoformat(),),
+            ) as cur:
+                row = await cur.fetchone()
         if row is None:
             return None
         message = JobMessage(job_id=row["job_id"], job_name=row["job_name"], input=json.loads(row["input"]))
@@ -115,14 +115,14 @@ class SqliteQueue(JobQueue):
             delay = min(delay * 2, self.POLL_MAX)
 
     async def ack(self, delivery: Delivery) -> None:
-        await self.db.conn.execute("DELETE FROM job_queue WHERE seq = ?", (int(delivery.token),))
-        await self.db.conn.commit()
+        async with self.db.transaction() as conn:
+            await conn.execute("DELETE FROM job_queue WHERE seq = ?", (int(delivery.token),))
 
     async def nack(self, delivery: Delivery, *, requeue: bool) -> None:
-        if requeue:  # back to ready, and the sequence number keeps its place in the order
-            await self.db.conn.execute(
-                "UPDATE job_queue SET state = 'ready', claimed_at = NULL WHERE seq = ?", (int(delivery.token),)
-            )
-        else:
-            await self.db.conn.execute("DELETE FROM job_queue WHERE seq = ?", (int(delivery.token),))
-        await self.db.conn.commit()
+        async with self.db.transaction() as conn:
+            if requeue:  # back to ready, and the sequence number keeps its place in the order
+                await conn.execute(
+                    "UPDATE job_queue SET state = 'ready', claimed_at = NULL WHERE seq = ?", (int(delivery.token),)
+                )
+            else:
+                await conn.execute("DELETE FROM job_queue WHERE seq = ?", (int(delivery.token),))
