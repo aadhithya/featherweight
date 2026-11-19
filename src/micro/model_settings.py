@@ -51,6 +51,9 @@ class ModelSettings(BaseModel):
 
     model: str
     max_output_tokens: int | None = Field(default=None, ge=1)  # includes thinking tokens
+    # Ask the provider to return the model's thoughts (a summary, for most providers), so that a streaming agent can show
+    # them. Off by default. How hard the model thinks is a separate setting.
+    show_thoughts: bool = False
 
     @model_validator(mode="before")
     @classmethod
@@ -97,7 +100,9 @@ class _Google(ModelSettings):
 
     def build(self):
         chat = require("langchain_google_genai", "google").ChatGoogleGenerativeAI
-        extra = {"max_output_tokens": self.max_output_tokens} if self.max_output_tokens else {}
+        extra: dict[str, Any] = {"max_output_tokens": self.max_output_tokens} if self.max_output_tokens else {}
+        if self.show_thoughts:
+            extra["include_thoughts"] = True
         return chat(model=self.model, thinking_level=self.thinking, **extra)
 
 
@@ -157,6 +162,8 @@ class Claude(ModelSettings):
 
     @model_validator(mode="after")
     def _check_thinking(self) -> "Claude":
+        if self.thinking == "off" and self.show_thoughts:
+            raise ValueError("show_thoughts needs thinking: it is off")
         if self.thinking == "off":
             info = self.models.get(self.model)
             if info is not None and not info.can_disable_thinking:
@@ -170,7 +177,9 @@ class Claude(ModelSettings):
 
     def build(self):
         chat = require("langchain_anthropic", "anthropic").ChatAnthropic
-        thinking = {"type": "disabled"} if self.thinking == "off" else {"type": "adaptive"}
+        thinking: dict[str, str] = {"type": "disabled"} if self.thinking == "off" else {"type": "adaptive"}
+        if self.show_thoughts:
+            thinking["display"] = "summarized"  # newer models return thinking blocks with no text unless asked
         return chat(
             model=self.model, reasoning_effort=self.effort, thinking=thinking, max_tokens=self.max_output_tokens
         )
@@ -199,7 +208,16 @@ class OpenAI(ModelSettings):
     model: str = "gpt-6-luna"
     effort: Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"] = "medium"
 
+    @model_validator(mode="after")
+    def _check_thoughts(self) -> "OpenAI":
+        if self.show_thoughts and self.effort == "none":
+            raise ValueError("show_thoughts needs reasoning: effort is 'none'")
+        return self
+
     def build(self):
         chat = require("langchain_openai", "openai").ChatOpenAI
         extra = {"max_tokens": self.max_output_tokens} if self.max_output_tokens else {}
-        return chat(model=self.model, use_responses_api=True, reasoning={"effort": self.effort}, **extra)
+        reasoning = {"effort": self.effort}
+        if self.show_thoughts:
+            reasoning["summary"] = "auto"  # the raw reasoning is hidden; a summary of it is what the API returns
+        return chat(model=self.model, use_responses_api=True, reasoning=reasoning, **extra)

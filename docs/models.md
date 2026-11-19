@@ -35,7 +35,15 @@ The reasons and the details are in the [spec](specs/models.md). This page is how
 Every class also has `max_output_tokens`, the most the model may produce, **thinking included**. Claude needs it, so it
 defaults to 16,000 there: raise it at `xhigh` and `max`.
 
-An agent with no `model` uses `Gemini()`.
+Every class also has `show_thoughts` (default `False`): it asks the provider to **return the model's thoughts**, so that a
+[streaming agent](streaming.md) can show them. How hard the model thinks is the other setting. What comes back differs by
+provider: Claude returns a summary of its thinking (newer models return none unless asked, so `Claude` sends
+`display: "summarized"`), OpenAI a reasoning summary (the raw reasoning stays hidden), Gemini and Gemma their thought
+summaries. It is refused where there is nothing to show: `Claude(thinking="off")` and `OpenAI(effort="none")`. A class you
+write reads `self.show_thoughts` in `build()`.
+
+An agent with no `model` uses `Gemini()`. Because `show_thoughts` is part of the settings, it is part of the agent's hash:
+a run recorded before it existed is no longer matched when a job is resumed.
 
 ## Install and keys
 
@@ -58,6 +66,7 @@ When the agent is defined:
   `none`;
 - `Claude(thinking="off")` is accepted only for a model that allows it (`claude-haiku-5-5`), and only at `high` effort or
   below;
+- `show_thoughts` needs a model that thinks (see above);
 - a field the class does not have is an error.
 
 ```python

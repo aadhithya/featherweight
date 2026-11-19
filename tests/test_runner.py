@@ -57,7 +57,7 @@ async def test_success(db):
     assert row.system_prompt_hash == Echo().system_prompt_hash
     assert row.model_name == "fake-model"  # what the agent's settings name, as against what the API reported
     assert (row.provider, row.reasoning) == ("fake", "")
-    assert row.settings == {"model": "fake-model", "max_output_tokens": None, "key": "default"}
+    assert row.settings == {"model": "fake-model", "max_output_tokens": None, "show_thoughts": False, "key": "default"}
     assert row.completed_at is not None
 
     messages = model.seen[0]  # what the model was sent

@@ -42,6 +42,7 @@ class Triager(AgentBase):
 | `models` | A class attribute: the catalog of the class, model id to `ModelInfo` |
 | `model` | The model id. Must be in `models` |
 | `max_output_tokens` | Optional. The most tokens the model may produce, **thinking included** |
+| `show_thoughts` | `False` by default. Asks the provider to return the model's thoughts (see [streaming agents](streaming.md#the-models-thoughts)). Gemini and Gemma send `include_thoughts`, Claude `thinking.display = "summarized"`, OpenAI `reasoning.summary = "auto"`. Refused for `Claude(thinking="off")` and `OpenAI(effort="none")` |
 | `build()` | Returns the LangChain chat model. Imports the provider's package when called. **Required: the only method a new class must write.** The base class raises `NotImplementedError("<Class> must write build()")`, when the model is built for a run, not when the class is defined |
 | `label()` | A short text for the log, such as `medium`, `off` or `high`. By default the effort or thinking field |
 
