@@ -119,14 +119,14 @@ problems are returned in the result.
   attempts, not by guessing.
 
 To build your own: define the agents, write the pipeline as an async function of `(runner, ..., job_id)`, run it with
-`run_job`, and test it with a mocked model (`tests/fakes.py` has a scripted fake chat model, and `tests/builders.py`
-shows how to script a whole pipeline). Add a few real-model tests on small fixtures for what mocks cannot show.
+`run_job`, and test it with a mocked model. [The agent skill](https://github.com/aadhithya/micro/blob/main/skills/micro/references/recipes.md) has a scripted fake
+chat model and a whole test file. Add a few real-model tests on small fixtures for what mocks cannot show.
 
 ## Limits
 
 This is a prototype, and these were left out on purpose, to keep the scope small.
 
-- **No evaluation.** The tests show it works; there is no held-out set, prompt comparison or quality metric. The
+- **No tests and no evaluation.** The example has no tests of its own, and `make pipeline` runs it. There is no held-out set, prompt comparison or quality metric. The
   conformance score is computed against the Analyzer's own reading of each source, and a `generated` block accepts any
   text of its type, so it measures self-consistency, not quality.
 - **No personal-data handling.** Documents go to the model as they are and are kept in plaintext in the run log. The
