@@ -12,7 +12,8 @@ Only the release pull request is a manual step. Merging it is how you choose whe
    things: the version in `pyproject.toml`, `__version__` in `src/featherweight/__init__.py`, and a new section at the top of
    [`CHANGELOG.md`](../CHANGELOG.md). Nothing is tagged or released yet.
 2. **Review and merge it** when its checks are green. Read the version and the changelog section first.
-3. **That is all.** The merge makes the tag `vX.Y.Z` and a GitHub release whose notes are the changelog section, by itself.
+3. **That is all.** The merge makes the tag `vX.Y.Z` and a GitHub release whose notes are the changelog section, by itself,
+   and then the `publish` job builds the package and publishes it to PyPI. The built files are attached to the release.
    A push to `main` that is not a merged release pull request does nothing.
 
 No pull request is opened unless someone runs the workflow, and nothing is tagged or released until a release pull request
@@ -58,11 +59,34 @@ run, so the secret is the way to go.
 | `.github/workflows/release.yml` | The workflow: by hand it opens the release pull request, and on a push to `main` it makes the tag and the GitHub release if that push is the merged release pull request |
 | `release-please-config.json` | The release type, the pre-1.0 rule, the title of the bump commit, the changelog sections |
 | `.release-please-manifest.json` | The last released version. The workflow keeps it up to date |
+| `.github/workflows/publish-testpypi.yml` | A dry run of publishing, by hand, to TestPyPI |
 | `CHANGELOG.md` | The changelog. Written by the release pull request, not by hand |
 
-## Not yet
+## Publishing to PyPI
 
-Publishing to PyPI is not part of the release yet: it waits for the package name to be decided
-([issue #24](https://github.com/aadhithya/featherweight/issues/24)). When it is built, it will be a job of this workflow that runs
-after the tag is made, so merging the release pull request will publish the package too. Opening the release pull request
-stays the only manual step.
+The `publish` job of the release workflow runs only after the tag and the release were just made (`needs: release`, on the
+`release_created` output), so merging the release pull request is the decision to publish. It checks out the tag, builds the
+sdist and the wheel (`python -m build`), runs `twine check --strict`, uploads with `pypa/gh-action-pypi-publish`, and attaches
+the files to the GitHub release.
+
+It uses **trusted publishing**: no PyPI token is stored in the repository. PyPI is told once that this repository, this
+workflow and this environment may publish the project.
+
+**One-time setup, by the owner** (it cannot be done from the repository):
+
+1. On [pypi.org](https://pypi.org), Your projects, Publishing, **add a pending publisher** for the project `featherweight`:
+   owner `aadhithya`, repository `featherweight`, workflow `release.yml`, environment `pypi`. (A pending publisher creates the
+   project at the first upload.) Do the same on [test.pypi.org](https://test.pypi.org) with the workflow `publish-testpypi.yml`
+   and the environment `testpypi`.
+2. In the repository, Settings, Environments: `pypi` and `testpypi` are created the first time a workflow uses them. Add a
+   required reviewer to `pypi` if you want a second gate before the upload; without one, the publish follows the merge.
+3. The repository must be named `featherweight` on GitHub: the trusted publisher names it.
+
+**A dry run.** Actions, `publish-testpypi`, Run workflow: it builds the package at the branch you pick and uploads it to
+TestPyPI. Install it to look (`pip install -i https://test.pypi.org/simple/ featherweight`). It never makes a tag or a release.
+
+**Check the build by hand,** at any time:
+
+```
+uv build && uvx twine check --strict dist/*
+```

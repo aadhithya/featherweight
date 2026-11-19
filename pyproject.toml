@@ -5,6 +5,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+featherweight = ["py.typed"]  # the package is typed
+
 [project]
 name = "featherweight"
 version = "0.1.0"
@@ -12,6 +15,19 @@ description = "An opinionated agent harness where Pydantic is the specification:
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.12"
+authors = [{ name = "Aadhithya" }]
+keywords = ["agents", "llm", "pydantic", "langchain", "langgraph", "mcp", "streaming", "ag-ui"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: AsyncIO",
+    "Framework :: Pydantic :: 2",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
 dependencies = [
     "ag-ui-protocol>=1.0",
     "aiosqlite",
@@ -23,6 +39,13 @@ dependencies = [
     "pydantic>=2",
     "pyyaml",
 ]
+
+[project.urls]
+Homepage = "https://github.com/aadhithya/featherweight"
+Documentation = "https://github.com/aadhithya/featherweight/blob/main/docs/README.md"
+Repository = "https://github.com/aadhithya/featherweight"
+Issues = "https://github.com/aadhithya/featherweight/issues"
+Changelog = "https://github.com/aadhithya/featherweight/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 mcp = [

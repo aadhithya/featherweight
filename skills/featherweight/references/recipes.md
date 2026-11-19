@@ -228,4 +228,4 @@ class Triager(AgentBase):
     model: ftw.Claude = ftw.Claude(model="claude-haiku-5-5", effort="low")
 ```
 
-`pip install "featherweight[anthropic] @ git+https://github.com/aadhithya/featherweight"` and set `ANTHROPIC_API_KEY`.
+`pip install "featherweight[anthropic]"` and set `ANTHROPIC_API_KEY`.

@@ -14,8 +14,8 @@ Install (Python 3.12 or later). Add the extras the app needs: `mcp` for MCP serv
 OpenAI. Gemini and Gemma need no extra.
 
 ```
-pip install "featherweight @ git+https://github.com/aadhithya/featherweight"
-pip install "featherweight[mcp,anthropic,openai] @ git+https://github.com/aadhithya/featherweight"   # with all the extras
+pip install featherweight
+pip install "featherweight[mcp,anthropic,openai]"   # with all the extras
 ```
 
 Gemini is the default model and needs `GOOGLE_API_KEY`. Claude needs `ANTHROPIC_API_KEY` and OpenAI `OPENAI_API_KEY`.
