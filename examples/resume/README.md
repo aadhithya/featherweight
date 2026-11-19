@@ -15,10 +15,11 @@ It needs `ANTHROPIC_API_KEY` in `.env`. Without Docker: `uv run python examples/
 A `Summariser` summarises each of four commit messages (one `run_many`), then a `ReleaseNotes` agent writes the notes
 from the summaries.
 
-1. **First run.** The pipeline is made to raise after the summaries, as if the process had died. The job is `FAILED`, and
-   the four summaries are in the run log with their tokens.
+1. **First run.** The job is created `resumable=True`, so that it keeps the outputs of its steps. The pipeline is made to
+   raise after the summaries, as if the process had died. The job is `FAILED`, and the four summaries are in the run log
+   with their tokens.
 2. **Second run.** The same pipeline, started with `resume_from=<the first job>`. It makes the same four summary calls,
-   and each is answered from the first job's rows: no model call, zero tokens, marked `reused`. Only the notes agent runs.
+   and each is answered from the first job's kept results: no model call, zero tokens, marked `reused`. Only the notes agent runs.
 
 ```
 first run: the process dies after the summaries

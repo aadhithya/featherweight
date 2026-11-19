@@ -59,9 +59,15 @@ answered from the log.
 - **Where.** At the start of `_invoke`, once per `run` call, before the attempt loop, and only when `depth` is 1 and
   there is a `job_id`. A sub-agent (depth above 1) is never looked up.
 - **The match.** In the old job: `status = SUCCESS`, the same `agent_hash`, the same `input_hash`, `depth = 1`. Any
-  matching row will do. A row with no `agent_hash` or `input_hash` never matches.
-- **The check.** The stored output is validated against the current output model, then `check_output(agent_input,
+  matching row will do. A row with no `agent_hash` or `input_hash` never matches. The log is the metadata question.
+- **The result.** The output comes from the runner's `ResultStore` (`get(ResultKey(old job, agent hash, input hash))`). No
+  store (`results=None`) is a `SetupError`; no result for a step that the log says succeeded logs `result_missing` and the
+  agent runs.
+- **The check.** The kept output is validated against the current output model, then `check_output(agent_input,
   output)` runs again. If either fails, `run_reuse_rejected reason=...` is logged and the agent runs normally.
+- **What is kept.** The output of a depth-1 run that succeeds inside a `resumable` job, put in the store after the row is
+  finished. A store that fails does not fail the run (`result_not_kept` is logged). A reused run copies its result to the
+  new job.
 - **The reused run.** It writes one `SUCCESS` row in the new job, with a new `agent_run_id`, zero tokens, the stored
   output and `reused_from_agent_run_id`. It logs `run_reused agent_run_id=... reused_from=...`, calls no model, builds no
   MCP connection and takes no slot. The result has `reused=True`, zero tokens and `attempts=1`.

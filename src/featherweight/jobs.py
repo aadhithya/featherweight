@@ -32,21 +32,29 @@ async def run_job(
     *,
     job_id: str | None = None,
     resume_from: str | None = None,
+    resumable: bool = False,
 ) -> JobOutcome[T]:
     """Run `pipeline(job_id)` as a job: create it (or use `job_id`), mark it RUNNING, await the pipeline, then
     mark it SUCCESS, or FAILED with the error. A pipeline that raises is returned as a FAILED outcome, not raised.
     A cancelled run is marked FAILED ("Cancelled") and the cancellation is re-raised.
 
-    `resume_from` is the id of an earlier job: the new job records it, and an agent run that the earlier job already
-    finished, with the same agent and input, is answered from its row instead of calling the model. It cannot be
-    combined with `job_id`: create the job with `db.create_job(name, resume_from=...)` and pass that.
+    `resumable=True` keeps the outputs of the job's steps, so that a later job can resume it. It is decided here, before the
+    pipeline runs: a job that did not keep them cannot be resumed.
+
+    `resume_from` is the id of an earlier, resumable job: the new job records it, and a step that the earlier job already
+    finished, with the same agent and input, is answered from the kept result instead of calling the model. `resume_from`
+    and `resumable` cannot be combined with `job_id`: create the job with `db.create_job(name, resume_from=...)` and pass
+    that.
 
     To run in the background and give the caller the id first: create the job yourself with `db.create_job`,
     then `asyncio.create_task(run_job(db, name, pipeline, job_id=job_id))`.
     """
-    if job_id is not None and resume_from is not None:
-        raise ValueError("Use either job_id or resume_from: create the job with db.create_job(name, resume_from=...)")
-    job_id = job_id or await db.create_job(name, resume_from=resume_from)
+    if job_id is not None and (resume_from is not None or resumable):
+        raise ValueError(
+            "Use either job_id or resume_from/resumable: create the job with db.create_job(name, resume_from=..., "
+            "resumable=...)"
+        )
+    job_id = job_id or await db.create_job(name, resume_from=resume_from, resumable=resumable)
     await db.set_job_status(job_id, RunStatus.RUNNING)
     logger.info("job_started job_id=%s name=%s", job_id, name)
     try:

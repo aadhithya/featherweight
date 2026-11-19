@@ -51,6 +51,15 @@ CREATE TABLE IF NOT EXISTS agent_runs (
     depth               INTEGER NOT NULL DEFAULT 1
 );
 
+CREATE TABLE IF NOT EXISTS results (
+    job_id       TEXT NOT NULL,
+    agent_hash   TEXT NOT NULL,
+    input_hash   TEXT NOT NULL,
+    output       TEXT NOT NULL,
+    created_at   TEXT NOT NULL,
+    PRIMARY KEY (job_id, agent_hash, input_hash)
+);
+
 CREATE INDEX IF NOT EXISTS idx_agent_runs_job ON agent_runs(job_id);
 CREATE INDEX IF NOT EXISTS idx_agent_runs_invocation ON agent_runs(invocation_id);
 """
@@ -70,6 +79,7 @@ ADDED_COLUMNS = {
 # The same for `jobs`.
 JOBS_ADDED_COLUMNS = {
     "resumed_from": "TEXT",  # the job this one resumes; NULL for a job that does not resume another
+    "resumable": "INTEGER NOT NULL DEFAULT 0",  # 1 when the job keeps the outputs of its steps, so that it can be resumed
 }
 
 
@@ -101,6 +111,7 @@ class JobRow(BaseModel):
     completed_at: str | None
     error: str | None
     resumed_from: str | None = None
+    resumable: bool = False
 
 
 class AgentRunRow(BaseModel):
@@ -184,17 +195,33 @@ class Database:
 
     # jobs
 
-    async def create_job(self, name: str, job_id: str | None = None, *, resume_from: str | None = None) -> str:
-        """Create a job. With `resume_from`, the job resumes that one: its runs may reuse the successful runs of it."""
-        if resume_from is not None and await self.get_job(resume_from) is None:
-            raise LookupError(f"No such job to resume: {resume_from}")
+    async def create_job(
+        self, name: str, job_id: str | None = None, *, resume_from: str | None = None, resumable: bool = False
+    ) -> str:
+        """Create a job. `resumable=True` keeps the outputs of its steps (in the runner's result store), so that a later job
+        can resume it; it is decided here, before the pipeline runs.
+
+        With `resume_from`, the job resumes that one: its runs may reuse the successful steps of it. The old job must have
+        been resumable, or nothing was kept and `ValueError` says so. A job that resumes another is resumable itself, so that a
+        third attempt is possible.
+        """
+        if resume_from is not None:
+            old = await self.get_job(resume_from)
+            if old is None:
+                raise LookupError(f"No such job to resume: {resume_from}")
+            if not old.resumable:
+                raise ValueError(
+                    f"Job {resume_from} did not keep its results (it was not created with resumable=True), so there is "
+                    "nothing to resume from. To run everything again, run the pipeline without resume_from."
+                )
+            resumable = True
         job_id = job_id or new_id()
         await self.conn.execute(
-            "INSERT INTO jobs (job_id, name, status, created_at, resumed_from) VALUES (?, ?, ?, ?, ?)",
-            (job_id, name, RunStatus.INIT.value, _now(), resume_from),
+            "INSERT INTO jobs (job_id, name, status, created_at, resumed_from, resumable) VALUES (?, ?, ?, ?, ?, ?)",
+            (job_id, name, RunStatus.INIT.value, _now(), resume_from, int(resumable)),
         )
         await self.conn.commit()
-        logger.info("job_created job_id=%s name=%s resumed_from=%s", job_id, name, resume_from)
+        logger.info("job_created job_id=%s name=%s resumed_from=%s resumable=%s", job_id, name, resume_from, resumable)
         return job_id
 
     async def set_job_status(self, job_id: str, status: RunStatus, error: str | None = None) -> None:
