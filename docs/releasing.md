@@ -18,6 +18,11 @@ Only the release pull request is a manual step. Merging it is how you choose whe
 No pull request is opened unless someone runs the workflow, and nothing is tagged or released until a release pull request
 is merged.
 
+## The bump commit
+
+The release pull request, and so its commit, is a semantic commit: `chore(release): bump version to X.Y.Z`. It is a `chore`,
+so it is not a line of the changelog.
+
 ## How the version is chosen
 
 From the commit messages (Conventional Commits, which the commit hook enforces), since the last release:
@@ -51,7 +56,7 @@ run, so the secret is the way to go.
 | File | |
 |---|---|
 | `.github/workflows/release.yml` | The workflow: by hand it opens the release pull request, and on a push to `main` it makes the tag and the GitHub release if that push is the merged release pull request |
-| `release-please-config.json` | The release type, the pre-1.0 rule, the changelog sections |
+| `release-please-config.json` | The release type, the pre-1.0 rule, the title of the bump commit, the changelog sections |
 | `.release-please-manifest.json` | The last released version. The workflow keeps it up to date |
 | `CHANGELOG.md` | The changelog. Written by the release pull request, not by hand |
 
