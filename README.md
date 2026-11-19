@@ -2,63 +2,49 @@
 
 **An opinionated agent harness. Pydantic is the spec. Everything else follows.**
 
+An agent is a typed class. Its input, output, skills and subagents are declared right there and enforced by Pydantic, not
+by convention, and not by hoping the model behaves. The boilerplate every agent project ends up writing (retries, limits,
+failures, tracing, tools, delegation) is already written. You write the pipeline. That's the part that's yours.
 
-An agent is a typed class. Its input, output, skills and sub-agents are declared right there and enforced by Pydantic,
-not by convention, and not by hoping the model behaves. The boilerplate every agent project ends up writing (retries,
-limits, failures, tracing, tools, delegation) is already written. You write the pipeline. That's the part that's yours.
-
-A malformed agent never reaches the model. A running one has a known input and a known output, because both are typed
-and both are enforced. No guessing.
+A malformed agent never reaches the model. A running one has a known input and a known output, because both are typed and
+both are enforced. No guessing.
 
 It has opinions. Take them, or fork off.
 
-- **Separation of concerns.** Agents are classes. The runner runs them. Your code decides what happens next. Nobody gets
-  to be clever.
-- **Typed contracts.** Pydantic checks what goes in and what comes out, and `check_output` checks what a schema can't.
-  Break the contract and the attempt fails.
-- **Failures are values.** A failed run returns `FAILED` and the error. It doesn't throw. Retries, a concurrency limit and
-  `run_many` fan-out come free.
-- **Plain Python pipelines.** Order, loops and branching are `if` and `for`. No special workflow syntax, no nodes and
-  edges to wire up. This is not a workflow engine, and it won't pretend to be one.
-- **Delegation on a leash.** Agents can launch other agents, but only the ones on their list, and only so deep and so
-  wide. A runaway recursion dies.
-- **The orchestration is on record, your data is not.** Every attempt goes in the run log (sqlite to start, `SqliteDatabase`):
-  status, tokens, timing, which agent launched which, and hashes. No inputs, outputs, messages or error text: those are
-  yours. OpenTelemetry? Too big. (See [agents](https://github.com/aadhithya/featherweight/blob/main/docs/agents.md#jobs-and-tracing).)
-- **You keep the data.** The run log holds no inputs, outputs or messages. Resume reads outputs from a result store that you can
-  write in a dozen lines ([persistence](https://github.com/aadhithya/featherweight/blob/main/docs/persistence.md)).
-- **Talks while it works.** A streaming agent streams its answer as [AG-UI](https://github.com/aadhithya/featherweight/blob/main/docs/streaming.md) events, with no output to
-  validate and no retry, for chat. The Vercel AI SDK works too, and the user can stop it midway and correct it.
-- **Submit jobs.** A client submits a named, typed job to a queue; a separate worker runs it and writes the result to your store, with
-  status events you can stream as SSE ([submitted jobs](https://github.com/aadhithya/featherweight/blob/main/docs/submitted-jobs.md)).
-- **Plug things in.** The model (Gemini, Gemma, Claude, OpenAI, or your own subclass), MCP servers and skills are
-  declared on the agent. Tool schemas and skill instructions stay out of the context until the agent needs them.
-
 > Designed by a human. Implemented by Claude.
 
+## What you get
 
-## Install
-
-```
-pip install featherweight
-pip install 'featherweight[anthropic]'    # or mcp, openai, postgres
-```
-
-Python 3.12 or later. Import what you use: `from featherweight import AgentBase, AgentRunner`. (`import featherweight as ftw` works too, as a joke.)
+| | |
+|---|---|
+| **Typed, end to end** | What goes in and what comes out is a schema. A bad answer is caught, sent back to the model and retried before your code ever sees it. |
+| **Declared, not assembled** | An agent is a class. A bad declaration fails when it is written, not in production at 3 a.m. |
+| **Failures are values** | A failed run hands you the error and a status. No try/except pyramid. |
+| **Plain Python pipelines** | Order, loops and branching are `if` and `for`. No graph to draw, and no pretending to be a workflow engine. |
+| **Subagents on a leash** | Agents delegate to agents, but only the ones they are allowed to, and only so deep and so wide. |
+| **Resume instead of rerun** | A pipeline that dies halfway picks up where it stopped, without paying for the steps that worked. |
+| **Run it in the background** | Submit from your API, run on a worker, follow it live, cancel it. The two sides never talk to each other directly. |
+| **Streams to your UI** | Live job status and chat answers stream over standard protocols, so a browser can listen as is. |
+| **Any model, any tool** | Gemini, Gemma, Claude, OpenAI or your own. MCP servers and skills plug in and stay out of the context until needed. |
+| **Your data is yours** | The framework stores metadata and nothing else: status, tokens, timing. Everything else is handed back to you, and how it gets stored is your call. |
+| **Your storage, your call** | Where and how things are stored is up to you. Implement the interface, and we don't care what is behind it. sqlite and Postgres are there to get you going. |
 
 ## An agent
+
+The agent is declared, not assembled. A bad declaration fails when the class is built, a bad answer fails inside the run and
+is retried, and every attempt lands in a run log.
 
 ```python
 from typing import ClassVar
 
-from featherweight import AgentBase, AgentInput, AgentOutput
+from featherweight import AgentBase, AgentInput, AgentOutput, AgentRunner, RunStatus
 
 
 class ExtractInput(AgentInput):
     text: str
 
 
-class ExtractOutput(AgentOutput):  # also carries `open_questions: list[str]`
+class ExtractOutput(AgentOutput):
     people: list[str] = []
 
 
@@ -70,50 +56,29 @@ class PeopleExtractor(AgentBase):
     input_model: ClassVar[type[AgentInput]] = ExtractInput
     output_model: ClassVar[type[AgentOutput]] = ExtractOutput
 
-    def check_output(self, agent_input, output):  # rules a schema cannot express; raise to reject and retry
-        missing = [p for p in output.people if p not in agent_input.text]
-        if missing:
-            raise ValueError(f"names not in the text: {missing}")
+    def check_output(self, agent_input, output):  # what a schema can't say; raise and the model tries again
+        if missing := [p for p in output.people if p not in agent_input.text]:
+            raise ValueError(f"Not in the text: {missing}")
+
+
+result = await AgentRunner(db).run(PeopleExtractor, ExtractInput(text=text), job_id=job_id)
+if result.status == RunStatus.SUCCESS:
+    print(result.output.people)  # validated, checked, and retried until it is right
 ```
 
-```python
-import asyncio
+## Getting started
 
-from featherweight import AgentRunner, RunStatus, SqliteDatabase
+### Install
 
-
-async def main():
-    async with SqliteDatabase("featherweight.db") as db:
-        job_id = await db.create_job("demo")
-        result = await AgentRunner(db).run(
-            PeopleExtractor, ExtractInput(text="Anna Berger met Tom Okafor on Monday."), job_id=job_id
-        )
-        if result.status == RunStatus.SUCCESS:
-            print(result.output.people)
-        else:
-            print("failed:", result.error)  # runtime failures are returned, not raised
-
-
-asyncio.run(main())
+```
+pip install featherweight
+pip install 'featherweight[anthropic]'    # or mcp, openai, postgres
 ```
 
-Set `GOOGLE_API_KEY` first. The default model is Gemini, and the [other providers](https://github.com/aadhithya/featherweight/blob/main/docs/models.md) take their own key.
-`runner.run_many(Agent, inputs, job_id=...)` runs one agent over many inputs at once.
+Python 3.12 or later. Import what you use: `from featherweight import AgentBase, AgentRunner`. (`import featherweight as ftw`
+works too, as a joke.) [Getting started](https://github.com/aadhithya/featherweight/blob/main/docs/getting-started.md) has a first agent and how to run it.
 
-## Why does this exist? Pydantic AI and LangGraph are right there.
-
-They are. Use them. This is built on LangChain and LangGraph anyway.
-
-- **Boredom.** Every agent project needs the same retries, limits and MCP wiring. I wrote them once and got on with my day.
-- **Mostly background agents.** Pipelines, batches, fan-out: nobody is watching the tokens. A chat agent streams its answer
-  ([streaming agents](https://github.com/aadhithya/featherweight/blob/main/docs/streaming.md)), but there is no UI, and no stored conversations.
-- **Very opinionated.** Sorry, not sorry. Don't like them? Fork off.
-
-Want durable execution, evals or OpenTelemetry? Pydantic AI. Want a graph that pauses and resumes? LangGraph. Here, a job created `resumable=True` that failed is run again with
-`run_job(..., resume_from=old_job_id)`: your pipeline code runs again, and the agent runs that already succeeded are
-answered from the results it kept ([resuming a job](https://github.com/aadhithya/featherweight/blob/main/docs/agents.md#resuming-a-job)).
-
-## Build with a coding agent
+### With a coding agent
 
 There is a skill that teaches a coding agent to build with `featherweight`. In Claude Code:
 
@@ -124,53 +89,24 @@ There is a skill that teaches a coding agent to build with `featherweight`. In C
 
 Other tools that read Agent Skills: copy [`skills/featherweight`](https://github.com/aadhithya/featherweight/blob/main/skills/featherweight) into their skills folder.
 
+## Why does this exist? Pydantic AI and LangGraph are right there.
+
+They are. Use them. This is built on LangChain and LangGraph anyway.
+
+- **Boredom.** Every agent project needs the same retries, limits and MCP wiring. I wrote them once and got on with my day.
+- **Mostly background agents.** Pipelines, batches, fan-out: nobody is watching the tokens. A chat agent streams its answer
+  ([streaming agents](https://github.com/aadhithya/featherweight/blob/main/docs/streaming.md)), but there is no UI, and no stored conversations.
+- **Very opinionated.** Sorry, not sorry. Don't like them? Fork off.
+
+Want durable execution, evals or OpenTelemetry? Pydantic AI. Want a graph that pauses and resumes? LangGraph.
+
 ## Documentation
 
-- [**Docs**](https://github.com/aadhithya/featherweight/blob/main/docs/README.md): guides for using it, and where to begin
+- [**Getting started**](https://github.com/aadhithya/featherweight/blob/main/docs/getting-started.md): install it, write an agent, run it
+- [**Docs**](https://github.com/aadhithya/featherweight/blob/main/docs/README.md): the guides, and where to begin
 - [**Specs**](https://github.com/aadhithya/featherweight/blob/main/docs/specs/README.md): what each part does, and why
 - [**Examples**](https://github.com/aadhithya/featherweight/blob/main/examples/README.md): code you can run
-
-## Try it
-
-```
-cp .env.example .env          # set GOOGLE_API_KEY (the other keys only for Claude or OpenAI agents)
-make build
-make example-skills           # an agent with three skills (examples/skills); add ARGS="your request"
-make example-launching        # an agent that launches two other agents (examples/launching)
-make example-mcp              # an agent that uses GitHub's MCP server (examples/mcp; needs GITHUB_TOKEN)
-make example-resume           # a pipeline that crashes halfway and resumes (examples/resume; Claude Haiku, needs ANTHROPIC_API_KEY)
-make pipeline ARGS="examples/doclearn/samples/project_proposals --category project_proposals"   # an example pipeline (examples/doclearn)
-```
-
-## Development
-
-| Command | |
-|---|---|
-| `make build` | Build the image |
-| `make test` | Unit tests (the model is mocked, no key needed); or `uv run pytest` |
-| `make check` | Lint and format check (ruff) and types (ty); `make lint`, `make format`, `make typecheck` run one |
-| `make hooks` | Install the git hooks: conventional commit messages, ruff, ty and the unit tests. CI only lints and type checks, so the tests run here, on commit |
-| `make e2e` | Tests against the real model (costs money) |
-| `make pipeline ARGS="..."` | Run the example pipeline |
-| `make example-skills` | Run the skills example agent |
-| `make example-launching` | Run the example agent that launches agents |
-| `make example-mcp` | Run the example agent that uses an MCP server |
-| `make example-resume` | Run the example that resumes a failed job |
-
-```
-src/featherweight/            the harness
-examples/launching/   an agent that launches other agents (make example-launching)
-examples/skills/      an agent that uses skills, with three skills (make example-skills)
-examples/mcp/         an agent that uses GitHub's MCP server (make example-mcp)
-examples/resume/      a pipeline that crashes halfway and resumes (make example-resume)
-examples/doclearn/    an example pipeline: its package and sample documents (make pipeline)
-docs/                 documentation
-tests/                the harness's tests; tests/e2e uses the real model
-```
-
-Issues and pull requests are welcome. How a release is made: [docs/releasing.md](https://github.com/aadhithya/featherweight/blob/main/docs/releasing.md). Run `make hooks` once: commit messages follow
-[Conventional Commits](https://www.conventionalcommits.org) (`feat(runner): ...`, `fix: ...`), and `make check` and
-`make test` must pass.
+- [**Development**](https://github.com/aadhithya/featherweight/blob/main/docs/development.md): the commands, the layout, contributing
 
 ## License
 

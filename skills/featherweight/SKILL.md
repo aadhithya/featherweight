@@ -91,6 +91,10 @@ asyncio.run(main())
 
 ## Rules that save you a round trip
 
+- **Import what you use:** `from featherweight import AgentBase, AgentRunner`, not `import featherweight as ftw` (a joke).
+- **A `job_id` is the job a run belongs to, not the run's id.** A job has many agent runs, and each has its own `agent_run_id`.
+- **featherweight keeps metadata only** (status, tokens, timing, hashes). Inputs, outputs and results go to stores you provide
+  (`ResultStore`, `Database`, `JobQueue` are interfaces you can implement), so never expect it to hold them.
 - **Pass the class to the runner, not an instance.** `runner.run(PeopleExtractor, input)`. The runner builds it.
 - **Check `result.status`.** It is a `RunStatus`, a string enum: `RunStatus.SUCCESS` or `RunStatus.FAILED`. A failed run
   returns `FAILED` and `result.error`. It does not raise. A wrong input type does raise, and that is a bug in your code.

@@ -95,6 +95,8 @@ async with SqliteDatabase("featherweight.db") as db:
 - `run_many(agent_cls, inputs, job_id=None)` runs one agent over many inputs at the same time (fan-out) and returns the
   results in input order. It has no limit of its own: the runner's concurrency limit bounds it.
 - Several agents of one pipeline share a `job_id`. Without one, the run is logged with no job and has no run store.
+- A `job_id` is **the job that the run belongs to**, not the id of the run. A job is one unit of work with a status (a pipeline
+  you run with `run_job`, or one you submit to a worker): it has many agent runs, and each run has its own `agent_run_id`.
 
 `AgentRunner(db, ...)` takes these keyword arguments:
 

@@ -5,7 +5,7 @@ Status: implemented. How to use it is in [agents.md](../agents.md#jobs-and-traci
 [migrations.py](../../src/featherweight/migrations.py), [jobs.py](../../src/featherweight/jobs.py) and [log.py](../../src/featherweight/log.py). The
 run log holds metadata only: see the [persistence spec](persistence.md) for why, and for [`PostgresDatabase`](../../src/featherweight/postgres.py).
 
-> **Change in progress:** jobs can be submitted to a queue and run by a separate worker, with new job columns, `CANCELLED` for jobs and job events. See the [submitted jobs spec](submitted-jobs.md).
+Jobs can also be submitted to a queue and run by a separate worker: see the [submitted jobs spec](submitted-jobs.md).
 
 - [Goal](#goal)
 - [Jobs](#jobs)
@@ -33,7 +33,7 @@ A job is one run of a pipeline. `run_job(db, name, pipeline, job_id=None)`:
 
 - A pipeline that raises is a **failed outcome**, not an exception. The error is `ExceptionType: message`, up to 2,000
   characters.
-- A cancelled run marks the job `FAILED` with `Cancelled` and re-raises the cancellation.
+- A cancelled run marks the job `CANCELLED` and re-raises the cancellation.
 - `run_job(..., resume_from=old_job_id)` and `db.create_job(name, resume_from=old_job_id)` create a **new** job that
   records `resumed_from` (an unknown job raises `LookupError`; `run_job` refuses `job_id` and `resume_from` together).
   See [resuming a job](#resuming-a-job).
