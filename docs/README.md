@@ -16,6 +16,7 @@ or finding out why it behaves as it does.
 
 - **I want a coding agent to build with it.** [The skill](../skills/featherweight/SKILL.md): install it in Claude Code, or copy
   `skills/featherweight` into another tool's skills folder. It carries the rules, a working app and the guides.
+- **I'm new here.** [Getting started](getting-started.md): install it, write an agent, run it.
 - **I want to build an agent.** [Agents](agents.md): define one, run it, read the result, handle failures. Then
   [`examples/launching`](../examples/launching) or [`examples/skills`](../examples/skills) to run something.
 - **I want my agent to use outside tools.** [MCP tools](mcp.md): declare a server, and the agent gets its tools. They are
@@ -27,6 +28,9 @@ or finding out why it behaves as it does.
 - **I want to teach an agent a procedure.** [Skills](skills.md): instructions in the Agent Skills format, read on demand.
 - **I want to see a whole pipeline.** [Example pipeline](example-pipeline.md): `doclearn`, five agents and two pipelines
   built on featherweight. Run it with `make pipeline`.
+- **I want to run jobs in the background.** [Submitted jobs](submitted-jobs.md): a client submits, a worker runs, and you follow
+  it with events. Then [`examples/jobs`](../examples/jobs).
+- **I want to work on featherweight itself.** [Development](development.md): the commands, the layout, how to contribute.
 - **I want to know why it works this way, or to change it.** [Specs](specs). Start with the
   [agent runner](specs/runner.md), which most behaviour passes through.
 
@@ -39,6 +43,8 @@ or finding out why it behaves as it does.
 | [Launching agents](launching-agents.md) | The `subagents` allow-list, the two tools, depth and breadth, concurrency, tracing | [The runner](specs/runner.md#launching-agents) |
 | [MCP tools](mcp.md) | Declaring servers, connections, what the model gets, failures, finding tools by search | [MCP tools](specs/mcp-tools.md), [tool discovery](specs/tool-discovery.md) |
 | [Streaming agents](streaming.md) | `StreamingAgent`, `runner.stream()`, the events, thoughts, the AG-UI and Vercel adapters, stopping a response, keeping the conversation, the example | [Streaming agents](specs/streaming.md) |
+| [Getting started](getting-started.md) | Installing it, a first agent, running it, the examples | |
+| [Development](development.md) | The make commands, the layout of the repository, contributing | |
 | [Persistence](persistence.md) | What is kept and what is not, resuming a job, result stores, choosing a database, tenants | [Persistence](specs/persistence.md) |
 | [Submitted jobs](submitted-jobs.md) | A job as a class or a decorator, `JobClient`, `JobWorker`, `JobQueue`, cancelling, job events and SSE, the example | [Submitted jobs](specs/submitted-jobs.md) |
 | [Skills](skills.md) | The skill model, how an agent reads its skills, loading, what the specification covers | [Skills](specs/skills.md) |
@@ -68,12 +74,12 @@ runner ──────────── runs agents: attempts, retries, conc
 
 ## How it fits together
 
-- **The README** says what featherweight is and what it will not do.
+- **The README** is the landing page: what featherweight is, what it does, and how it differs.
 - **A guide** is written for someone with a task. It shows code, and says what to expect.
 - **A spec** is written from the code. It states the rules as they are, the decisions with their reasons, and what was left
   out on purpose. If a guide and a spec disagree, the spec and the code are right, and the guide should be fixed.
 - **An example** is a folder you can run (`make example-skills`, `make example-launching`, `make example-mcp`, `make
-  example-resume`, `make pipeline`). Each has a README that says what to look at.
+  example-resume`, `make example-jobs`, `make pipeline`). Each has a README that says what to look at.
 - **Releasing** is for the maintainers: [Releasing](releasing.md) says how a release is made, and the changelog is
   [`CHANGELOG.md`](../CHANGELOG.md).
 - **The tests** are in [`tests/`](../tests), and each spec says which files cover it. `tests/e2e` uses the real model.
