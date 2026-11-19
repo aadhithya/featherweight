@@ -1,6 +1,6 @@
 # Spec: streaming agents
 
-Status: being built. #30 (the class, `ChatInput`, `runner.stream()`, the run log) and #31 (the events: text, tool calls, thoughts, steps; `show_thoughts`) and #34 (the AG-UI adapter) are done; the other issues are not. It is tracked in [epic #29](https://github.com/aadhithya/micro/issues/29), and each part has its own
+Status: being built. #30 (the class, `ChatInput`, `runner.stream()`, the run log), #31 (the events: text, tool calls, thoughts, steps; `show_thoughts`), #34 (the AG-UI adapter) and #35 (the Vercel adapter) are done; the other issues are not. It is tracked in [epic #29](https://github.com/aadhithya/micro/issues/29), and each part has its own
 issue (listed [at the end](#the-work)). When a part is built, this page says so and the guide `docs/streaming.md` shows how to use it.
 
 It changes [agents](agents.md) (a new kind of agent), [the runner](runner.md) (`stream()`, and `run()` refuses a streaming
