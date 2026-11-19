@@ -24,12 +24,12 @@ def test_the_release_config_and_the_manifest_are_valid_and_agree():
     assert config["bump-minor-pre-major"] is True  # below 1.0, a breaking change bumps the minor version
 
 
-def test_nothing_runs_on_its_own_and_each_step_does_only_its_part():
+def test_only_the_release_pull_request_is_manual_and_the_tag_is_made_when_it_is_merged():
     workflow = yaml.safe_load((ROOT / ".github" / "workflows" / "release.yml").read_text())
     triggers = workflow.get("on", workflow.get(True))  # YAML reads a bare `on` as True
-    assert set(triggers) == {"workflow_dispatch"}  # no push, no schedule: only the button
-    assert triggers["workflow_dispatch"]["inputs"]["step"]["options"] == ["prepare", "publish"]
-    prepare, publish = workflow["jobs"]["prepare"], workflow["jobs"]["publish"]
-    assert prepare["if"] == "inputs.step == 'prepare'" and publish["if"] == "inputs.step == 'publish'"
-    assert prepare["steps"][0]["with"]["skip-github-release"] is True  # it opens the pull request, nothing more
-    assert publish["steps"][0]["with"]["skip-github-pull-request"] is True  # it tags and releases, nothing more
+    assert set(triggers) == {"workflow_dispatch", "push"} and triggers["push"] == {"branches": ["main"]}
+    by_hand, on_push = workflow["jobs"]["release-pr"], workflow["jobs"]["release"]
+    assert by_hand["if"] == "github.event_name == 'workflow_dispatch'"
+    assert by_hand["steps"][0]["with"]["skip-github-release"] is True  # by hand it opens the pull request, nothing more
+    assert on_push["if"] == "github.event_name == 'push'"
+    assert on_push["steps"][0]["with"]["skip-github-pull-request"] is True  # on a push it never opens one
