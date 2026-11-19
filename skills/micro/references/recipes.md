@@ -216,8 +216,8 @@ finally:
     history.add_messages([user_message, *run.new_messages])  # you keep the conversation; micro keeps none
 ```
 
-`runner.cancel(run.run_id)` stops it. `micro.adapters.vercel` does the same for `useChat`. A whole app is in
-`examples/chat/agent.py`; `references/streaming.md` has the details. Test it with a fake streaming chat model: the
+`runner.cancel(run.run_id)` stops it. `micro.adapters.vercel` does the same for `useChat`. A chat in the terminal is
+`examples/chat/cli.py`, and the same agent behind FastAPI is `examples/chat/api.py`; `references/streaming.md` has the details. Test it with a fake streaming chat model: the
 `Streams` double in the repository's `tests/fakes.py` shows how.
 
 ## A different provider

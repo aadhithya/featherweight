@@ -1,4 +1,4 @@
-.PHONY: skill build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching example-resume example-chat example-mcp shell
+.PHONY: skill build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching example-resume example-chat example-chat-api example-mcp shell
 
 build:
 	docker compose build
@@ -69,10 +69,13 @@ example-mcp:
 example-resume:
 	docker compose run --rm micro python examples/resume/agent.py $(ARGS)
 
-# A streaming chat agent behind a small web app on http://localhost:8000 (real Claude Haiku calls; needs ANTHROPIC_API_KEY
-# in .env, see examples/chat).
+# A chat in the terminal with a streaming agent (real Claude Haiku calls; needs ANTHROPIC_API_KEY in .env, see examples/chat).
 example-chat:
-	docker compose run --rm -p 8000:8000 micro uvicorn --factory --app-dir examples/chat agent:create_app --host 0.0.0.0
+	docker compose run --rm micro python examples/chat/cli.py
+
+# The same agent behind FastAPI on http://localhost:8000: AG-UI at /agui, the Vercel AI SDK at /vercel.
+example-chat-api:
+	docker compose run --rm -p 8000:8000 micro uvicorn --app-dir examples/chat api:app --host 0.0.0.0
 
 shell:
 	docker compose exec micro bash

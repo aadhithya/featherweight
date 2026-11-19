@@ -1,41 +1,32 @@
 # A streaming chat agent
 
-A support chat for an online shop, behind a small web app. It shows a [streaming agent](../../docs/streaming.md) from the
-browser's side: the answer arrives as it is written, the agent's tool call is an event, and the person can stop it. It uses
-`claude-haiku-5-5`, the smallest Claude model, with thinking off, so a conversation costs next to nothing.
+One agent, a support chat for an online shop, and two ways to talk to it. It uses `claude-haiku-5-5`, the smallest Claude
+model, with thinking off, so a conversation costs next to nothing. It needs `ANTHROPIC_API_KEY` in `.env`.
+
+[`support.py`](support.py) is the agent: a class, a prompt, one tool. This is all it takes to define a
+[streaming agent](../../docs/streaming.md).
+
+## In the terminal
 
 ```
 make example-chat
 ```
 
-It needs `ANTHROPIC_API_KEY` in `.env`, and serves on `http://localhost:8000`. Without Docker:
-`uv run uvicorn --factory --app-dir examples/chat agent:create_app` (`starlette` and `uvicorn` are in the dev group).
+[`cli.py`](cli.py) is about 30 lines. It prints the answer as it is written and keeps the conversation in a list. **Press Ctrl-C
+while it answers** to stop it, then type a correction: the agent has what it had said so far. An empty line leaves.
+Without Docker: `uv run python examples/chat/cli.py`.
 
-## Try it
+## Behind an API
 
 ```
-curl -N localhost:8000/chat/t1 -d '{"message": "where is order 1001?"}'
-curl localhost:8000/chat/t1                                             # what the server kept
-curl -N localhost:8000/chat/t1 -d '{"message": "and 1002?"}'            # the second turn knows the first
-curl -X POST localhost:8000/stop/<run id>                               # the run id is in RUN_STARTED
+make example-chat-api
 ```
 
-| Endpoint | |
-|---|---|
-| `POST /agui` | The AG-UI protocol. The client sends the whole conversation (a `RunAgentInput`) |
-| `POST /vercel` | The Vercel AI SDK: point `useChat` at it. The client sends the whole conversation |
-| `POST /chat/{thread_id}` | The server keeps the conversation: send `{"message": "..."}`, get AG-UI events |
-| `GET /chat/{thread_id}` | What the server kept, as AG-UI messages |
-| `POST /stop/{run_id}` | Stops a response: `runner.cancel(run_id)` |
+[`api.py`](api.py) puts the same agent behind FastAPI on `http://localhost:8000`. Point an AG-UI client at `/agui`, or
+`useChat` of the Vercel AI SDK at `/vercel`; `POST /stop/<run id>` stops a response (the run id is in the first event). The client
+sends the conversation, so the server keeps none. Without Docker:
+`uv run uvicorn --app-dir examples/chat api:app`.
 
-## What to look at
+To stream the model's thoughts too, use `Claude(..., thinking="adaptive", show_thoughts=True)` in `support.py`.
 
-- **`Support`**: a `StreamingAgent` with one tool, `lookup_order`. To stream its thoughts as well, use
-  `Claude(..., thinking="adaptive", show_thoughts=True)`.
-- **`talk`**: how an application keeps a conversation, since `micro` keeps none: load the history, stream a turn, and save
-  `run.new_messages` in a `finally`, after the stream is closed (`aclosing`), so that a turn the client left halfway is saved
-  too, with the partial text and a result for any tool that had not returned.
-- **`Store`**: a dict. Put a database behind the same two calls: LangChain's chat message histories do this.
-- **`stop`**: a stop button's request. The stream of the stopped run ends cleanly with `RUN_FINISHED` (`cancelled`).
-
-The tests (`tests/test_examples.py`) run this app against a fake model, with no API key.
+The tests (`tests/test_examples.py`) run both against a fake model, with no API key.
