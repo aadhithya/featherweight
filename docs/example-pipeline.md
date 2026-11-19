@@ -134,5 +134,6 @@ This is a prototype, and these were left out on purpose, to keep the scope small
   model with `calculate` and are not re-checked. `generated` blocks are not verified, only present and in order.
 - **Few, very different documents** can be learned as optional slots instead of a `generated` block. Required inputs
   follow the examples. Repeated items are not modelled as lists.
-- **Gemini only,** one language per category, markdown in and out. Learning from a user's edits, detecting documents
-  unlike the examples, and resuming a failed job are designed but not built.
+- **Gemini only,** one language per category, markdown in and out. Learning from a user's edits and detecting documents
+  unlike the examples are designed but not built. A failed job can be resumed with `run_job(..., resume_from=...)`
+  ([resuming a job](agents.md#resuming-a-job)), but the example does not use it.

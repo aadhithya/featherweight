@@ -12,6 +12,7 @@ How to define an agent, run it, and what to expect back. Agents that launch othe
 - [Checking the output](#checking-the-output)
 - [Tools](#tools)
 - [Jobs and tracing](#jobs-and-tracing)
+- [Resuming a job](#resuming-a-job)
 - [Configuration](#configuration)
 
 ## Defining an agent
@@ -122,6 +123,7 @@ a test, give it fake model settings ([testing your agents](models.md#testing-you
 | `input_tokens`, `output_tokens` | Summed over the attempt's model calls. Output includes thinking tokens, and the input includes the tool results the model read |
 | `attempts`, `latency_ms` | Attempts made, and total time across them |
 | `model_name` | The model as the API reported it, which can differ from the one requested |
+| `reused` | `True` when the output came from the job this one resumes, with no model call ([resuming a job](#resuming-a-job)) |
 
 ## Failures and retries
 
@@ -198,7 +200,7 @@ outcome = await run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, jo
 To run in the background and hand the caller the id first, create the job with `db.create_job` and use
 `asyncio.create_task(run_job(db, name, pipeline, job_id=job_id))`.
 
-Two tables in sqlite record everything. `jobs`: id, name, status, error, created and completed times. `agent_runs`: one
+Two tables in sqlite record everything. `jobs`: id, name, status, error, created and completed times, and `resumed_from` (the job this one resumes, or empty). `agent_runs`: one
 row **per attempt**:
 
 | Column | |
@@ -212,6 +214,8 @@ row **per attempt**:
 | `agent_hash` | The hash of the whole agent: its prompt, version, limits, model settings (and the settings class), tools, sub-agents, skills and MCP servers. Same hash, same agent. `NULL` for older rows |
 | `status`, `error` | `INIT` (queued for a slot), `RUNNING`, `SUCCESS` or `FAILED` |
 | `input`, `output` | JSON. A failed attempt keeps its error, not the model's raw reply |
+| `input_hash` | The SHA-256 of the input as canonical JSON. `NULL` for older rows |
+| `reused_from_agent_run_id` | For a run that reused an earlier one ([resuming a job](#resuming-a-job)): the row it took its output from |
 | `input_tokens`, `output_tokens`, `latency_ms` | Of the attempt |
 | `created_at`, `completed_at` | |
 
@@ -219,7 +223,7 @@ row **per attempt**:
 sqlite3 micro.db "select agent_name, attempt, status, depth, error from agent_runs where job_id = '<job id>' order by rowid"
 ```
 
-A failed pipeline can be diagnosed from those rows, and replayed against them, without new model calls. An older
+A failed pipeline can be diagnosed from those rows, and resumed from them ([next section](#resuming-a-job)). An older
 database gets new columns when it is opened.
 
 Log lines go to stdout through `setup_logging()` (`micro.log`), such as `attempt_started agent_run_id=... attempt=1/3`.
@@ -228,6 +232,51 @@ Log lines go to stdout through `setup_logging()` (`micro.log`), such as `attempt
 collector, no account. A real deployment will want a proper backend. Every attempt passes through one loop in
 `AgentRunner` and every pipeline through `run_job`, so exporting traces is a change in those two places, and the fields
 a span needs are already recorded.
+
+## Resuming a job
+
+A pipeline fails at step 2. Run it again with `resume_from`, and step 1 is not paid for twice:
+
+```python
+outcome = await run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, job_id), resume_from=failed_job_id)
+```
+
+This creates a **new job** that records `resumed_from`. Your pipeline runs again from the top, with its own loops and
+decisions. Only the agent runs are answered from the log. It is replay, not pausing: [micro.] is not a workflow engine.
+To create the job first, use `db.create_job(name, resume_from=old_job_id)` and pass its id with `job_id` (`run_job`
+refuses `job_id` and `resume_from` together).
+
+For each run that your pipeline starts in the new job, the runner looks in the old job for a row that
+
+- has status `SUCCESS`,
+- has the same `agent_hash` (the same agent: prompt, version, model settings, tools and so on),
+- has the same input (`input_hash`), and
+- is a top-level run (`depth` 1).
+
+If there is one, the runner checks that the stored output still validates against the output model and passes
+`check_output`. If so, it does not call the model and takes no concurrency slot. It writes a `SUCCESS` row of its own in
+the new job, with zero tokens, the stored output and `reused_from_agent_run_id`, and returns an `AgentResult` with
+`reused=True` and zero tokens. The log says `run_reused ...`. If the output no longer validates, the log says
+`run_reuse_rejected reason=...` and the agent runs as usual. With several matches (the same input twice in one
+`run_many`), any one answers. `run_many` resumes per input: one failed section of ten reruns only that section.
+
+Changing the prompt, bumping `version` or changing a model setting changes `agent_hash`, so that step runs again, and so
+does any step whose input depends on its output.
+
+What to know:
+
+- **The code between agents must be deterministic**: no clock, no `random`, no unordered iteration. It is your code, so
+  it is your responsibility, and [micro.] does not check it. If it takes another path, the agents get other inputs,
+  nothing matches, and they run again.
+- **The run store is not used for resumption.** Outputs come from the run log. A reused step does not run, so a
+  `store_set` it made does not happen again. Do not rely on the store for anything a resume needs.
+- **Side effects are not undone or repeated.** A tool that sent an email in the failed job is not rerun when its agent's
+  result is reused. An agent that failed halfway runs whole again.
+- **Rows from before `agent_hash` existed are never reused**, and neither are `FAILED`, `INIT` and `RUNNING` rows.
+- **Depth 1 only.** A run launched by a model (a sub-agent) is never looked up. A parent that succeeded is reused whole,
+  and its children never launch. A parent that failed runs again, and so do its children. Reusing children is not
+  included.
+- **A crash inside your pipeline code** runs that code again, and its agent calls are answered from the log.
 
 ## Configuration
 

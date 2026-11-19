@@ -29,6 +29,17 @@ async def main():
 `run_job` creates the job, runs your function and records `SUCCESS` or `FAILED`. A pipeline that raises comes back as a
 failed outcome, not an exception.
 
+## Resuming a failed job
+
+Run the same pipeline again, and point it at the failed job:
+
+```python
+outcome = await run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, job_id), resume_from=failed.job_id)
+```
+
+Agent runs that succeeded with the same agent and input are answered from the log (`result.reused`, zero tokens). Keep
+the code between agents deterministic (no clock, no `random`), and do not rely on the run store for a resume.
+
 ## Telling a retry what went wrong
 
 A retry does not see the last error. If the next attempt should, make it part of the input:

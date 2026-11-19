@@ -30,17 +30,39 @@ A job is one run of a pipeline. `run_job(db, name, pipeline, job_id=None)`:
 - A pipeline that raises is a **failed outcome**, not an exception. The error is `ExceptionType: message`, up to 2,000
   characters.
 - A cancelled run marks the job `FAILED` with `Cancelled` and re-raises the cancellation.
+- `run_job(..., resume_from=old_job_id)` and `db.create_job(name, resume_from=old_job_id)` create a **new** job that
+  records `resumed_from` (an unknown job raises `LookupError`; `run_job` refuses `job_id` and `resume_from` together).
+  See [resuming a job](#resuming-a-job).
 - To run in the background and hand the caller the id first: `db.create_job`, then
   `asyncio.create_task(run_job(db, name, pipeline, job_id=job_id))`.
 - `set_job_status` keeps `error` only for `FAILED`, and sets `completed_at` only for `SUCCESS` and `FAILED`. A job that
   does not exist raises `LookupError`.
+
+## Resuming a job
+
+A pipeline that failed at step 2 is run again with `resume_from=<failed job>`. This is replay with memoised agent calls,
+not pausing: the pipeline's own code, loops and decisions run again, and the runner answers an agent run from the old
+job's rows when it can ([runner](runner.md#resuming) has the rules). The new job's trace has every step: a reused step
+is a `SUCCESS` row with zero tokens and `reused_from_agent_run_id` pointing at the original, so the totals of the new job
+count only the calls it made. The old job is not changed.
+
+The limits:
+
+- **The code between agents must be deterministic** (no clock, no `random`, no unordered iteration). It is the user's code
+  and the user's responsibility; nothing checks it. If it takes another path, the inputs change, nothing matches, and the
+  agents run again.
+- **The run store is not used for resumption.** A reused step does not run, so its `store_set` does not happen again.
+- **Side effects** of tools in the failed job are not undone or repeated. An agent that failed halfway runs whole.
+- **Rows from before `agent_hash`** existed are never reused. Neither are `FAILED`, `INIT` and `RUNNING` rows.
+- **Depth 1 only.** Sub-agent runs are not looked up. A parent that succeeded is reused whole; one that failed runs again
+  with its children. Child reuse is not included.
 
 ## The run log
 
 A sqlite file (`MICRO_DB_PATH`, default `micro.db`) with two tables. `Database` is an async context manager over one
 connection, with foreign keys on.
 
-**`jobs`**: `job_id`, `name`, `status`, `created_at`, `completed_at`, `error`.
+**`jobs`**: `job_id`, `name`, `status`, `created_at`, `completed_at`, `error`, `resumed_from` (the job this one resumes; `NULL` otherwise).
 
 **`agent_runs`**, one row **per attempt**:
 
@@ -54,6 +76,8 @@ connection, with foreign keys on.
 | `model_name`, `reasoning`, `provider`, `settings`, `reported_model_name` | What was asked for (the model, the effort or thinking level, the provider, and all the settings as JSON; `NULL` for rows from before the last two existed), and what the API reported |
 | `system_prompt_hash` | SHA-256 of the assembled system prompt |
 | `agent_hash` | SHA-256 of the whole agent declaration (see [agents](agents.md)); `NULL` for rows from before it existed |
+| `input_hash` | SHA-256 of the input's `model_dump(mode='json')`, serialised with sorted keys and fixed separators; `NULL` for rows from before it existed |
+| `reused_from_agent_run_id` | For a run that reused an earlier one: that row. `NULL` otherwise |
 | `status`, `error` | See below |
 | `input`, `output` | JSON. A failed attempt keeps its error, not the model's raw reply |
 | `input_tokens`, `output_tokens`, `latency_ms` | Of the attempt |
@@ -62,7 +86,9 @@ connection, with foreign keys on.
 Rows come back in insertion order (`rowid`), filtered by `job_id` and `invocation_id` if given. The whole launch tree of a
 job is one query on `parent_agent_run_id` and `depth`.
 
-**Older databases** get the columns added after the first version (`parent_agent_run_id`, `depth`, `provider`, `settings`, `agent_hash`) when they are opened.
+**Older databases** get the columns added after the first version (`parent_agent_run_id`, `depth`, `provider`, `settings`, `agent_hash`, `input_hash`, `reused_from_agent_run_id`, and
+`resumed_from` on `jobs`) when they are opened. An index on `(job_id, agent_hash, input_hash)` makes the lookup for reuse
+cheap.
 
 ## Statuses
 
@@ -82,7 +108,7 @@ argument, else `MICRO_LOG_LEVEL`, else INFO. Calling it twice adds one handler. 
 `logging.getLogger(__name__)`; entry points call `setup_logging`.
 
 The events: `db_connected`, `db_migrated`, `job_created`, `job_status`, `job_started`, `job_finished`, `job_failed`,
-`job_cancelled`, `run_created`, `run_running`, `run_finished`, and the runner's lines ([runner](runner.md#logging)).
+`job_cancelled`, `run_created`, `run_running`, `run_finished`, `run_reused`, `run_reuse_rejected`, and the runner's lines ([runner](runner.md#logging)).
 Failures log at warning or error.
 
 ## Decisions
@@ -102,10 +128,11 @@ Failures log at warning or error.
 - Rows for tool calls. Skill reads and MCP calls are log lines only.
 - Redaction of inputs and outputs, and retention or cleanup.
 - Several processes writing one database.
-- Resuming a job from its rows.
+- Resuming from a crash inside the pipeline's code, mid-step. The code runs again; agent runs are answered from the log.
+- Reusing the runs of sub-agents, and a persistent or per-agent store.
 
 ## Tests
 
 [test_db.py](../../tests/test_db.py) (tables, statuses, ordering, the foreign key, reopening, migration), [test_jobs.py](../../tests/test_jobs.py)
-(`run_job`, failures, cancellation), [test_log.py](../../tests/test_log.py), and the log rows in
+(`run_job`, failures, cancellation), [test_resume.py](../../tests/test_resume.py) (resuming a job), [test_log.py](../../tests/test_log.py), and the log rows in
 [test_runner.py](../../tests/test_runner.py) and [test_subagents.py](../../tests/test_subagents.py).

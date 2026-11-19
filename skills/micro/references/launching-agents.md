@@ -131,5 +131,6 @@ The runner records the tools an agent had, `launch_agent` and `get_agent_schema`
 
 - **Finding agents.** An agent knows only its own allow-list. There is no tool to search for agents.
 - **Launching in the background.** `launch_agent` waits for the child.
-- **Resuming** a launch, or reusing the result of an earlier launch when a parent is retried.
+- **Reusing a launch** when a job is resumed. A parent that succeeded is reused whole; one that failed runs again with
+  its children ([resuming a job](agents.md#resuming-a-job)).
 - **A limit on the number of launches per job**, or on cost. Depth and breadth are the only limits.

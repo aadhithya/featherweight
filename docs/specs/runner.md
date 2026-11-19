@@ -41,9 +41,29 @@ results = await runner.run_many(AgentClass, inputs, job_id=job_id)
 
 `AgentResult[OutT]`: `status` (`SUCCESS` or `FAILED` only), `output` (the validated output model, on success), `error`
 (the last error, on failure), `agent_run_id` (the last attempt), `input_tokens`, `output_tokens` (thinking included),
-`attempts`, `latency_ms` (across attempts) and `model_name` (as the API reported it, which can differ from the one
-requested). Tokens are summed over the model calls of the successful attempt. The tool results the model read are in its
+`attempts`, `latency_ms` (across attempts), `model_name` (as the API reported it, which can differ from the one
+requested) and `reused` (see [resuming](#resuming)). Tokens are summed over the model calls of the successful attempt. The tool results the model read are in its
 input tokens. A failed result has no tokens.
+
+## Resuming
+
+A job created with `resume_from` (see [jobs and tracing](jobs-and-tracing.md#resuming-a-job)) makes the runner look up a
+run before it runs it. This is replay with memoised agent calls: the caller's code runs again, and only agent runs are
+answered from the log.
+
+- **Where.** At the start of `_invoke`, once per `run` call, before the attempt loop, and only when `depth` is 1 and
+  there is a `job_id`. A sub-agent (depth above 1) is never looked up.
+- **The match.** In the old job: `status = SUCCESS`, the same `agent_hash`, the same `input_hash`, `depth = 1`. Any
+  matching row will do. A row with no `agent_hash` or `input_hash` never matches.
+- **The check.** The stored output is validated against the current output model, then `check_output(agent_input,
+  output)` runs again. If either fails, `run_reuse_rejected reason=...` is logged and the agent runs normally.
+- **The reused run.** It writes one `SUCCESS` row in the new job, with a new `agent_run_id`, zero tokens, the stored
+  output and `reused_from_agent_run_id`. It logs `run_reused agent_run_id=... reused_from=...`, calls no model, builds no
+  MCP connection and takes no slot. The result has `reused=True`, zero tokens and `attempts=1`.
+- **`run_many`** resumes per input, since each input is one `run` call.
+- **Not covered.** The determinism of the caller's code between agents (the caller's responsibility, not checked), the
+  run store (a reused run does not run, so its `store_set` calls do not happen again), side effects of tools, reuse of
+  sub-agent runs, rows from before `agent_hash`.
 
 ## Attempts and retries
 
@@ -165,13 +185,17 @@ is needed for the real model. A missing key is a setup error: the run fails at o
 - **The child's result is text for the parent**, not an exception, so that the parent's model can recover.
 - **Depth and breadth, not cost.** They are simple to explain and to set. A budget is not built.
 - **Slots are held by attempts that call the model**, which keeps the limit on model calls honest.
-- **The runner owns no workflow.** It is not a graph engine, and it does not resume.
+- **The runner owns no workflow.** It is not a graph engine. Resuming is replay: the caller's code runs again, and the
+  runner answers the agent runs that already succeeded.
+- **`AgentResult.reused`.** A plain flag, so that a pipeline or a test can tell a reused result from a run without
+  reading the log.
 
 ## Not supported
 
 - **Finding agents.** An agent knows only its own allow-list. There is no tool to search for agents.
 - **Launching in the background.** `launch_agent` waits for the child.
-- **Resuming** a run or a launch, or reusing the result of an earlier launch when a parent is retried.
+- **Resuming inside a run.** An attempt that failed halfway runs whole. Reusing the result of a sub-agent when its
+  parent is run again is not built: a parent that failed reruns with its children.
 - **A limit on launches per job**, or on cost or tokens.
 - **Cancelling one run.** Cancelling the task that awaits it cancels the run.
 - **A runner shared between processes.** The slots and the connections are per runner.
@@ -182,6 +206,7 @@ is needed for the real model. A missing key is a setup error: the run fails at o
 [test_limits.py](../../tests/test_limits.py) (the three limits: defaults, environment variables, arguments, and the slot
 limit with `run_many`),
 [test_concurrency.py](../../tests/test_concurrency.py) (many runs at once do not interfere),
+[test_resume.py](../../tests/test_resume.py) (resuming a job),
 [test_subagents.py](../../tests/test_subagents.py) (the allow-list, the two tools, depth and breadth, the slot hand-over
 with deadlock tests, tracing), and [test_mcp.py](../../tests/test_mcp.py) (leases). A real-model test of launching is in
 [tests/e2e/test_subagents_e2e.py](../../tests/e2e/test_subagents_e2e.py).

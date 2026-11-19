@@ -209,6 +209,7 @@ class AgentResult(BaseModel, Generic[OutT]):
     attempts: int = Field(default=1, ge=1)
     latency_ms: float = 0.0  # total across attempts
     model_name: str | None = None  # as reported by the API, which can differ from the requested one
+    reused: bool = False  # True when the output came from the job this one resumes, with no model call
 
     @model_validator(mode="after")
     def _terminal_status_only(self):

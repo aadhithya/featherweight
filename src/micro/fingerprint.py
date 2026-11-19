@@ -10,7 +10,7 @@ from typing import Any
 
 from langchain_core.tools import BaseTool
 
-from micro.models import AgentBase
+from micro.models import AgentBase, AgentInput
 
 
 def _tool(tool: BaseTool) -> dict[str, Any]:
@@ -62,4 +62,10 @@ def agent_declaration(agent: AgentBase, _seen: tuple[type, ...] = ()) -> dict[st
 def agent_hash(agent: AgentBase) -> str:
     """SHA-256 of the agent's canonical declaration."""
     text = json.dumps(agent_declaration(agent), sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def input_hash(agent_input: AgentInput) -> str:
+    """SHA-256 of the input as canonical JSON, so that equal inputs give equal hashes."""
+    text = json.dumps(agent_input.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(text.encode()).hexdigest()

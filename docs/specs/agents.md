@@ -84,7 +84,8 @@ hash is known before any server starts. Bound MCP tools add nothing to the promp
 
 Every attempt also records `agent_hash`, the SHA-256 of the whole declaration, so that "this run used exactly this
 agent" can be checked. If `system_prompt_hash` is the same and `agent_hash` differs, the model, a tool or a limit
-changed, not the prompt. The hash covers:
+changed, not the prompt. Resuming a job uses it: a run is reused only when the hash is the same
+([runner](runner.md#resuming)). The hash covers:
 
 - `name`, `version`, `description`, `prompt`, `recursion_limit`, `allow_user_questions`, `raise_conflicts`
 - the model settings, all fields
