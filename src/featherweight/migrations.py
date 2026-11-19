@@ -10,6 +10,7 @@ from collections.abc import Mapping
 from pydantic import BaseModel, ConfigDict
 
 STATUSES = "('INIT', 'RUNNING', 'SUCCESS', 'FAILED', 'CANCELLED')"
+EVENT_TYPES = "('queued', 'running', 'succeeded', 'failed', 'cancelled', 'cancel_requested')"
 
 
 class Migration(BaseModel):
@@ -74,6 +75,18 @@ CREATE INDEX idx_agent_runs_job ON agent_runs(job_id);
 CREATE INDEX idx_agent_runs_invocation ON agent_runs(invocation_id);
 CREATE INDEX idx_agent_runs_parent ON agent_runs(parent_agent_run_id);
 CREATE INDEX idx_agent_runs_reuse ON agent_runs(job_id, agent_hash, input_hash);
+
+CREATE TABLE job_events (
+    seq         INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id      TEXT NOT NULL REFERENCES jobs(job_id),
+    type        TEXT NOT NULL CHECK (type IN {EVENT_TYPES}),
+    status      TEXT NOT NULL CHECK (status IN {STATUSES}),
+    error_type  TEXT,
+    error_hash  TEXT,
+    at          TEXT NOT NULL
+);
+
+CREATE INDEX idx_job_events_job ON job_events(job_id, seq);
 
 CREATE TABLE results (
     job_id       TEXT NOT NULL,
@@ -154,6 +167,18 @@ CREATE INDEX idx_agent_runs_job ON agent_runs(job_id);
 CREATE INDEX idx_agent_runs_invocation ON agent_runs(invocation_id);
 CREATE INDEX idx_agent_runs_parent ON agent_runs(parent_agent_run_id);
 CREATE INDEX idx_agent_runs_reuse ON agent_runs(job_id, agent_hash, input_hash);
+
+CREATE TABLE job_events (
+    seq         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    job_id      text NOT NULL REFERENCES jobs(job_id),
+    type        text NOT NULL CHECK (type IN {EVENT_TYPES}),
+    status      text NOT NULL CHECK (status IN {STATUSES}),
+    error_type  text,
+    error_hash  text,
+    at          timestamptz NOT NULL
+);
+
+CREATE INDEX idx_job_events_job ON job_events(job_id, seq);
 """
 
 MIGRATIONS: list[Migration] = [

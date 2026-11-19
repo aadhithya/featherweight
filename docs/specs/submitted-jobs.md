@@ -1,6 +1,6 @@
 # Spec: submitted jobs
 
-Status: being built. #72 (the `Job` class, `JobContext`, the job columns and `CANCELLED`), #73 (the queue) and #77 (the `@ftw.job` decorator) are done; the rest is not. It is tracked in [epic #71](https://github.com/aadhithya/featherweight/issues/71), and each part has
+Status: being built. #72 (the `Job` class, `JobContext`, the job columns and `CANCELLED`), #73 (the queue), #74 (job events and SSE) and #77 (the `@ftw.job` decorator) are done; the rest is not. It is tracked in [epic #71](https://github.com/aadhithya/featherweight/issues/71), and each part has
 its own issue (listed [at the end](#the-work)). When a part is built, this page says so, and the guide `docs/submitted-jobs.md`
 shows how to use it.
 
@@ -182,7 +182,7 @@ class JobEvent(BaseModel):  # frozen
 **The database writes the event in the same transaction as the status change** (the outbox pattern), not the worker after it: a crash
 cannot leave a change without its event, and every change makes exactly one event whoever makes it. `insert_job` writes `queued`,
 `set_job_status` writes the event of the new status, and `request_job_cancel(job_id)` sets the flag and writes `cancel_requested`.
-`list_job_events(job_id, after)` reads them. These are methods of the `Database` abstract class, and its conformance kit covers them.
+`list_job_events(job_id, after, limit)` reads them, and `poll_job_events(job_ids, after)` reads those of several jobs in one query (what the one reader asks for). These are methods of the `Database` abstract class, and its conformance kit covers them. `insert_job` writes `queued`, and a job going back to `INIT` writes `queued` again. After the commit the database **publishes** the event to the listeners in its own process.
 
 **`client.events(job_id, after=0)`** is an async stream: it replays the stored events after a sequence number, then goes live, and
 ends after a final event. A listener that starts late misses nothing, and one that reconnects resumes from its last `seq`.

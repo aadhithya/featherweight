@@ -3,13 +3,25 @@
 import contextlib
 import json
 import logging
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import aiosqlite
 
-from featherweight.db import AgentRunRow, Database, JobRow, RunEnd, RunStart, now
+from featherweight.db import (
+    FINAL,
+    STATUS_EVENT,
+    AgentRunRow,
+    Database,
+    EventType,
+    JobEvent,
+    JobRow,
+    RunEnd,
+    RunStart,
+    now,
+)
 from featherweight.errors import SetupError
 from featherweight.migrations import MIGRATIONS
 from featherweight.models import RunStatus
@@ -87,6 +99,30 @@ class SqliteDatabase(Database):
 
     # jobs
 
+    async def _write_event(
+        self,
+        job_id: str,
+        type: EventType,
+        status: RunStatus,
+        error_type: str | None = None,
+        error_hash: str | None = None,
+    ) -> JobEvent:
+        """Write an event in the transaction that is open. The caller commits, and publishes the event after."""
+        at = now()
+        cur = await self.conn.execute(
+            "INSERT INTO job_events (job_id, type, status, error_type, error_hash, at) VALUES (?, ?, ?, ?, ?, ?)",
+            (job_id, type, status.value, error_type, error_hash, at.isoformat()),
+        )
+        return JobEvent(
+            seq=cur.lastrowid or 0,
+            job_id=job_id,
+            type=type,
+            status=status,
+            error_type=error_type,
+            error_hash=error_hash,
+            at=at,
+        )
+
     async def insert_job(
         self,
         job_id: str,
@@ -96,12 +132,27 @@ class SqliteDatabase(Database):
         job_hash: str | None,
         input_hash: str | None,
     ) -> str:
-        await self.conn.execute(
-            "INSERT INTO jobs (job_id, name, status, resumable, resumed_from, job_hash, input_hash, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (job_id, name, RunStatus.INIT.value, int(resumable), resumed_from, job_hash, input_hash, now().isoformat()),
-        )
-        await self.conn.commit()
+        try:
+            await self.conn.execute(
+                "INSERT INTO jobs (job_id, name, status, resumable, resumed_from, job_hash, input_hash, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    job_id,
+                    name,
+                    RunStatus.INIT.value,
+                    int(resumable),
+                    resumed_from,
+                    job_hash,
+                    input_hash,
+                    now().isoformat(),
+                ),
+            )
+            event = await self._write_event(job_id, "queued", RunStatus.INIT)
+            await self.conn.commit()
+        except BaseException:
+            await self.conn.rollback()
+            raise
+        self._publish(event)
         logger.info("job_created job_id=%s name=%s resumed_from=%s resumable=%s", job_id, name, resumed_from, resumable)
         return job_id
 
@@ -109,30 +160,83 @@ class SqliteDatabase(Database):
         self, job_id: str, status: RunStatus, *, error_type: str | None = None, error_hash: str | None = None
     ) -> None:
         status = RunStatus(status)
-        terminal = status in (RunStatus.SUCCESS, RunStatus.FAILED, RunStatus.CANCELLED)
         failed = status is RunStatus.FAILED
         started = ", started_at = ?" if status in (RunStatus.RUNNING, RunStatus.INIT) else ""
-        cur = await self.conn.execute(
-            f"UPDATE jobs SET status = ?, completed_at = ?, error_type = ?, error_hash = ?{started} WHERE job_id = ?",
-            (
-                status.value,
-                now().isoformat() if terminal else None,
-                error_type if failed else None,
-                error_hash if failed else None,
-                *([now().isoformat() if status is RunStatus.RUNNING else None] if started else []),
-                job_id,
-            ),
-        )
-        await self.conn.commit()
-        if cur.rowcount == 0:
-            raise LookupError(f"No such job: {job_id}")
+        try:
+            cur = await self.conn.execute(
+                f"UPDATE jobs SET status = ?, completed_at = ?, error_type = ?, error_hash = ?{started} WHERE job_id = ?",
+                (
+                    status.value,
+                    now().isoformat() if status in FINAL else None,
+                    error_type if failed else None,
+                    error_hash if failed else None,
+                    *([now().isoformat() if status is RunStatus.RUNNING else None] if started else []),
+                    job_id,
+                ),
+            )
+            if cur.rowcount == 0:
+                raise LookupError(f"No such job: {job_id}")
+            event = await self._write_event(
+                job_id, STATUS_EVENT[status], status, error_type if failed else None, error_hash if failed else None
+            )
+            await self.conn.commit()
+        except BaseException:
+            await self.conn.rollback()
+            raise
+        self._publish(event)
         log = logger.warning if failed else logger.info
         log("job_status job_id=%s status=%s error_type=%s", job_id, status.value, error_type if failed else None)
+
+    async def request_job_cancel(self, job_id: str) -> bool:
+        try:
+            async with self.conn.execute(
+                "SELECT status, cancel_requested FROM jobs WHERE job_id = ?", (job_id,)
+            ) as cur:
+                row = await cur.fetchone()
+            if row is None or RunStatus(row["status"]) in FINAL:
+                return False
+            if row["cancel_requested"]:
+                return True  # asked already: nothing changes, no second event
+            await self.conn.execute("UPDATE jobs SET cancel_requested = 1 WHERE job_id = ?", (job_id,))
+            event = await self._write_event(job_id, "cancel_requested", RunStatus(row["status"]))
+            await self.conn.commit()
+        except BaseException:
+            await self.conn.rollback()
+            raise
+        self._publish(event)
+        logger.info("job_cancel_requested job_id=%s", job_id)
+        return True
 
     async def get_job(self, job_id: str) -> JobRow | None:
         async with self.conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,)) as cur:
             row = await cur.fetchone()
         return self._job(row) if row else None
+
+    # job events
+
+    async def list_job_events(self, job_id: str, after: int = 0, limit: int | None = None) -> list[JobEvent]:
+        sql = "SELECT * FROM job_events WHERE job_id = ? AND seq > ? ORDER BY seq"
+        params: list[Any] = [job_id, after]
+        if limit is not None:
+            sql += " LIMIT ?"
+            params.append(limit)
+        async with self.conn.execute(sql, params) as cur:
+            return [self._event(row) for row in await cur.fetchall()]
+
+    async def poll_job_events(self, job_ids: Sequence[str], after: int = 0) -> list[JobEvent]:
+        if not job_ids:
+            return []
+        marks = ", ".join("?" for _ in job_ids)
+        async with self.conn.execute(
+            f"SELECT * FROM job_events WHERE job_id IN ({marks}) AND seq > ? ORDER BY seq", [*job_ids, after]
+        ) as cur:
+            return [self._event(row) for row in await cur.fetchall()]
+
+    @staticmethod
+    def _event(row: aiosqlite.Row) -> JobEvent:
+        data: dict[str, Any] = dict(row)
+        data["at"] = datetime.fromisoformat(data["at"])
+        return JobEvent(**data)
 
     @staticmethod
     def _job(row: aiosqlite.Row) -> JobRow:

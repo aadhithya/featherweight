@@ -44,6 +44,9 @@ _EXPORTS = {
     "RunEnd": "db",
     "JobRow": "db",
     "AgentRunRow": "db",
+    "JobEvent": "db",
+    "job_events": "events",
+    "wait_for_job": "events",
     "default_db_path": "db",
     "run_job": "jobs",
     "JobOutcome": "jobs",
@@ -68,12 +71,17 @@ _EXPORTS = {
     "BadRequest": "adapters.errors",
     "setup_logging": "log",
 }
-_SUBMODULES = {"agui": "adapters.agui", "vercel": "adapters.vercel"}  # the two adapters, as `ftw.agui` and `ftw.vercel`
+_SUBMODULES = {
+    "agui": "adapters.agui",
+    "vercel": "adapters.vercel",
+    "sse": "sse",
+}  # the two adapters, as `ftw.agui` and `ftw.vercel`
 _MODULES = (
     "adapters",
     "context",
     "db",
     "errors",
+    "events",
     "jobs",
     "log",
     "mcp",
@@ -97,17 +105,21 @@ __all__ = ["__version__", *_EXPORTS, *_SUBMODULES]
 
 if TYPE_CHECKING:  # for editors and type checkers: the same names, imported
     from featherweight import adapters as adapters
+    from featherweight import sse as sse
     from featherweight.adapters import agui as agui
     from featherweight.adapters import vercel as vercel
     from featherweight.adapters.errors import BadRequest as BadRequest
     from featherweight.context import RunContext as RunContext
     from featherweight.db import AgentRunRow as AgentRunRow
     from featherweight.db import Database as Database
+    from featherweight.db import JobEvent as JobEvent
     from featherweight.db import JobRow as JobRow
     from featherweight.db import RunEnd as RunEnd
     from featherweight.db import RunStart as RunStart
     from featherweight.db import default_db_path as default_db_path
     from featherweight.errors import SetupError as SetupError
+    from featherweight.events import job_events as job_events
+    from featherweight.events import wait_for_job as wait_for_job
     from featherweight.jobs import Job as Job
     from featherweight.jobs import JobContext as JobContext
     from featherweight.jobs import JobOutcome as JobOutcome

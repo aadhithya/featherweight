@@ -105,6 +105,63 @@ def _run(job_id: str | None, agent_run_id: str, **changes: Any) -> RunStart:
     return RunStart(**{**fields, **changes})
 
 
+async def _check_job_events(db: Database) -> None:
+    """The events of a job and the request to cancel it."""
+    job = await db.create_job("events", job_hash=_hash("job"), input_hash=_hash("in"))
+    seen = await db.list_job_events(job)
+    assert [(e.type, e.status) for e in seen] == [("queued", RunStatus.INIT)], "a new job has one `queued` event"
+    assert seen[0].job_id == job and seen[0].at.tzinfo is not None and seen[0].error_type is None
+
+    await db.set_job_status(job, RunStatus.RUNNING)
+    assert await db.request_job_cancel(job) is True
+    assert await db.request_job_cancel(job) is True, "asking again is not an error"
+    row = await db.get_job(job)
+    assert row is not None and row.cancel_requested is True and row.status is RunStatus.RUNNING
+    await db.set_job_status(job, RunStatus.FAILED, error_type="ValueError", error_hash=_hash("boom"))
+    events = await db.list_job_events(job)
+    assert [e.type for e in events] == ["queued", "running", "cancel_requested", "failed"], (
+        "one event per change, none for a repeat"
+    )
+    assert [e.seq for e in events] == sorted({e.seq for e in events}), "seq is increasing"
+    assert (events[-1].status, events[-1].error_type, events[-1].error_hash) == (
+        RunStatus.FAILED,
+        "ValueError",
+        _hash("boom"),
+    )
+    assert events[2].status is RunStatus.RUNNING, "a cancel request keeps the status the job had"
+
+    assert await db.request_job_cancel(job) is False, "a final job cannot be asked to cancel"
+    assert await db.request_job_cancel("no-such-job") is False
+    assert len(await db.list_job_events(job)) == 4, "a refused request writes no event"
+
+    # the other statuses make their events, and a job going back to the queue makes a `queued` one
+    other = await db.create_job("events")
+    await db.set_job_status(other, RunStatus.RUNNING)
+    await db.set_job_status(other, RunStatus.INIT)
+    await db.set_job_status(other, RunStatus.RUNNING)
+    await db.set_job_status(other, RunStatus.SUCCESS)
+    third = await db.create_job("events")
+    await db.set_job_status(third, RunStatus.CANCELLED)
+    assert [e.type for e in await db.list_job_events(other)] == ["queued", "running", "queued", "running", "succeeded"]
+    assert [e.type for e in await db.list_job_events(third)] == ["queued", "cancelled"]
+    try:
+        await db.set_job_status("no-such-job", RunStatus.RUNNING)
+    except LookupError:
+        pass
+    assert await db.list_job_events("no-such-job") == [], "a refused change writes no event"
+
+    # reading: after, limit, and the events of several jobs in one query
+    first, second = events[0], events[1]
+    assert [e.seq for e in await db.list_job_events(job, after=first.seq)] == [e.seq for e in events[1:]]
+    assert [e.seq for e in await db.list_job_events(job, limit=2)] == [first.seq, second.seq]
+    assert await db.list_job_events(job, after=events[-1].seq) == []
+    polled = await db.poll_job_events([job, third], after=0)
+    assert [e.seq for e in polled] == sorted(e.seq for e in polled), "one query, in order"
+    assert {e.job_id for e in polled} == {job, third} and len(polled) == 6
+    assert await db.poll_job_events([], after=0) == []
+    assert {e.job_id for e in await db.poll_job_events([job], after=second.seq)} == {job}
+
+
 async def check_database(make_db: Callable[[], Database]) -> None:
     """Run the `Database` contract against an implementation. `make_db` returns a fresh, empty, **unopened** database; the kit
     opens and closes it. Raises `AssertionError` that says which rule an implementation breaks.
@@ -256,6 +313,8 @@ async def check_database(make_db: Callable[[], Database]) -> None:
         )
         await db.create_run(_run(keeps, "run-5", agent_hash=_hash("agent 2")))
         assert await db.find_reusable_run(keeps, _hash("agent 2"), _hash("input")) is None, "only a SUCCESS run matches"
+
+        await _check_job_events(db)
 
 
 class MemoryQueue(JobQueue):
