@@ -236,7 +236,7 @@ the settings.
 - **One class per provider, with its own fields.** The controls differ in kind, so a shared `reasoning: Literal[...]` would
   be wrong for one of them. The label in the log is what is shared.
 - **A catalog per class, checked when the setting is built.** A typo, or an effort a model refuses, fails at definition time.
-  The cost is a change in Featherweight when a model ships, and a user class is the way round it.
+  The cost is a change in featherweight when a model ships, and a user class is the way round it.
 - **No hook on the runner.** A second way to choose the model, used only by tests, would let a run use a model its
   declaration does not name, and would leave the declaration unable to say what ran. Tests use fake settings instead.
 - **No registry.** The class is the extension point and the runner calls `build()`. Nothing is registered.

@@ -1,4 +1,4 @@
-"""Helpers for testing code that uses Featherweight, and for checking an implementation of one of its abstract classes."""
+"""Helpers for testing code that uses featherweight, and for checking an implementation of one of its abstract classes."""
 
 import asyncio
 import copy

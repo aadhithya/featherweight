@@ -1,4 +1,4 @@
-"""Featherweight: an opinionated agent harness. Pydantic is the spec.
+"""featherweight: an opinionated agent harness. Pydantic is the spec.
 
     from featherweight import AgentBase, AgentRunner
 

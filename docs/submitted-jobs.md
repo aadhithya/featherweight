@@ -1,7 +1,7 @@
 # Submitted jobs
 
 A client submits a named, typed job. A separate worker takes it from a queue and runs it. The result goes to your result
-store. Featherweight keeps the status and the events of the job, never its input or its result.
+store. featherweight keeps the status and the events of the job, never its input or its result.
 
 Spec: [Submitted jobs](specs/submitted-jobs.md). Example: `examples/jobs` (`make example-jobs`).
 
@@ -82,7 +82,7 @@ a queued job, and exactly one of them wins: a job is never both cancelled and ru
 Every status change writes an event in the same transaction, so the stored events are the history and cannot disagree with the
 status. `events(job_id, after=n)` yields the stored events after `n`, then each new one, and ends at the final one.
 
-SSE is the only streaming protocol. Featherweight runs no server: you return the stream from your own handler.
+SSE is the only streaming protocol. featherweight runs no server: you return the stream from your own handler.
 
 ```python
 @app.get("/jobs/{job_id}/events")
@@ -111,7 +111,7 @@ await worker.stop(grace=30)
 
 ## Your own queue
 
-`SqliteQueue` is the only queue that Featherweight ships, for local work. For production, subclass `JobQueue`
+`SqliteQueue` is the only queue that featherweight ships, for local work. For production, subclass `JobQueue`
 (`enqueue`, `receive`, `ack`, `nack`) over the queue you run, and check it with the kit:
 
 ```python

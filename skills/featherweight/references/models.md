@@ -49,7 +49,7 @@ a run recorded before it existed is no longer matched when a job is resumed.
 
 ## Install and keys
 
-Gemini and Gemma come with Featherweight. The other two are extras:
+Gemini and Gemma come with featherweight. The other two are extras:
 
 ```
 pip install 'featherweight[anthropic]'     # ANTHROPIC_API_KEY

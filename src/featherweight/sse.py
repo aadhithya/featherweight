@@ -1,4 +1,4 @@
-"""Server-sent events: the one way Featherweight streams job events to a client.
+"""Server-sent events: the one way featherweight streams job events to a client.
 
 `encode` turns the stream of a job's events (`job_events`) into SSE text, and `HEADERS` are the headers of the response. There is
 no server here: your API sends the response (a `StreamingResponse` in FastAPI). `id` is the sequence number of the event, so a

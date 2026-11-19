@@ -1,4 +1,4 @@
-# Featherweight
+# featherweight
 
 **An opinionated agent harness. Pydantic is the spec. Everything else follows.**
 

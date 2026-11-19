@@ -7,10 +7,10 @@
     {
       "name": "featherweight",
       "source": "./",
-      "description": "A skill for building background AI agents and pipelines with the Featherweight Python framework."
+      "description": "A skill for building background AI agents and pipelines with the featherweight Python framework."
     }
   ],
   "metadata": {
-    "description": "The Featherweight agent framework: a skill that teaches a coding agent to build with it."
+    "description": "The featherweight agent framework: a skill that teaches a coding agent to build with it."
   }
 }

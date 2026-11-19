@@ -1,6 +1,6 @@
 """The results that resuming a job reads back, behind an abstract class the user can implement.
 
-Featherweight keeps the state of the orchestration in the run log, and never the data that flowed through it. The one place
+featherweight keeps the state of the orchestration in the run log, and never the data that flowed through it. The one place
 where an output is kept is a `ResultStore`, because resuming a job needs the output of a step that already succeeded, and only
 for a job that opted in (`resumable=True`). The default is a sqlite store in the file of the run log, which is for local
 development; a deployment passes its own store, or none. See docs/specs/persistence.md.
