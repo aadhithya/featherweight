@@ -21,24 +21,24 @@ decided at run time, so an agent is easy to read, test and version.
 ```python
 from typing import ClassVar
 
-import featherweight as ftw
+from featherweight import AgentBase, AgentInput, AgentOutput
 
 
-class ExtractInput(ftw.AgentInput):
+class ExtractInput(AgentInput):
     text: str
 
 
-class ExtractOutput(ftw.AgentOutput):
+class ExtractOutput(AgentOutput):
     people: list[str] = []
 
 
-class PeopleExtractor(ftw.AgentBase):
+class PeopleExtractor(AgentBase):
     name: str = "people_extractor"
     description: str = "Finds the people named in a text"
     version: str = "0.1.0"
     prompt: str = "List every person named in the text."
-    input_model: ClassVar[type[ftw.AgentInput]] = ExtractInput
-    output_model: ClassVar[type[ftw.AgentOutput]] = ExtractOutput
+    input_model: ClassVar[type[AgentInput]] = ExtractInput
+    output_model: ClassVar[type[AgentOutput]] = ExtractOutput
 ```
 
 Pydantic does the specification work: the input is validated before the model is called, and the model's reply is
@@ -78,11 +78,11 @@ The model's system prompt is assembled from the pieces below, in this order. Its
 ## Running an agent
 
 ```python
-import featherweight as ftw
+from featherweight import AgentRunner, SqliteDatabase
 
-async with ftw.SqliteDatabase("featherweight.db") as db:
+async with SqliteDatabase("featherweight.db") as db:
     job_id = await db.create_job("demo")
-    runner = ftw.AgentRunner(db)
+    runner = AgentRunner(db)
     result = await runner.run(PeopleExtractor, ExtractInput(text="..."), job_id=job_id)
     results = await runner.run_many(
         PeopleExtractor, [ExtractInput(text="..."), ExtractInput(text="...")], job_id=job_id
@@ -188,9 +188,9 @@ A **job** is one run of a pipeline. `run_job` creates it, marks it `RUNNING`, aw
 `SUCCESS`, or `FAILED` with the error. A pipeline that raises comes back as a failed `JobOutcome`, not an exception.
 
 ```python
-import featherweight as ftw
+from featherweight import run_job
 
-outcome = await ftw.run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, job_id))
+outcome = await run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, job_id))
 # outcome.status, outcome.result (on success), outcome.error ("ExceptionType: message", on failure)
 ```
 
@@ -200,35 +200,35 @@ To run in the background and hand the caller the id first, create the job with `
 **A job as a class.** A job that a worker is to run by name is a declared class, like an agent:
 
 ```python
-class Shout(ftw.Job):
+class Shout(Job):
     name = "shout"
     version = "1"
     input_model = ShoutInput  # Pydantic
     output_model = ShoutOutput
 
-    async def run(self, ctx: ftw.JobContext, input: ShoutInput) -> ShoutOutput:
+    async def run(self, ctx: JobContext, input: ShoutInput) -> ShoutOutput:
         result = await ctx.run(Shouter, ShouterInput(text=input.text))  # an agent, run in this job
         ...
 ```
 
 The name, the version and both models are checked when the class is defined, and `Shout.job_hash()` changes when any of them (or
 either schema) does. `ctx.run` and `ctx.run_many` run agents **in the job**, so they share its trace and its resume. A plain
-agent can be a job too (`ftw.as_job(Shouter)`: its name, its models, and its `agent_hash`); a streaming agent cannot.
+agent can be a job too (`as_job(Shouter)`: its name, its models, and its `agent_hash`); a streaming agent cannot.
 
-For a job that is just a function, `@ftw.job` builds the class from it, reading the models from the annotations:
+For a job that is just a function, `@job` builds the class from it, reading the models from the annotations:
 
 ```python
-@ftw.job  # or @ftw.job(name="shout", version="2")
-async def shout(ctx: ftw.JobContext, input: ShoutInput) -> ShoutOutput: ...
+@job  # or @job(name="shout", version="2")
+async def shout(ctx: JobContext, input: ShoutInput) -> ShoutOutput: ...
 ```
 
 The name is the function's, the version `"1"`, and the result is a `Job` class, usable wherever one is (the function is `shout.function`). The job
 worker that runs submitted jobs is being built ([epic #71](https://github.com/aadhithya/featherweight/issues/71)).
 
-**The job queue.** What connects a client to a worker is an abstract class, `ftw.JobQueue` (`enqueue`, `receive`, `ack`,
-`nack`), whose message carries the job id, the job's name and its input as JSON (or references inside it). `ftw.SqliteQueue(db)`
+**The job queue.** What connects a client to a worker is an abstract class, `JobQueue` (`enqueue`, `receive`, `ack`,
+`nack`), whose message carries the job id, the job's name and its input as JSON (or references inside it). `SqliteQueue(db)`
 is a table in the run log's sqlite file, for local development, and is the one we ship; for a deployment you write a queue of your
-own (Redis, SQS, a database) and check it: `await ftw.testing.check_queue(lambda: MyQueue(...))`. `ftw.testing.MemoryQueue` is
+own (Redis, SQS, a database) and check it: `await testing.check_queue(lambda: MyQueue(...))`. `testing.MemoryQueue` is
 the smallest example, for tests. Delivery is at-least-once; a message whose receiver dies stays claimed in the sqlite queue (leases
 come later).
 
@@ -236,7 +236,7 @@ come later).
 puts a message on the queue, and a separate worker runs it.
 
 ```python
-client = ftw.JobClient(db, queue, results)  # results: your ResultStore, where the worker wrote the outputs
+client = JobClient(db, queue, results)  # results: your ResultStore, where the worker wrote the outputs
 job_id = await client.submit(Shout, ShoutInput(text="hello"))  # a Job class, or a plain agent class
 row = await client.status(job_id)  # the JobRow: INIT while queued
 await client.wait(job_id, timeout=60)  # until it is final (a convenience for scripts and tests)
@@ -254,13 +254,13 @@ is the stream below.
 **Following a job: job events and SSE.** Every change of a job's status is an **event** (`queued`, `running`, `succeeded`,
 `failed`, `cancelled`, and `cancel_requested`), and the database writes it **in the same transaction** as the change, whoever
 makes it (`run_job`, a client, a worker). An event is metadata only (`seq`, `job_id`, `type`, `status`, the error's type and hash,
-`at`). `ftw.job_events(db, job_id, after=0)` streams them: the stored ones first, then each as it happens, ending after a final
+`at`). `job_events(db, job_id, after=0)` streams them: the stored ones first, then each as it happens, ending after a final
 one. A stream that starts late replays what it missed, and one that reconnects passes the `seq` of the last event it had.
 
 ```python
-async for event in ftw.job_events(db, job_id):
+async for event in job_events(db, job_id):
     print(event.type)  # queued, running, succeeded
-row = await ftw.wait_for_job(
+row = await wait_for_job(
     db, job_id, timeout=60
 )  # the same stream, until the job is final (a convenience for scripts and tests)
 ```
@@ -269,22 +269,22 @@ In the process that wrote an event, the listener hears it at commit, with no pol
 **one reader task per `Database` object**, with a short, growing delay, for every open stream together: a hundred open streams
 cost one query, not a hundred. Polling is in that one place.
 
-**SSE** is the one way events are streamed to a client. `ftw.sse.encode` turns the stream into server-sent events
+**SSE** is the one way events are streamed to a client. `sse.encode` turns the stream into server-sent events
 (`id` is the `seq`, so `Last-Event-ID` resumes; a comment goes out every 15 seconds to keep the connection open) and
-`ftw.sse.HEADERS` has the headers. Featherweight runs no server: your API sends the response.
+`sse.HEADERS` has the headers. Featherweight runs no server: your API sends the response.
 
 ```python
 @app.get("/jobs/{job_id}/events")
 async def events(job_id: str, request: Request):
     after = int(request.headers.get("last-event-id", 0))
-    return StreamingResponse(ftw.sse.encode(ftw.job_events(db, job_id, after)), headers=ftw.sse.HEADERS)
+    return StreamingResponse(sse.encode(job_events(db, job_id, after)), headers=sse.HEADERS)
 ```
 
-**Running jobs: the job worker.** `ftw.JobWorker(db, queue, runner, jobs=[...], results=...)` is the process that runs submitted
+**Running jobs: the job worker.** `JobWorker(db, queue, runner, jobs=[...], results=...)` is the process that runs submitted
 jobs. It holds no state of its own: it is the database, the queue and your result store.
 
 ```python
-worker = ftw.JobWorker(db, queue, runner, jobs=[Summarise, Shouter], results=my_store, concurrency=10)
+worker = JobWorker(db, queue, runner, jobs=[Summarise, Shouter], results=my_store, concurrency=10)
 await worker.run()  # until `await worker.stop()` is called
 ```
 
@@ -311,13 +311,13 @@ text could carry a client's data, there is a hash instead. The data stays with y
 The database is a choice of one line, and the runner does not change:
 
 ```python
-db = ftw.SqliteDatabase("featherweight.db")  # local development
-db = ftw.PostgresDatabase("postgresql://user:pass@host/db")  # a deployment: pip install 'featherweight[postgres]'
-runner = ftw.AgentRunner(db)
+db = SqliteDatabase("featherweight.db")  # local development
+db = PostgresDatabase("postgresql://user:pass@host/db")  # a deployment: pip install 'featherweight[postgres]'
+runner = AgentRunner(db)
 ```
 
-`ftw.Database` is the abstract class that a database implements (the typed rows and records, and a conformance kit,
-`ftw.testing.check_database`, check an implementation); `SqliteDatabase` and `PostgresDatabase` are the two we ship. The tables
+`Database` is the abstract class that a database implements (the typed rows and records, and a conformance kit,
+`testing.check_database`, check an implementation); `SqliteDatabase` and `PostgresDatabase` are the two we ship. The tables
 are made by numbered migrations when you connect. A database from before migrations is refused: delete it and run again.
 
 **Postgres** (`psycopg`, version 3) keeps its tables in a schema of their own, `featherweight` unless you pass
@@ -369,10 +369,8 @@ A pipeline fails at step 2. Run it again with `resume_from`, and step 1 is not p
 before it runs**, because Featherweight keeps no outputs unless you ask:
 
 ```python
-first = await ftw.run_job(
-    db, "my_pipeline", lambda job_id: my_pipeline(runner, job_id), resumable=True
-)  # fails at step 2
-outcome = await ftw.run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, job_id), resume_from=first.job_id)
+first = await run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, job_id), resumable=True)  # fails at step 2
+outcome = await run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, job_id), resume_from=first.job_id)
 ```
 
 - **`resumable=True`** keeps the output of each step of the job, in a **result store**. Without it nothing is kept, and
@@ -434,10 +432,10 @@ A `ResultStore` is an abstract class with three methods: `put(key, output)`, `ge
 cannot be built. `featherweight.testing.check_result_store` runs the contract against it, so that you know it behaves:
 
 ```python
-await ftw.testing.check_result_store(lambda: MyStore(...))
+await testing.check_result_store(lambda: MyStore(...))
 ```
 
-`ftw.testing.MemoryResultStore` is the smallest example. Delete what you no longer need with `delete_job`.
+`testing.MemoryResultStore` is the smallest example. Delete what you no longer need with `delete_job`.
 
 ## Configuration
 

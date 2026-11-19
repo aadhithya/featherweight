@@ -22,48 +22,60 @@ from typing import ClassVar
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))  # so that this runs without installing anything
 
-import featherweight as ftw  # noqa: E402
+from featherweight import (  # noqa: E402
+    AgentBase,
+    AgentInput,
+    AgentOutput,
+    AgentRunner,
+    Claude,
+    ModelSettings,
+    RunStatus,
+    SqliteDatabase,
+    default_db_path,
+    run_job,
+    setup_logging,
+)
 
 # The smallest Claude model, with thinking off and a small output limit: a run costs next to nothing.
-HAIKU = ftw.Claude(model="claude-haiku-5-5", effort="low", thinking="off", max_output_tokens=1000)
+HAIKU = Claude(model="claude-haiku-5-5", effort="low", thinking="off", max_output_tokens=1000)
 
 
-class SummaryInput(ftw.AgentInput):
+class SummaryInput(AgentInput):
     commit: str
 
 
-class SummaryOutput(ftw.AgentOutput):
+class SummaryOutput(AgentOutput):
     summary: str | None = None
 
 
-class Summariser(ftw.AgentBase):
+class Summariser(AgentBase):
     name: str = "summariser"
     description: str = "Summarises a commit message in one short line for release notes"
     version: str = "0.1.0"
     prompt: str = "Summarise the commit message in one line of at most 12 words, for release notes. Keep the figures."
-    model: ftw.ModelSettings = HAIKU
-    input_model: ClassVar[type[ftw.AgentInput]] = SummaryInput
-    output_model: ClassVar[type[ftw.AgentOutput]] = SummaryOutput
+    model: ModelSettings = HAIKU
+    input_model: ClassVar[type[AgentInput]] = SummaryInput
+    output_model: ClassVar[type[AgentOutput]] = SummaryOutput
 
 
-class NotesInput(ftw.AgentInput):
+class NotesInput(AgentInput):
     summaries: list[str]
 
 
-class NotesOutput(ftw.AgentOutput):
+class NotesOutput(AgentOutput):
     notes: str | None = None
 
 
-class ReleaseNotes(ftw.AgentBase):
+class ReleaseNotes(AgentBase):
     name: str = "release_notes"
     description: str = "Writes release notes from a list of one-line summaries"
     version: str = "0.1.0"
     prompt: str = (
         "Write short release notes from the summaries: a one-sentence overview, then a bullet for each change."
     )
-    model: ftw.ModelSettings = HAIKU
-    input_model: ClassVar[type[ftw.AgentInput]] = NotesInput
-    output_model: ClassVar[type[ftw.AgentOutput]] = NotesOutput
+    model: ModelSettings = HAIKU
+    input_model: ClassVar[type[AgentInput]] = NotesInput
+    output_model: ClassVar[type[AgentOutput]] = NotesOutput
 
 
 COMMITS = [
@@ -78,13 +90,11 @@ async def pipeline(runner, job_id, commits, *, crash=False, summariser=Summarise
     """The pipeline is plain async Python. Everything between the agent calls is deterministic, which is what lets a
     resumed run ask for the same things again, and find them in the log."""
     results = await runner.run_many(summariser, [SummaryInput(commit=c) for c in commits], job_id=job_id)
-    summaries = [
-        r.output.summary for r in results if r.status == ftw.RunStatus.SUCCESS and r.output and r.output.summary
-    ]
+    summaries = [r.output.summary for r in results if r.status == RunStatus.SUCCESS and r.output and r.output.summary]
     if crash:
         raise RuntimeError("simulated crash: the process died after the summaries")
     notes = await runner.run(writer, NotesInput(summaries=summaries), job_id=job_id)
-    return notes.output.notes if notes.status == ftw.RunStatus.SUCCESS and notes.output else None
+    return notes.output.notes if notes.status == RunStatus.SUCCESS and notes.output else None
 
 
 def print_runs(rows) -> None:
@@ -99,28 +109,28 @@ async def main() -> int:
         print("This example uses Claude: set ANTHROPIC_API_KEY in .env (see .env.example).")
         return 2
     if os.environ.get("FTW_LOG_LEVEL"):  # the log is for when you ask for it: the answers are what this prints
-        ftw.setup_logging()
+        setup_logging()
     else:  # the first run fails on purpose: leave its error and traceback out of the output
         logging.getLogger("featherweight").setLevel(logging.CRITICAL)
-    async with ftw.SqliteDatabase(ftw.default_db_path()) as db:
-        runner = ftw.AgentRunner(db)
+    async with SqliteDatabase(default_db_path()) as db:
+        runner = AgentRunner(db)
 
         print("first run: the process dies after the summaries")
-        first = await ftw.run_job(
+        first = await run_job(
             db, "release-notes", lambda job_id: pipeline(runner, job_id, COMMITS, crash=True), resumable=True
         )
         print(f"  job {first.status.value}: {first.error}")
         print_runs(await db.list_runs(job_id=first.job_id))
 
         print("\nsecond run: the same pipeline, with resume_from the first job")
-        second = await ftw.run_job(
+        second = await run_job(
             db, "release-notes", lambda job_id: pipeline(runner, job_id, COMMITS), resume_from=first.job_id
         )
         print(f"  job {second.status.value}")
         print_runs(await db.list_runs(job_id=second.job_id))
         if second.result:
             print(f"\n{second.result}")
-    return 0 if second.status == ftw.RunStatus.SUCCESS else 1
+    return 0 if second.status == RunStatus.SUCCESS else 1
 
 
 if __name__ == "__main__":

@@ -44,31 +44,31 @@ pip install featherweight
 pip install 'featherweight[anthropic]'    # or mcp, openai, postgres
 ```
 
-Python 3.12 or later. The import is `import featherweight as ftw`, and that is how everything here imports it.
+Python 3.12 or later. Import what you use: `from featherweight import AgentBase, AgentRunner`. (`import featherweight as ftw` works too, as a joke.)
 
 ## An agent
 
 ```python
 from typing import ClassVar
 
-import featherweight as ftw
+from featherweight import AgentBase, AgentInput, AgentOutput
 
 
-class ExtractInput(ftw.AgentInput):
+class ExtractInput(AgentInput):
     text: str
 
 
-class ExtractOutput(ftw.AgentOutput):  # also carries `open_questions: list[str]`
+class ExtractOutput(AgentOutput):  # also carries `open_questions: list[str]`
     people: list[str] = []
 
 
-class PeopleExtractor(ftw.AgentBase):
+class PeopleExtractor(AgentBase):
     name: str = "people_extractor"
     description: str = "Finds the people named in a text"
     version: str = "0.1.0"
     prompt: str = "List every person named in the text."
-    input_model: ClassVar[type[ftw.AgentInput]] = ExtractInput
-    output_model: ClassVar[type[ftw.AgentOutput]] = ExtractOutput
+    input_model: ClassVar[type[AgentInput]] = ExtractInput
+    output_model: ClassVar[type[AgentOutput]] = ExtractOutput
 
     def check_output(self, agent_input, output):  # rules a schema cannot express; raise to reject and retry
         missing = [p for p in output.people if p not in agent_input.text]
@@ -79,16 +79,16 @@ class PeopleExtractor(ftw.AgentBase):
 ```python
 import asyncio
 
-import featherweight as ftw
+from featherweight import AgentRunner, RunStatus, SqliteDatabase
 
 
 async def main():
-    async with ftw.SqliteDatabase("featherweight.db") as db:
+    async with SqliteDatabase("featherweight.db") as db:
         job_id = await db.create_job("demo")
-        result = await ftw.AgentRunner(db).run(
+        result = await AgentRunner(db).run(
             PeopleExtractor, ExtractInput(text="Anna Berger met Tom Okafor on Monday."), job_id=job_id
         )
-        if result.status == ftw.RunStatus.SUCCESS:
+        if result.status == RunStatus.SUCCESS:
             print(result.output.people)
         else:
             print("failed:", result.error)  # runtime failures are returned, not raised

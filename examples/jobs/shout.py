@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))  # so that 
 
 from pydantic import BaseModel  # noqa: E402
 
-import featherweight as ftw  # noqa: E402
+from featherweight import JobContext, job  # noqa: E402
 
 
 class Text(BaseModel):
@@ -18,6 +18,6 @@ class Shouted(BaseModel):
     shouted: str
 
 
-@ftw.job
-async def shout(ctx: ftw.JobContext, input: Text) -> Shouted:
+@job
+async def shout(ctx: JobContext, input: Text) -> Shouted:
     return Shouted(shouted=input.text.upper())

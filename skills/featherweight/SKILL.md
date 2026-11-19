@@ -39,25 +39,25 @@ Define the agent: input, output, prompt.
 ```python
 from typing import ClassVar
 
-import featherweight as ftw
+from featherweight import AgentBase, AgentInput, AgentOutput, Gemini
 
 
-class ExtractInput(ftw.AgentInput):
+class ExtractInput(AgentInput):
     text: str
 
 
-class ExtractOutput(ftw.AgentOutput):  # also carries `open_questions: list[str]`
+class ExtractOutput(AgentOutput):  # also carries `open_questions: list[str]`
     people: list[str] = []  # give task fields defaults, so a model that must ask a question is not forced to invent
 
 
-class PeopleExtractor(ftw.AgentBase):
+class PeopleExtractor(AgentBase):
     name: str = "people_extractor"
     description: str = "Finds the people named in a text"
     version: str = "0.1.0"  # change it when the prompt or behaviour changes
     prompt: str = "List every person named in the text."
-    model: ftw.Gemini = ftw.Gemini(model="gemini-3.5-flash-lite", thinking="low")
-    input_model: ClassVar[type[ftw.AgentInput]] = ExtractInput
-    output_model: ClassVar[type[ftw.AgentOutput]] = ExtractOutput
+    model: Gemini = Gemini(model="gemini-3.5-flash-lite", thinking="low")
+    input_model: ClassVar[type[AgentInput]] = ExtractInput
+    output_model: ClassVar[type[AgentOutput]] = ExtractOutput
 
     def check_output(self, agent_input, output):  # rules a schema cannot express; raise to reject and retry
         missing = [p for p in output.people if p not in agent_input.text]
@@ -70,15 +70,15 @@ Run it from a pipeline:
 ```python
 import asyncio
 
-import featherweight as ftw
+from featherweight import AgentRunner, RunStatus, SqliteDatabase
 
 
 async def main():
-    async with ftw.SqliteDatabase("featherweight.db") as db:
+    async with SqliteDatabase("featherweight.db") as db:
         job_id = await db.create_job("demo")  # runs of one pipeline share a job
-        runner = ftw.AgentRunner(db)
+        runner = AgentRunner(db)
         result = await runner.run(PeopleExtractor, ExtractInput(text="Anna Berger met Tom Okafor."), job_id=job_id)
-        if result.status == ftw.RunStatus.SUCCESS:
+        if result.status == RunStatus.SUCCESS:
             print(result.output.people)
         else:
             print("failed:", result.error)  # a runtime failure is returned, not raised

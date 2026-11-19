@@ -286,7 +286,7 @@ async def test_the_contract_catches_a_store_of_the_example_that_forgets_to_delet
             return None
 
     with pytest.raises(AssertionError, match="delete_job must remove every result"):
-        await example.ftw.testing.check_result_store(lambda: Forgetful(Path(tempfile.mkdtemp())))
+        await example.testing.check_result_store(lambda: Forgetful(Path(tempfile.mkdtemp())))
 
 
 # the jobs example: plain code, no model, no key

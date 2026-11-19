@@ -64,7 +64,7 @@ The limits:
 
 ## The run log
 
-The orchestration, and no data. `ftw.Database` is an abstract class (see the [persistence spec](persistence.md)), and
+The orchestration, and no data. `Database` is an abstract class (see the [persistence spec](persistence.md)), and
 `SqliteDatabase` (a file, `FTW_DB_PATH`, default `featherweight.db`) implements it for local development. Records go in
 (`RunStart`, `RunEnd`) and rows come out (`JobRow`, `AgentRunRow`) as frozen Pydantic models, so the same constraints hold
 for every implementation; timestamps are timezone-aware `datetime`s. The tables are made by numbered migrations, applied

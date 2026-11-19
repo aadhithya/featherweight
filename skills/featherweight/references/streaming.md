@@ -25,15 +25,15 @@ Two small examples are in [`examples/chat`](https://github.com/aadhithya/feather
 ## A streaming agent
 
 ```python
-import featherweight as ftw
+from featherweight import Claude, StreamingAgent
 
 
-class Support(ftw.StreamingAgent):
+class Support(StreamingAgent):
     name: str = "support"
     description: str = "Answers questions about the product"
     version: str = "1"
     prompt: str = "You help customers. Be short."
-    model: ModelSettings = ftw.Claude(model="claude-sonnet-5-5", effort="low")
+    model: ModelSettings = Claude(model="claude-sonnet-5-5", effort="low")
     tools: list[BaseTool] = [lookup_order]
 ```
 
@@ -46,9 +46,9 @@ a sub-agent. `allow_user_questions` and `raise_conflicts` do nothing here, becau
 
 ```python
 from ag_ui.core import UserMessage
-import featherweight as ftw
+from featherweight import ChatInput
 
-chat_input = ftw.ChatInput(messages=[UserMessage(id="1", content="Where is my order?")], thread_id="t-17")
+chat_input = ChatInput(messages=[UserMessage(id="1", content="Where is my order?")], thread_id="t-17")
 run = runner.stream(Support, chat_input)
 async for event in run:
     print(event.type, getattr(event, "delta", ""))
@@ -107,17 +107,18 @@ The events are already [AG-UI's](https://docs.ag-ui.com), so the adapter is only
 With Starlette (FastAPI is the same):
 
 ```python
-import featherweight as ftw
+from featherweight import BadRequest
+from featherweight.adapters import agui
 from starlette.responses import JSONResponse, StreamingResponse
 
 
 async def chat(request):
     try:
-        chat_input = ftw.agui.parse_request(await request.body())
-    except ftw.BadRequest as exc:
+        chat_input = agui.parse_request(await request.body())
+    except BadRequest as exc:
         return JSONResponse({"error": str(exc)}, status_code=422)
     run = runner.stream(Support, chat_input)
-    return StreamingResponse(ftw.agui.encode(run), media_type=ftw.agui.CONTENT_TYPE, headers=ftw.agui.HEADERS)
+    return StreamingResponse(agui.encode(run), media_type=agui.CONTENT_TYPE, headers=agui.HEADERS)
 ```
 
 Sending the events as binary (protobuf) is not supported.
@@ -178,7 +179,8 @@ framework.
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-import featherweight as ftw
+from featherweight import BadRequest
+from featherweight.adapters import vercel
 
 app = FastAPI()
 
@@ -186,10 +188,10 @@ app = FastAPI()
 @app.post("/chat")
 async def chat(request: Request):
     try:
-        chat_input = ftw.vercel.parse_request(await request.json())
-    except ftw.BadRequest as exc:
+        chat_input = vercel.parse_request(await request.json())
+    except BadRequest as exc:
         raise HTTPException(422, str(exc))
-    return StreamingResponse(ftw.vercel.encode(runner.stream(Support, chat_input)), headers=ftw.vercel.HEADERS)
+    return StreamingResponse(vercel.encode(runner.stream(Support, chat_input)), headers=vercel.HEADERS)
 ```
 
 - **The request.** `useChat` posts `{"id": ..., "messages": [UIMessage, ...]}`. `id` becomes the `thread_id`. A UIMessage's

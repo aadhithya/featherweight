@@ -42,7 +42,7 @@ class JobWorker:
     `results` is where the output of a job is written (a `ResultStore`; the default is a sqlite store in the run log's file
     for a `SqliteDatabase`, and none for another database; `None` keeps nothing). `concurrency` is how many jobs run at once.
 
-        worker = ftw.JobWorker(db, queue, runner, jobs=[Summarise])
+        worker = JobWorker(db, queue, runner, jobs=[Summarise])
         await worker.run()           # until `await worker.stop()` is called, from another task
     """
 

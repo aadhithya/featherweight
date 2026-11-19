@@ -7,7 +7,6 @@ from datetime import UTC, datetime
 
 import pytest
 
-import featherweight as ftw
 from featherweight import sse
 from featherweight.db import JobEvent
 from featherweight.events import hub_for, job_events, wait_for_job
@@ -339,9 +338,4 @@ async def test_a_job_followed_over_sse_resumes_from_last_event_id(any_db):
 
 
 def test_it_is_all_on_the_package():
-    assert (
-        ftw.sse is sse
-        and ftw.JobEvent is JobEvent
-        and ftw.job_events is job_events
-        and ftw.wait_for_job is wait_for_job
-    )
+    assert sse is sse and JobEvent is JobEvent and job_events is job_events and wait_for_job is wait_for_job

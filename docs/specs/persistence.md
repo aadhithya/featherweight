@@ -82,7 +82,7 @@ promise that a message holds no data.
 
 ## The database
 
-`ftw.Database` is an **abstract class**: what the runner and `run_job` need, and nothing about sqlite. An implementation that does
+`Database` is an **abstract class**: what the runner and `run_job` need, and nothing about sqlite. An implementation that does
 not write every abstract method cannot be built.
 
 | Method | |
@@ -97,20 +97,20 @@ Pydantic rows (`JobRow`, `AgentRunRow`). Statuses, hash formats and non-negative
 database sits behind it; a wrong type from an implementation fails when the row is built. Timestamps are `datetime` objects: each
 implementation converts what its database stores.
 
-**Two implementations, and a third is possible.** `ftw.SqliteDatabase(path)` is for local development, and
-`ftw.PostgresDatabase(dsn)` is for deployment. Choosing is one line, and the runner does not change:
+**Two implementations, and a third is possible.** `SqliteDatabase(path)` is for local development, and
+`PostgresDatabase(dsn)` is for deployment. Choosing is one line, and the runner does not change:
 
 ```python
-db = ftw.SqliteDatabase("featherweight.db")  # local
-db = ftw.PostgresDatabase("postgresql://...")  # deployed
-runner = ftw.AgentRunner(db)
+db = SqliteDatabase("featherweight.db")  # local
+db = PostgresDatabase("postgresql://...")  # deployed
+runner = AgentRunner(db)
 ```
 
 Another database is an implementation of the class. To make that safe, the [schema](#the-schema) is documented (every column, its
 type, nullability and constraint), the rows and records are models, and a **conformance kit** (`featherweight.testing`) runs the
 contract against any implementation. Our two pass it.
 
-Every `ftw.SqliteDatabase(path)` in today's docs, examples and tests becomes `ftw.SqliteDatabase(path)`.
+Every `SqliteDatabase(path)` in today's docs, examples and tests becomes `SqliteDatabase(path)`.
 
 ## Migrations
 
@@ -231,7 +231,7 @@ is where the output comes from:
 
 ## Postgres
 
-`ftw.PostgresDatabase(dsn, schema="featherweight")` implements `Database` with `psycopg` (version 3, async), behind the extra
+`PostgresDatabase(dsn, schema="featherweight")` implements `Database` with `psycopg` (version 3, async), behind the extra
 `featherweight[postgres]` (a `SetupError` with the install line when it is missing; importing `featherweight` never imports it).
 It runs the same migrations with the `postgres` SQL of each, with **native types** (`timestamptz`, `jsonb`, `boolean`, an identity
 column), because Postgres is the deployment choice. The tables live in their own schema (a lowercase identifier, created when
@@ -254,7 +254,7 @@ that must route by tenant can do so from the job id of its keys, or be one per t
 
 ## What changes
 
-- **API:** `ftw.SqliteDatabase(path)` becomes `ftw.SqliteDatabase(path)`, and `ftw.Database` is the abstract class. `AgentRunner(db,
+- **API:** `SqliteDatabase(path)` becomes `SqliteDatabase(path)`, and `Database` is the abstract class. `AgentRunner(db,
   results=...)`. `run_job(..., resumable=...)`, `db.create_job(..., resumable=...)`. `create_run` and `finish_run` take `RunStart` and
   `RunEnd`. `AgentRunRow` and `JobRow` lose the content and error-text fields and gain the new ones, and timestamps are `datetime`s.
 - **The log:** "Everything is on record" now means the orchestration, and the README says what is not on record.

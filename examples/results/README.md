@@ -11,7 +11,7 @@ make example-results
 
 It needs no model and no API key. Without Docker: `uv run python examples/results/store.py`.
 
-The store subclasses `ftw.ResultStore` and writes three methods (`put`, `get`, `delete_job`). One that misses a method cannot be
-built. `ftw.testing.check_result_store` then runs the contract against it and raises an `AssertionError` that says which rule it
+The store subclasses `ResultStore` and writes three methods (`put`, `get`, `delete_job`). One that misses a method cannot be
+built. `testing.check_result_store` then runs the contract against it and raises an `AssertionError` that says which rule it
 breaks (for example "delete_job must remove every result of the job"). To use it, pass it to the runner:
-`ftw.AgentRunner(db, results=FileResultStore(folder))`.
+`AgentRunner(db, results=FileResultStore(folder))`.

@@ -12,33 +12,34 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from support import Support
 
-import featherweight as ftw
+from featherweight import AgentRunner, BadRequest, SqliteDatabase, default_db_path
+from featherweight.adapters import agui, vercel
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with ftw.SqliteDatabase(ftw.default_db_path()) as db, ftw.AgentRunner(db) as app.state.runner:
+    async with SqliteDatabase(default_db_path()) as db, AgentRunner(db) as app.state.runner:
         yield
 
 
 app = FastAPI(lifespan=lifespan)
 
 
-@app.exception_handler(ftw.BadRequest)
-async def bad_request(request: Request, exc: ftw.BadRequest):
+@app.exception_handler(BadRequest)
+async def bad_request(request: Request, exc: BadRequest):
     return JSONResponse({"error": str(exc)}, status_code=422)
 
 
 @app.post("/agui")
 async def agui_chat(request: Request):
-    run = request.app.state.runner.stream(Support, ftw.agui.parse_request(await request.body()))
-    return StreamingResponse(ftw.agui.encode(run), headers=ftw.agui.HEADERS, media_type=ftw.agui.CONTENT_TYPE)
+    run = request.app.state.runner.stream(Support, agui.parse_request(await request.body()))
+    return StreamingResponse(agui.encode(run), headers=agui.HEADERS, media_type=agui.CONTENT_TYPE)
 
 
 @app.post("/vercel")
 async def vercel_chat(request: Request):
-    run = request.app.state.runner.stream(Support, ftw.vercel.parse_request(await request.body()))
-    return StreamingResponse(ftw.vercel.encode(run), headers=ftw.vercel.HEADERS)
+    run = request.app.state.runner.stream(Support, vercel.parse_request(await request.body()))
+    return StreamingResponse(vercel.encode(run), headers=vercel.HEADERS)
 
 
 @app.post("/stop/{run_id}")

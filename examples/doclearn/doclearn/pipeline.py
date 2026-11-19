@@ -5,11 +5,11 @@ from collections.abc import Callable, Sequence
 
 from pydantic import BaseModel, Field
 
-import featherweight as ftw
 from doclearn.assembly import DocumentConformance, assemble
 from doclearn.learning import FailedDocument, align_units, analyze_documents, reconcile
 from doclearn.models import Document
 from doclearn.store import LearnedStore
+from featherweight import AgentRunner
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ class LearningResult(BaseModel):
 
 
 async def learn_document_tree(
-    runner: ftw.AgentRunner,
+    runner: AgentRunner,
     store: LearnedStore,
     documents: Sequence[Document],
     category: str,

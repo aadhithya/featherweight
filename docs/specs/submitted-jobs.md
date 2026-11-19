@@ -1,6 +1,6 @@
 # Spec: submitted jobs
 
-Status: implemented. #72 (the `Job` class, `JobContext`, the job columns and `CANCELLED`), #73 (the queue), #74 (job events and SSE), #75 (the client), #76 (the worker, with the compare-and-set steps for taking and cancelling a job), #77 (the `@ftw.job` decorator) and #78 (the guide, the example and the skill reference) are done. It is tracked in [epic #71](https://github.com/aadhithya/featherweight/issues/71), and each part has
+Status: implemented. #72 (the `Job` class, `JobContext`, the job columns and `CANCELLED`), #73 (the queue), #74 (job events and SSE), #75 (the client), #76 (the worker, with the compare-and-set steps for taking and cancelling a job), #77 (the `@job` decorator) and #78 (the guide, the example and the skill reference) are done. It is tracked in [epic #71](https://github.com/aadhithya/featherweight/issues/71), and each part has
 its own issue (listed [at the end](#the-work)). When a part is built, this page says so, and the guide `docs/submitted-jobs.md`
 shows how to use it.
 
@@ -45,34 +45,34 @@ inputs and no results** of its own ([the rule](persistence.md#the-rule)):
 A job is a **declared class**, like an agent:
 
 ```python
-class Summarise(ftw.Job):
+class Summarise(Job):
     name = "summarise"
     version = "1"
     input_model = SummariseInput  # Pydantic
     output_model = SummariseOutput  # Pydantic
 
-    async def run(self, ctx: ftw.JobContext, input: SummariseInput) -> SummariseOutput:
+    async def run(self, ctx: JobContext, input: SummariseInput) -> SummariseOutput:
         result = await ctx.run(Summariser, SummaryInput(url=input.url))  # an agent of this job
         ...
 ```
 
-- `ftw.Job` is an abstract class: one that misses `run` cannot be built, and `name`, `version` and the two models are checked when
+- `Job` is an abstract class: one that misses `run` cannot be built, and `name`, `version` and the two models are checked when
   the class is defined.
-- **`ftw.JobContext`** gives `runner`, `job_id`, and `run(...)` and `run_many(...)`, which are `runner.run` and `runner.run_many`
+- **`JobContext`** gives `runner`, `job_id`, and `run(...)` and `run_many(...)`, which are `runner.run` and `runner.run_many`
   with the job's id, so the agents of a job share it (and its trace, and its resume).
 - **`job_hash`** is the SHA-256 of the name, the version, and the JSON schemas of both models: it says that the job changed.
 - **A worker knows its jobs by name:** `JobWorker(..., jobs=[Summarise, ...])`. There is no global registry.
 - **A plain agent can be a job:** a non-streaming agent class can be submitted directly. Its name is the job name, its input model
   the input, its output model the output, and `agent_hash` stands in for the job hash. A streaming agent cannot be a job (it
   streams to a person).
-- **`@ftw.job`** is sugar: it builds a `Job` class from an async function, taking the name from the function (or `name=`), the
+- **`@job`** is sugar: it builds a `Job` class from an async function, taking the name from the function (or `name=`), the
   version `"1"` (or `version=`), and the models from the annotations of `input` and the return type.
 - **`run_job`** stays, as the in-process convenience for a function you hold. A job whose task is cancelled is `CANCELLED` now
   (it was `FAILED` with "CancelledError").
 
 ## The queue
 
-`ftw.JobQueue` is an **abstract class** that connects a client to a worker:
+`JobQueue` is an **abstract class** that connects a client to a worker:
 
 ```python
 class JobMessage(BaseModel):            # frozen
@@ -108,10 +108,10 @@ kit are how they check theirs. Dead-lettering is the user's broker's business.
 
 ## The client
 
-`ftw.JobClient(db, queue, results)` submits and follows jobs, from any process:
+`JobClient(db, queue, results)` submits and follows jobs, from any process:
 
 ```python
-client = ftw.JobClient(db, queue, results)
+client = JobClient(db, queue, results)
 job_id = await client.submit(Summarise, SummariseInput(url="https://..."))
 async for event in client.events(job_id):
     ...  # queued, running, succeeded
@@ -133,7 +133,7 @@ finished steps exactly as `run_job(..., resume_from=...)` does. Nothing resumes 
 
 ## The worker
 
-`ftw.JobWorker(db, queue, runner, jobs, results, concurrency)` is the process that runs jobs. It holds no state of its own: it is the
+`JobWorker(db, queue, runner, jobs, results, concurrency)` is the process that runs jobs. It holds no state of its own: it is the
 database, the queue and the user's store.
 
 `await worker.run()` loops:
@@ -193,7 +193,7 @@ polling. Across processes the events table must be read, so **one reader task pe
 query for every open stream) and fans out to them: a hundred open connections cost one query. The polling is inside the library,
 in one place.
 
-**SSE is the only streaming protocol.** `ftw.sse.encode(events)` turns the stream into server-sent events and `ftw.sse.HEADERS`
+**SSE is the only streaming protocol.** `sse.encode(events)` turns the stream into server-sent events and `sse.HEADERS`
 has the headers:
 
 ```
@@ -216,7 +216,7 @@ stream, no stream of all jobs.
 - **`Database`:** `create_job` takes `job_hash` and `input_hash`; new `request_job_cancel` and `list_job_events`; `set_job_status`
   writes events and sets `started_at`; going back to `INIT` clears it. The conformance kit and `PostgresDatabase` follow.
 - **New in the package:** `Job`, `JobContext`, `job` (the decorator), `JobQueue`, `JobMessage`, `Delivery`, `SqliteQueue`,
-  `JobClient`, `JobWorker`, `JobEvent`, and `ftw.sse`; `MemoryQueue` and `check_queue` in `featherweight.testing`.
+  `JobClient`, `JobWorker`, `JobEvent`, and `sse`; `MemoryQueue` and `check_queue` in `featherweight.testing`.
 - **Not changed:** `run_job`, resuming, the result store, the agents.
 
 ## Decisions
@@ -254,7 +254,7 @@ stream, no stream of all jobs.
 
 No live model call. Fake models, `MemoryQueue`, the dict result store.
 
-- **The job class:** the contract, the hash, an agent as a job, a streaming agent refused, `@ftw.job`.
+- **The job class:** the contract, the hash, an agent as a job, a streaming agent refused, `@job`.
 - **The queue:** `check_queue` against `SqliteQueue` and `MemoryQueue`, two receivers on one queue.
 - **Events:** every status change makes exactly one event, whoever makes it; a late listener replays; the same-process wake-up; a
   writer and a reader on one file in two processes; one reader serving many streams; the stream ends at a final event; the SSE
@@ -273,5 +273,5 @@ No live model call. Fake models, `MemoryQueue`, the dict result store.
 | [#74](https://github.com/aadhithya/featherweight/issues/74) | Job events and SSE |
 | [#75](https://github.com/aadhithya/featherweight/issues/75) | `JobClient` |
 | [#76](https://github.com/aadhithya/featherweight/issues/76) | `JobWorker` |
-| [#77](https://github.com/aadhithya/featherweight/issues/77) | The `@ftw.job` decorator |
+| [#77](https://github.com/aadhithya/featherweight/issues/77) | The `@job` decorator |
 | [#78](https://github.com/aadhithya/featherweight/issues/78) | The guide, an example and the skill reference |

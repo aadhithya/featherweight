@@ -11,13 +11,13 @@ from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
 from shout import Text, shout
 
-import featherweight as ftw
+from featherweight import JobClient, SqliteDatabase, SqliteQueue, default_db_path, sse
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with ftw.SqliteDatabase(ftw.default_db_path()) as db:
-        app.state.client = ftw.JobClient(db, ftw.SqliteQueue(db))
+    async with SqliteDatabase(default_db_path()) as db:
+        app.state.client = JobClient(db, SqliteQueue(db))
         yield
 
 
@@ -32,8 +32,8 @@ async def submit(body: Text, request: Request):
 @app.get("/jobs/{job_id}/events")
 async def events(job_id: str, request: Request):
     after = int(request.headers.get("last-event-id", 0))  # a browser that reconnects resumes where it was
-    stream = ftw.sse.encode(request.app.state.client.events(job_id, after=after))
-    return StreamingResponse(stream, headers=ftw.sse.HEADERS)
+    stream = sse.encode(request.app.state.client.events(job_id, after=after))
+    return StreamingResponse(stream, headers=sse.HEADERS)
 
 
 @app.get("/jobs/{job_id}/result")

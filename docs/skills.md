@@ -14,12 +14,12 @@ optionally, other files. Defining agents is in [agents.md](agents.md).
 ## Using a skill
 
 ```python
-import featherweight as ftw
+from featherweight import Skill
 
 
 class Writer(AgentBase):
     ...
-    skills: list[ftw.Skill] = [ftw.Skill.from_directory("examples/skills/meeting-notes")]
+    skills: list[Skill] = [Skill.from_directory("examples/skills/meeting-notes")]
 ```
 
 A skill can also be written in code:

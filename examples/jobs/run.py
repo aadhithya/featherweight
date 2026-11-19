@@ -10,14 +10,14 @@ import asyncio
 
 from shout import Text, shout
 
-import featherweight as ftw
+from featherweight import AgentRunner, JobClient, JobWorker, SqliteDatabase, SqliteQueue, default_db_path
 
 
 async def main() -> None:
-    async with ftw.SqliteDatabase(ftw.default_db_path()) as db:
-        queue = ftw.SqliteQueue(db)
-        worker = ftw.JobWorker(db, queue, ftw.AgentRunner(db), jobs=[shout])
-        client = ftw.JobClient(db, queue)
+    async with SqliteDatabase(default_db_path()) as db:
+        queue = SqliteQueue(db)
+        worker = JobWorker(db, queue, AgentRunner(db), jobs=[shout])
+        client = JobClient(db, queue)
 
         running = asyncio.create_task(worker.run())
         job_id = await client.submit(shout, Text(text="hello"))

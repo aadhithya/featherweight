@@ -1,12 +1,12 @@
 """Featherweight: an opinionated agent harness. Pydantic is the spec.
 
-    import featherweight as ftw
+    from featherweight import AgentBase, AgentRunner
 
-    class Summariser(ftw.AgentBase): ...
-    runner = ftw.AgentRunner(db)
+    class Summariser(AgentBase): ...
+    runner = AgentRunner(db)
 
 The public names are available on the package. Each is loaded when it is first used, so that `import featherweight` stays
-light and imports no model provider. The modules are there too (`ftw.model_settings`, `ftw.adapters`, ...), and the two adapters are `ftw.agui` and `ftw.vercel`.
+light and imports no model provider. The modules are there too (`featherweight.model_settings`, ...), and the two adapters are `featherweight.adapters.agui` and `featherweight.adapters.vercel`.
 """
 
 import importlib
@@ -77,7 +77,7 @@ _SUBMODULES = {
     "agui": "adapters.agui",
     "vercel": "adapters.vercel",
     "sse": "sse",
-}  # the two adapters, as `ftw.agui` and `ftw.vercel`
+}  # the two adapters, as `featherweight.agui` and `featherweight.vercel`
 _MODULES = (
     "adapters",
     "client",

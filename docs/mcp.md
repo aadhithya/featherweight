@@ -17,20 +17,20 @@ design and what was checked is in [specs/mcp-tools.md](specs/mcp-tools.md).
 ## Declaring a server
 
 ```python
-import featherweight as ftw
+from featherweight import HttpMCPServer, StdioMCPServer
 
 
 class Triager(AgentBase):
     ...
-    mcp_servers: list[ftw.StdioMCPServer | ftw.HttpMCPServer] = [
-        ftw.StdioMCPServer(
+    mcp_servers: list[StdioMCPServer | HttpMCPServer] = [
+        StdioMCPServer(
             name="github",
             command="npx",
             args=("-y", "@modelcontextprotocol/server-github"),
             env_from=("GITHUB_TOKEN",),  # names of environment variables, never values
             tools=("search_issues", "get_issue"),  # only these; leave it out for all of them
         ),
-        ftw.HttpMCPServer(name="docs", url="https://example.com/mcp", bearer_from="DOCS_TOKEN"),
+        HttpMCPServer(name="docs", url="https://example.com/mcp", bearer_from="DOCS_TOKEN"),
     ]
 ```
 

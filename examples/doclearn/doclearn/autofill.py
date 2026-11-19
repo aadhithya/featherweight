@@ -12,11 +12,11 @@ from typing import ClassVar
 
 from pydantic import BaseModel, Field
 
-import featherweight as ftw
 from doclearn.assembly import _value_fits
 from doclearn.generation import render_structure
 from doclearn.models import FieldValue, InputField
 from doclearn.store import LearnedDocument
+from featherweight import AgentBase, AgentInput, AgentOutput, AgentRunner, Gemini, ModelSettings, RunStatus
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ call for.
 """
 
 
-class FormFillerInput(ftw.AgentInput):
+class FormFillerInput(AgentInput):
     category: str = Field(description="The document category.")
     structure: str = Field(description="The learned document tree as an outline: one block per line, nested by indent.")
     fields: list[InputField] = Field(description="The inputs of the document.")
@@ -53,19 +53,19 @@ class FormFillerInput(ftw.AgentInput):
     previous: str = Field(default="", description="The previous attempt, when there were problems.")
 
 
-class FormFillerOutput(ftw.AgentOutput):
+class FormFillerOutput(AgentOutput):
     facts: list[FieldValue] = Field(description="The values of the invented case, by field name.")
     story: str = Field(description="The story of the case, to guide the writing of the document.")
 
 
-class FormFillerAgent(ftw.AgentBase):
+class FormFillerAgent(AgentBase):
     name: str = "form_filler"
     description: str = "Invents a case for a learned template: the values of its inputs and a story"
     version: str = "0.1.0"
     prompt: str = PROMPT
-    model: ftw.ModelSettings = ftw.Gemini(model="gemini-3.5-flash-lite", thinking="low")
-    input_model: ClassVar[type[ftw.AgentInput]] = FormFillerInput
-    output_model: ClassVar[type[ftw.AgentOutput]] = FormFillerOutput
+    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
+    input_model: ClassVar[type[AgentInput]] = FormFillerInput
+    output_model: ClassVar[type[AgentOutput]] = FormFillerOutput
 
 
 class AutofillError(Exception):
@@ -101,7 +101,7 @@ def check_form(fields: list[InputField], facts: list[FieldValue]) -> list[str]:
 
 
 async def fill_form(
-    runner: ftw.AgentRunner,
+    runner: AgentRunner,
     learned: LearnedDocument,
     *,
     job_id: str | None = None,
@@ -121,7 +121,7 @@ async def fill_form(
                 else f"Inventing the case again (attempt {attempt}): fixing {len(problems)} problems"
             )
         result = await runner.run(FormFillerAgent, attempt_input, job_id=job_id)
-        if result.status != ftw.RunStatus.SUCCESS:
+        if result.status != RunStatus.SUCCESS:
             raise AutofillError(f"The Form Filler failed: {result.error}")
         output = result.output
         problems = check_form(schema.fields, output.facts)

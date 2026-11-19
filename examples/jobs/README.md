@@ -20,6 +20,6 @@ curl -N localhost:8000/jobs/<job id>/events                # server-sent events,
 curl localhost:8000/jobs/<job id>/result
 ```
 
-[`shout.py`](shout.py) is the job: `@ftw.job` over an async function with a Pydantic input and output. The default queue and result
+[`shout.py`](shout.py) is the job: `@job` over an async function with a Pydantic input and output. The default queue and result
 store are sqlite, which is for local development; in a deployment you give the worker and the client a queue and a result store
 of your own (see the [guide](../../docs/submitted-jobs.md)).

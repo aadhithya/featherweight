@@ -31,7 +31,7 @@ processes, or two machines. A job is the same thing as in [Agents](agents.md): a
 A job has a name, an input model, an output model and a `run`. The decorator is the short way:
 
 ```python
-import featherweight as ftw
+from featherweight import job, JobContext
 from pydantic import BaseModel
 
 
@@ -43,19 +43,19 @@ class Shouted(BaseModel):
     shouted: str
 
 
-@ftw.job
-async def shout(ctx: ftw.JobContext, input: Text) -> Shouted:
+@job
+async def shout(ctx: JobContext, input: Text) -> Shouted:
     return Shouted(shouted=input.text.upper())
 ```
 
-The name is the function name, and the models are read from the annotations. For more control, subclass `ftw.Job` and set
+The name is the function name, and the models are read from the annotations. For more control, subclass `Job` and set
 `name`, `version`, `input_model` and `output_model` yourself. An agent is a job too: pass an agent class to `submit` and the
 job worker runs it. Inside a job, `await ctx.run(SomeAgent, input)` and `ctx.run_many(...)` run agents in the same job.
 
 ## Submitting and following
 
 ```python
-client = ftw.JobClient(db, queue)  # results="default" uses the default result store
+client = JobClient(db, queue)  # results="default" uses the default result store
 job_id = await client.submit(shout, Text(text="hello"))
 
 await client.status(job_id)  # the JobRow
@@ -88,8 +88,8 @@ SSE is the only streaming protocol. Featherweight runs no server: you return the
 @app.get("/jobs/{job_id}/events")
 async def events(job_id: str, request: Request):
     after = int(request.headers.get("last-event-id", 0))  # a browser that reconnects resumes where it was
-    stream = ftw.sse.encode(client.events(job_id, after=after))
-    return StreamingResponse(stream, headers=ftw.sse.HEADERS)
+    stream = sse.encode(client.events(job_id, after=after))
+    return StreamingResponse(stream, headers=sse.HEADERS)
 ```
 
 Each event is `id: <seq>`, `event: <type>` and `data: <json>`, with a keep-alive comment every 15 seconds. `examples/jobs/api.py`
@@ -98,7 +98,7 @@ is this behind FastAPI.
 ## Running a worker
 
 ```python
-worker = ftw.JobWorker(db, queue, ftw.AgentRunner(db), jobs=[shout], concurrency=10)
+worker = JobWorker(db, queue, AgentRunner(db), jobs=[shout], concurrency=10)
 await worker.run()  # until stop() or cancellation
 await worker.stop(grace=30)
 ```
@@ -111,11 +111,11 @@ await worker.stop(grace=30)
 
 ## Your own queue
 
-`SqliteQueue` is the only queue that Featherweight ships, for local work. For production, subclass `ftw.JobQueue`
+`SqliteQueue` is the only queue that Featherweight ships, for local work. For production, subclass `JobQueue`
 (`enqueue`, `receive`, `ack`, `nack`) over the queue you run, and check it with the kit:
 
 ```python
-await ftw.testing.check_queue(lambda: MyQueue())
+await testing.check_queue(lambda: MyQueue())
 ```
 
 A dead-letter queue is yours to configure on your queue: a message that is `nack`ed without `requeue` is yours to keep or drop.

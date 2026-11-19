@@ -7,24 +7,22 @@ Patterns for building with `featherweight`. Each snippet is complete enough to a
 Order and branching are plain Python. Both runs share a job, so they share the run store and the trace.
 
 ```python
-import featherweight as ftw
+from featherweight import AgentRunner, run_job, RunStatus, SqliteDatabase
 
 
 async def pipeline(runner, job_id, texts):
     results = await runner.run_many(PeopleExtractor, [ExtractInput(text=t) for t in texts], job_id=job_id)
     people = []
     for result in results:
-        if result.status == ftw.RunStatus.SUCCESS:  # decide here what a failed run means: skip, stop, ask again
+        if result.status == RunStatus.SUCCESS:  # decide here what a failed run means: skip, stop, ask again
             people.extend(result.output.people)
     return sorted(set(people))
 
 
 async def main():
-    async with ftw.SqliteDatabase("featherweight.db") as db:
-        runner = ftw.AgentRunner(db)
-        outcome = await ftw.run_job(
-            db, "people", lambda job_id: pipeline(runner, job_id, ["Anna met Tom.", "Li came."])
-        )
+    async with SqliteDatabase("featherweight.db") as db:
+        runner = AgentRunner(db)
+        outcome = await run_job(db, "people", lambda job_id: pipeline(runner, job_id, ["Anna met Tom.", "Li came."]))
         # outcome.status, outcome.result on success, outcome.error on failure
 ```
 
@@ -79,10 +77,10 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 from pydantic import Field
 
 from app import ExtractInput, PeopleExtractor  # your agent module
-import featherweight as ftw
+from featherweight import AgentRunner, ModelSettings, RunStatus, SqliteDatabase
 
 
-class FakeSettings(ftw.ModelSettings):
+class FakeSettings(ModelSettings):
     """Model settings that build the fake chat model they hold. Any provider's settings work the same way."""
 
     provider: ClassVar[str] = "fake"
@@ -123,32 +121,32 @@ async def run(tmp_path, answers, text="Anna came."):
     fake = FakeModel(answers=answers)  # one fake for all attempts, so its counters last
 
     class UnderTest(PeopleExtractor):  # the same agent, run by the fake
-        model: ftw.ModelSettings = Field(default_factory=lambda: FakeSettings(chat=fake))
+        model: ModelSettings = Field(default_factory=lambda: FakeSettings(chat=fake))
 
-    async with ftw.SqliteDatabase(tmp_path / "test.db") as db:
-        runner = ftw.AgentRunner(db, retry_delay_s=0)
+    async with SqliteDatabase(tmp_path / "test.db") as db:
+        runner = AgentRunner(db, retry_delay_s=0)
         return await runner.run(UnderTest, ExtractInput(text=text)), fake
 
 
 async def test_success(tmp_path):
     result, _ = await run(tmp_path, {"Anna": [{"people": ["Anna"]}]})
-    assert result.status == ftw.RunStatus.SUCCESS and result.output.people == ["Anna"]
+    assert result.status == RunStatus.SUCCESS and result.output.people == ["Anna"]
 
 
 async def test_check_output_rejects_and_the_runner_retries(tmp_path):
     result, _ = await run(tmp_path, {"Anna": [{"people": ["Nobody"]}, {"people": ["Anna"]}]})
-    assert result.status == ftw.RunStatus.SUCCESS and result.attempts == 2
+    assert result.status == RunStatus.SUCCESS and result.attempts == 2
 
 
 async def test_a_run_that_keeps_failing_is_returned_as_failed(tmp_path):
     result, _ = await run(tmp_path, {"Anna": [{"people": ["Nobody"]}]})  # the last reply repeats
-    assert result.status == ftw.RunStatus.FAILED and result.attempts == 3  # max_attempts
+    assert result.status == RunStatus.FAILED and result.attempts == 3  # max_attempts
     assert "names not in the text" in (result.error or "")
 
 
 async def test_a_reply_that_breaks_the_schema_is_fixed_inside_the_attempt(tmp_path):
     result, fake = await run(tmp_path, {"Anna": [{"people": "not a list"}, {"people": ["Anna"]}]})
-    assert result.status == ftw.RunStatus.SUCCESS and result.attempts == 1 and fake.total == 2
+    assert result.status == RunStatus.SUCCESS and result.attempts == 1 and fake.total == 2
 ```
 
 A schema violation (a wrong type, a value outside a `Literal`) is sent back to the model, which gets a second chance in
@@ -158,7 +156,7 @@ a `Literal` or a validator for rules on the output alone, and `check_output` for
 ## An agent with an MCP server
 
 ```python
-import featherweight as ftw
+from featherweight import HttpMCPServer
 
 
 class RepoReader(AgentBase):
@@ -167,7 +165,7 @@ class RepoReader(AgentBase):
     version: str = "0.1.0"
     prompt: str = "Answer from the repository, using the tools."
     mcp_servers: list = [
-        ftw.HttpMCPServer(
+        HttpMCPServer(
             name="github",
             url="https://api.githubcopilot.com/mcp/readonly",
             bearer_from="GITHUB_TOKEN",  # the NAME of the variable, not the token
@@ -195,20 +193,21 @@ class Editor(AgentBase):
 ```python
 from contextlib import aclosing
 
-import featherweight as ftw
+from featherweight import ChatInput, Claude, StreamingAgent
+from featherweight.adapters import agui
 
 
-class Support(ftw.StreamingAgent):
+class Support(StreamingAgent):
     name: str = "support"
     description: str = "Answers customers"
     version: str = "1"
     prompt: str = "You help customers. Be short."
-    model: ModelSettings = ftw.Claude(model="claude-haiku-5-5", effort="low", thinking="off")
+    model: ModelSettings = Claude(model="claude-haiku-5-5", effort="low", thinking="off")
 
 
-run = runner.stream(Support, ftw.ChatInput.from_langchain([*history.messages, user_message]))
+run = runner.stream(Support, ChatInput.from_langchain([*history.messages, user_message]))
 try:
-    async with aclosing(ftw.agui.encode(run)) as pieces:  # SSE strings: send them with any web framework
+    async with aclosing(agui.encode(run)) as pieces:  # SSE strings: send them with any web framework
         async for piece in pieces:
             yield piece
 finally:
@@ -225,17 +224,17 @@ Resuming a job reads the outputs of finished steps from a `ResultStore`. Subclas
 check it with the conformance kit (a missing method cannot be built; a broken rule raises `AssertionError`):
 
 ```python
-import featherweight as ftw
+from featherweight import AgentRunner, ResultKey, ResultStore, testing
 
 
-class MyStore(ftw.ResultStore):
-    async def put(self, key: ftw.ResultKey, output: dict) -> None: ...  # key: job_id, agent_hash, input_hash
-    async def get(self, key: ftw.ResultKey) -> dict | None: ...
+class MyStore(ResultStore):
+    async def put(self, key: ResultKey, output: dict) -> None: ...  # key: job_id, agent_hash, input_hash
+    async def get(self, key: ResultKey) -> dict | None: ...
     async def delete_job(self, job_id: str) -> None: ...
 
 
-await ftw.testing.check_result_store(lambda: MyStore())
-runner = ftw.AgentRunner(db, results=MyStore())
+await testing.check_result_store(lambda: MyStore())
+runner = AgentRunner(db, results=MyStore())
 ```
 
 The first job has to be created `resumable=True`. `examples/results/store.py` is a whole store (a JSON file per result).
@@ -243,17 +242,17 @@ The first job has to be created `resumable=True`. `examples/results/store.py` is
 ## A job that a worker runs
 
 ```python
-@ftw.job
-async def shout(ctx: ftw.JobContext, input: Text) -> Shouted:
+@job
+async def shout(ctx: JobContext, input: Text) -> Shouted:
     return Shouted(shouted=input.text.upper())
 
 
-queue = ftw.SqliteQueue(db)
-worker = ftw.JobWorker(db, queue, ftw.AgentRunner(db), jobs=[shout])  # its own process: await worker.run()
-client = ftw.JobClient(db, queue)
+queue = SqliteQueue(db)
+worker = JobWorker(db, queue, AgentRunner(db), jobs=[shout])  # its own process: await worker.run()
+client = JobClient(db, queue)
 job_id = await client.submit(shout, Text(text="hello"))
 async for event in client.events(job_id):
-    ...  # or ftw.sse.encode(...) from a web handler
+    ...  # or sse.encode(...) from a web handler
 print(await client.result(shout, job_id))
 ```
 
@@ -262,12 +261,12 @@ print(await client.result(shout, job_id))
 ## A different provider
 
 ```python
-import featherweight as ftw
+from featherweight import Claude
 
 
 class Triager(AgentBase):
     ...
-    model: ftw.Claude = ftw.Claude(model="claude-haiku-5-5", effort="low")
+    model: Claude = Claude(model="claude-haiku-5-5", effort="low")
 ```
 
 `pip install "featherweight[anthropic]"` and set `ANTHROPIC_API_KEY`.

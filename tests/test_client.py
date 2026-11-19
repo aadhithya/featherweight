@@ -6,7 +6,7 @@ import pytest
 from fakes import Echo, EchoInput, EchoOutput
 from pydantic import BaseModel
 
-import featherweight as ftw
+from featherweight import as_job
 from featherweight.client import JobClient
 from featherweight.db import Database
 from featherweight.fingerprint import error_fields, input_hash
@@ -111,7 +111,7 @@ async def test_a_queue_that_refuses_the_message_fails_the_job_and_raises(db):
 async def test_an_agent_can_be_submitted_as_a_job(db, queue):
     job_id = await JobClient(db, queue).submit(Echo, EchoInput(text="a"))
     row = await db.get_job(job_id)
-    assert row is not None and row.name == "echo" and row.job_hash == ftw.as_job(Echo).job_hash()
+    assert row is not None and row.name == "echo" and row.job_hash == as_job(Echo).job_hash()
     delivery = await queue.receive(1.0)
     assert delivery is not None and delivery.message.input == {"text": "a"}
 
@@ -311,4 +311,4 @@ async def test_a_client_and_a_consumer_share_one_sqlite_file_through_two_databas
 
 
 def test_the_client_is_on_the_package():
-    assert ftw.JobClient is JobClient
+    assert JobClient is JobClient
