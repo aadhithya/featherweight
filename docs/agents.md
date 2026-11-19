@@ -213,7 +213,16 @@ class Shout(ftw.Job):
 
 The name, the version and both models are checked when the class is defined, and `Shout.job_hash()` changes when any of them (or
 either schema) does. `ctx.run` and `ctx.run_many` run agents **in the job**, so they share its trace and its resume. A plain
-agent can be a job too (`ftw.as_job(Shouter)`: its name, its models, and its `agent_hash`); a streaming agent cannot. Submitting
+agent can be a job too (`ftw.as_job(Shouter)`: its name, its models, and its `agent_hash`); a streaming agent cannot.
+
+For a job that is just a function, `@ftw.job` builds the class from it, reading the models from the annotations:
+
+```python
+@ftw.job  # or @ftw.job(name="shout", version="2")
+async def shout(ctx: ftw.JobContext, input: ShoutInput) -> ShoutOutput: ...
+```
+
+The name is the function's, the version `"1"`, and the result is a `Job` class, usable wherever one is (the function is `shout.function`). Submitting
 jobs to a queue for a separate worker is being built ([epic #71](https://github.com/aadhithya/featherweight/issues/71)).
 
 **The job queue.** What connects a client to a worker is an abstract class, `ftw.JobQueue` (`enqueue`, `receive`, `ack`,

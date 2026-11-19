@@ -5,11 +5,12 @@ be a job too (`as_job`). A job is what a client submits to a queue and a job wor
 """
 
 import asyncio
+import inspect
 import logging
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable, Sequence
-from typing import Any, ClassVar, Generic, TypeVar
+from typing import Any, ClassVar, Generic, TypeVar, get_type_hints, overload
 
 from pydantic import BaseModel, ConfigDict
 
@@ -77,6 +78,62 @@ class Job(ABC):
     @abstractmethod
     async def run(self, ctx: JobContext, input: Any) -> Any:
         """Do the job: run agents with `ctx.run`, and return an instance of `output_model`."""
+
+
+def _build_job(fn: Callable[..., Awaitable[Any]], name: str | None, version: str) -> type[Job]:
+    """The `Job` class of a function `async def f(ctx: JobContext, input: In) -> Out`."""
+    label = getattr(fn, "__name__", repr(fn))
+    if not inspect.iscoroutinefunction(fn):
+        raise TypeError(f"@job needs an async function, and {label} is not one")
+    parameters = list(inspect.signature(fn).parameters.values())
+    if len(parameters) != 2:
+        raise TypeError(f"@job needs a function of two arguments (ctx, input), and {label} has {len(parameters)}")
+    hints = get_type_hints(fn)
+    input_model, output_model = hints.get(parameters[1].name), hints.get("return")
+    for what, model in (("the input", input_model), ("the return value", output_model)):
+        if not (isinstance(model, type) and issubclass(model, BaseModel)):
+            raise TypeError(
+                f"@job reads the models from the annotations: {what} of {label} must be annotated with a Pydantic model"
+            )
+
+    async def run(self: Job, ctx: JobContext, input: Any) -> Any:
+        return await fn(ctx, input)
+
+    run.__doc__ = fn.__doc__
+    return type(
+        label,
+        (Job,),
+        {
+            "name": name or label,
+            "version": version,
+            "input_model": input_model,
+            "output_model": output_model,
+            "run": run,
+            "function": staticmethod(fn),
+            "__doc__": fn.__doc__,
+            "__module__": getattr(fn, "__module__", __name__),
+        },
+    )
+
+
+@overload
+def job(fn: Callable[..., Awaitable[Any]], /) -> type[Job]: ...
+@overload
+def job(*, name: str | None = None, version: str = "1") -> Callable[[Callable[..., Awaitable[Any]]], type[Job]]: ...
+def job(fn: Callable[..., Awaitable[Any]] | None = None, /, *, name: str | None = None, version: str = "1") -> Any:
+    """Make a `Job` class from an async function: `async def summarise(ctx: ftw.JobContext, input: In) -> Out`. The name is the
+    function's (or `name=`), the version `"1"` (or `version=`), and the input and output models are the annotations of `input` and
+    the return value. The function becomes the class, usable wherever a `Job` is; the function itself is `Summarise.function`.
+
+        @ftw.job
+        async def summarise(ctx: ftw.JobContext, input: SummariseInput) -> SummariseOutput: ...
+
+        @ftw.job(name="summarise", version="2")
+        async def summarise(ctx, input: SummariseInput) -> SummariseOutput: ...
+    """
+    if fn is not None:
+        return _build_job(fn, name, version)
+    return lambda function: _build_job(function, name, version)
 
 
 class AgentRunFailed(RuntimeError):
