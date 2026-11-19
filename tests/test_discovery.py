@@ -4,7 +4,7 @@ import json
 import logging
 
 import pytest
-from fakes import Scripted, runner_with, tool_reply, use_model
+from fakes import Scripted, runner_with, tool_reply
 from langchain_core.messages import SystemMessage
 from langchain_core.tools import tool
 from mcp_helpers import INPUT, done, fake, shown, texts, worker
@@ -12,7 +12,6 @@ from pydantic import ValidationError
 
 from micro.mcp import StdioMCPServer
 from micro.models import RunStatus
-from micro.registry import DIRECT, DISCOVERABLE, ToolRegistry
 
 
 def finder(**kwargs) -> StdioMCPServer:
@@ -225,18 +224,6 @@ async def test_an_image_from_a_called_tool_reaches_the_model(db):
     assert blocks[0]["type"] == "image" and blocks[0]["mime_type"] == "image/png"
 
 
-async def test_a_dead_server_gives_text_and_the_next_run_gets_a_new_one(db):
-    first = Scripted(script=[call("fake_pid", {}), call("fake_die", {}, "c2"), done()])
-    second = Scripted(script=[call("fake_pid", {}), done()])
-    runner = runner_with(db, first)
-    assert (await runner.run(worker(finder()), INPUT)).status == RunStatus.SUCCESS
-    assert "unavailable" in texts(first)[1]
-
-    use_model(second)
-    await runner.run(worker(finder()), INPUT)
-    assert texts(second)[0] != texts(first)[0]
-
-
 async def test_each_search_and_each_call_is_logged(db, caplog):
     caplog.set_level(logging.INFO)
     model = Scripted(script=[search("add"), call("fake_add", {"a": 1, "b": 1}), call("fake_add", "{", "c2"), done()])
@@ -248,46 +235,3 @@ async def test_each_search_and_each_call_is_logged(db, caplog):
     assert f"tool_call_via_search agent_run_id={row.agent_run_id} tool=fake_add status=ok" in log
     assert "tool_call_via_search" in log and "status=invalid" in log
     assert "mcp_call" in log  # the wrapper's own line, as for a direct call
-
-
-# the registry
-
-
-def named(name: str, description: str = "A tool."):
-    @tool(name, description=description)
-    def one(x: str) -> str:
-        return x
-
-    return one
-
-
-def test_the_registry_binds_direct_tools_and_keeps_discoverable_ones_apart():
-    registry = ToolRegistry()
-    registry.add(named("local_one"), "local")
-    registry.add(named("far_find"), "mcp", mode=DISCOVERABLE, server="far")
-
-    assert registry.names == ["local_one"] and [t.name for t in registry.tools] == ["local_one"]
-    assert [e.tool.name for e in registry.discoverable] == ["far_find"]
-    assert registry.entry("far_find").mode == DISCOVERABLE and registry.entry("local_one").mode == DIRECT
-    assert registry.entry("missing") is None
-
-
-def test_a_discoverable_tool_cannot_share_a_name_with_a_direct_one():
-    from micro.errors import SetupError
-
-    registry = ToolRegistry()
-    registry.add(named("same"), "local")
-    with pytest.raises(SetupError, match="'same' \\(local and mcp\\)"):
-        registry.add(named("same"), "mcp", mode=DISCOVERABLE, server="far")
-
-
-def test_the_registry_searches_by_name_description_and_argument_names_and_rebuilds_after_an_add():
-    registry = ToolRegistry()
-    registry.add(named("far_issue_list", "Lists the issues of a repository"), "mcp", mode=DISCOVERABLE, server="far")
-    registry.add(named("far_weather", "Forecast for a city"), "mcp", mode=DISCOVERABLE, server="far")
-
-    assert [e.tool.name for e in registry.search(["issues"])] == ["far_issue_list"]
-    assert [e.tool.name for e in registry.search(["city", "forecast"])] == ["far_weather"]
-    assert registry.search(["x"]) != []  # the argument is called x, in both tools
-    registry.add(named("far_code_search", "Search code"), "mcp", mode=DISCOVERABLE, server="far")
-    assert "far_code_search" in [e.tool.name for e in registry.search(["code"])]

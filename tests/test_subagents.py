@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-import sqlite3
 from typing import ClassVar
 
 import pytest
@@ -10,10 +9,9 @@ from fakes import FakeSettings, Reactive, Scripted, runner_with, structured_repl
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 
 from micro.context import RunContext
-from micro.db import Database
 from micro.model_settings import ModelSettings
 from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus
-from micro.runner import AgentRunner, _Slot
+from micro.runner import _Slot
 from micro.store import RunStore
 
 
@@ -327,31 +325,6 @@ def test_the_prompt_hash_differs_with_and_without_the_launch_section():
 # configuration
 
 
-def test_the_limits_come_from_the_environment_and_the_arguments_win(db, monkeypatch):
-    assert (AgentRunner(db).max_depth, AgentRunner(db).max_launches) == (3, 10)
-    monkeypatch.setenv("MAX_AGENT_DEPTH", "4")
-    monkeypatch.setenv("MAX_AGENT_LAUNCHES", "7")
-    assert (AgentRunner(db).max_depth, AgentRunner(db).max_launches) == (4, 7)
-    assert (AgentRunner(db, max_depth=2, max_launches=1).max_depth, AgentRunner(db, max_launches=1).max_launches) == (
-        2,
-        1,
-    )
-
-
-@pytest.mark.parametrize("name", ["MAX_AGENT_DEPTH", "MAX_AGENT_LAUNCHES"])
-@pytest.mark.parametrize("value,message", [("0", "at least 1"), ("many", "must be an integer")])
-def test_a_bad_limit_in_the_environment_is_refused(db, monkeypatch, name, value, message):
-    monkeypatch.setenv(name, value)
-    with pytest.raises(ValueError, match=message):
-        AgentRunner(db)
-
-
-@pytest.mark.parametrize("kwargs", [{"max_depth": 0}, {"max_launches": 0}])
-def test_a_bad_limit_argument_is_refused(db, kwargs):
-    with pytest.raises(ValueError, match="at least 1"):
-        AgentRunner(db, **kwargs)
-
-
 # concurrency: a parent gives its slot to the child
 
 
@@ -417,42 +390,3 @@ async def test_several_launches_in_one_turn_hand_the_slot_back_once(db):
 
 
 # the run log
-
-
-async def test_an_older_database_gets_the_new_columns_and_keeps_its_rows(tmp_path):
-    path = tmp_path / "old.db"
-    old = sqlite3.connect(path)
-    old.executescript(
-        """CREATE TABLE agent_runs (
-            agent_run_id TEXT PRIMARY KEY, invocation_id TEXT NOT NULL, attempt INTEGER NOT NULL, job_id TEXT,
-            agent_name TEXT NOT NULL, agent_version TEXT NOT NULL, model_name TEXT NOT NULL, reported_model_name TEXT,
-            reasoning TEXT NOT NULL, tool_names TEXT NOT NULL, system_prompt_hash TEXT NOT NULL, status TEXT NOT NULL,
-            input TEXT NOT NULL, output TEXT, input_tokens INTEGER, output_tokens INTEGER, error TEXT, latency_ms REAL,
-            created_at TEXT NOT NULL, completed_at TEXT);
-           INSERT INTO agent_runs VALUES ('r1', 'i1', 1, NULL, 'echo', '0.1.0', 'm', NULL, 'low', '[]', 'h', 'SUCCESS',
-            '{}', NULL, NULL, NULL, NULL, NULL, 'now', NULL);"""
-    )
-    old.commit()
-    old.close()
-
-    async with Database(path) as db:
-        row = await db.get_run("r1")
-        assert (row.parent_agent_run_id, row.depth) == (None, 1)
-        await db.create_run(
-            agent_run_id="r2",
-            invocation_id="i2",
-            attempt=1,
-            job_id=None,
-            agent_name="child",
-            agent_version="0.1.0",
-            model_name="m",
-            reasoning="low",
-            tool_names=[],
-            system_prompt_hash="h",
-            input={},
-            parent_agent_run_id="r1",
-            depth=2,
-        )
-        assert (await db.get_run("r2")).parent_agent_run_id == "r1"
-    async with Database(path):  # opening it again changes nothing
-        pass

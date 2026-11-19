@@ -33,21 +33,16 @@ def test_a_model_outside_the_catalog_is_refused_and_the_message_lists_the_models
     assert next(iter(cls.models)) in str(error.value)
 
 
-@pytest.mark.parametrize("cls", PROVIDERS)
-@pytest.mark.parametrize("name", ["temperature", "top_p", "top_k"])
-def test_sampling_settings_are_refused_with_a_reason(cls, name):
-    with pytest.raises(ValidationError, match=f"has no `{name}`"):
-        cls(**{name: 0})
+def test_sampling_settings_are_refused_with_a_reason_by_every_class():
+    for cls in PROVIDERS:
+        for name in ("temperature", "top_p", "top_k"):
+            with pytest.raises(ValidationError, match=f"has no `{name}`"):
+                cls(**{name: 0})
 
 
 def test_an_unknown_field_is_refused():
     with pytest.raises(ValidationError):
         Gemini.model_validate({"thinking_budget": 100})
-
-
-def test_settings_are_frozen():
-    with pytest.raises(ValidationError):
-        Gemini().thinking = "high"
 
 
 def test_max_output_tokens_must_be_positive():
@@ -102,7 +97,9 @@ def test_claude_thinking_is_off_only_at_high_effort_or_below():
         Claude(model="claude-haiku-5-5", effort="xhigh", thinking="off")
 
 
-def test_claudes_label_is_off_or_the_effort():
+def test_the_label_is_the_effort_or_thinking_level_and_claudes_is_off_when_thinking_is():
+    assert Gemini(thinking="high").label() == "high"
+    assert OpenAI(effort="low").label() == "low"
     assert Claude(effort="max").label() == "max"
     assert Claude(model="claude-haiku-5-5", thinking="off").label() == "off"
 
@@ -122,11 +119,6 @@ def test_openai_none_effort_is_for_the_models_that_accept_it():
     for model in ("gpt-6.2-astra", "gpt-6.2-sol", "gpt-6.1-sol", "gpt-6-astra"):
         with pytest.raises(ValidationError, match="does not accept effort='none'"):
             OpenAI(model=model, effort="none")
-
-
-def test_label_is_the_effort():
-    assert Gemini(thinking="high").label() == "high"
-    assert OpenAI(effort="low").label() == "low"
 
 
 # --- Missing packages

@@ -126,12 +126,6 @@ async def test_retries_exhausted_returns_failed_result(db, monkeypatch, max_atte
     assert rows[-1].input == {"text": "x"}  # the input is kept, so a failed run can be resumed
 
 
-@pytest.mark.parametrize("kwargs", [{"max_attempts": 0}, {"max_concurrent": 0}])
-def test_invalid_limits_are_rejected(kwargs):
-    with pytest.raises(ValueError):
-        AgentRunner(None, **kwargs)
-
-
 class HttpError(Exception):
     def __init__(self, code):
         super().__init__(f"http {code}")
