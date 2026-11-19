@@ -19,9 +19,9 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import tool
 from pydantic import ValidationError
 
-from micro.messages import to_agui, to_langchain
-from micro.model_settings import ModelSettings
-from micro.streaming import ChatInput, StreamingAgent
+from featherweight.messages import to_agui, to_langchain
+from featherweight.model_settings import ModelSettings
+from featherweight.streaming import ChatInput, StreamingAgent
 
 
 def call(call_id, name, args):

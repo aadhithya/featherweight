@@ -1,6 +1,6 @@
 # Specs
 
-What each part of [micro.] is supposed to do, and why. ([Documentation home](../README.md) shows how these fit with the guides.) The pages in [`docs`](..) say how to use it; these say what was
+What each part of Featherweight is supposed to do, and why. ([Documentation home](../README.md) shows how these fit with the guides.) The pages in [`docs`](..) say how to use it; these say what was
 decided, what was checked, and what is deliberately left out. Each follows the same shape: goal, the rules, decisions,
 not supported, tests.
 

@@ -1,6 +1,6 @@
 # Spec: tool discovery
 
-Status: implemented. How to use it is in [mcp.md](../mcp.md#finding-tools-by-search). This is the design for [issue #3](https://github.com/aadhithya/micro/issues/3). It builds on
+Status: implemented. How to use it is in [mcp.md](../mcp.md#finding-tools-by-search). This is the design for [issue #3](https://github.com/aadhithya/featherweight/issues/3). It builds on
 [MCP tools](mcp-tools.md) and [tools, the registry and the store](tools-and-store.md).
 
 - [Goal and scope](#goal-and-scope)
@@ -99,7 +99,7 @@ raise into the run.
 
 ## Matching
 
-A small BM25 in `micro/search.py`, with no dependency. It is generic: it takes texts and a query and returns ranked
+A small BM25 in `featherweight/search.py`, with no dependency. It is generic: it takes texts and a query and returns ranked
 indices, so skill and agent lookup can use it later.
 
 - **Tokens:** lowercase letters and digits. Underscores, punctuation and a lower-to-upper camelCase boundary split words.

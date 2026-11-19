@@ -3,7 +3,7 @@ name: email-reply
 description: Writes a short, polite reply to an email or message. Use when asked to reply to, answer or respond to an email or a message.
 license: Apache-2.0
 metadata:
-  author: micro
+  author: featherweight
   version: "1.0"
 ---
 

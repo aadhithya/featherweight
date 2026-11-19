@@ -7,7 +7,7 @@ Needs GOOGLE_API_KEY and GITHUB_TOKEN, a read-only token (see examples/mcp/READM
 GitHub's remote one, and an allow-list of six read-only tools out of the dozens it offers. The runner connects when the
 first request needs it, and `async with` keeps it up between the requests and closes it at the end.
 
-Set MICRO_LOG_LEVEL=INFO (`MICRO_LOG_LEVEL=INFO make example-mcp`) to see the log lines: each server start, search and
+Set FTW_LOG_LEVEL=INFO (`FTW_LOG_LEVEL=INFO make example-mcp`) to see the log lines: each server start, search and
 tool call.
 """
 
@@ -19,14 +19,9 @@ from typing import ClassVar
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))  # so that this runs without installing anything
 
-from micro.db import Database, default_db_path  # noqa: E402
-from micro.log import setup_logging  # noqa: E402
-from micro.mcp import HttpMCPServer, StdioMCPServer  # noqa: E402
-from micro.model_settings import Gemini, ModelSettings  # noqa: E402
-from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus  # noqa: E402
-from micro.runner import AgentRunner  # noqa: E402
+import featherweight as ftw  # noqa: E402
 
-GITHUB = HttpMCPServer(
+GITHUB = ftw.HttpMCPServer(
     name="github",
     url="https://api.githubcopilot.com/mcp/readonly",  # the read-only variant of GitHub's server: no write tools at all
     bearer_from="GITHUB_TOKEN",  # the name of the variable; the token itself is never in the code
@@ -42,16 +37,16 @@ GITHUB = HttpMCPServer(
 )
 
 
-class QuestionInput(AgentInput):
+class QuestionInput(ftw.AgentInput):
     question: str
 
 
-class AnswerOutput(AgentOutput):
+class AnswerOutput(ftw.AgentOutput):
     answer: str | None = None
     sources: list[str] = []  # the GitHub pages the answer is based on
 
 
-class RepoReader(AgentBase):
+class RepoReader(ftw.AgentBase):
     name: str = "repo_reader"
     description: str = "Answers questions about public GitHub repositories"
     version: str = "0.1.0"
@@ -59,10 +54,10 @@ class RepoReader(AgentBase):
         "Answer the question about public GitHub repositories, using your GitHub tools to look things up instead of "
         "answering from memory. Be brief: two or three sentences. Put the URLs of the pages you used in `sources`."
     )
-    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
-    mcp_servers: list[StdioMCPServer | HttpMCPServer] = [GITHUB]
-    input_model: ClassVar[type[AgentInput]] = QuestionInput
-    output_model: ClassVar[type[AgentOutput]] = AnswerOutput
+    model: ftw.ModelSettings = ftw.Gemini(model="gemini-3.5-flash-lite", thinking="low")
+    mcp_servers: list[ftw.StdioMCPServer | ftw.HttpMCPServer] = [GITHUB]
+    input_model: ClassVar[type[ftw.AgentInput]] = QuestionInput
+    output_model: ClassVar[type[ftw.AgentOutput]] = AnswerOutput
 
 
 SAMPLES = [
@@ -72,15 +67,15 @@ SAMPLES = [
 
 
 async def main(questions: list[str]) -> int:
-    if os.environ.get("MICRO_LOG_LEVEL"):  # the log is for when you ask for it: the answers are what this prints
-        setup_logging()
+    if os.environ.get("FTW_LOG_LEVEL"):  # the log is for when you ask for it: the answers are what this prints
+        ftw.setup_logging()
     failed = 0
-    async with Database(default_db_path()) as db, AgentRunner(db) as runner:
+    async with ftw.Database(ftw.default_db_path()) as db, ftw.AgentRunner(db) as runner:
         for question in questions:
             print(f"\n> {question}")
             job_id = await db.create_job("mcp-demo")
             result = await runner.run(RepoReader, QuestionInput(question=question), job_id=job_id)
-            if result.status == RunStatus.SUCCESS and result.output is not None:
+            if result.status == ftw.RunStatus.SUCCESS and result.output is not None:
                 print(f"\n{result.output.answer}")
                 for source in result.output.sources:
                     print(f"  {source}")

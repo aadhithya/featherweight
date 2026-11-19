@@ -3,8 +3,8 @@ import sqlite3
 import pytest
 from pydantic import BaseModel
 
-from micro.db import Database, new_id
-from micro.models import RunStatus
+from featherweight.db import Database, new_id
+from featherweight.models import RunStatus
 
 
 class Payload(BaseModel):

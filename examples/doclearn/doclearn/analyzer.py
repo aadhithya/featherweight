@@ -4,10 +4,9 @@ from typing import ClassVar
 
 from pydantic import Field, model_validator
 
+import featherweight as ftw
 from doclearn.facts import derive_template, find_spans
 from doclearn.models import Document, DocumentFacts, DocumentTemplate, ElementStyle, FactBlock, FactNode, FieldValue
-from micro.model_settings import Gemini, ModelSettings
-from micro.models import AgentBase, AgentInput, AgentOutput
 
 PROMPT = """\
 You analyze one document and break it into typed content blocks. The input is JSON with the document \
@@ -68,12 +67,12 @@ variable parts, e.g. "## {{heading}}", "- {{statement}}", "**{{label}}:** {{valu
 """
 
 
-class AnalyzerInput(AgentInput):
+class AnalyzerInput(ftw.AgentInput):
     document: Document = Field(description="The document to analyze.")
     category: str = Field(description="The document category, provided by the user. For context only.")
 
 
-class AnalyzerOutput(AgentOutput):
+class AnalyzerOutput(ftw.AgentOutput):
     blocks: list[FactBlock] = Field(
         default_factory=list, description="The document as a flat list of typed blocks with parent ids, in order."
     )
@@ -141,11 +140,11 @@ class AnalyzerOutput(AgentOutput):
         return derive_template(self.to_facts(""), {s.name: s.markdown for s in self.styles}, category)
 
 
-class DocumentAnalyzer(AgentBase):
+class DocumentAnalyzer(ftw.AgentBase):
     name: str = "document_analyzer"
     description: str = "Breaks one document into typed content blocks, fillable fields and element styles"
     version: str = "0.5.1"
     prompt: str = PROMPT
-    model: ModelSettings = Gemini(model="gemini-3.8-flash", thinking="low")
-    input_model: ClassVar[type[AgentInput]] = AnalyzerInput
-    output_model: ClassVar[type[AgentOutput]] = AnalyzerOutput
+    model: ftw.ModelSettings = ftw.Gemini(model="gemini-3.8-flash", thinking="low")
+    input_model: ClassVar[type[ftw.AgentInput]] = AnalyzerInput
+    output_model: ClassVar[type[ftw.AgentOutput]] = AnalyzerOutput

@@ -9,7 +9,7 @@ Only the release pull request is a manual step. Merging it is how you choose whe
 
 1. **Run the workflow.** In GitHub, Actions, `release`, Run workflow (or `gh workflow run release`). It reads the commit
    messages since the last release and opens, or updates, **one release pull request**. The pull request changes three
-   things: the version in `pyproject.toml`, `__version__` in `src/micro/__init__.py`, and a new section at the top of
+   things: the version in `pyproject.toml`, `__version__` in `src/featherweight/__init__.py`, and a new section at the top of
    [`CHANGELOG.md`](../CHANGELOG.md). Nothing is tagged or released yet.
 2. **Review and merge it** when its checks are green. Read the version and the changelog section first.
 3. **That is all.** The merge makes the tag `vX.Y.Z` and a GitHub release whose notes are the changelog section, by itself.
@@ -63,6 +63,6 @@ run, so the secret is the way to go.
 ## Not yet
 
 Publishing to PyPI is not part of the release yet: it waits for the package name to be decided
-([issue #24](https://github.com/aadhithya/micro/issues/24)). When it is built, it will be a job of this workflow that runs
+([issue #24](https://github.com/aadhithya/featherweight/issues/24)). When it is built, it will be a job of this workflow that runs
 after the tag is made, so merging the release pull request will publish the package too. Opening the release pull request
 stays the only manual step.

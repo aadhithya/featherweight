@@ -11,7 +11,7 @@ make pipeline ARGS="examples/doclearn/samples/project_proposals --category proje
 Without Docker: `PYTHONPATH=src:examples/doclearn uv run python -m doclearn.cli examples/doclearn/samples/project_proposals --category project_proposals`.
 
 It learns from the documents, shows what it learned, fills a form (by hand, or an agent invents a case) and writes a new
-document. Everything is saved in `runs/<time>_<category>/` and in `micro.db`. Add `--fill manual` or `--fill auto` to
+document. Everything is saved in `runs/<time>_<category>/` and in `featherweight.db`. Add `--fill manual` or `--fill auto` to
 skip the question, and `-v` to see every log line.
 
 ## What is here

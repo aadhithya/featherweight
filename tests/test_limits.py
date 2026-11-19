@@ -5,8 +5,8 @@ import asyncio
 import pytest
 from fakes import Echo, EchoInput, Reactive, respond, runner_with
 
-from micro.models import RunStatus
-from micro.runner import ENV_MAX_CONCURRENT, AgentRunner
+from featherweight.models import RunStatus
+from featherweight.runner import ENV_MAX_CONCURRENT, AgentRunner
 
 
 async def run_many(runner, texts):

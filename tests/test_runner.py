@@ -6,10 +6,10 @@ from fakes import Echo, EchoInput, EchoOutput, FakeSettings, Scripted, runner_wi
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.tools import BaseTool, tool
 
-from micro import runner as runner_module
-from micro.model_settings import Gemini, ModelSettings
-from micro.models import AgentInput, RunStatus
-from micro.runner import AgentRunner, ModelSetupError, is_non_retryable
+from featherweight import runner as runner_module
+from featherweight.model_settings import Gemini, ModelSettings
+from featherweight.models import AgentInput, RunStatus
+from featherweight.runner import AgentRunner, ModelSetupError, is_non_retryable
 
 
 @tool
@@ -285,7 +285,7 @@ async def test_wrong_input_type_raises_and_writes_nothing(db):
 
 
 async def test_lifecycle_is_logged(db, caplog):
-    caplog.set_level(logging.INFO, logger="micro")
+    caplog.set_level(logging.INFO, logger="featherweight")
     model = Scripted(script=[RuntimeError("flaky"), OK()])
     await runner_with(db, model, retry_delay_s=0.0).run(Echo, EchoInput(text="x"))
 

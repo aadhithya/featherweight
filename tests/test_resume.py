@@ -18,11 +18,11 @@ from fakes import (
 )
 from test_subagents import Parent, ParentInput
 
-from micro.db import Database
-from micro.fingerprint import agent_hash, input_hash
-from micro.jobs import run_job
-from micro.model_settings import ModelSettings
-from micro.models import RunStatus
+from featherweight.db import Database
+from featherweight.fingerprint import agent_hash, input_hash
+from featherweight.jobs import run_job
+from featherweight.model_settings import ModelSettings
+from featherweight.models import RunStatus
 
 
 def model(broken: set[str] | None = None, echoed: str | None = None) -> Reactive:

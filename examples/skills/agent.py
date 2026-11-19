@@ -7,7 +7,7 @@ Needs GOOGLE_API_KEY. The agent is told the name and description of its three sk
 request fits one, it reads that skill with `get_skill`, and then the files the skill points to, and follows them.
 The script prints each skill the agent read.
 
-Set MICRO_LOG_LEVEL=INFO (`MICRO_LOG_LEVEL=INFO make example-skills`) to see the log lines: each attempt, each skill read and each token count.
+Set FTW_LOG_LEVEL=INFO (`FTW_LOG_LEVEL=INFO make example-skills`) to see the log lines: each attempt, each skill read and each token count.
 """
 
 import asyncio
@@ -20,25 +20,20 @@ from typing import ClassVar
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE.parent.parent / "src"))  # so that this runs without installing anything
 
-from micro.db import Database, default_db_path  # noqa: E402
-from micro.log import setup_logging  # noqa: E402
-from micro.model_settings import Gemini, ModelSettings  # noqa: E402
-from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus  # noqa: E402
-from micro.runner import AgentRunner  # noqa: E402
-from micro.skills import Skill  # noqa: E402
+import featherweight as ftw  # noqa: E402
 
-SKILLS = [Skill.from_directory(path) for path in sorted(HERE.iterdir()) if (path / "SKILL.md").is_file()]
+SKILLS = [ftw.Skill.from_directory(path) for path in sorted(HERE.iterdir()) if (path / "SKILL.md").is_file()]
 
 
-class AssistantInput(AgentInput):
+class AssistantInput(ftw.AgentInput):
     request: str
 
 
-class AssistantOutput(AgentOutput):
+class AssistantOutput(ftw.AgentOutput):
     answer: str | None = None
 
 
-class Assistant(AgentBase):
+class Assistant(ftw.AgentBase):
     name: str = "assistant"
     description: str = "Helps with short writing tasks"
     version: str = "0.1.0"
@@ -46,10 +41,10 @@ class Assistant(AgentBase):
         "You help with short writing tasks. If one of your skills fits the request, use it. "
         "Return the finished text, and nothing else, in `answer`."
     )
-    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
-    skills: list[Skill] = SKILLS
-    input_model: ClassVar[type[AgentInput]] = AssistantInput
-    output_model: ClassVar[type[AgentOutput]] = AssistantOutput
+    model: ftw.ModelSettings = ftw.Gemini(model="gemini-3.5-flash-lite", thinking="low")
+    skills: list[ftw.Skill] = SKILLS
+    input_model: ClassVar[type[ftw.AgentInput]] = AssistantInput
+    output_model: ClassVar[type[ftw.AgentOutput]] = AssistantOutput
 
 
 SAMPLES = [
@@ -76,20 +71,20 @@ class ShowSkillReads(logging.Handler):
 
 
 async def main(requests: list[str]) -> int:
-    if os.environ.get("MICRO_LOG_LEVEL"):  # the log is for when you ask for it: the answers are what this prints
-        setup_logging()
-    runner_log = logging.getLogger("micro.runner")
+    if os.environ.get("FTW_LOG_LEVEL"):  # the log is for when you ask for it: the answers are what this prints
+        ftw.setup_logging()
+    runner_log = logging.getLogger("featherweight.runner")
     runner_log.setLevel(logging.INFO)
     runner_log.addHandler(ShowSkillReads())
     failed = 0
-    async with Database(default_db_path()) as db:
-        runner = AgentRunner(db)
+    async with ftw.Database(ftw.default_db_path()) as db:
+        runner = ftw.AgentRunner(db)
         for request in requests:
             print(f"\n> {request}")
             result = await runner.run(
                 Assistant, AssistantInput(request=request), job_id=await db.create_job("skills-demo")
             )
-            if result.status == RunStatus.SUCCESS and result.output is not None:
+            if result.status == ftw.RunStatus.SUCCESS and result.output is not None:
                 print(f"\n{result.output.answer}\n  ({result.input_tokens} tokens in, {result.output_tokens} out)")
             else:
                 failed += 1

@@ -9,7 +9,7 @@
   "packages": {
     ".": {
       "changelog-path": "CHANGELOG.md",
-      "extra-files": ["src/micro/__init__.py"]
+      "extra-files": ["src/featherweight/__init__.py"]
     }
   },
   "changelog-sections": [

@@ -11,8 +11,8 @@ import pytest
 import pytest_asyncio
 from fakes import MODELS
 
-from micro.db import Database
-from micro.log import setup_logging
+from featherweight.db import Database
+from featherweight.log import setup_logging
 
 
 def is_e2e(node) -> bool:
@@ -56,14 +56,14 @@ def e2e_setup(request):
 async def db(request, tmp_path):
     """A fresh sqlite database per test.
 
-    The e2e tests share one database, `e2e.db`, next to `MICRO_DB_PATH` (so, in the project directory, which is
+    The e2e tests share one database, `e2e.db`, next to `FTW_DB_PATH` (so, in the project directory, which is
     mounted into the container, it is on the host). Every agent input and output is in its `agent_runs` table, so a
     failed run can be inspected afterwards without new model calls, e.g.
     `sqlite3 e2e.db "select agent_name, status, error from agent_runs"`. Rows accumulate across runs; tell them apart
     by job_id and created_at. `make clean-all` deletes it.
     """
     if is_e2e(request.node):
-        path = Path(os.environ.get("MICRO_DB_PATH", "micro.db")).parent / "e2e.db"
+        path = Path(os.environ.get("FTW_DB_PATH", "featherweight.db")).parent / "e2e.db"
         print(f"\n[db] {path}")
     else:
         path = tmp_path / "test.db"

@@ -7,8 +7,8 @@ from fakes import Echo, EchoInput, structured_reply
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
 
-from micro.mcp import HttpMCPServer, StdioMCPServer
-from micro.model_settings import ModelSettings
+from featherweight.mcp import HttpMCPServer, StdioMCPServer
+from featherweight.model_settings import ModelSettings
 
 SERVER_SCRIPT = str(Path(__file__).parent / "mcp_fake_server.py")
 

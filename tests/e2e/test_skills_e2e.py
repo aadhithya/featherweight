@@ -7,10 +7,10 @@ import re
 from pathlib import Path
 from typing import ClassVar
 
-from micro.model_settings import Gemini, ModelSettings
-from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus
-from micro.runner import AgentRunner
-from micro.skills import Skill
+from featherweight.model_settings import Gemini, ModelSettings
+from featherweight.models import AgentBase, AgentInput, AgentOutput, RunStatus
+from featherweight.runner import AgentRunner
+from featherweight.skills import Skill
 
 SKILL = Skill.from_directory(Path(__file__).parent.parent.parent / "examples" / "skills" / "meeting-notes")
 TAGS = {"[DECISION]", "[ACTION]", "[FYI]"}  # only in references/tags.md, not in SKILL.md

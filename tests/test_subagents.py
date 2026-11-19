@@ -8,11 +8,11 @@ import pytest
 from fakes import FakeSettings, Reactive, Scripted, runner_with, structured_reply, tool_reply
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 
-from micro.context import RunContext
-from micro.model_settings import ModelSettings
-from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus
-from micro.runner import _Slot
-from micro.store import RunStore
+from featherweight.context import RunContext
+from featherweight.model_settings import ModelSettings
+from featherweight.models import AgentBase, AgentInput, AgentOutput, RunStatus
+from featherweight.runner import _Slot
+from featherweight.store import RunStore
 
 
 class ChildInput(AgentInput):

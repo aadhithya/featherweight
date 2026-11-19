@@ -1,6 +1,6 @@
 # Spec: streaming agents
 
-Status: implemented (epic #29 is done). #33 (stopping a response) and #36 (the example and the guide) are done too. #30 (the class, `ChatInput`, `runner.stream()`, the run log), #31 (the events: text, tool calls, thoughts, steps; `show_thoughts`), #32 (messages in and out: the converters, `from_langchain`, `from_agui`, `new_messages`), #34 (the AG-UI adapter) and #35 (the Vercel adapter) are done; the other issues are not. It is tracked in [epic #29](https://github.com/aadhithya/micro/issues/29), and each part has its own
+Status: implemented (epic #29 is done). #33 (stopping a response) and #36 (the example and the guide) are done too. #30 (the class, `ChatInput`, `runner.stream()`, the run log), #31 (the events: text, tool calls, thoughts, steps; `show_thoughts`), #32 (messages in and out: the converters, `from_langchain`, `from_agui`, `new_messages`), #34 (the AG-UI adapter) and #35 (the Vercel adapter) are done; the other issues are not. It is tracked in [epic #29](https://github.com/aadhithya/featherweight/issues/29), and each part has its own
 issue (listed [at the end](#the-work)). When a part is built, this page says so and the guide `docs/streaming.md` shows how to use it.
 
 It changes [agents](agents.md) (a new kind of agent), [the runner](runner.md) (`stream()`, and `run()` refuses a streaming
@@ -26,7 +26,7 @@ agent), [models](models.md) (`show_thoughts`) and [jobs and tracing](jobs-and-tr
 
 Some agents talk to a person: a chat, or a task that a person watches. They must show the answer **while it is written**,
 show what the agent is doing (the tools it calls, and its thoughts), let the person **stop** it and correct it, and not wait
-for a finished, validated output. `micro` adds this without a second runtime: a streaming agent is an agent, run by the same
+for a finished, validated output. `featherweight` adds this without a second runtime: a streaming agent is an agent, run by the same
 runner, with the same tools, skills, MCP servers, limits and run log.
 
 We build abstractions, not a solution. The events are an open protocol's, the HTTP and the storage are the application's.
@@ -97,7 +97,7 @@ not streamed. (The depth and launch rules are the same as in [launching agents](
 
 ## The events
 
-The events are **AG-UI's**, from the official `ag-ui-protocol` package (1.0, Pydantic models). `micro` defines none. The
+The events are **AG-UI's**, from the official `ag-ui-protocol` package (1.0, Pydantic models). `featherweight` defines none. The
 runner produces them in the order the protocol requires, and the adapters send them.
 
 | What happened | Events |
@@ -114,7 +114,7 @@ runner produces them in the order the protocol requires, and the adapters send t
 | The run fails | `RUN_ERROR` (the open message is closed first) |
 
 Rules the runner keeps: a text message is closed before a tool call opens; ids (message, tool call, reasoning) are made by
-`micro` when the provider gives none; every opened thing is closed, also on error and on cancel; one `RUN_STARTED` and one
+`featherweight` when the provider gives none; every opened thing is closed, also on error and on cancel; one `RUN_STARTED` and one
 ending event per run. A test checks every produced sequence against these rules.
 
 How LangChain's stream maps to this (to be confirmed while building, see [Findings](#findings)): `astream` with the
@@ -142,7 +142,7 @@ It is a field of `ModelSettings`, so it is available to every agent, and it is r
 
 ## Messages and keeping the conversation
 
-**`micro` keeps no conversation.** The client sends the whole history with each request. That is how both protocols work, and
+**`featherweight` keeps no conversation.** The client sends the whole history with each request. That is how both protocols work, and
 it means any process can serve any turn. The application keeps messages if it wants to, with the tools LangChain already has.
 
 - Wire format: AG-UI messages. Storage format: **LangChain messages**, because LangChain's chat message histories read and
@@ -166,7 +166,7 @@ The converters keep tool call ids, tool results, and reasoning (with signatures)
 other format cannot hold is listed in the guide.
 
 **No LangGraph checkpointer.** `create_agent` supports one, and LangChain recommends it for agents, but it stores the whole graph
-state per thread, and it is not how `micro` passes state around. It is not forwarded. A later issue can add it if someone asks.
+state per thread, and it is not how `featherweight` passes state around. It is not forwarded. A later issue can add it if someone asks.
 
 ## Stopping a response
 
@@ -225,12 +225,12 @@ The run's `job_id` works as for `run()`. Marking a *job* `CANCELLED` is part of 
 An adapter has two parts: **read the request** into a `ChatInput`, and **encode the events** for the wire. Neither is a server:
 no router, no web framework dependency. A one-line Starlette example goes in the guide.
 
-**AG-UI** (`micro.adapters.agui`, built): the events are already AG-UI's, so this is the thin edge.
+**AG-UI** (`featherweight.adapters.agui`, built): the events are already AG-UI's, so this is the thin edge.
 - `parse_request(body)`: a `RunAgentInput` (a dict, text or bytes) becomes a `ChatInput`; a body it cannot read raises `BadRequest`, a `ValueError` that a framework turns into a 422. The client's `tools`, `state` and `context` are **ignored**
   (the agent has its own tools), and sending tools logs a warning.
 - `encode(run)`: SSE strings from the official `EventEncoder`, plus `CONTENT_TYPE` and `HEADERS` for the response. The binary encoding is not supported.
 
-**Vercel AI SDK** (`micro.adapters.vercel`): a translation from AG-UI events to the documented UI message stream, written by us
+**Vercel AI SDK** (`featherweight.adapters.vercel`): a translation from AG-UI events to the documented UI message stream, written by us
 because no small official package exists (the one from vercel-labs is a whole agent framework, at 0.x).
 
 | AG-UI | Vercel part |
@@ -258,7 +258,7 @@ A third format is a third adapter: the events are the contract.
   already speak.
 - **No retries.** A failure is an error event and a `FAILED` row.
 - **Stateless on our side.** No sessions, no conversation store, no checkpointer. The run log holds **no message content** either, only counts, hashes,
-  tokens, status and timing: `micro` is not a persistence layer. The app keeps the words (with LangChain's stores) and saves the
+  tokens, status and timing: `featherweight` is not a persistence layer. The app keeps the words (with LangChain's stores) and saves the
   `run_id` from `RUN_STARTED` next to each turn, so it can join its messages to the log. Where the log should keep content for
   all agents is a wider question, parked in the ideas notes (the run log and persistence boundary).
 - **Client history is untrusted:** no `system` or `developer` roles; the application still validates what it stores and sends.
@@ -319,11 +319,11 @@ No live model call in the unit tests: a fake streaming chat model in `tests/fake
 
 | Issue | |
 |---|---|
-| [#29](https://github.com/aadhithya/micro/issues/29) | The epic |
-| [#30](https://github.com/aadhithya/micro/issues/30) | `StreamingAgent`, `ChatInput`, `runner.stream()`, the run log |
-| [#31](https://github.com/aadhithya/micro/issues/31) | LangChain's stream to AG-UI events, and `show_thoughts` |
-| [#32](https://github.com/aadhithya/micro/issues/32) | Messages in and out, converters, `new_messages` |
-| [#33](https://github.com/aadhithya/micro/issues/33) | Stopping a response, and keeping the partial turn |
-| [#34](https://github.com/aadhithya/micro/issues/34) | The AG-UI adapter |
-| [#35](https://github.com/aadhithya/micro/issues/35) | The Vercel AI SDK adapter |
-| [#36](https://github.com/aadhithya/micro/issues/36) | An example chat app, the guide and the skill reference |
+| [#29](https://github.com/aadhithya/featherweight/issues/29) | The epic |
+| [#30](https://github.com/aadhithya/featherweight/issues/30) | `StreamingAgent`, `ChatInput`, `runner.stream()`, the run log |
+| [#31](https://github.com/aadhithya/featherweight/issues/31) | LangChain's stream to AG-UI events, and `show_thoughts` |
+| [#32](https://github.com/aadhithya/featherweight/issues/32) | Messages in and out, converters, `new_messages` |
+| [#33](https://github.com/aadhithya/featherweight/issues/33) | Stopping a response, and keeping the partial turn |
+| [#34](https://github.com/aadhithya/featherweight/issues/34) | The AG-UI adapter |
+| [#35](https://github.com/aadhithya/featherweight/issues/35) | The Vercel AI SDK adapter |
+| [#36](https://github.com/aadhithya/featherweight/issues/36) | An example chat app, the guide and the skill reference |

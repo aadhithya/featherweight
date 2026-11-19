@@ -29,8 +29,8 @@ from ag_ui.core import (
 from fakes import FakeSettings, Streams, runner_with, tool_call_chunk
 from langchain_core.tools import tool
 
-from micro.adapters.errors import BadRequest
-from micro.adapters.vercel import (
+from featherweight.adapters.errors import BadRequest
+from featherweight.adapters.vercel import (
     DONE,
     HEADERS,
     Translator,
@@ -39,10 +39,10 @@ from micro.adapters.vercel import (
     to_agui_messages,
     translate,
 )
-from micro.db import Database
-from micro.model_settings import ModelSettings
-from micro.models import RunStatus
-from micro.streaming import StreamingAgent
+from featherweight.db import Database
+from featherweight.model_settings import ModelSettings
+from featherweight.models import RunStatus
+from featherweight.streaming import StreamingAgent
 
 
 class Chat(StreamingAgent):

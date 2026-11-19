@@ -12,13 +12,11 @@ from typing import ClassVar
 
 from pydantic import BaseModel, Field
 
+import featherweight as ftw
 from doclearn.assembly import _value_fits
 from doclearn.generation import render_structure
 from doclearn.models import FieldValue, InputField
 from doclearn.store import LearnedDocument
-from micro.model_settings import Gemini, ModelSettings
-from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus
-from micro.runner import AgentRunner
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +45,7 @@ call for.
 """
 
 
-class FormFillerInput(AgentInput):
+class FormFillerInput(ftw.AgentInput):
     category: str = Field(description="The document category.")
     structure: str = Field(description="The learned document tree as an outline: one block per line, nested by indent.")
     fields: list[InputField] = Field(description="The inputs of the document.")
@@ -55,19 +53,19 @@ class FormFillerInput(AgentInput):
     previous: str = Field(default="", description="The previous attempt, when there were problems.")
 
 
-class FormFillerOutput(AgentOutput):
+class FormFillerOutput(ftw.AgentOutput):
     facts: list[FieldValue] = Field(description="The values of the invented case, by field name.")
     story: str = Field(description="The story of the case, to guide the writing of the document.")
 
 
-class FormFillerAgent(AgentBase):
+class FormFillerAgent(ftw.AgentBase):
     name: str = "form_filler"
     description: str = "Invents a case for a learned template: the values of its inputs and a story"
     version: str = "0.1.0"
     prompt: str = PROMPT
-    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
-    input_model: ClassVar[type[AgentInput]] = FormFillerInput
-    output_model: ClassVar[type[AgentOutput]] = FormFillerOutput
+    model: ftw.ModelSettings = ftw.Gemini(model="gemini-3.5-flash-lite", thinking="low")
+    input_model: ClassVar[type[ftw.AgentInput]] = FormFillerInput
+    output_model: ClassVar[type[ftw.AgentOutput]] = FormFillerOutput
 
 
 class AutofillError(Exception):
@@ -103,14 +101,14 @@ def check_form(fields: list[InputField], facts: list[FieldValue]) -> list[str]:
 
 
 async def fill_form(
-    runner: AgentRunner,
+    runner: ftw.AgentRunner,
     learned: LearnedDocument,
     *,
     job_id: str | None = None,
     progress: Callable[[str], None] | None = None,
 ) -> FilledForm:
     """Invent a case for a learned template. Raises `AutofillError` if the agent fails or the problems stay after the
-    retries. Run it through `micro.jobs.run_job` like the other pipelines."""
+    retries. Run it through `featherweight.jobs.run_job` like the other pipelines."""
     schema = learned.facts_schema
     base = FormFillerInput(category=schema.category, structure=render_structure(learned.tree), fields=schema.fields)
     attempt_input = base
@@ -123,7 +121,7 @@ async def fill_form(
                 else f"Inventing the case again (attempt {attempt}): fixing {len(problems)} problems"
             )
         result = await runner.run(FormFillerAgent, attempt_input, job_id=job_id)
-        if result.status != RunStatus.SUCCESS:
+        if result.status != ftw.RunStatus.SUCCESS:
             raise AutofillError(f"The Form Filler failed: {result.error}")
         output = result.output
         problems = check_form(schema.fields, output.facts)

@@ -1,6 +1,6 @@
 """Copy the guides of `docs/` into the skill, so that the skill reads from the same source as the docs.
 
-    python scripts/build_skill.py          # write skills/micro/references/
+    python scripts/build_skill.py          # write skills/featherweight/references/
     python scripts/build_skill.py --check  # fail if they are out of date (the tests run this)
 
 `references/recipes.md` is written by hand and is not touched. A link to another copied guide stays relative, and every
@@ -13,9 +13,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-REFERENCES = ROOT / "skills" / "micro" / "references"
+REFERENCES = ROOT / "skills" / "featherweight" / "references"
 GUIDES = ["agents.md", "models.md", "launching-agents.md", "mcp.md", "skills.md", "streaming.md", "example-pipeline.md"]
-REPO_URL = "https://github.com/aadhithya/micro/blob/main"
+REPO_URL = "https://github.com/aadhithya/featherweight/blob/main"
 HEADER = "<!-- Copied from docs/{name} by scripts/build_skill.py. Edit the original, not this file. -->\n\n"
 
 LINK = re.compile(r"(?<!!)\[([^\]]*)\]\(([^)\s]+)\)")

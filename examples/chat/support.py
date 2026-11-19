@@ -7,8 +7,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))  # so that 
 
 from langchain_core.tools import BaseTool, tool  # noqa: E402
 
-from micro.model_settings import Claude, ModelSettings  # noqa: E402
-from micro.streaming import StreamingAgent  # noqa: E402
+import featherweight as ftw  # noqa: E402
 
 ORDERS = {"1001": "a blue kettle, shipped Monday, arrives Thursday", "1002": "two mugs, ships tomorrow"}
 
@@ -19,12 +18,14 @@ def lookup_order(order_id: str) -> str:
     return ORDERS.get(order_id, "There is no such order.")
 
 
-class Support(StreamingAgent):
+class Support(ftw.StreamingAgent):
     name: str = "support"
     description: str = "Answers customers of an online shop"
     version: str = "1"
     prompt: str = (
         "You are the support chat of an online shop. Answer in a sentence or two. Look orders up, never guess."
     )
-    model: ModelSettings = Claude(model="claude-haiku-5-5", effort="low", thinking="off", max_output_tokens=1000)
+    model: ftw.ModelSettings = ftw.Claude(
+        model="claude-haiku-5-5", effort="low", thinking="off", max_output_tokens=1000
+    )
     tools: list[BaseTool] = [lookup_order]

@@ -17,24 +17,24 @@ design and what was checked is in [specs/mcp-tools.md](specs/mcp-tools.md).
 ## Declaring a server
 
 ```python
-from micro.mcp import HttpMCPServer, StdioMCPServer
+import featherweight as ftw
 
 
 class Triager(AgentBase):
     ...
-    mcp_servers: list[StdioMCPServer | HttpMCPServer] = [
-        StdioMCPServer(
+    mcp_servers: list[ftw.StdioMCPServer | ftw.HttpMCPServer] = [
+        ftw.StdioMCPServer(
             name="github",
             command="npx",
             args=("-y", "@modelcontextprotocol/server-github"),
             env_from=("GITHUB_TOKEN",),  # names of environment variables, never values
             tools=("search_issues", "get_issue"),  # only these; leave it out for all of them
         ),
-        HttpMCPServer(name="docs", url="https://example.com/mcp", bearer_from="DOCS_TOKEN"),
+        ftw.HttpMCPServer(name="docs", url="https://example.com/mcp", bearer_from="DOCS_TOKEN"),
     ]
 ```
 
-Both are frozen Pydantic models, checked when they are built. Install the extra: `pip install 'micro[mcp]'`. The models
+Both are frozen Pydantic models, checked when they are built. Install the extra: `pip install 'featherweight[mcp]'`. The models
 import without it; it is needed when a server is connected.
 
 | Field | Default | |
@@ -139,8 +139,8 @@ Two parts, with different jobs:
 
 | | Is shared? | Does |
 |---|---|---|
-| **Connections** (`micro/mcp_connections.py`) | Yes: one per runner, across agents, runs and retries | Starts, shares and stops servers. Hands out a server's own tool list and its session. Knows nothing about an agent's names, filters, timeouts or caps |
-| **The agent's tools** (`micro/mcp_tools.py`, added to the attempt's registry) | No: one per attempt of one agent | Applies the agent's declaration to the server's tools: the `tools` filter, the `<server>_` prefix, the timeout and cap, and turning failures into text |
+| **Connections** (`featherweight/mcp_connections.py`) | Yes: one per runner, across agents, runs and retries | Starts, shares and stops servers. Hands out a server's own tool list and its session. Knows nothing about an agent's names, filters, timeouts or caps |
+| **The agent's tools** (`featherweight/mcp_tools.py`, added to the attempt's registry) | No: one per attempt of one agent | Applies the agent's declaration to the server's tools: the `tools` filter, the `<server>_` prefix, the timeout and cap, and turning failures into text |
 
 What can differ between two agents that share a server is on the agent's side. What cannot is on the connection's side.
 

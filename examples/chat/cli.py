@@ -12,17 +12,15 @@ from ag_ui.core import TextMessageContentEvent, ToolCallStartEvent
 from langchain_core.messages import BaseMessage, HumanMessage
 from support import Support
 
-from micro.db import Database, default_db_path
-from micro.runner import AgentRunner
-from micro.streaming import ChatInput
+import featherweight as ftw
 
 
 async def main() -> None:
-    history: list[BaseMessage] = []  # micro keeps no conversation: you do
-    async with Database(default_db_path()) as db, AgentRunner(db) as runner:
+    history: list[BaseMessage] = []  # featherweight keeps no conversation: you do
+    async with ftw.Database(ftw.default_db_path()) as db, ftw.AgentRunner(db) as runner:
         while text := input("\nyou> ").strip():
             user = HumanMessage(text)
-            run = runner.stream(Support, ChatInput.from_langchain([*history, user]))
+            run = runner.stream(Support, ftw.ChatInput.from_langchain([*history, user]))
             asyncio.get_running_loop().add_signal_handler(signal.SIGINT, run.cancel)  # Ctrl-C stops the answer
             async for event in run:
                 if isinstance(event, TextMessageContentEvent):

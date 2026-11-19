@@ -16,7 +16,7 @@ which use `claude-haiku-5-5` and need `ANTHROPIC_API_KEY` (so does `chat`).
 `launching`, `skills`, `mcp` and `resume` are one file of agents plus a script that runs them (`chat` is a script and a small web API), and they are the place to start. `doclearn`
 is bigger: five agents, two pipelines and sample documents. It has no tests of its own.
 
-The examples print answers only. `MICRO_LOG_LEVEL=INFO make example-mcp` (or any other example) also prints the log: each
+The examples print answers only. `FTW_LOG_LEVEL=INFO make example-mcp` (or any other example) also prints the log: each
 attempt, tool call, search and launch. `doclearn` has its own: `-v`.
 
 Each `make` target runs in Docker. Without Docker, run the script with `uv run python examples/<folder>/agent.py`

@@ -3,7 +3,7 @@ name: meeting-notes
 description: Turns raw meeting text into short tagged notes. Use when asked to summarise a meeting, a call or minutes into notes or action items.
 license: Apache-2.0
 metadata:
-  author: micro
+  author: featherweight
   version: "1.0"
 ---
 

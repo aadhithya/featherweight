@@ -11,9 +11,9 @@ from fakes import Streams, runner_with
 from pydantic import TypeAdapter
 from test_streaming import Chat, say
 
-from micro.adapters import BadRequest
-from micro.adapters.agui import CONTENT_TYPE, HEADERS, encode, parse_request
-from micro.models import RunStatus
+from featherweight.adapters import BadRequest
+from featherweight.adapters.agui import CONTENT_TYPE, HEADERS, encode, parse_request
+from featherweight.models import RunStatus
 
 BODY = {  # the shape of an AG-UI request
     "threadId": "thread-1",
@@ -51,7 +51,7 @@ def test_tools_state_and_context_are_ignored_and_tools_are_warned_about(caplog):
         "context": [{"description": "page", "value": "home"}],
         "forwardedProps": {"x": 1},
     }
-    with caplog.at_level(logging.WARNING, logger="micro.adapters.agui"):
+    with caplog.at_level(logging.WARNING, logger="featherweight.adapters.agui"):
         chat_input = parse_request(body)
     assert set(chat_input.model_dump()) == {"messages", "thread_id"}
     assert "agui_tools_ignored count=1" in caplog.text

@@ -8,10 +8,10 @@ from fakes import FakeSettings, Scripted, runner_with, structured_reply, tool_re
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
 
-from micro import tools as tools_module
-from micro.model_settings import ModelSettings
-from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus
-from micro.tools import add_to_date, calculate, current_datetime, days_between
+from featherweight import tools as tools_module
+from featherweight.model_settings import ModelSettings
+from featherweight.models import AgentBase, AgentInput, AgentOutput, RunStatus
+from featherweight.tools import add_to_date, calculate, current_datetime, days_between
 
 
 def calc(expression: str) -> str:

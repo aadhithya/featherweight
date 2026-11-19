@@ -5,11 +5,11 @@ from collections.abc import Callable, Sequence
 
 from pydantic import BaseModel, Field
 
+import featherweight as ftw
 from doclearn.assembly import DocumentConformance, assemble
 from doclearn.learning import FailedDocument, align_units, analyze_documents, reconcile
 from doclearn.models import Document
 from doclearn.store import LearnedStore
-from micro.runner import AgentRunner
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ class LearningResult(BaseModel):
 
 
 async def learn_document_tree(
-    runner: AgentRunner,
+    runner: ftw.AgentRunner,
     store: LearnedStore,
     documents: Sequence[Document],
     category: str,
@@ -39,7 +39,7 @@ async def learn_document_tree(
     Steps: analyze every document (a document that fails is skipped), reconcile the vocabulary, align each
     unit across the documents, assemble and check the tree, then save the reconciled template, the learned
     tree and the facts schema. Any hard failure raises `LearningError` (or the agent's own failure), so run it
-    through `micro.jobs.run_job`, which marks the job FAILED with the error and saves nothing:
+    through `featherweight.jobs.run_job`, which marks the job FAILED with the error and saves nothing:
 
         outcome = await run_job(db, "learn", lambda job_id: learn_document_tree(
             runner, store, documents, category, job_id=job_id))

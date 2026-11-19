@@ -27,10 +27,10 @@ from langchain_core.tools import tool
 from pydantic import ValidationError
 from stream_check import assert_valid
 
-from micro.fingerprint import input_hash
-from micro.model_settings import ModelSettings
-from micro.models import AgentBase, RunStatus
-from micro.streaming import ChatInput, StreamingAgent
+from featherweight.fingerprint import input_hash
+from featherweight.model_settings import ModelSettings
+from featherweight.models import AgentBase, RunStatus
+from featherweight.streaming import ChatInput, StreamingAgent
 
 
 class Chat(StreamingAgent):

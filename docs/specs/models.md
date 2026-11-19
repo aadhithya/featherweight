@@ -1,8 +1,8 @@
 # Spec: models and providers
 
-Status: implemented. How to use it is in [models.md](../models.md). The code is [model_settings.py](../../src/micro/model_settings.py).
+Status: implemented. How to use it is in [models.md](../models.md). The code is [model_settings.py](../../src/featherweight/model_settings.py).
 
-It was designed in [issue #2](https://github.com/aadhithya/micro/issues/2). It changes
+It was designed in [issue #2](https://github.com/aadhithya/featherweight/issues/2). It changes
 [agents](agents.md) (the `model_name` and `reasoning` fields), [the runner](runner.md#configuration) (the model factory is removed)
 and [jobs and tracing](jobs-and-tracing.md) (two columns).
 
@@ -95,7 +95,7 @@ default of 16,000 and the docs advise 64,000 or more at `xhigh` and `max`.
 ### Setup errors
 
 A provider package that is not installed, a missing key, and an invalid setting at build time are a `ModelSetupError`:
-not retried, as before. A package that is not installed says which extra to install (`pip install 'micro[anthropic]'`).
+not retried, as before. A package that is not installed says which extra to install (`pip install 'featherweight[anthropic]'`).
 
 ## Per provider
 
@@ -146,13 +146,13 @@ Subclass the class and add to its catalog. For example, GPT-5.x:
 ```python
 from typing import ClassVar
 
-from micro.model_settings import ModelInfo, OpenAI
+import featherweight as ftw
 
 
-class OpenAI5(OpenAI):
-    models: ClassVar[dict[str, ModelInfo]] = {
-        **OpenAI.models,
-        "gpt-5.5": ModelInfo(efforts=("none", "low", "medium", "high"), default="medium"),
+class OpenAI5(ftw.OpenAI):
+    models: ClassVar[dict[str, ftw.ModelInfo]] = {
+        **ftw.OpenAI.models,
+        "gpt-5.5": ftw.ModelInfo(efforts=("none", "low", "medium", "high"), default="medium"),
     }
 
 
@@ -197,7 +197,7 @@ checked in the source of each LangChain package, and with live calls:
 | OpenAI | Prompt tokens, cached included | Completion tokens, reasoning included |
 
 All three give `input_tokens` as the whole input and `output_tokens` as the whole output with thinking, so
-[`_usage`](../../src/micro/runner.py) needs no change. The reported model name is `response_metadata["model_name"]` for
+[`_usage`](../../src/featherweight/runner.py) needs no change. The reported model name is `response_metadata["model_name"]` for
 Gemini, Gemma, Claude and OpenAI. A class that does not set it (Ollama puts `model`) leaves `AgentResult.model_name` empty.
 Cache reads and writes are available in `input_token_details` and are not stored.
 
@@ -216,7 +216,7 @@ spec and the [guide](../agents.md) are updated.
 - `AgentBase`: `model_name` and `reasoning` are removed, `model` is added. **This breaks every agent.** The library is not
   released, and the examples, docs and tests change with it.
 - `ModelName` and `Reasoning` are removed. `ModelSettings`, `ModelInfo`, `Gemini`, `Gemma`, `Claude` and `OpenAI` are
-  in `micro.model_settings`.
+  in `featherweight.model_settings`.
 - `default_model_factory(agent)` becomes `agent.model.build()`, and the `model_factory` argument is removed
   ([testing](#testing)). The agent's settings are the only way to choose a model.
 - `pyproject.toml`: extras `anthropic` and `openai`, and both in the dev group.
@@ -236,7 +236,7 @@ the settings.
 - **One class per provider, with its own fields.** The controls differ in kind, so a shared `reasoning: Literal[...]` would
   be wrong for one of them. The label in the log is what is shared.
 - **A catalog per class, checked when the setting is built.** A typo, or an effort a model refuses, fails at definition time.
-  The cost is a change in [micro.] when a model ships, and a user class is the way round it.
+  The cost is a change in Featherweight when a model ships, and a user class is the way round it.
 - **No hook on the runner.** A second way to choose the model, used only by tests, would let a run use a model its
   declaration does not name, and would leave the declaration unable to say what ran. Tests use fake settings instead.
 - **No registry.** The class is the extension point and the runner calls `build()`. Nothing is registered.

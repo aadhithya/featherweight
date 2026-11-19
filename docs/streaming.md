@@ -23,16 +23,15 @@ Two small examples are in [`examples/chat`](../examples/chat): a chat in the ter
 ## A streaming agent
 
 ```python
-from micro.model_settings import Claude
-from micro.streaming import StreamingAgent
+import featherweight as ftw
 
 
-class Support(StreamingAgent):
+class Support(ftw.StreamingAgent):
     name: str = "support"
     description: str = "Answers questions about the product"
     version: str = "1"
     prompt: str = "You help customers. Be short."
-    model: ModelSettings = Claude(model="claude-sonnet-5-5", effort="low")
+    model: ModelSettings = ftw.Claude(model="claude-sonnet-5-5", effort="low")
     tools: list[BaseTool] = [lookup_order]
 ```
 
@@ -45,9 +44,9 @@ a sub-agent. `allow_user_questions` and `raise_conflicts` do nothing here, becau
 
 ```python
 from ag_ui.core import UserMessage
-from micro.streaming import ChatInput
+import featherweight as ftw
 
-chat_input = ChatInput(messages=[UserMessage(id="1", content="Where is my order?")], thread_id="t-17")
+chat_input = ftw.ChatInput(messages=[UserMessage(id="1", content="Where is my order?")], thread_id="t-17")
 run = runner.stream(Support, chat_input)
 async for event in run:
     print(event.type, getattr(event, "delta", ""))
@@ -94,7 +93,7 @@ they are shown or not: they are in [`run.new_messages`](#keeping-the-conversatio
 ## AG-UI
 
 The events are already [AG-UI's](https://docs.ag-ui.com), so the adapter is only the edge with HTTP
-(`micro.adapters.agui`). There is no server and no router, and it needs no web framework:
+(`featherweight.adapters.agui`). There is no server and no router, and it needs no web framework:
 
 | | |
 |---|---|
@@ -106,25 +105,24 @@ The events are already [AG-UI's](https://docs.ag-ui.com), so the adapter is only
 With Starlette (FastAPI is the same):
 
 ```python
-from micro.adapters import BadRequest
-from micro.adapters.agui import CONTENT_TYPE, HEADERS, encode, parse_request
+import featherweight as ftw
 from starlette.responses import JSONResponse, StreamingResponse
 
 
 async def chat(request):
     try:
-        chat_input = parse_request(await request.body())
-    except BadRequest as exc:
+        chat_input = ftw.agui.parse_request(await request.body())
+    except ftw.BadRequest as exc:
         return JSONResponse({"error": str(exc)}, status_code=422)
     run = runner.stream(Support, chat_input)
-    return StreamingResponse(encode(run), media_type=CONTENT_TYPE, headers=HEADERS)
+    return StreamingResponse(ftw.agui.encode(run), media_type=ftw.agui.CONTENT_TYPE, headers=ftw.agui.HEADERS)
 ```
 
 Sending the events as binary (protobuf) is not supported.
 
 ## The conversation is yours
 
-`micro` keeps no conversation. A `ChatInput` is the whole conversation so far, and the agent sees only that:
+`featherweight` keeps no conversation. A `ChatInput` is the whole conversation so far, and the agent sees only that:
 
 - the **last message is from the user**;
 - **`system` and `developer` messages are refused**: the agent has its own prompt, and a client must not be able to replace it;
@@ -136,9 +134,9 @@ refused when the `ChatInput` is built.
 
 ## Keeping the conversation
 
-`micro` stores nothing, so the application keeps the messages, with whatever it likes. The format to keep them in is
+`featherweight` stores nothing, so the application keeps the messages, with whatever it likes. The format to keep them in is
 **LangChain's messages**: its chat message histories read and write them, and they hold what the model needs on the next
-request (tool call ids, results, thoughts with their signature). The wire format with a client is AG-UI's. `micro` converts
+request (tool call ids, results, thoughts with their signature). The wire format with a client is AG-UI's. `featherweight` converts
 between the two:
 
 ```python
@@ -153,7 +151,7 @@ history.add_messages([user_message, *run.new_messages])  # to your store
 | `run.new_messages` | The LangChain messages of the turn: the assistant messages (with their tool calls and thoughts) and the tool results, in order. They fill up while the turn runs and are complete when the loop ends. After a failure it holds what had finished |
 | `ChatInput.from_langchain(messages, thread_id=None)` | The conversation from LangChain messages, such as `history.messages`. The last one is the user's |
 | `ChatInput.from_agui(request_or_messages, thread_id=None)` | The conversation from what an AG-UI client sent: a `RunAgentInput` (its `thread_id` is kept) or its messages |
-| `micro.messages.to_langchain(messages)`, `to_agui(messages)` | The converters, in both directions |
+| `featherweight.messages.to_langchain(messages)`, `to_agui(messages)` | The converters, in both directions |
 
 The converters keep tool call ids, tool results, and thoughts with their signature, so that a stored conversation can go back
 to the model. A round trip in either direction gives the same messages, with these exceptions:
@@ -166,11 +164,11 @@ to the model. A round trip in either direction gives the same messages, with the
   form when it comes back from AG-UI.
 
 Any store that takes LangChain messages works: a `BaseChatMessageHistory` from LangChain's packages, or a list in your own
-table. There is no LangGraph checkpointer: `micro` does not forward one.
+table. There is no LangGraph checkpointer: `featherweight` does not forward one.
 
 ## Vercel AI SDK
 
-`micro.adapters.vercel` speaks the [UI message stream](https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol) that `useChat` and the
+`featherweight.adapters.vercel` speaks the [UI message stream](https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol) that `useChat` and the
 other AI SDK clients read. It is not a server: it reads a request and gives you strings, and you send them with any web
 framework.
 
@@ -178,8 +176,7 @@ framework.
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from micro.adapters import BadRequest
-from micro.adapters.vercel import HEADERS, encode, parse_request
+import featherweight as ftw
 
 app = FastAPI()
 
@@ -187,10 +184,10 @@ app = FastAPI()
 @app.post("/chat")
 async def chat(request: Request):
     try:
-        chat_input = parse_request(await request.json())
-    except BadRequest as exc:
+        chat_input = ftw.vercel.parse_request(await request.json())
+    except ftw.BadRequest as exc:
         raise HTTPException(422, str(exc))
-    return StreamingResponse(encode(runner.stream(Support, chat_input)), headers=HEADERS)
+    return StreamingResponse(ftw.vercel.encode(runner.stream(Support, chat_input)), headers=ftw.vercel.HEADERS)
 ```
 
 - **The request.** `useChat` posts `{"id": ..., "messages": [UIMessage, ...]}`. `id` becomes the `thread_id`. A UIMessage's
@@ -308,7 +305,7 @@ to it:
 
 ## Background work, today
 
-A chat agent that hands work to a background agent has to be woken up when the work is done, and `micro` keeps no
+A chat agent that hands work to a background agent has to be woken up when the work is done, and `featherweight` keeps no
 conversation to wake. The application does it: start the work as a job (`db.create_job` and `asyncio.create_task(run_job(...))`),
 keep the conversation in your store, and when the job finishes start the next turn with the history and a message that carries
 the result. A launched sub-agent (`subagents`) is different: it blocks the chat turn until it returns. A background agent

@@ -1,6 +1,6 @@
 # Spec: agents
 
-Status: implemented. How to use it is in [agents.md](../agents.md). The code is [models.py](../../src/micro/models.py).
+Status: implemented. How to use it is in [agents.md](../agents.md). The code is [models.py](../../src/featherweight/models.py).
 
 - [Goal](#goal)
 - [The definition](#the-definition)

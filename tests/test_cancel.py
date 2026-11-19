@@ -9,9 +9,9 @@ from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, Too
 from langchain_core.tools import tool
 from stream_check import assert_valid
 
-from micro.model_settings import ModelSettings
-from micro.models import RunStatus
-from micro.streaming import ChatInput, StreamingAgent
+from featherweight.model_settings import ModelSettings
+from featherweight.models import RunStatus
+from featherweight.streaming import ChatInput, StreamingAgent
 
 
 class Chat(StreamingAgent):

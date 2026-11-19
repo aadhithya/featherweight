@@ -21,24 +21,24 @@ decided at run time, so an agent is easy to read, test and version.
 ```python
 from typing import ClassVar
 
-from micro.models import AgentBase, AgentInput, AgentOutput
+import featherweight as ftw
 
 
-class ExtractInput(AgentInput):
+class ExtractInput(ftw.AgentInput):
     text: str
 
 
-class ExtractOutput(AgentOutput):
+class ExtractOutput(ftw.AgentOutput):
     people: list[str] = []
 
 
-class PeopleExtractor(AgentBase):
+class PeopleExtractor(ftw.AgentBase):
     name: str = "people_extractor"
     description: str = "Finds the people named in a text"
     version: str = "0.1.0"
     prompt: str = "List every person named in the text."
-    input_model: ClassVar[type[AgentInput]] = ExtractInput
-    output_model: ClassVar[type[AgentOutput]] = ExtractOutput
+    input_model: ClassVar[type[ftw.AgentInput]] = ExtractInput
+    output_model: ClassVar[type[ftw.AgentOutput]] = ExtractOutput
 ```
 
 Pydantic does the specification work: the input is validated before the model is called, and the model's reply is
@@ -78,12 +78,11 @@ The model's system prompt is assembled from the pieces below, in this order. Its
 ## Running an agent
 
 ```python
-from micro.db import Database
-from micro.runner import AgentRunner
+import featherweight as ftw
 
-async with Database("micro.db") as db:
+async with ftw.Database("featherweight.db") as db:
     job_id = await db.create_job("demo")
-    runner = AgentRunner(db)
+    runner = ftw.AgentRunner(db)
     result = await runner.run(PeopleExtractor, ExtractInput(text="..."), job_id=job_id)
     results = await runner.run_many(
         PeopleExtractor, [ExtractInput(text="..."), ExtractInput(text="...")], job_id=job_id
@@ -164,7 +163,7 @@ output with the input. The example pipeline builds its trees from flat lists for
 the run store declares `runtime: ToolRuntime[RunContext]`; langchain fills it in and hides it from the model, so the
 model never passes a job id.
 
-Ready-made tools, in `micro.tools`:
+Ready-made tools, in `featherweight.tools`:
 
 | Tool | |
 |---|---|
@@ -189,9 +188,9 @@ A **job** is one run of a pipeline. `run_job` creates it, marks it `RUNNING`, aw
 `SUCCESS`, or `FAILED` with the error. A pipeline that raises comes back as a failed `JobOutcome`, not an exception.
 
 ```python
-from micro.jobs import run_job
+import featherweight as ftw
 
-outcome = await run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, job_id))
+outcome = await ftw.run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, job_id))
 # outcome.status, outcome.result (on success), outcome.error ("ExceptionType: message", on failure)
 ```
 
@@ -218,13 +217,13 @@ row **per attempt**:
 | `created_at`, `completed_at` | |
 
 ```
-sqlite3 micro.db "select agent_name, attempt, status, depth, error from agent_runs where job_id = '<job id>' order by rowid"
+sqlite3 featherweight.db "select agent_name, attempt, status, depth, error from agent_runs where job_id = '<job id>' order by rowid"
 ```
 
 A failed pipeline can be diagnosed from those rows, and resumed from them ([next section](#resuming-a-job)). An older
 database gets new columns when it is opened.
 
-Log lines go to stdout through `setup_logging()` (`micro.log`), such as `attempt_started agent_run_id=... attempt=1/3`.
+Log lines go to stdout through `setup_logging()` (`featherweight.log`), such as `attempt_started agent_run_id=... attempt=1/3`.
 
 **Why sqlite, and not OpenTelemetry or Langfuse?** To keep it as small and simple as possible: two tables, no
 collector, no account. A real deployment will want a proper backend. Every attempt passes through one loop in
@@ -240,7 +239,7 @@ outcome = await run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, jo
 ```
 
 This creates a **new job** that records `resumed_from`. Your pipeline runs again from the top, with its own loops and
-decisions. Only the agent runs are answered from the log. It is replay, not pausing: [micro.] is not a workflow engine.
+decisions. Only the agent runs are answered from the log. It is replay, not pausing: Featherweight is not a workflow engine.
 To create the job first, use `db.create_job(name, resume_from=old_job_id)` and pass its id with `job_id` (`run_job`
 refuses `job_id` and `resume_from` together). [`examples/resume`](../examples/resume) runs a pipeline that crashes halfway and
 resumes, with Claude Haiku (`make example-resume`).
@@ -265,7 +264,7 @@ does any step whose input depends on its output.
 What to know:
 
 - **The code between agents must be deterministic**: no clock, no `random`, no unordered iteration. It is your code, so
-  it is your responsibility, and [micro.] does not check it. If it takes another path, the agents get other inputs,
+  it is your responsibility, and Featherweight does not check it. If it takes another path, the agents get other inputs,
   nothing matches, and they run again.
 - **The run store is not used for resumption.** Outputs come from the run log. A reused step does not run, so a
   `store_set` it made does not happen again. Do not rely on the store for anything a resume needs.
@@ -285,7 +284,7 @@ What to know:
 | `MAX_CONCURRENT_AGENT_RUNS` | 10 | Model attempts running at once, per runner. A queued attempt shows as `INIT` until it gets a slot |
 | `MAX_AGENT_DEPTH` | 3 | Most agents in one chain of launches |
 | `MAX_AGENT_LAUNCHES` | 10 | Most launches per attempt of one agent |
-| `MICRO_DB_PATH` | `micro.db` | The sqlite file |
-| `MICRO_LOG_LEVEL` | `INFO` | Used by `setup_logging()` |
+| `FTW_DB_PATH` | `featherweight.db` | The sqlite file |
+| `FTW_LOG_LEVEL` | `INFO` | Used by `setup_logging()` |
 
 The three limits can also be set on `AgentRunner`; an argument wins over the variable. A value below 1 is refused.

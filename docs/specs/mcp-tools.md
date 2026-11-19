@@ -1,6 +1,6 @@
 # Spec: MCP tools
 
-Status: implemented. This is the design for [issue #1](https://github.com/aadhithya/micro/issues/1); how to use it is in
+Status: implemented. This is the design for [issue #1](https://github.com/aadhithya/featherweight/issues/1); how to use it is in
 [mcp.md](../mcp.md). It was checked against `langchain-mcp-adapters` 0.3.2 (see [Findings](#findings-from-the-adapter)).
 
 - [Goal and scope](#goal-and-scope)
@@ -95,7 +95,7 @@ opens. A missing variable is a setup failure that names the variable. Values nev
 hash.
 
 **The models import without the extra.** Only the runner imports `mcp` and the adapter, lazily, and a missing install
-raises a message that says `pip install micro[mcp]`.
+raises a message that says `pip install featherweight[mcp]`.
 
 ## The tool registry
 

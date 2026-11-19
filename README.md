@@ -1,4 +1,4 @@
-# [micro.]
+# Featherweight
 
 **An opinionated agent harness. Pydantic is the spec. Everything else follows.**
 
@@ -37,24 +37,24 @@ It has opinions. Take them, or fork off.
 ```python
 from typing import ClassVar
 
-from micro.models import AgentBase, AgentInput, AgentOutput
+import featherweight as ftw
 
 
-class ExtractInput(AgentInput):
+class ExtractInput(ftw.AgentInput):
     text: str
 
 
-class ExtractOutput(AgentOutput):  # also carries `open_questions: list[str]`
+class ExtractOutput(ftw.AgentOutput):  # also carries `open_questions: list[str]`
     people: list[str] = []
 
 
-class PeopleExtractor(AgentBase):
+class PeopleExtractor(ftw.AgentBase):
     name: str = "people_extractor"
     description: str = "Finds the people named in a text"
     version: str = "0.1.0"
     prompt: str = "List every person named in the text."
-    input_model: ClassVar[type[AgentInput]] = ExtractInput
-    output_model: ClassVar[type[AgentOutput]] = ExtractOutput
+    input_model: ClassVar[type[ftw.AgentInput]] = ExtractInput
+    output_model: ClassVar[type[ftw.AgentOutput]] = ExtractOutput
 
     def check_output(self, agent_input, output):  # rules a schema cannot express; raise to reject and retry
         missing = [p for p in output.people if p not in agent_input.text]
@@ -65,18 +65,16 @@ class PeopleExtractor(AgentBase):
 ```python
 import asyncio
 
-from micro.db import Database
-from micro.models import RunStatus
-from micro.runner import AgentRunner
+import featherweight as ftw
 
 
 async def main():
-    async with Database("micro.db") as db:
+    async with ftw.Database("featherweight.db") as db:
         job_id = await db.create_job("demo")
-        result = await AgentRunner(db).run(
+        result = await ftw.AgentRunner(db).run(
             PeopleExtractor, ExtractInput(text="Anna Berger met Tom Okafor on Monday."), job_id=job_id
         )
-        if result.status == RunStatus.SUCCESS:
+        if result.status == ftw.RunStatus.SUCCESS:
             print(result.output.people)
         else:
             print("failed:", result.error)  # runtime failures are returned, not raised
@@ -103,14 +101,14 @@ answered from the run log ([resuming a job](docs/agents.md#resuming-a-job)).
 
 ## Build with a coding agent
 
-There is a skill that teaches a coding agent to build with `micro`. In Claude Code:
+There is a skill that teaches a coding agent to build with `featherweight`. In Claude Code:
 
 ```
-/plugin marketplace add aadhithya/micro
-/plugin install micro@micro
+/plugin marketplace add aadhithya/featherweight
+/plugin install featherweight@featherweight
 ```
 
-Other tools that read Agent Skills: copy [`skills/micro`](skills/micro) into their skills folder.
+Other tools that read Agent Skills: copy [`skills/featherweight`](skills/featherweight) into their skills folder.
 
 ## Documentation
 
@@ -146,7 +144,7 @@ make pipeline ARGS="examples/doclearn/samples/project_proposals --category proje
 | `make example-resume` | Run the example that resumes a failed job |
 
 ```
-src/micro/            the harness
+src/featherweight/            the harness
 examples/launching/   an agent that launches other agents (make example-launching)
 examples/skills/      an agent that uses skills, with three skills (make example-skills)
 examples/mcp/         an agent that uses GitHub's MCP server (make example-mcp)
@@ -163,5 +161,3 @@ Issues and pull requests are welcome. How a release is made: [docs/releasing.md]
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE).
-
-<p align="center"><img src="docs/assets/micro.png" alt="[micro.]" width="520"></p>

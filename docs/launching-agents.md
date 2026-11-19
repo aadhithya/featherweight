@@ -118,7 +118,7 @@ Children are in the same job. Each row in `agent_runs` records:
 The whole tree of a job is one query:
 
 ```
-sqlite3 micro.db "select depth, agent_name, attempt, status, parent_agent_run_id from agent_runs where job_id = '<job id>' order by rowid"
+sqlite3 featherweight.db "select depth, agent_name, attempt, status, parent_agent_run_id from agent_runs where job_id = '<job id>' order by rowid"
 ```
 
 The log has one line per launch: `agent_launch parent_agent_run_id=... child=... depth=2 launch=1/10`.

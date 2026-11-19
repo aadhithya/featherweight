@@ -3,7 +3,7 @@
     uvicorn --app-dir examples/chat api:app
 
 Needs ANTHROPIC_API_KEY and the `anthropic` extra. Point an AG-UI client at `/agui`, or `useChat` of the Vercel AI SDK at
-`/vercel`. The client sends the whole conversation, and `micro` keeps none.
+`/vercel`. The client sends the whole conversation, and `featherweight` keeps none.
 """
 
 from contextlib import asynccontextmanager
@@ -12,35 +12,33 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from support import Support
 
-from micro.adapters import BadRequest, agui, vercel
-from micro.db import Database, default_db_path
-from micro.runner import AgentRunner
+import featherweight as ftw
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with Database(default_db_path()) as db, AgentRunner(db) as app.state.runner:
+    async with ftw.Database(ftw.default_db_path()) as db, ftw.AgentRunner(db) as app.state.runner:
         yield
 
 
 app = FastAPI(lifespan=lifespan)
 
 
-@app.exception_handler(BadRequest)
-async def bad_request(request: Request, exc: BadRequest):
+@app.exception_handler(ftw.BadRequest)
+async def bad_request(request: Request, exc: ftw.BadRequest):
     return JSONResponse({"error": str(exc)}, status_code=422)
 
 
 @app.post("/agui")
 async def agui_chat(request: Request):
-    run = request.app.state.runner.stream(Support, agui.parse_request(await request.body()))
-    return StreamingResponse(agui.encode(run), headers=agui.HEADERS, media_type=agui.CONTENT_TYPE)
+    run = request.app.state.runner.stream(Support, ftw.agui.parse_request(await request.body()))
+    return StreamingResponse(ftw.agui.encode(run), headers=ftw.agui.HEADERS, media_type=ftw.agui.CONTENT_TYPE)
 
 
 @app.post("/vercel")
 async def vercel_chat(request: Request):
-    run = request.app.state.runner.stream(Support, vercel.parse_request(await request.body()))
-    return StreamingResponse(vercel.encode(run), headers=vercel.HEADERS)
+    run = request.app.state.runner.stream(Support, ftw.vercel.parse_request(await request.body()))
+    return StreamingResponse(ftw.vercel.encode(run), headers=ftw.vercel.HEADERS)
 
 
 @app.post("/stop/{run_id}")

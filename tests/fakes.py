@@ -8,9 +8,9 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
 
-from micro.model_settings import ModelSettings
-from micro.models import AgentBase, AgentInput, AgentOutput
-from micro.runner import AgentRunner
+from featherweight.model_settings import ModelSettings
+from featherweight.models import AgentBase, AgentInput, AgentOutput
+from featherweight.runner import AgentRunner
 
 MODELS: dict[str, BaseChatModel] = {}  # the scripted chat models of the running test, by key; emptied for each test
 

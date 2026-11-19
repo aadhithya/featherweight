@@ -1,7 +1,7 @@
 # Spec: the agent runner
 
 Status: implemented. How to use it is in [agents.md](../agents.md) and [launching-agents.md](../launching-agents.md). The
-code is [runner.py](../../src/micro/runner.py).
+code is [runner.py](../../src/featherweight/runner.py).
 
 - [Goal](#goal)
 - [Running](#running)

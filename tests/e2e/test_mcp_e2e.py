@@ -7,10 +7,10 @@ import sys
 from pathlib import Path
 from typing import ClassVar
 
-from micro.mcp import StdioMCPServer
-from micro.model_settings import Gemini, ModelSettings
-from micro.models import AgentBase, AgentInput, AgentOutput, RunStatus
-from micro.runner import AgentRunner
+from featherweight.mcp import StdioMCPServer
+from featherweight.model_settings import Gemini, ModelSettings
+from featherweight.models import AgentBase, AgentInput, AgentOutput, RunStatus
+from featherweight.runner import AgentRunner
 
 SERVER = StdioMCPServer(
     name="fake",

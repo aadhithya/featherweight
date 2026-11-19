@@ -8,7 +8,7 @@ __pycache__/
 .mypy_cache/
 .DS_Store
 
-# sqlite databases (micro.db, e2e.db)
+# sqlite databases (featherweight.db, e2e.db)
 *.db
 *.db-journal
 *.db-wal

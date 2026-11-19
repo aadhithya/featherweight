@@ -1,6 +1,6 @@
 # Example pipeline: `doclearn`
 
-[`examples/doclearn`](../examples/doclearn) is a worked example of a pipeline on top of [micro.]: learn the template of a document
+[`examples/doclearn`](../examples/doclearn) is a worked example of a pipeline on top of Featherweight: learn the template of a document
 family from a few examples, then write a new document from a few facts. It is a demonstration of what the harness makes
 easy, not a finished product, and it is not specific to any domain. The sample documents (project proposals and
 incident reports) are in [`examples/doclearn/samples`](../examples/doclearn/samples).
@@ -44,7 +44,7 @@ It learns from the documents, shows what it learned (the tree, the template, the
 document conforms to the tree), then fills the form: **manual** opens the inputs in `$EDITOR`, **auto** has an agent
 invent a case and a story, which you accept, edit or redo. Last it generates the document. `--fill manual|auto` skips
 the question and `-v` shows every log line. Everything is saved in `runs/<time>_<category>/` (`run.log`, `learned/`,
-`facts.json`, `story.txt`, `generated.md`, `summary.md`) and in `micro.db`. Exit codes: 0 done, 1 failed, 2 stopped
+`facts.json`, `story.txt`, `generated.md`, `summary.md`) and in `featherweight.db`. Exit codes: 0 done, 1 failed, 2 stopped
 before generating.
 
 ## The agents
@@ -117,7 +117,7 @@ problems are returned in the result.
   attempts, not by guessing.
 
 To build your own: define the agents, write the pipeline as an async function of `(runner, ..., job_id)`, run it with
-`run_job`, and test it with a mocked model. [The agent skill](../skills/micro/references/recipes.md) has a scripted fake
+`run_job`, and test it with a mocked model. [The agent skill](../skills/featherweight/references/recipes.md) has a scripted fake
 chat model and a whole test file. Add a few real-model tests on small fixtures for what mocks cannot show.
 
 ## Limits
