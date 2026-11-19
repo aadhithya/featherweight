@@ -1,6 +1,6 @@
 # Spec: jobs and tracing
 
-Status: implemented, and being changed by the [persistence spec](persistence.md) (a metadata-only schema, numbered migrations, a `Database` protocol). How to use it is in [agents.md](../agents.md#jobs-and-tracing). The code is
+Status: implemented. How to use it is in [agents.md](../agents.md#jobs-and-tracing). The code is
 [db.py](../../src/featherweight/db.py), [jobs.py](../../src/featherweight/jobs.py) and [log.py](../../src/featherweight/log.py).
 
 - [Goal](#goal)
