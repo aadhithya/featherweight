@@ -12,6 +12,7 @@ as events, and nothing is validated at the end.
 - [Thoughts](#thoughts)
 - [AG-UI](#ag-ui)
 - [The conversation is yours](#the-conversation-is-yours)
+- [Vercel AI SDK](#vercel-ai-sdk)
 - [What is logged](#what-is-logged)
 - [How it differs from an agent](#how-it-differs-from-an-agent)
 - [What is not there yet](#what-is-not-there-yet)
@@ -133,6 +134,55 @@ Sending the events as binary (protobuf) is not supported.
 For now the history may have text from the user and the assistant only. Tool calls, tool results and thoughts in the history
 come with the messages part of the epic, together with converters to and from LangChain messages, so that you can keep the
 conversation in any LangChain chat message store.
+
+## Vercel AI SDK
+
+`micro.adapters.vercel` speaks the [UI message stream](https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol) that `useChat` and the
+other AI SDK clients read. It is not a server: it reads a request and gives you strings, and you send them with any web
+framework.
+
+```python
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import StreamingResponse
+
+from micro.adapters import BadRequest
+from micro.adapters.vercel import HEADERS, encode, parse_request
+
+app = FastAPI()
+
+
+@app.post("/chat")
+async def chat(request: Request):
+    try:
+        chat_input = parse_request(await request.json())
+    except BadRequest as exc:
+        raise HTTPException(422, str(exc))
+    return StreamingResponse(encode(runner.stream(Support, chat_input)), headers=HEADERS)
+```
+
+- **The request.** `useChat` posts `{"id": ..., "messages": [UIMessage, ...]}`. `id` becomes the `thread_id`. A UIMessage's
+  text parts are joined; an assistant message with tool parts becomes what the model saw (the assistant message with its tool
+  calls, then the tool results, then the next step's message), and its reasoning parts become reasoning messages. Files,
+  sources and `data-*` parts are ignored. The same rules as any `ChatInput`: no `system` message, and the last message is the
+  user's. `parse_request` raises `BadRequest` (a `ValueError`, also raised by the AG-UI adapter) for a body it cannot use, with the reason.
+- **The response.** Each AG-UI event becomes the part that the protocol page shows:
+
+  | AG-UI | Part |
+  |---|---|
+  | `RUN_STARTED` | `start` (its `messageId` is the run id) |
+  | `STEP_STARTED`, `STEP_FINISHED` | `start-step`, `finish-step` |
+  | `TEXT_MESSAGE_*` | `text-start`, `text-delta`, `text-end` |
+  | `REASONING_START`, `REASONING_MESSAGE_CONTENT`, `REASONING_END` | `reasoning-start`, `reasoning-delta`, `reasoning-end` |
+  | `TOOL_CALL_START`, `TOOL_CALL_ARGS`, `TOOL_CALL_END` | `tool-input-start`, `tool-input-delta`, `tool-input-available` (the arguments, parsed) |
+  | `TOOL_CALL_RESULT` | `tool-output-available` (the result, parsed when it is JSON) |
+  | `RUN_FINISHED` | `finish`, or `abort` when the run was stopped |
+  | `RUN_ERROR` | `error` |
+
+  The stream ends with `data: [DONE]`. `HEADERS` has `x-vercel-ai-ui-message-stream: v1`. Events with no part (state,
+  activity, and the opaque value of a thought) are dropped: the Vercel client does not need them, and you keep the messages
+  yourself.
+- **A client that goes away.** Stop iterating `encode(...)` (a web framework does when the connection drops) and the run stops.
+- **The version.** Written against the protocol as documented on 2026-11-19. The stream is versioned by its header (`v1`).
 
 ## What is logged
 
