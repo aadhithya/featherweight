@@ -7,13 +7,14 @@ check and no retry. See docs/streaming.md.
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from typing import ClassVar
 
-from ag_ui.core import BaseEvent, Message, TokenUsage
+from ag_ui.core import BaseEvent, Message, RunAgentInput, TokenUsage
+from langchain_core.messages import BaseMessage
 from pydantic import Field, model_validator
 
-from micro.messages import check_supported
+from micro.messages import to_agui, to_langchain
 from micro.models import AgentBase, AgentInput, RunStatus
 
 logger = logging.getLogger(__name__)
@@ -40,8 +41,20 @@ class ChatInput(AgentInput):
                 )
         if self.messages[-1].role != "user":
             raise ValueError(f"The last message must be from the user, not {self.messages[-1].role}")
-        check_supported(self.messages)
+        to_langchain(self.messages)  # refuses what cannot be converted, here and not in the middle of a run
         return self
+
+    @classmethod
+    def from_langchain(cls, messages: Sequence[BaseMessage], thread_id: str | None = None) -> "ChatInput":
+        """The conversation from LangChain messages, such as the ones a chat message history holds. The last is the user's."""
+        return cls(messages=to_agui(messages), thread_id=thread_id)
+
+    @classmethod
+    def from_agui(cls, request: RunAgentInput | Sequence[Message], thread_id: str | None = None) -> "ChatInput":
+        """The conversation from what an AG-UI client sent: a `RunAgentInput` (its thread id is kept) or its messages."""
+        if isinstance(request, RunAgentInput):
+            return cls(messages=list(request.messages), thread_id=thread_id or request.thread_id)
+        return cls(messages=list(request), thread_id=thread_id)
 
 
 class StreamingAgent(AgentBase):
@@ -63,15 +76,23 @@ class StreamingRun:
 
     The run starts when the loop starts, and ends when the loop ends. Leaving the loop early stops the run.
     `status` is `INIT` until the loop starts, then `RUNNING`, then `SUCCESS` or `FAILED`; `error` says why it failed.
-    `usage` is the tokens of the turn, known when the run ends."""
+    `usage` is the tokens of the turn, known when the run ends. `new_messages` is what the turn produced."""
 
     def __init__(self, run_id: str, start: Callable[["StreamingRun", Callable[[BaseEvent], None]], Awaitable[None]]):
         self.run_id = run_id
         self.status = RunStatus.INIT
         self.error: str | None = None
         self.usage: TokenUsage | None = None
+        self._new_messages: list[BaseMessage] = []
         self._start = start
         self._used = False
+
+    @property
+    def new_messages(self) -> list[BaseMessage]:
+        """The LangChain messages this turn produced: the assistant messages (with their tool calls and thoughts) and the
+        tool results, in order. They fill up as the turn goes and are complete when the loop ends. Store them next to the
+        history you sent: `history.add_messages(run.new_messages)`."""
+        return list(self._new_messages)
 
     def __aiter__(self) -> AsyncIterator[BaseEvent]:
         if self._used:

@@ -19,7 +19,7 @@ from ag_ui.core import (
     TokenUsage,
 )
 from langchain.agents import create_agent
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_core.tools import BaseTool, tool
 from pydantic import ValidationError
 
@@ -321,7 +321,7 @@ class AgentRunner:
                         raise setup_error
                     context = RunContext(store=self.store, job_id=job_id, agent_run_id=run.run_id)
                     async for event in self._stream_events(
-                        agent, chat_input, system_prompt, context, slot, can_launch, registry, mapper
+                        agent, chat_input, system_prompt, context, slot, can_launch, registry, mapper, run._new_messages
                     ):
                         emit(event)
                         if isinstance(event, TextMessageContentEvent):
@@ -400,22 +400,31 @@ class AgentRunner:
         can_launch: bool,
         registry: ToolRegistry,
         mapper: EventMapper,
+        new_messages: list[BaseMessage],
     ):
-        """Stream the LangChain agent and yield the events of what it writes."""
+        """Stream the LangChain agent and yield the events of what it writes. The messages it produces are added to
+        `new_messages` as each node finishes, so that a turn that is stopped or fails keeps what it had."""
         try:
             model = agent.model.build()
         except Exception as exc:
             raise ModelSetupError(str(exc)) from exc
         self._add_runner_tools(agent, context, slot, 1, can_launch, registry)
         lc_agent = create_agent(model, tools=registry.tools, system_prompt=system_prompt, context_schema=RunContext)
-        async for chunk, _metadata in lc_agent.astream(
+        async for mode, data in lc_agent.astream(
             {"messages": to_langchain(chat_input.messages)},
             config={"recursion_limit": agent.recursion_limit},
             context=context,
-            stream_mode="messages",
+            stream_mode=["messages", "updates"],
         ):
-            for event in mapper.feed(chunk):
-                yield event
+            if mode == "messages":
+                chunk, _metadata = data
+                for event in mapper.feed(chunk):
+                    yield event
+            else:  # "updates": what a finished node returned; the messages are what the application will keep
+                for update in data.values() if isinstance(data, dict) else []:
+                    for message in (update or {}).get("messages", []):
+                        if isinstance(message, AIMessage | ToolMessage):
+                            new_messages.append(message)
 
     @staticmethod
     def _runner_tool_names(agent: AgentBase, can_launch: bool) -> list[str]:

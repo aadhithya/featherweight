@@ -81,18 +81,12 @@ def test_there_must_be_a_message():
         ChatInput(messages=[])
 
 
-def test_tool_calls_in_the_history_are_refused_for_now():
-    from ag_ui.core import FunctionCall, ToolCall
+def test_content_that_is_not_text_is_refused_when_the_input_is_built():
+    from ag_ui.core import ImagePart, UrlSource
 
-    call = ToolCall(id="c", function=FunctionCall(name="x", arguments="{}"))
-    with pytest.raises(ValidationError, match="tool calls in the history"):
-        ChatInput(
-            messages=[
-                UserMessage(id="1", content="hi"),
-                AgUiAssistant(id="2", content=None, tool_calls=[call]),
-                UserMessage(id="3", content="and?"),
-            ]
-        )
+    image = ImagePart(source=UrlSource(value="https://example.com/a.png", mime_type="image/png"))
+    with pytest.raises(ValidationError, match="not text"):
+        ChatInput(messages=[UserMessage(id="1", content=[image])])
 
 
 def test_a_streaming_agent_has_its_prompt_only():
