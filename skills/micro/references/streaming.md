@@ -5,9 +5,8 @@
 An agent that talks to a person while it works: a chat, or any task someone watches. The answer arrives as the model writes it,
 as events, and nothing is validated at the end.
 
-> **Status: being built** ([epic #29](https://github.com/aadhithya/micro/issues/29)). What works today is on this page. The
-> design is in the [spec](https://github.com/aadhithya/micro/blob/main/docs/specs/streaming.md), which also lists what is still to come: tool calls in the history, stopping a
-> response, and the Vercel AI SDK adapter.
+A runnable example, a small web app with all of this, is in [`examples/chat`](https://github.com/aadhithya/micro/blob/main/examples/chat). The design is in the
+[spec](https://github.com/aadhithya/micro/blob/main/docs/specs/streaming.md).
 
 - [A streaming agent](#a-streaming-agent)
 - [Streaming a turn](#streaming-a-turn)
@@ -17,9 +16,11 @@ as events, and nothing is validated at the end.
 - [Keeping the conversation](#keeping-the-conversation)
 - [Vercel AI SDK](#vercel-ai-sdk)
 - [Stopping a response](#stopping-a-response)
+- [The example](#the-example)
 - [What is logged](#what-is-logged)
 - [How it differs from an agent](#how-it-differs-from-an-agent)
-- [What is not there yet](#what-is-not-there-yet)
+- [Background work, today](#background-work-today)
+- [Not supported](#not-supported)
 
 ## A streaming agent
 
@@ -227,8 +228,9 @@ run.cancel()  # from anywhere in the same process
 runner.cancel(run_id)  # by the id of RUN_STARTED, for a stop button's request; False when no such run is going on here
 ```
 
-and a **reader that leaves**: when the client drops the connection, your web framework stops iterating, and the run stops
-(close the run yourself with `contextlib.aclosing` if you break out of the loop).
+and a **reader that leaves**: when the client drops the connection, your web framework closes the stream, and the run stops.
+Close it yourself if you stop reading early: `async with contextlib.aclosing(aiter(run)) as events:` (a plain `break` leaves the
+run going until the generator is collected).
 
 **A stop ends the stream cleanly.** The model call is cancelled, everything that was open is closed, and the last event is
 `RUN_FINISHED` with the `cancelled` outcome (Vercel: `abort`), so the code after your loop runs. The run's row is `CANCELLED`, its
@@ -247,13 +249,17 @@ said and done, cleaned up so that it is valid to send back:
 | A thought was streaming | The thought **only if it has its signature** (a provider rejects one without); the text is kept either way |
 
 `new_messages` is filled when the run ends, whatever ended it, so it is there after a reader that left too: save it in a
-`finally`. A turn that **fails** is closed the same way (its text so far, no call without a result).
+`finally`, **after the stream is closed** (use `aclosing`, as below, or the run may not be over yet). A turn that **fails** is
+closed the same way (its text so far, no call without a result).
 
 ```python
+from contextlib import aclosing
+
 run = runner.stream(Support, ChatInput.from_langchain([*history.messages, user_message]))
 try:
-    async for event in run:
-        yield encoder.encode(event)
+    async with aclosing(agui.encode(run)) as pieces:
+        async for piece in pieces:
+            yield piece
 finally:
     history.add_messages([user_message, *run.new_messages])
 ```
@@ -292,7 +298,36 @@ The slot is held for the whole stream. A streaming run is never reused when a jo
 | Rows | one per attempt | one per turn |
 | System prompt | the prompt, plus the instructions for questions and conflicts | the prompt |
 
-## What is not there yet
+## The example
 
-Tracked in [epic #29](https://github.com/aadhithya/micro/issues/29): an example and the full guide (#36).
-Background agents, jobs across processes and stored conversations are not part of it.
+[`examples/chat`](https://github.com/aadhithya/micro/blob/main/examples/chat) is a small Starlette app over a support-chat agent with one tool, on `claude-haiku-5-5`:
+
+| Endpoint | |
+|---|---|
+| `POST /agui` | AG-UI. The client sends the whole conversation |
+| `POST /vercel` | The Vercel AI SDK (`useChat`). The client sends the whole conversation |
+| `POST /chat/{thread_id}` | The server keeps the conversation: send `{"message": "..."}`, get AG-UI events. It loads the history, streams, and saves `run.new_messages` when the stream is over, also when the client left halfway |
+| `GET /chat/{thread_id}` | What the server kept, as AG-UI messages |
+| `POST /stop/{run_id}` | `runner.cancel(run_id)` |
+
+Its store is a dict. `micro` keeps no conversation, so a real app puts a database behind the same two calls (load the messages,
+add `run.new_messages`): LangChain's chat message histories do this job.
+
+## Background work, today
+
+A chat agent that hands work to a background agent has to be woken up when the work is done, and `micro` keeps no
+conversation to wake. The application does it: start the work as a job (`db.create_job` and `asyncio.create_task(run_job(...))`),
+keep the conversation in your store, and when the job finishes start the next turn with the history and a message that carries
+the result. A launched sub-agent (`subagents`) is different: it blocks the chat turn until it returns. A background agent
+that the chat carries on without is [parked](https://github.com/aadhithya/micro/blob/main/docs/specs/streaming.md#not-supported) as an epic of its own, after jobs.
+
+## Not supported
+
+- **Retries.** A failed turn is an error event and a `FAILED` row.
+- **Streaming sub-agents.** A launched agent is a tool call with a result.
+- **Client-side tools,** shared state and interrupts of AG-UI: ignored.
+- **Stored conversations, sessions, a LangGraph checkpointer.** Keep the messages yourself.
+- **Structured or validated output** from a streaming agent.
+- **Stopping across processes.** `cancel()` works in the process that runs the stream.
+- **A web server or router.** The adapters give you strings, you send them.
+- **Background agents** and jobs across processes: not part of streaming.

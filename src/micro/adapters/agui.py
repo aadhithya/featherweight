@@ -3,7 +3,7 @@ request into a `ChatInput`, and encode the events of a run as server-sent events
 
 import json
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from typing import Any
 
 from ag_ui.core import RunAgentInput
@@ -47,7 +47,7 @@ def parse_request(body: dict[str, Any] | bytes | str) -> ChatInput:
         raise BadRequest(f"The conversation is not valid: {_problems(exc)}") from exc
 
 
-async def encode(run: StreamingRun) -> AsyncIterator[str]:
+async def encode(run: StreamingRun) -> AsyncGenerator[str, None]:
     """The events of `run` as server-sent events, one string each (`data: {...}` and a blank line), for the body of a
     streaming response. Leaving the loop early stops the run."""
     encoder = EventEncoder()

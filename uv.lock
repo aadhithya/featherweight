@@ -991,6 +991,7 @@ openai = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "httpx" },
     { name = "langchain-anthropic" },
     { name = "langchain-mcp-adapters" },
     { name = "langchain-openai" },
@@ -998,7 +999,9 @@ dev = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
+    { name = "starlette" },
     { name = "ty" },
+    { name = "uvicorn" },
 ]
 
 [package.metadata]
@@ -1020,6 +1023,7 @@ provides-extras = ["mcp", "anthropic", "openai"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "langchain-anthropic", specifier = ">=1.7" },
     { name = "langchain-mcp-adapters", specifier = ">=0.3.2" },
     { name = "langchain-openai", specifier = ">=1.8" },
@@ -1027,7 +1031,9 @@ dev = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff", specifier = ">=0.17.5" },
+    { name = "starlette", specifier = ">=1.10.0" },
     { name = "ty", specifier = ">=0.0.105" },
+    { name = "uvicorn", specifier = ">=0.54.0" },
 ]
 
 [[package]]

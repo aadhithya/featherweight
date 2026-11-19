@@ -10,7 +10,7 @@ not supported, tests.
 | [The agent runner](runner.md) | Running, results, attempts and retries, concurrency, **launching agents**, limits |
 | [Models and providers](models.md) | `ModelSettings`: Gemini, Gemma, Claude and OpenAI, the catalog, temperature, extending it, tokens |
 | [Jobs and tracing](jobs-and-tracing.md) | Jobs, the run log, statuses, logging |
-| [Streaming agents](streaming.md) | `StreamingAgent`, `runner.stream()`, AG-UI events, thoughts, stopping a response, messages, the AG-UI and Vercel adapters (designed, not built) |
+| [Streaming agents](streaming.md) | `StreamingAgent`, `runner.stream()`, AG-UI events, thoughts, stopping a response, messages, the AG-UI and Vercel adapters |
 | [Skills](skills.md) | The skill model, loading, how an agent reads a skill, the Agent Skills specification |
 | [Tools, the registry and the store](tools-and-store.md) | Tools on an agent, the tool registry, the ready-made tools, the run context, the run store |
 | [Tool discovery](tool-discovery.md) | Finding MCP tools by keyword: `discover`, `search_tools`, `call_tool`, matching |

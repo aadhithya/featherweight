@@ -7,7 +7,7 @@ check and no retry. See docs/streaming.md.
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from typing import ClassVar
 
 from ag_ui.core import BaseEvent, Message, RunAgentInput, TokenUsage
@@ -105,13 +105,13 @@ class StreamingRun:
         if self._interrupt is not None:
             self._interrupt()
 
-    def __aiter__(self) -> AsyncIterator[BaseEvent]:
+    def __aiter__(self) -> AsyncGenerator[BaseEvent, None]:
         if self._used:
             raise RuntimeError("A streaming run can be looped over once")
         self._used = True
         return self._events()
 
-    async def _events(self) -> AsyncIterator[BaseEvent]:
+    async def _events(self) -> AsyncGenerator[BaseEvent, None]:
         """The run works in a task of its own, so that its cleanup runs whatever the reader does."""
         queue: asyncio.Queue[object] = asyncio.Queue()
 

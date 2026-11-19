@@ -25,7 +25,7 @@ It has opinions. Take them, or fork off.
 - **Everything is on record.** Every attempt goes in sqlite: tokens, errors, which agent launched which. OpenTelemetry?
   Too big. (See [agents](docs/agents.md#jobs-and-tracing).)
 - **Talks while it works.** A streaming agent streams its answer as [AG-UI](docs/streaming.md) events, with no output to
-  validate and no retry, for chat. (Being built: [epic #29](https://github.com/aadhithya/micro/issues/29).)
+  validate and no retry, for chat. The Vercel AI SDK works too, and the user can stop it midway and correct it.
 - **Plug things in.** The model (Gemini, Gemma, Claude, OpenAI, or your own subclass), MCP servers and skills are
   declared on the agent. Tool schemas and skill instructions stay out of the context until the agent needs them.
 
