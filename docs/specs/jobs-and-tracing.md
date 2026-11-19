@@ -3,6 +3,8 @@
 Status: implemented. How to use it is in [agents.md](../agents.md#jobs-and-tracing). The code is
 [db.py](../../src/featherweight/db.py), [jobs.py](../../src/featherweight/jobs.py) and [log.py](../../src/featherweight/log.py).
 
+> **Change in progress:** `Database` becomes an abstract class with `SqliteDatabase` and `PostgresDatabase`, the schema holds metadata only (no input, output, tool names or error text), it is made by numbered migrations, and a job opts in to being resumed (`resumable`). See the [persistence spec](persistence.md).
+
 - [Goal](#goal)
 - [Jobs](#jobs)
 - [The run log](#the-run-log)
