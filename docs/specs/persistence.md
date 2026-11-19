@@ -182,12 +182,16 @@ class ResultStore(ABC):
     async def delete_job(self, job_id: str) -> None: ...
 
 
-@dataclass(frozen=True)
-class ResultKey:
+class ResultKey(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     job_id: str
-    agent_hash: str
-    input_hash: str
+    agent_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
 ```
+
+`ResultKey` is a frozen Pydantic model, like every typed class here (records, rows, settings): no dataclasses. A malformed hash is
+refused when the key is built, for every store; the conformance kit uses real hashes.
 
 **The contract.** An output is JSON (a `dict`). `get` returns what `put` stored for the key, equal as JSON, or `None`. `put` on a key
 that exists replaces it. Calls can be concurrent. `delete_job` removes every result of a job and does not fail when there are none.
@@ -257,6 +261,8 @@ that must route by tenant can do so from the job id of its keys, or be one per t
 
 - **Metadata only, for every agent.** The rule is the framework's, not a streaming special case.
 - **Hashes where names or content could show:** `tools_hash` instead of `tool_names`, `error_type` and `error_hash` instead of the text.
+- **Pydantic for every typed class** (records, rows, keys, settings), not dataclasses: one way to define a typed object, with
+  validation for free. (The three dataclasses that exist today are internal runtime objects, left as they are.)
 - **Abstract classes** (`Database`, `ResultStore`), not protocols: an implementation that misses a method cannot be built. A conformance
   kit checks behaviour, which neither a protocol nor an abstract class can.
 - **A result store only for sqlite, opt-in per job,** keyed by `(job, agent hash, input hash)`, with the result copied forward.
