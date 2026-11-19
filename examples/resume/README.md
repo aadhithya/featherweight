@@ -23,18 +23,25 @@ from the summaries.
 ```
 first run: the process dies after the summaries
   job FAILED: RuntimeError: simulated crash: the process died after the summaries
-  summariser     SUCCESS  412 in / 71 out
-  ... (four summaries)
+  summariser     SUCCESS  678 in / 69 out
+  summariser     SUCCESS  677 in / 77 out
+  summariser     SUCCESS  678 in / 73 out
+  summariser     SUCCESS  670 in / 67 out
 
 second run: the same pipeline, with resume_from the first job
   job SUCCESS
   summariser     SUCCESS  0 in / 0 out   reused, no model call
-  ... (four reused summaries)
-  release_notes  SUCCESS  290 in / 140 out
+  summariser     SUCCESS  0 in / 0 out   reused, no model call
+  summariser     SUCCESS  0 in / 0 out   reused, no model call
+  summariser     SUCCESS  0 in / 0 out   reused, no model call
+  release_notes  SUCCESS  785 in / 259 out
+
+Release notes: This release fixes a crash on unknown job IDs, adds a configurable retry delay, ...
 ```
 
-This is an illustration: the token counts are made up, and yours will differ. Each reused row has `reused_from_agent_run_id` pointing at the row it came from, so the trace of
-the second job says where every result came from.
+That is a real run (the notes are cut short here). Token counts vary a little between runs. Each reused row has
+`reused_from_agent_run_id` pointing at the row it came from, so the trace of the second job says where every result
+came from.
 
 ## Things to try
 
