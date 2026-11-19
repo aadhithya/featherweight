@@ -11,6 +11,7 @@ not supported, tests.
 | [Models and providers](models.md) | `ModelSettings`: Gemini, Gemma, Claude and OpenAI, the catalog, temperature, extending it, tokens |
 | [Jobs and tracing](jobs-and-tracing.md) | Jobs, the run log, statuses, logging |
 | [The run log and the persistence boundary](persistence.md) | What Featherweight keeps and never keeps, hashes, `Database` and `ResultStore`, migrations, the schema, resumable jobs, Postgres (designed, not built) |
+| [Submitted jobs](submitted-jobs.md) | A job as a declared class, `JobQueue`, `JobClient`, `JobWorker`, cancelling, job events and SSE (designed, not built) |
 | [Streaming agents](streaming.md) | `StreamingAgent`, `runner.stream()`, AG-UI events, thoughts, stopping a response, messages, the AG-UI and Vercel adapters |
 | [Skills](skills.md) | The skill model, loading, how an agent reads a skill, the Agent Skills specification |
 | [Tools, the registry and the store](tools-and-store.md) | Tools on an agent, the tool registry, the ready-made tools, the run context, the run store |
