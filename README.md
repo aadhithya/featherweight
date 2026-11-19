@@ -24,6 +24,8 @@ It has opinions. Take them, or fork off.
   wide. A runaway recursion dies.
 - **Everything is on record.** Every attempt goes in sqlite: tokens, errors, which agent launched which. OpenTelemetry?
   Too big. (See [agents](docs/agents.md#jobs-and-tracing).)
+- **Talks while it works.** A streaming agent streams its answer as [AG-UI](docs/streaming.md) events, with no output to
+  validate and no retry, for chat. (Being built: [epic #29](https://github.com/aadhithya/micro/issues/29).)
 - **Plug things in.** The model (Gemini, Gemma, Claude, OpenAI, or your own subclass), MCP servers and skills are
   declared on the agent. Tool schemas and skill instructions stay out of the context until the agent needs them.
 
@@ -91,7 +93,8 @@ Set `GOOGLE_API_KEY` first. The default model is Gemini, and the [other provider
 They are. Use them. This is built on LangChain and LangGraph anyway.
 
 - **Boredom.** Every agent project needs the same retries, limits and MCP wiring. I wrote them once and got on with my day.
-- **Background agents only.** Pipelines, batches, fan-out. No chat, no UI, no streaming. Nobody is watching the tokens.
+- **Mostly background agents.** Pipelines, batches, fan-out: nobody is watching the tokens. A chat agent streams its answer
+  ([streaming agents](docs/streaming.md)), but there is no UI, and no stored conversations.
 - **Very opinionated.** Sorry, not sorry. Don't like them? Fork off.
 
 Want durable execution, evals or OpenTelemetry? Pydantic AI. Want a graph that pauses and resumes? LangGraph. Here, a failed job is run again with

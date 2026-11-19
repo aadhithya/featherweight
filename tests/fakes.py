@@ -5,8 +5,8 @@ import json
 from typing import Any, ClassVar
 
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, HumanMessage
-from langchain_core.outputs import ChatGeneration, ChatResult
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
+from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
 
 from micro.model_settings import ModelSettings
 from micro.models import AgentBase, AgentInput, AgentOutput
@@ -177,3 +177,49 @@ def flat_blocks(nodes: list[dict]) -> list[dict]:
     for node in nodes:
         add(node, "")
     return blocks
+
+
+class Streams(BaseChatModel):
+    """A chat model that streams a script. Each model call streams the next turn of `turns`: a list of pieces of text,
+    each piece one chunk, or an exception to raise. A piece may also be an `AIMessageChunk` (for a tool call). The last
+    chunk of a turn carries `usage` as (input, output) tokens. `seen` holds the messages of each call."""
+
+    turns: list[Any]
+    usage: tuple[int, int] = (3, 4)
+    delay_s: float = 0.0
+    calls: int = 0
+    seen: list[Any] = []
+
+    @property
+    def _llm_type(self) -> str:
+        return "streams"
+
+    def bind_tools(self, tools, **kwargs):
+        return self
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        raise AssertionError("a streaming agent must stream")
+
+    async def _astream(self, messages, stop=None, run_manager=None, **kwargs):
+        self.seen.append(messages)
+        turn = self.turns[self.calls]
+        turn_id = f"turn-{self.calls}"
+        self.calls += 1
+        for index, piece in enumerate(turn):
+            if isinstance(piece, Exception):
+                raise piece
+            if self.delay_s:
+                await asyncio.sleep(self.delay_s)
+            last = index == len(turn) - 1
+            usage = {"input_tokens": self.usage[0], "output_tokens": self.usage[1], "total_tokens": sum(self.usage)}
+            if isinstance(piece, AIMessageChunk):
+                chunk = piece.model_copy(update={"id": turn_id, "usage_metadata": usage if last else None})
+            else:
+                chunk = AIMessageChunk(content=piece, id=turn_id, usage_metadata=usage if last else None)
+            yield ChatGenerationChunk(message=chunk)
+
+
+def tool_call_chunk(name: str, args: dict, call_id: str) -> AIMessageChunk:
+    return AIMessageChunk(
+        content="", tool_call_chunks=[{"name": name, "args": json.dumps(args), "id": call_id, "index": 0}]
+    )

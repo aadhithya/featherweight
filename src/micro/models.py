@@ -112,6 +112,8 @@ class AgentBase(BaseModel):
 
     input_model: ClassVar[type[AgentInput]] = AgentInput
     output_model: ClassVar[type[AgentOutput]] = AgentOutput
+    # True for a `StreamingAgent` (micro/streaming.py): it is run with `runner.stream()`, not `runner.run()`.
+    streaming: ClassVar[bool] = False
 
     @model_validator(mode="after")
     def _check_subagents(self):
@@ -119,6 +121,8 @@ class AgentBase(BaseModel):
         for sub in self.subagents:
             if not (isinstance(sub, type) and issubclass(sub, AgentBase)):
                 raise ValueError(f"subagents must be AgentBase classes, got {sub!r}")
+            if sub.streaming:
+                raise ValueError(f"{self.name} lists {sub.__name__} in subagents: a streaming agent cannot be launched")
             if sub is type(self):
                 raise ValueError(f"{self.name} lists itself in subagents: an agent can only launch other agents")
             names.append(sub().name)  # ty: ignore[missing-argument]  # a subclass supplies the defaults
@@ -169,6 +173,14 @@ class AgentBase(BaseModel):
                 return agent
         return None
 
+    def _leading_prompt_parts(self) -> list[str]:
+        """The prompt and the instructions that come from the two flags. A streaming agent has only its prompt."""
+        return [
+            self.prompt,
+            ASK_ALLOWED if self.allow_user_questions else ASK_FORBIDDEN,
+            CONFLICTS_ALLOWED if self.raise_conflicts else CONFLICTS_FORBIDDEN,
+        ]
+
     def build_system_prompt(self, *, can_launch: bool = True) -> str:
         """The prompt plus the conditional instructions derived from the two flags.
 
@@ -176,11 +188,7 @@ class AgentBase(BaseModel):
         no launch tool), the prompt also lists the agents it may launch, by name and description. Their input
         schemas are not in the prompt: the agent asks for them with `get_agent_schema`.
         """
-        parts = [
-            self.prompt,
-            ASK_ALLOWED if self.allow_user_questions else ASK_FORBIDDEN,
-            CONFLICTS_ALLOWED if self.raise_conflicts else CONFLICTS_FORBIDDEN,
-        ]
+        parts = self._leading_prompt_parts()
         if self.subagents and can_launch:
             listed = "\n".join(f"- {a.name}: {a.description}" for a in (sub() for sub in self.subagents))
             parts.append(SUBAGENTS.format(agents=listed))
