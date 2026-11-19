@@ -2,7 +2,7 @@
 
 Status: implemented. How to use it is in [agents.md](../agents.md). The code is [models.py](../../src/featherweight/models.py).
 
-> **Change in progress:** `agent_hash` will cover the input and output schemas too, and resuming a job goes through a result store. See the [persistence spec](persistence.md).
+> **Change in progress:** resuming a job goes through a result store. See the [persistence spec](persistence.md).
 
 - [Goal](#goal)
 - [The definition](#the-definition)
@@ -96,6 +96,7 @@ changed, not the prompt. Resuming a job uses it: a run is reused only when the h
   cycle ends
 - each skill in full, and each MCP server as declared (environment variable names, never values)
 - the assembled system prompt
+- the JSON schema of the `input_model` and of the `output_model`, so that a changed field, type, description or default is another agent (`check_output` is code and is not hashed: `version` is its signal, and a reused output is checked against it again)
 
 The declaration is built as a plain structure, written as JSON with sorted keys and fixed separators, and hashed, so
 equal declarations give the same hash in any process. The code inside tools and in `check_output` is not covered:
