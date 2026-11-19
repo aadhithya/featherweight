@@ -1,0 +1,54 @@
+name: release
+
+# Releases go through a release pull request, because main is protected.
+#
+#   1. Run this workflow by hand (Actions, release, Run workflow). It opens or updates one release pull request: the next
+#      version, worked out from the commit messages, and the new section of CHANGELOG.md.
+#   2. Review it, and merge it when its checks are green. Merging is the approval.
+#   3. The merge makes the tag and the GitHub release, whose notes are the changelog section.
+#
+# See docs/releasing.md. The secret RELEASE_TOKEN lets the release pull request start the `test` check (a pull request made
+# with the default token does not); without it the pull request is opened, but its check does not run.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # By hand: open or update the release pull request. Nothing is tagged or released here.
+  release-pr:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          skip-github-release: true
+
+  # On every push to main: if the push is a merged release pull request, make the tag and the GitHub release. Otherwise it
+  # does nothing, and it never opens a pull request.
+  release:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          skip-github-pull-request: true
