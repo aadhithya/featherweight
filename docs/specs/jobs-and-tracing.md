@@ -53,6 +53,7 @@ connection, with foreign keys on.
 | `agent_name`, `agent_version`, `tool_names` | The agent. `tool_names` lists everything bound to the model, the runner's and MCP tools included |
 | `model_name`, `reasoning`, `provider`, `settings`, `reported_model_name` | What was asked for (the model, the effort or thinking level, the provider, and all the settings as JSON; `NULL` for rows from before the last two existed), and what the API reported |
 | `system_prompt_hash` | SHA-256 of the assembled system prompt |
+| `agent_hash` | SHA-256 of the whole agent declaration (see [agents](agents.md)); `NULL` for rows from before it existed |
 | `status`, `error` | See below |
 | `input`, `output` | JSON. A failed attempt keeps its error, not the model's raw reply |
 | `input_tokens`, `output_tokens`, `latency_ms` | Of the attempt |
@@ -61,7 +62,7 @@ connection, with foreign keys on.
 Rows come back in insertion order (`rowid`), filtered by `job_id` and `invocation_id` if given. The whole launch tree of a
 job is one query on `parent_agent_run_id` and `depth`.
 
-**Older databases** get the columns added after the first version (`parent_agent_run_id`, `depth`) when they are opened.
+**Older databases** get the columns added after the first version (`parent_agent_run_id`, `depth`, `provider`, `settings`, `agent_hash`) when they are opened.
 
 ## Statuses
 

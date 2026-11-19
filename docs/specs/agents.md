@@ -80,6 +80,24 @@ The runner sets `can_launch` to false for an agent at the depth limit. Its SHA-2
 (`system_prompt_hash`), so two runs can be compared by prompt. The discovery section is built from the declaration, so the
 hash is known before any server starts. Bound MCP tools add nothing to the prompt.
 
+### The agent hash
+
+Every attempt also records `agent_hash`, the SHA-256 of the whole declaration, so that "this run used exactly this
+agent" can be checked. If `system_prompt_hash` is the same and `agent_hash` differs, the model, a tool or a limit
+changed, not the prompt. The hash covers:
+
+- `name`, `version`, `description`, `prompt`, `recursion_limit`, `allow_user_questions`, `raise_conflicts`
+- the model settings, all fields
+- each tool's name, description and argument schema, as the model sees them
+- each sub-agent's own declaration, recursively. A sub-agent already being described further up is named only, so a
+  cycle ends
+- each skill in full, and each MCP server as declared (environment variable names, never values)
+- the assembled system prompt
+
+The declaration is built as a plain structure, written as JSON with sorted keys and fixed separators, and hashed, so
+equal declarations give the same hash in any process. The code inside tools and in `check_output` is not covered:
+`version` is the signal for that. Rows from before the column existed have `NULL`.
+
 ## Decisions
 
 - **Static, and classes, not instances.** A definition has no per-run state. A run passes the class and the input, and
