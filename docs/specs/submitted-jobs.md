@@ -1,6 +1,6 @@
 # Spec: submitted jobs
 
-Status: being built. #72 (the `Job` class, `JobContext`, the job columns and `CANCELLED`), #73 (the queue), #74 (job events and SSE) and #77 (the `@ftw.job` decorator) are done; the rest is not. It is tracked in [epic #71](https://github.com/aadhithya/featherweight/issues/71), and each part has
+Status: being built. #72 (the `Job` class, `JobContext`, the job columns and `CANCELLED`), #73 (the queue), #74 (job events and SSE) #75 (`JobClient`) and #77 (the `@ftw.job` decorator) are done; the rest is not. It is tracked in [epic #71](https://github.com/aadhithya/featherweight/issues/71), and each part has
 its own issue (listed [at the end](#the-work)). When a part is built, this page says so, and the guide `docs/submitted-jobs.md`
 shows how to use it.
 

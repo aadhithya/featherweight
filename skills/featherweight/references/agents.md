@@ -224,8 +224,8 @@ For a job that is just a function, `@ftw.job` builds the class from it, reading 
 async def shout(ctx: ftw.JobContext, input: ShoutInput) -> ShoutOutput: ...
 ```
 
-The name is the function's, the version `"1"`, and the result is a `Job` class, usable wherever one is (the function is `shout.function`). Submitting
-jobs to a queue for a separate worker is being built ([epic #71](https://github.com/aadhithya/featherweight/issues/71)).
+The name is the function's, the version `"1"`, and the result is a `Job` class, usable wherever one is (the function is `shout.function`). The job
+worker that runs submitted jobs is being built ([epic #71](https://github.com/aadhithya/featherweight/issues/71)).
 
 **The job queue.** What connects a client to a worker is an abstract class, `ftw.JobQueue` (`enqueue`, `receive`, `ack`,
 `nack`), whose message carries the job id, the job's name and its input as JSON (or references inside it). `ftw.SqliteQueue(db)`
@@ -233,6 +233,25 @@ is a table in the run log's sqlite file, for local development, and is the one w
 own (Redis, SQS, a database) and check it: `await ftw.testing.check_queue(lambda: MyQueue(...))`. `ftw.testing.MemoryQueue` is
 the smallest example, for tests. Delivery is at-least-once; a message whose receiver dies stays claimed in the sqlite queue (leases
 come later).
+
+**Submitting a job.** A client submits a job from any process, and follows it. It never runs the job: it writes the job row and
+puts a message on the queue, and a separate worker runs it.
+
+```python
+client = ftw.JobClient(db, queue, results)  # results: your ResultStore, where the worker wrote the outputs
+job_id = await client.submit(Shout, ShoutInput(text="hello"))  # a Job class, or a plain agent class
+row = await client.status(job_id)  # the JobRow: INIT while queued
+await client.wait(job_id, timeout=60)  # until it is final (a convenience for scripts and tests)
+output = await client.result(Shout, job_id)  # read from YOUR result store; None until there is one
+await client.cancel(job_id)  # False if the job is already final
+```
+
+`submit` checks the input against the job's model (`TypeError`), and if the queue refuses the message the job is marked `FAILED`
+and the error is raised. `resume_from=failed_job_id` starts a new job that resumes it: the old job must have been
+`resumable=True`, or `ValueError` says nothing was kept. `cancel` marks a queued job `CANCELLED` (its message stays on the queue,
+and the worker skips it when it arrives) and asks a running job to stop (`cancel_requested`, which its worker acts on). `result`
+never reads our tables, which hold no results: it asks your store, under the job's hash and input hash. `client.events(job_id)`
+is the stream below.
 
 **Following a job: job events and SSE.** Every change of a job's status is an **event** (`queued`, `running`, `succeeded`,
 `failed`, `cancelled`, and `cancel_requested`), and the database writes it **in the same transaction** as the change, whoever

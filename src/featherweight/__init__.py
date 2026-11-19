@@ -51,6 +51,7 @@ _EXPORTS = {
     "run_job": "jobs",
     "JobOutcome": "jobs",
     "Job": "jobs",
+    "JobClient": "client",
     "job": "jobs",
     "JobContext": "jobs",
     "as_job": "jobs",
@@ -78,6 +79,7 @@ _SUBMODULES = {
 }  # the two adapters, as `ftw.agui` and `ftw.vercel`
 _MODULES = (
     "adapters",
+    "client",
     "context",
     "db",
     "errors",
@@ -109,6 +111,7 @@ if TYPE_CHECKING:  # for editors and type checkers: the same names, imported
     from featherweight.adapters import agui as agui
     from featherweight.adapters import vercel as vercel
     from featherweight.adapters.errors import BadRequest as BadRequest
+    from featherweight.client import JobClient as JobClient
     from featherweight.context import RunContext as RunContext
     from featherweight.db import AgentRunRow as AgentRunRow
     from featherweight.db import Database as Database
