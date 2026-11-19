@@ -1,7 +1,8 @@
 """A hash of a whole agent declaration, recorded on every run as `agent_hash`.
 
 It covers everything that defines the agent, so that two runs with the same hash used the same agent. It does not cover
-the code inside tools or in `check_output`: `version` is the signal for that.
+the code inside tools or in `check_output`: `version` is the signal for that. It does cover the JSON schemas of the agent's
+input and output models.
 """
 
 import hashlib
@@ -55,6 +56,10 @@ def agent_declaration(agent: AgentBase, _seen: tuple[type, ...] = ()) -> dict[st
             "skills": [s.model_dump(mode="json", by_alias=True) for s in agent.skills],
             "mcp_servers": [s.model_dump(mode="json") for s in agent.mcp_servers],
             "system_prompt": agent.build_system_prompt(),
+            # Class attributes, not fields of the instance, so they must be named here: a changed field, type, description
+            # or default of either model is another agent.
+            "input_schema": type(agent).input_model.model_json_schema(),
+            "output_schema": type(agent).output_model.model_json_schema(),
         }
     )
 

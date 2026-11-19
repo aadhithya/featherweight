@@ -1,6 +1,6 @@
 # Spec: the run log and the persistence boundary
 
-Status: designed, not built. It is tracked in [epic #58](https://github.com/aadhithya/featherweight/issues/58), and each part has
+Status: designed, not built. #59 (the agent hash includes the input and output schemas) is done. It is tracked in [epic #58](https://github.com/aadhithya/featherweight/issues/58), and each part has
 its own issue (listed [at the end](#the-work)). When a part is built, this page says so, and the guide `docs/persistence.md`
 shows how to use it.
 
@@ -63,7 +63,7 @@ A hash says that something changed without saying what it was, so it can stand w
 | `input_hash` | The input, as canonical JSON | Matches the same input again |
 | `output_hash` | The output, as canonical JSON (every agent, and a streaming run's text) | Compares two runs without keeping either |
 
-**`agent_hash` and the schemas.** Today `agent_hash` leaves out `input_model` and `output_model`, which are class attributes and
+**`agent_hash` and the schemas.** (Done in #59.) Before it, `agent_hash` left out `input_model` and `output_model`, which are class attributes and
 not instance fields, so a changed output model does not change the hash. That is an oversight: the declaration includes them. Their
 JSON schemas are added, and every hash changes (nothing has been released). `check_output` is code and cannot be hashed: `version`
 is its signal, and a reused output is checked against it again.

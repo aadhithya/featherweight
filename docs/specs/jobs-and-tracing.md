@@ -77,7 +77,7 @@ connection, with foreign keys on.
 | `agent_name`, `agent_version`, `tool_names` | The agent. `tool_names` lists everything bound to the model, the runner's and MCP tools included |
 | `model_name`, `reasoning`, `provider`, `settings`, `reported_model_name` | What was asked for (the model, the effort or thinking level, the provider, and all the settings as JSON; `NULL` for rows from before the last two existed), and what the API reported |
 | `system_prompt_hash` | SHA-256 of the assembled system prompt |
-| `agent_hash` | SHA-256 of the whole agent declaration (see [agents](agents.md)); `NULL` for rows from before it existed |
+| `agent_hash` | SHA-256 of the whole agent declaration, input and output schemas included (see [agents](agents.md)); `NULL` for rows from before it existed |
 | `input_hash` | SHA-256 of the input's `model_dump(mode='json')`, serialised with sorted keys and fixed separators; `NULL` for rows from before it existed |
 | `reused_from_agent_run_id` | For a run that reused an earlier one: that row. `NULL` otherwise |
 | `thread_id` | For a [streaming](streaming.md) run, the conversation the client named. `NULL` otherwise |

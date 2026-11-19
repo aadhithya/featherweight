@@ -5,15 +5,16 @@ import sys
 import textwrap
 from pathlib import Path
 
-from fakes import Echo, EchoInput, Scripted, runner_with, structured_reply
+from fakes import Echo, EchoInput, EchoOutput, Scripted, runner_with, structured_reply
 from langchain_core.tools import tool
-from pydantic import model_validator
+from pydantic import Field, model_validator
 
 from featherweight.fingerprint import agent_hash
 from featherweight.mcp import HttpMCPServer, StdioMCPServer
 from featherweight.model_settings import Gemini
-from featherweight.models import AgentBase
+from featherweight.models import AgentBase, AgentInput, AgentOutput
 from featherweight.skills import Skill
+from featherweight.streaming import StreamingAgent
 
 ROOT = Path(__file__).parent.parent
 
@@ -178,3 +179,72 @@ async def test_the_run_log_records_the_hash_and_leaves_the_prompt_hash_alone(db)
     assert row.agent_hash == agent_hash(Echo())
     assert row.system_prompt_hash == Echo().system_prompt_hash
     assert row.agent_hash != row.system_prompt_hash
+
+
+# the input and output schemas are part of the declaration
+
+
+def with_models(input_model: type[AgentInput] = EchoInput, output_model: type[AgentOutput] = EchoOutput) -> AgentBase:
+    class Shaped(Echo):
+        pass
+
+    Shaped.input_model = input_model
+    Shaped.output_model = output_model
+    return Shaped()
+
+
+def test_the_same_input_and_output_models_give_the_same_hash():
+    assert agent_hash(with_models()) == agent_hash(with_models())
+    assert agent_hash(with_models()) == agent_hash(echo())
+
+
+def test_a_changed_output_model_changes_the_hash():
+    class Wider(EchoOutput):
+        extra: str | None = None
+
+    class Retyped(AgentOutput):
+        echoed: int | None = None
+
+    class Described(AgentOutput):
+        echoed: str | None = Field(default=None, description="What was echoed")
+
+    class Defaulted(AgentOutput):
+        echoed: str | None = "x"
+
+    base = agent_hash(with_models())
+    changed = [agent_hash(with_models(output_model=m)) for m in (Wider, Retyped, Described, Defaulted)]
+    assert all(h != base for h in changed) and len(set(changed)) == len(changed)
+
+
+def test_a_changed_input_model_changes_the_hash():
+    class Wider(EchoInput):
+        extra: str = ""
+
+    class Retyped(AgentInput):
+        text: int
+
+    class Described(AgentInput):
+        text: str = Field(description="The text")
+
+    base = agent_hash(with_models())
+    changed = [agent_hash(with_models(input_model=m)) for m in (Wider, Retyped, Described)]
+    assert all(h != base for h in changed) and len(set(changed)) == len(changed)
+
+
+def test_check_output_is_code_and_is_not_in_the_hash():
+    class Strict(Echo):
+        def check_output(self, agent_input, output):
+            raise ValueError("no")
+
+    assert agent_hash(Strict()) == agent_hash(Echo())
+
+
+def test_a_streaming_agent_hashes_with_its_chat_input():
+    class Chat(StreamingAgent):
+        name: str = "chat"
+        description: str = "Chats"
+        version: str = "1"
+        prompt: str = "Chat."
+
+    assert len(agent_hash(Chat())) == 64 and agent_hash(Chat()) == agent_hash(Chat())
+    assert agent_hash(Chat()) != agent_hash(echo())
