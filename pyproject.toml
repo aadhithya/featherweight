@@ -37,6 +37,7 @@ openai = [
 
 [dependency-groups]
 dev = [
+    "fastapi>=0.165.0",
     "httpx>=0.28.1",
     "langchain-anthropic>=1.7",
     "langchain-mcp-adapters>=0.3.2",
@@ -45,7 +46,6 @@ dev = [
     "pytest",
     "pytest-asyncio",
     "ruff>=0.17.5",
-    "starlette>=1.10.0",
     "ty>=0.0.105",
     "uvicorn>=0.54.0",
 ]
@@ -74,7 +74,7 @@ ignore = [
 ]
 
 [tool.ty.environment]
-extra-paths = ["src", "tests", "examples/doclearn"]
+extra-paths = ["src", "tests", "examples/doclearn", "examples/chat"]
 
 # `ty` is strict on the harness (src/) and the small examples. The tests and the doclearn example read `result.output`
 # after checking `result.status`, which `ty` cannot narrow (they are separate fields), and doclearn's agents override

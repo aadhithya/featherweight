@@ -5,7 +5,7 @@
 An agent that talks to a person while it works: a chat, or any task someone watches. The answer arrives as the model writes it,
 as events, and nothing is validated at the end.
 
-A runnable example, a small web app with all of this, is in [`examples/chat`](https://github.com/aadhithya/micro/blob/main/examples/chat). The design is in the
+Two small examples are in [`examples/chat`](https://github.com/aadhithya/micro/blob/main/examples/chat): a chat in the terminal, and the same agent behind FastAPI. The design is in the
 [spec](https://github.com/aadhithya/micro/blob/main/docs/specs/streaming.md).
 
 - [A streaming agent](#a-streaming-agent)
@@ -300,18 +300,13 @@ The slot is held for the whole stream. A streaming run is never reused when a jo
 
 ## The example
 
-[`examples/chat`](https://github.com/aadhithya/micro/blob/main/examples/chat) is a small Starlette app over a support-chat agent with one tool, on `claude-haiku-5-5`:
+[`examples/chat`](https://github.com/aadhithya/micro/blob/main/examples/chat) has one agent (`support.py`, a support chat with one tool, on `claude-haiku-5-5`) and two ways to talk
+to it:
 
-| Endpoint | |
-|---|---|
-| `POST /agui` | AG-UI. The client sends the whole conversation |
-| `POST /vercel` | The Vercel AI SDK (`useChat`). The client sends the whole conversation |
-| `POST /chat/{thread_id}` | The server keeps the conversation: send `{"message": "..."}`, get AG-UI events. It loads the history, streams, and saves `run.new_messages` when the stream is over, also when the client left halfway |
-| `GET /chat/{thread_id}` | What the server kept, as AG-UI messages |
-| `POST /stop/{run_id}` | `runner.cancel(run_id)` |
-
-Its store is a dict. `micro` keeps no conversation, so a real app puts a database behind the same two calls (load the messages,
-add `run.new_messages`): LangChain's chat message histories do this job.
+- **`cli.py`**, a chat in the terminal in about 30 lines: it prints the answer as it is written, keeps the conversation in a
+  list with `run.new_messages`, and Ctrl-C stops the answer so that you can correct the agent. `make example-chat`.
+- **`api.py`**, the same agent behind FastAPI: `POST /agui`, `POST /vercel` and `POST /stop/{run_id}`, in about 50 lines.
+  The client sends the conversation, so there is no store. `make example-chat-api`.
 
 ## Background work, today
 

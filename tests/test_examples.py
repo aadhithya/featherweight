@@ -115,157 +115,150 @@ async def test_the_resume_example_crashes_after_the_summaries_and_the_resumed_ru
     assert [r.agent_name for r in rows if not r.reused_from_agent_run_id] == ["release_notes"]
 
 
-# the chat example: a web app over a streaming agent. The model is a fake, and nothing leaves the process.
+# the chat examples: a CLI and a FastAPI app over one streaming agent. The model is a fake, and nothing leaves the process.
 
 
-async def test_the_chat_example_is_a_streaming_support_agent_on_the_smallest_claude_model():
-    chat = load("chat")
-    agent = chat.Support()
+def load_chat(monkeypatch, name: str):
+    """An example of examples/chat, whose files import each other (`from support import Support`), with the agent on a fake."""
+    from fakes import FakeSettings
+
+    monkeypatch.syspath_prepend(str(EXAMPLES / "chat"))
+    support = __import__("support")
+
+    class Fake(support.Support):
+        model: ModelSettings = FakeSettings()
+
+    monkeypatch.setattr(support, "Support", Fake)
+    module = __import__(name)
+    monkeypatch.setattr(module, "Support", Fake)
+    return module
+
+
+def test_the_chat_agent_is_a_streaming_support_agent_on_the_smallest_claude_model(monkeypatch):
+    monkeypatch.syspath_prepend(str(EXAMPLES / "chat"))
+    import support
+
+    agent = support.Support()
     assert agent.streaming and [t.name for t in agent.tools] == ["lookup_order"]
     assert (agent.model.model, agent.model.thinking) == ("claude-haiku-5-5", "off")
-    assert chat.lookup_order.invoke({"order_id": "1001"}).startswith("Order 1001")
-    assert "no order 9" in chat.lookup_order.invoke({"order_id": "9"})
+    assert support.lookup_order.invoke({"order_id": "1001"}).startswith("a blue kettle")
+    assert support.lookup_order.invoke({"order_id": "9"}) == "There is no such order."
+
+
+async def test_the_cli_streams_the_answer_and_remembers_the_conversation(db, monkeypatch, capsys):
+    from fakes import Streams, runner_with, tool_call_chunk
+
+    cli = load_chat(monkeypatch, "cli")
+    model = Streams(
+        turns=[
+            [tool_call_chunk("lookup_order", {"order_id": "1001"}, "c1")],
+            ["It arrives ", "Thursday."],
+            ["Glad to help."],
+        ]
+    )
+    runner_with(db, model)  # the fake model is registered; the CLI builds its own runner on the same file
+    monkeypatch.setattr(cli, "default_db_path", lambda: db.path)
+    lines = iter(["where is order 1001?", "thanks", ""])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(lines))
+
+    await cli.main()
+
+    out = capsys.readouterr().out
+    assert "[lookup_order]" in out and "It arrives Thursday." in out and "Glad to help." in out
+    assert [m.content for m in model.seen[2] if m.type == "human"] == [
+        "where is order 1001?",
+        "thanks",
+    ]  # turn two had turn one
+
+
+async def test_ctrl_c_stops_the_answer_and_the_next_turn_has_what_was_said(db, monkeypatch, capsys):
+    import os
+    import signal
+
+    from fakes import Hold, Streams, runner_with
+
+    cli = load_chat(monkeypatch, "cli")
+    gate = Hold()
+    model = Streams(turns=[["Let me check ", gate, "the whole order."], ["Understood."]])
+    runner_with(db, model)
+    monkeypatch.setattr(cli, "default_db_path", lambda: db.path)
+    lines = iter(["where is my order?", "no, order 1002", ""])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(lines))
+    loop = asyncio.get_running_loop()
+
+    async def press_ctrl_c():
+        await gate.reached.wait()
+        await asyncio.sleep(0.03)
+        os.kill(os.getpid(), signal.SIGINT)
+
+    task = asyncio.create_task(press_ctrl_c())
+    await cli.main()
+    await task
+    assert loop.is_running()
+
+    out = capsys.readouterr().out
+    assert "Let me check " in out and "the whole order." not in out and "Understood." in out
+    second = model.seen[1]
+    assert [m.content for m in second if m.type in ("human", "ai")] == [
+        "where is my order?",
+        "Let me check ",
+        "no, order 1002",
+    ]
+
+
+async def chat_api(db, monkeypatch, model):
+    import httpx
+    from fakes import runner_with
+
+    api = load_chat(monkeypatch, "api")
+    api.app.state.runner = runner_with(db, model)  # the lifespan opens the real one; a test sets its own
+    return api, httpx.AsyncClient(transport=httpx.ASGITransport(app=api.app), base_url="http://test")
 
 
 def sse(text: str) -> list[dict]:
     return [json.loads(line.removeprefix("data: ")) for line in text.split("\n\n") if line.startswith("data: {")]
 
 
-async def chat_app(db, model, **kwargs):
-    from fakes import runner_with
-
-    chat = load("chat")
-
-    class Fake(chat.Support):
-        model: ModelSettings = FakeSettings()
-
-    runner = runner_with(db, model, **kwargs)
-    store = chat.Store()
-    return chat.make_app(runner, store, agent=Fake), runner, store
-
-
-def client(app):
-    import httpx
-
-    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test")
-
-
-async def test_the_chat_example_streams_ag_ui_and_vercel_to_a_client_that_sends_the_conversation(db):
+async def test_the_api_streams_ag_ui_and_vercel(db, monkeypatch):
     from fakes import Streams
 
-    app, _, _ = await chat_app(db, Streams(turns=[["Hello ", "there."], ["Hi again."]]))
-    agui_body = {"threadId": "t", "runId": "r", "messages": [{"id": "1", "role": "user", "content": "hi"}]}
-    async with client(app) as http:
-        response = await http.post("/agui", json=agui_body)
-        assert response.status_code == 200 and response.headers["content-type"].startswith("text/event-stream")
+    _, http = await chat_api(db, monkeypatch, Streams(turns=[["Hello ", "there."], ["Hi again."]]))
+    async with http:
+        body = {"threadId": "t", "runId": "r", "messages": [{"id": "1", "role": "user", "content": "hi"}]}
+        response = await http.post("/agui", json=body)
         events = sse(response.text)
+        assert response.headers["content-type"].startswith("text/event-stream")
         assert events[0]["type"] == "RUN_STARTED" and events[-1]["type"] == "RUN_FINISHED"
         assert "".join(e["delta"] for e in events if e["type"] == "TEXT_MESSAGE_CONTENT") == "Hello there."
 
-        response = await http.post(
-            "/vercel",
-            json={"id": "c", "messages": [{"id": "u", "role": "user", "parts": [{"type": "text", "text": "hi"}]}]},
-        )
-        parts = sse(response.text)
+        ui = {"id": "c", "messages": [{"id": "u", "role": "user", "parts": [{"type": "text", "text": "hi"}]}]}
+        response = await http.post("/vercel", json=ui)
         assert response.headers["x-vercel-ai-ui-message-stream"] == "v1"
-        assert (
-            parts[0]["type"] == "start" and parts[-1]["type"] == "finish" and response.text.endswith("data: [DONE]\n\n")
-        )
+        assert sse(response.text)[-1]["type"] == "finish" and response.text.endswith("data: [DONE]\n\n")
 
 
-async def test_the_chat_example_answers_a_bad_request_with_a_422(db):
+async def test_the_api_answers_a_bad_request_with_a_422_and_an_unknown_run_with_a_404(db, monkeypatch):
     from fakes import Streams
 
-    app, _, _ = await chat_app(db, Streams(turns=[]))
-    async with client(app) as http:
+    _, http = await chat_api(db, monkeypatch, Streams(turns=[]))
+    async with http:
         assert (await http.post("/agui", content="not json")).status_code == 422
         assert (await http.post("/vercel", json={"messages": []})).status_code == 422
-        assert (await http.post("/chat/t", json={"nope": 1})).status_code == 422
         assert (await http.post("/stop/nothing")).status_code == 404
 
 
-async def test_the_chat_example_keeps_the_conversation_for_a_client_that_sends_only_a_message(db):
-    from fakes import Streams, tool_call_chunk
-
-    model = Streams(
-        turns=[
-            [tool_call_chunk("lookup_order", {"order_id": "1001"}, "c1")],
-            ["It arrives Thursday."],
-            ["Anything else?"],
-        ]
-    )
-    app, _, store = await chat_app(db, model)
-    async with client(app) as http:
-        first = sse((await http.post("/chat/t1", json={"message": "where is order 1001?"})).text)
-        assert [e["toolCallName"] for e in first if e["type"] == "TOOL_CALL_START"] == ["lookup_order"]
-        await http.post("/chat/t1", json={"message": "thanks"})
-        stored = (await http.get("/chat/t1")).json()
-
-    assert [m["role"] for m in stored] == ["user", "assistant", "tool", "assistant", "user", "assistant"]
-    assert "Order 1001" in stored[2]["content"]
-    assert [m.content for m in model.seen[2] if m.type == "human"] == [
-        "where is order 1001?",
-        "thanks",
-    ]  # the second turn had the first
-    assert len(store.messages("t1")) == 6
-
-
-async def test_the_chat_example_stops_a_response_and_keeps_what_was_said(db):
+async def test_the_api_stops_a_response(db, monkeypatch):
     from fakes import Hold, Streams
 
     gate = Hold()
-    app, runner, store = await chat_app(db, Streams(turns=[["Let me check ", gate, "the whole order."]]))
-    async with client(app) as http:
-        request = asyncio.create_task(http.post("/chat/t2", json={"message": "where is my order?"}))
+    _, http = await chat_api(db, monkeypatch, Streams(turns=[["Let me check ", gate, "the whole order."]]))
+    async with http:
+        body = {"threadId": "t", "runId": "r", "messages": [{"id": "1", "role": "user", "content": "where?"}]}
+        request = asyncio.create_task(http.post("/agui", json=body))
         await gate.reached.wait()
         await asyncio.sleep(0.03)
         (row,) = await db.list_runs()
         assert (await http.post(f"/stop/{row.agent_run_id}")).json() == {"stopped": True}
         events = sse((await request).text)
-
-    assert events[-1]["type"] == "RUN_FINISHED" and events[-1]["outcome"]["type"] == "cancelled"
-    assert [m.content for m in store.messages("t2")] == ["where is my order?", "Let me check "]
+    assert events[-1]["outcome"]["type"] == "cancelled"
     assert (await db.get_run(row.agent_run_id)).status is RunStatus.CANCELLED
-
-
-async def test_the_chat_example_saves_the_turn_when_the_client_leaves(db):
-    from fakes import Hold, Streams
-
-    gate = Hold()
-    app, _, store = await chat_app(db, Streams(turns=[["Half of ", gate, "an answer."]]))
-    body = json.dumps({"message": "hello"}).encode()
-    gone = asyncio.Event()
-    sent: list[dict] = []
-    messages = [{"type": "http.request", "body": body, "more_body": False}]
-
-    async def receive():
-        if messages:
-            return messages.pop(0)
-        await gone.wait()
-        return {"type": "http.disconnect"}
-
-    async def send(message):
-        sent.append(message)
-
-    scope = {
-        "type": "http",
-        "method": "POST",
-        "path": "/chat/t3",
-        "raw_path": b"/chat/t3",
-        "query_string": b"",
-        "headers": [(b"content-type", b"application/json")],
-        "http_version": "1.1",
-        "scheme": "http",
-        "server": ("test", 80),
-        "client": ("test", 1),
-        "root_path": "",
-    }
-    call = asyncio.create_task(app(scope, receive, send))
-    await gate.reached.wait()
-    await asyncio.sleep(0.03)
-    gone.set()  # the client closes the connection
-    await asyncio.wait_for(call, timeout=5)
-
-    assert [m.content for m in store.messages("t3")] == ["hello", "Half of "]
-    (row,) = await db.list_runs()
-    assert row.status is RunStatus.CANCELLED
