@@ -19,6 +19,7 @@ from micro.context import CURRENT_AGENT_RUN_ID, RunContext
 from micro.db import Database, new_id
 from micro.discovery import discovery_tools
 from micro.errors import RETRYABLE_4XX, SetupError
+from micro.fingerprint import agent_hash
 from micro.mcp_connections import Lease, MCPConnections
 from micro.models import (
     DISCOVERY_TOOL_NAMES,
@@ -318,6 +319,7 @@ class AgentRunner:
                 settings=agent.model.model_dump_json(),
                 tool_names=registry.names + runner_tool_names,
                 system_prompt_hash=prompt_hash,
+                agent_hash=agent_hash(agent),
                 input=agent_input,
                 parent_agent_run_id=parent_agent_run_id,
                 depth=depth,
