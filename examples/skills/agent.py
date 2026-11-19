@@ -77,7 +77,7 @@ async def main(requests: list[str]) -> int:
     runner_log.setLevel(logging.INFO)
     runner_log.addHandler(ShowSkillReads())
     failed = 0
-    async with ftw.Database(ftw.default_db_path()) as db:
+    async with ftw.SqliteDatabase(ftw.default_db_path()) as db:
         runner = ftw.AgentRunner(db)
         for request in requests:
             print(f"\n> {request}")

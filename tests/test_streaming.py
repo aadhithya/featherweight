@@ -27,7 +27,7 @@ from langchain_core.tools import tool
 from pydantic import ValidationError
 from stream_check import assert_valid
 
-from featherweight.fingerprint import input_hash
+from featherweight.fingerprint import input_hash, text_hash, tools_hash
 from featherweight.model_settings import ModelSettings
 from featherweight.models import AgentBase, RunStatus
 from featherweight.streaming import ChatInput, StreamingAgent
@@ -205,11 +205,11 @@ async def test_the_run_log_has_counts_and_hashes_but_no_messages(db):
     row = await db.get_run(run.run_id)
     assert row.status is RunStatus.SUCCESS
     assert row.agent_name == "chat" and row.attempt == 1 and row.depth == 1
-    assert row.input == {"messages": 1}
-    assert row.output == {"chars": 11}
+    assert not hasattr(row, "input") and not hasattr(row, "output")  # the log has no content to hold
     assert row.thread_id == "t-1"
     assert row.input_hash == input_hash(chat_input)
-    assert row.output_hash and row.agent_hash
+    assert row.output_hash == text_hash("Hello world")  # the hash of what was streamed, not the text
+    assert row.agent_hash and row.error_type is None and row.error_hash is None
     assert (row.input_tokens, row.output_tokens) == (3, 4)
     assert row.latency_ms is not None and row.reused_from_agent_run_id is None
     raw = " ".join(str(v) for v in row.model_dump().values())
@@ -278,8 +278,12 @@ async def test_a_failure_is_an_error_event_and_a_failed_row_and_is_not_retried(d
     assert model.calls == 1  # not retried
     assert run.status is RunStatus.FAILED and "provider down" in run.error
     row = await db.get_run(run.run_id)
-    assert row.status is RunStatus.FAILED and "provider down" in row.error
-    assert row.output == {"chars": 8}
+    assert row.status is RunStatus.FAILED
+    assert (row.error_type, row.error_hash) == (
+        "RuntimeError",
+        text_hash("provider down"),
+    )  # the type and a hash, no text
+    assert row.output_hash is None  # only a run that succeeded has one
     assert len(await db.list_runs()) == 1
 
 
@@ -352,7 +356,8 @@ async def test_a_tool_is_called_and_its_answer_reaches_the_model(db):
     second_call = model.seen[1]
     assert any("sunny in Paris" in str(m.content) for m in second_call)
     row = await db.get_run(run.run_id)
-    assert "weather" in row.tool_names and (row.input_tokens, row.output_tokens) == (6, 8)  # two model calls
+    assert row.tools_hash == tools_hash([weather], [])  # the model was given the tool
+    assert (row.input_tokens, row.output_tokens) == (6, 8)  # two model calls
 
 
 # thoughts

@@ -58,7 +58,7 @@ GITHUB = HttpMCPServer(
 - **A tool that errors is text for the model.** If GitHub says a repository does not exist, the agent reads that and
   answers accordingly. It does not crash the run.
 
-Each request is a job in `featherweight.db`. `select tool_names from agent_runs` shows which tools the model was bound to: the six
+Each request is a job in `featherweight.db`. The `attempt_started` log line (`tools=...`) shows which tools the model was bound to: the six
 `github_*` tools with `discover=False`, or just `search_tools` and `call_tool` when the server is found by search.
 
 The script prints only the answers. To see what happens underneath, turn the log on:

@@ -1,7 +1,6 @@
 """Resuming a job: a step that the old job already finished is answered from its kept result. Fake models only."""
 
 import json
-import sqlite3
 from typing import ClassVar
 
 import pytest
@@ -18,8 +17,8 @@ from fakes import (
 )
 from test_subagents import Parent, ParentInput
 
-from featherweight.db import Database
-from featherweight.fingerprint import agent_hash, input_hash
+from featherweight.db import RunEnd, RunStart
+from featherweight.fingerprint import agent_hash, input_hash, output_hash, text_hash
 from featherweight.jobs import run_job
 from featherweight.model_settings import ModelSettings
 from featherweight.models import RunStatus
@@ -76,7 +75,7 @@ async def test_a_resumed_job_reuses_step_one_and_runs_the_steps_after_it(db):
     assert [r.status for r in new] == [RunStatus.SUCCESS] * 3
     assert new[0].reused_from_agent_run_id == old[0].agent_run_id and new[0].agent_run_id != old[0].agent_run_id
     assert (new[0].input_tokens, new[0].output_tokens) == (0, 0)
-    assert new[0].output == old[0].output == {"echoed": "a", "open_questions": []}
+    assert new[0].output_hash == old[0].output_hash == output_hash(EchoOutput(echoed="a"))
     assert [r.reused_from_agent_run_id for r in new[1:]] == [None, None]
     assert new[1].input_tokens == 5  # the steps that ran were counted
 
@@ -178,7 +177,7 @@ async def test_an_output_that_check_output_now_rejects_runs_the_agent(db, monkey
 
     assert outcome.status == RunStatus.SUCCESS and texts(counting) == ["a"]
     (row,) = await db.list_runs(job_id=outcome.job_id)
-    assert row.reused_from_agent_run_id is None and row.output == {"echoed": "fresh", "open_questions": []}
+    assert row.reused_from_agent_run_id is None and row.output_hash == output_hash(EchoOutput(echoed="fresh"))
 
 
 async def test_an_output_that_no_longer_validates_runs_the_agent(db):
@@ -191,34 +190,36 @@ async def test_an_output_that_no_longer_validates_runs_the_agent(db):
 
     assert outcome.status == RunStatus.SUCCESS and texts(counting) == ["a"]
     (row,) = await db.list_runs(job_id=outcome.job_id)
-    assert row.reused_from_agent_run_id is None and row.output == {"echoed": "a", "open_questions": []}
+    assert row.reused_from_agent_run_id is None and row.output_hash == output_hash(EchoOutput(echoed="a"))
 
 
-async def old_row(db, job_id, status, with_hash=True):
-    """A row of `Echo` on the text "a", as an earlier run would have written it."""
+async def old_row(db, job_id, status):
+    """A run of `Echo` on the text "a", as an earlier job would have left it, with its result kept."""
     input_ = EchoInput(text="a")
     run_id = await db.create_run(
-        agent_run_id=f"{job_id}-{status}",
-        invocation_id="inv",
-        attempt=1,
-        job_id=job_id,
-        agent_name="echo",
-        agent_version="0.1.0",
-        model_name="fake-model",
-        reasoning="-",
-        tool_names=[],
-        system_prompt_hash="h",
-        input=input_,
-        agent_hash=agent_hash(Echo()) if with_hash else None,
-        input_hash=input_hash(input_),
+        RunStart(
+            agent_run_id=f"{job_id}-{status}",
+            invocation_id="inv",
+            attempt=1,
+            job_id=job_id,
+            agent_name="echo",
+            agent_version="0.1.0",
+            agent_hash=agent_hash(Echo()),
+            system_prompt_hash=text_hash("prompt"),
+            tools_hash=text_hash("tools"),
+            provider="fake",
+            model_name="fake-model",
+            reasoning="-",
+            settings={"model": "fake-model"},
+            input_hash=input_hash(input_),
+        )
     )
-    await db.conn.execute(
-        "UPDATE agent_runs SET status = ?, output = ? WHERE agent_run_id = ?", (status, '{"echoed": "a"}', run_id)
-    )
-    await db.conn.commit()
-    if with_hash:
-        key = ResultKey(job_id=job_id, agent_hash=agent_hash(Echo()), input_hash=input_hash(input_))
-        await SqliteResultStore(db).put(key, {"echoed": "a"})
+    if status == "RUNNING":
+        await db.mark_run_running(run_id)
+    elif status in ("SUCCESS", "FAILED"):
+        await db.finish_run(run_id, RunEnd(status=RunStatus(status), output_hash=text_hash("a")))
+    key = ResultKey(job_id=job_id, agent_hash=agent_hash(Echo()), input_hash=input_hash(input_))
+    await SqliteResultStore(db).put(key, {"echoed": "a"})
 
 
 @pytest.mark.parametrize("status", ["FAILED", "INIT", "RUNNING"])
@@ -234,7 +235,7 @@ async def test_a_row_that_did_not_succeed_is_never_reused(db, status):
     assert row.reused_from_agent_run_id is None
 
 
-async def test_the_helper_row_is_reused_when_it_succeeded_and_has_a_hash(db):
+async def test_a_helper_row_is_reused_when_it_succeeded(db):
     old = await db.create_job("p", resumable=True)
     await old_row(db, old, "SUCCESS")
     counting = model()
@@ -242,16 +243,6 @@ async def test_the_helper_row_is_reused_when_it_succeeded_and_has_a_hash(db):
     await run_steps(db, "a", counting, resume_from=old)
 
     assert texts(counting) == []
-
-
-async def test_a_row_with_no_agent_hash_is_never_reused(db):
-    old = await db.create_job("p", resumable=True)
-    await old_row(db, old, "SUCCESS", with_hash=False)
-    counting = model()
-
-    await run_steps(db, "a", counting, resume_from=old)
-
-    assert texts(counting) == ["a"]
 
 
 async def test_run_many_with_one_failed_input_reruns_only_that_input(db):
@@ -348,39 +339,3 @@ async def test_resume_from_and_job_id_cannot_be_combined(db):
 
     with pytest.raises(ValueError, match="resume_from"):
         await run_job(db, "p", pipeline, job_id=new, resume_from=old)
-
-
-OLD_SCHEMA = """
-CREATE TABLE jobs (job_id TEXT PRIMARY KEY, name TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL,
-                   completed_at TEXT, error TEXT);
-CREATE TABLE agent_runs (
-    agent_run_id TEXT PRIMARY KEY, invocation_id TEXT NOT NULL, attempt INTEGER NOT NULL,
-    job_id TEXT REFERENCES jobs(job_id), agent_name TEXT NOT NULL, agent_version TEXT NOT NULL,
-    model_name TEXT NOT NULL, reported_model_name TEXT, reasoning TEXT NOT NULL, tool_names TEXT NOT NULL,
-    system_prompt_hash TEXT NOT NULL, status TEXT NOT NULL, input TEXT NOT NULL, output TEXT, input_tokens INTEGER,
-    output_tokens INTEGER, error TEXT, latency_ms REAL, created_at TEXT NOT NULL, completed_at TEXT
-);
-INSERT INTO jobs VALUES ('old-job', 'p', 'FAILED', '2026-01-01T00:00:00+00:00', NULL, 'x');
-INSERT INTO agent_runs VALUES ('old', 'inv', 1, 'old-job', 'echo', '0.1.0', 'm', NULL, 'low', '[]', 'h', 'SUCCESS',
-                               '{"text": "a"}', '{"echoed": "a"}', 1, 1, NULL, NULL, '2026-01-01T00:00:00+00:00', NULL);
-"""
-
-
-async def test_a_migrated_older_database_cannot_be_resumed_from_and_its_old_rows_are_never_reused(tmp_path):
-    path = tmp_path / "old.db"
-    conn = sqlite3.connect(path)
-    conn.executescript(OLD_SCHEMA)
-    conn.commit()
-    conn.close()
-
-    async with Database(path) as db:
-        old = await db.get_job("old-job")
-        assert old is not None and old.resumed_from is None and old.resumable is False  # it kept nothing
-        with pytest.raises(ValueError, match="did not keep its results"):
-            await db.create_job("p", resume_from="old-job")
-        counting = model()
-        outcome = await run_steps(db, "a", counting)  # a job after the migration keeps its results
-        assert outcome.status == RunStatus.SUCCESS and texts(counting) == ["a"]
-        again = await run_steps(db, "a", resume_from=outcome.job_id)
-        (row,) = await db.list_runs(job_id=again.job_id)
-        assert row.reused_from_agent_run_id is not None

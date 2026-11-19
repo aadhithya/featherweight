@@ -10,6 +10,7 @@ from langchain_core.tools import tool
 from mcp_helpers import INPUT, done, fake, shown, texts, worker
 from pydantic import ValidationError
 
+from featherweight.fingerprint import tools_hash
 from featherweight.mcp import StdioMCPServer
 from featherweight.models import RunStatus
 
@@ -54,7 +55,7 @@ async def test_a_discovering_agent_is_bound_to_the_two_tools_only_and_the_prompt
 
     assert result.status == RunStatus.SUCCESS
     (row,) = await db.list_runs()
-    assert row.tool_names == ["search_tools", "call_tool"]  # nothing of the server is bound
+    assert row.tools_hash == tools_hash([], ["search_tools", "call_tool"])  # nothing of the server is bound
     assert model.bound == [
         ["search_tools", "call_tool", "EchoOutput"]
     ]  # what the model was given, and its reply format
@@ -76,7 +77,7 @@ async def test_an_agent_that_opts_out_binds_the_tools_and_has_neither_discovery_
     await run_with(db, model, worker(fake(tools=("add",))))
 
     (row,) = await db.list_runs()
-    assert row.tool_names == ["fake_add"] and model.bound == [["fake_add", "EchoOutput"]]
+    assert model.bound == [["fake_add", "EchoOutput"]]
     assert "search_tools" not in system_prompt(model)
 
 
@@ -86,7 +87,7 @@ async def test_one_agent_can_bind_one_server_and_search_another(db):
     await run_with(db, model, agent)
 
     (row,) = await db.list_runs()
-    assert row.tool_names == ["near_add", "search_tools", "call_tool"]
+    assert model.bound == [["near_add", "search_tools", "call_tool", "EchoOutput"]]
     prompt = system_prompt(model)
     assert "- far" in prompt and "- near" not in prompt  # only the searched server is listed
 

@@ -7,6 +7,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.tools import BaseTool, tool
 
 from featherweight import runner as runner_module
+from featherweight.fingerprint import error_fields, input_hash, output_hash, text_hash, tools_hash
 from featherweight.model_settings import Gemini, ModelSettings
 from featherweight.models import AgentInput, RunStatus
 from featherweight.runner import AgentRunner, ModelSetupError, is_non_retryable
@@ -50,11 +51,15 @@ async def test_success(db):
     row = rows[0]
     assert row.agent_run_id == result.agent_run_id
     assert row.status == RunStatus.SUCCESS
-    assert row.input == {"text": "hello"}
-    assert row.output == {"open_questions": [], "echoed": "hi"}
+    assert row.input_hash == input_hash(EchoInput(text="hello"))  # the log holds hashes, never the input or the output
+    assert row.output_hash == output_hash(result.output)
+    assert not hasattr(row, "input") and not hasattr(row, "output") and not hasattr(row, "error")
+    assert row.started_at is not None and row.started_at <= row.completed_at
     assert (row.input_tokens, row.output_tokens) == (5, 7)
     assert row.reported_model_name == "gemini-3.5-flash-lite"
     assert row.system_prompt_hash == Echo().system_prompt_hash
+    assert row.tools_hash == tools_hash([], [])  # no tools, and none of the runner's
+    assert (row.error_type, row.error_hash) == (None, None)
     assert row.model_name == "fake-model"  # what the agent's settings name, as against what the API reported
     assert (row.provider, row.reasoning) == ("fake", "")
     assert row.settings == {"model": "fake-model", "max_output_tokens": None, "show_thoughts": False, "key": "default"}
@@ -76,15 +81,16 @@ async def test_open_questions_are_not_a_failure(db):
 
 
 @pytest.mark.parametrize(
-    "make_error,error_prefix",
+    "make_error,error_type",
     [
-        (lambda: RuntimeError("flaky"), "RuntimeError: flaky"),
+        (lambda: RuntimeError("flaky"), "RuntimeError"),
         (lambda: google_error(*RATE_LIMIT), "ChatGoogleGenerativeAIError"),
     ],
     ids=["runtime_error", "google_429"],
 )
-async def test_retry_then_success(db, make_error, error_prefix):
-    model = Scripted(script=[make_error(), OK()])
+async def test_retry_then_success(db, make_error, error_type):
+    error = make_error()
+    model = Scripted(script=[error, OK()])
     result = await runner_with(db, model).run(Echo, EchoInput(text="x"))
 
     assert result.status == RunStatus.SUCCESS
@@ -95,9 +101,11 @@ async def test_retry_then_success(db, make_error, error_prefix):
     assert len({r.invocation_id for r in rows}) == 1
     assert len({r.agent_run_id for r in rows}) == 2
     assert rows[0].status == RunStatus.FAILED
-    assert rows[0].error.startswith(error_prefix)
-    assert rows[0].output is None
+    assert rows[0].error_type == error_type  # the class of the error, and a hash of its message: never the text
+    assert rows[0].error_hash == text_hash(str(error))
+    assert rows[0].output_hash is None
     assert rows[1].status == RunStatus.SUCCESS
+    assert (rows[1].error_type, rows[1].error_hash) == (None, None)
     assert result.agent_run_id == rows[1].agent_run_id
 
 
@@ -121,9 +129,9 @@ async def test_retries_exhausted_returns_failed_result(db, monkeypatch, max_atte
 
     rows = await db.list_runs()
     assert [r.status for r in rows] == [RunStatus.FAILED] * max_attempts
-    assert [r.error for r in rows] == [f"RuntimeError: {n}" for n in names[:max_attempts]]
+    assert [(r.error_type, r.error_hash) for r in rows] == [error_fields(RuntimeError(n)) for n in names[:max_attempts]]
     assert result.agent_run_id == rows[-1].agent_run_id
-    assert rows[-1].input == {"text": "x"}  # the input is kept, so a failed run can be resumed
+    assert rows[-1].input_hash == input_hash(EchoInput(text="x"))  # the input is identified by its hash, not kept
 
 
 class HttpError(Exception):
@@ -247,7 +255,9 @@ async def test_missing_structured_response_is_a_failed_attempt(db, monkeypatch):
     assert result.attempts == 2
     first = (await db.list_runs())[0]
     assert first.status == RunStatus.FAILED
-    assert "structured response" in first.error
+    assert (first.error_type, first.error_hash) == error_fields(
+        RuntimeError("The agent finished without a structured response")
+    )
 
 
 async def test_tool_loop_sums_tokens_across_model_calls(db):
@@ -262,7 +272,8 @@ async def test_tool_loop_sums_tokens_across_model_calls(db):
     assert result.status == RunStatus.SUCCESS
     assert result.output.echoed == "HI"
     assert (result.input_tokens, result.output_tokens) == (30, 10)
-    assert (await db.get_run(result.agent_run_id)).tool_names == ["shout"]
+    assert model.bound[-1] == ["shout", "EchoOutput"]  # what the model was bound to
+    assert (await db.get_run(result.agent_run_id)).tools_hash == tools_hash([shout], [])
 
 
 async def test_recursion_limit_stops_a_runaway_tool_loop(db):
@@ -321,5 +332,6 @@ async def test_check_output_receives_the_input_and_the_output_and_a_rejection_is
     assert result.status == RunStatus.SUCCESS and result.attempts == 2
     assert seen == [("hello", "one"), ("hello", "two")]
     rows = await db.list_runs()
-    assert rows[0].status == RunStatus.FAILED and rows[0].error == "ValueError: not good enough"
+    assert rows[0].status == RunStatus.FAILED
+    assert (rows[0].error_type, rows[0].error_hash) == error_fields(ValueError("not good enough"))
     assert rows[1].status == RunStatus.SUCCESS

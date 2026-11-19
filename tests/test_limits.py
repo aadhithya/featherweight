@@ -5,6 +5,7 @@ import asyncio
 import pytest
 from fakes import Echo, EchoInput, Reactive, respond, runner_with
 
+from featherweight.fingerprint import input_hash
 from featherweight.models import RunStatus
 from featherweight.runner import ENV_MAX_CONCURRENT, AgentRunner
 
@@ -45,10 +46,11 @@ async def test_a_waiting_attempt_is_INIT_until_it_gets_a_slot(db):
     await asyncio.sleep(0.1)
 
     rows = await db.list_runs()
-    assert [(r.input["text"], r.status) for r in rows] == [
-        ("ok-1", RunStatus.RUNNING),
-        ("ok-2", RunStatus.INIT),  # queued, not running
+    assert [(r.input_hash, r.status) for r in rows] == [
+        (input_hash(EchoInput(text="ok-1")), RunStatus.RUNNING),
+        (input_hash(EchoInput(text="ok-2")), RunStatus.INIT),  # queued, not running
     ]
+    assert rows[0].started_at is not None and rows[1].started_at is None  # it has not held a slot yet
 
     results = await asyncio.gather(first, second)
     assert all(r.status == RunStatus.SUCCESS for r in results)

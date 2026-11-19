@@ -9,6 +9,7 @@ from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
 
 from featherweight import tools as tools_module
+from featherweight.fingerprint import tools_hash
 from featherweight.model_settings import ModelSettings
 from featherweight.models import AgentBase, AgentInput, AgentOutput, RunStatus
 from featherweight.tools import add_to_date, calculate, current_datetime, days_between
@@ -165,4 +166,10 @@ async def test_an_agent_can_call_the_tools_through_the_runner(db, fixed_now):
     assert result.status == RunStatus.SUCCESS
     outputs = [m.content for m in model.seen[-1] if isinstance(m, ToolMessage)]
     assert outputs == ["450000", "2026-12-03", "Error: division by zero."]
-    assert (await db.list_runs())[0].tool_names == ["calculate", "current_datetime", "add_to_date", "days_between"]
+    assert model.bound[0][:4] == [
+        "calculate",
+        "current_datetime",
+        "add_to_date",
+        "days_between",
+    ]  # what it was bound to
+    assert (await db.list_runs())[0].tools_hash == tools_hash(Helper().tools, [])

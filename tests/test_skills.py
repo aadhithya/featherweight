@@ -9,6 +9,7 @@ from fakes import FakeSettings, Scripted, runner_with, structured_reply, tool_re
 from langchain_core.messages import SystemMessage, ToolMessage
 from pydantic import ValidationError
 
+from featherweight.fingerprint import tools_hash
 from featherweight.model_settings import ModelSettings
 from featherweight.models import AgentBase, AgentInput, AgentOutput, RunStatus
 from featherweight.skills import Skill, SkillError
@@ -250,7 +251,7 @@ async def test_the_prompt_lists_each_skill_by_name_and_description_but_not_its_i
     assert f"- meeting-notes: {NOTES.description}" in prompt and f"- pdf-processing: {OTHER.description}" in prompt
     assert "get_skill" in prompt
     assert "Keep every note" not in prompt and "Leave out small talk" not in prompt  # the instructions are not in it
-    assert (await db.list_runs())[0].tool_names == ["get_skill"]
+    assert (await db.list_runs())[0].tools_hash == tools_hash([], ["get_skill"])
 
 
 async def test_an_agent_without_skills_has_neither_the_prompt_section_nor_the_tool(db):
@@ -260,7 +261,7 @@ async def test_an_agent_without_skills_has_neither_the_prompt_section_nor_the_to
 
     (prompt,) = system_prompts(model)
     assert "skills" not in prompt.lower() and "get_skill" not in prompt
-    assert (await db.list_runs())[0].tool_names == []
+    assert (await db.list_runs())[0].tools_hash == tools_hash([], [])
 
 
 async def test_get_skill_returns_the_instructions_then_a_file_on_request(db):
@@ -309,7 +310,7 @@ async def test_an_agent_can_have_skills_and_subagents_and_gets_both_sets_of_tool
 
     (prompt,) = system_prompts(model)
     assert "- writer: Writes notes" in prompt and "- meeting-notes:" in prompt
-    assert (await db.list_runs())[0].tool_names == ["launch_agent", "get_agent_schema", "get_skill"]
+    assert (await db.list_runs())[0].tools_hash == tools_hash([], ["launch_agent", "get_agent_schema", "get_skill"])
 
 
 def test_skills_with_the_same_name_are_refused():

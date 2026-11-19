@@ -38,6 +38,11 @@ _EXPORTS = {
     "OpenAI": "model_settings",
     # the run log and jobs
     "Database": "db",
+    "SqliteDatabase": "sqlite",
+    "RunStart": "db",
+    "RunEnd": "db",
+    "JobRow": "db",
+    "AgentRunRow": "db",
     "default_db_path": "db",
     "run_job": "jobs",
     "JobOutcome": "jobs",
@@ -70,6 +75,7 @@ _MODULES = (
     "results",
     "runner",
     "skills",
+    "sqlite",
     "store",
     "streaming",
     "testing",
@@ -84,7 +90,11 @@ if TYPE_CHECKING:  # for editors and type checkers: the same names, imported
     from featherweight.adapters import vercel as vercel
     from featherweight.adapters.errors import BadRequest as BadRequest
     from featherweight.context import RunContext as RunContext
+    from featherweight.db import AgentRunRow as AgentRunRow
     from featherweight.db import Database as Database
+    from featherweight.db import JobRow as JobRow
+    from featherweight.db import RunEnd as RunEnd
+    from featherweight.db import RunStart as RunStart
     from featherweight.db import default_db_path as default_db_path
     from featherweight.errors import SetupError as SetupError
     from featherweight.jobs import JobOutcome as JobOutcome
@@ -110,6 +120,7 @@ if TYPE_CHECKING:  # for editors and type checkers: the same names, imported
     from featherweight.results import SqliteResultStore as SqliteResultStore
     from featherweight.runner import AgentRunner as AgentRunner
     from featherweight.skills import Skill as Skill
+    from featherweight.sqlite import SqliteDatabase as SqliteDatabase
     from featherweight.store import RunStore as RunStore
     from featherweight.streaming import ChatInput as ChatInput
     from featherweight.streaming import StreamingAgent as StreamingAgent

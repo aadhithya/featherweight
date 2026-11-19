@@ -9,6 +9,7 @@ from fakes import FakeSettings, Reactive, Scripted, runner_with, structured_repl
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 
 from featherweight.context import RunContext
+from featherweight.fingerprint import input_hash, tools_hash
 from featherweight.model_settings import ModelSettings
 from featherweight.models import AgentBase, AgentInput, AgentOutput, RunStatus
 from featherweight.runner import _Slot
@@ -109,7 +110,10 @@ async def test_the_prompt_lists_the_allowed_agents_and_the_run_log_the_launch_to
         "input it expects", ""
     )  # schemas come from the tool, not the prompt
     (row,) = await db.list_runs()
-    assert row.tool_names == ["launch_agent", "get_agent_schema"] and row.depth == 1 and row.parent_agent_run_id is None
+    assert row.tools_hash == tools_hash(
+        [], ["launch_agent", "get_agent_schema"]
+    )  # the model was given the launch tools
+    assert row.depth == 1 and row.parent_agent_run_id is None
 
 
 async def test_an_agent_without_subagents_gets_no_launch_tools_and_no_prompt_section(db):
@@ -119,7 +123,7 @@ async def test_an_agent_without_subagents_gets_no_launch_tools_and_no_prompt_sec
 
     (prompt,) = system_prompts(model)
     assert "launch_agent" not in prompt
-    assert (await db.list_runs())[0].tool_names == []
+    assert (await db.list_runs())[0].tools_hash == tools_hash([], [])  # no launch tools
 
 
 async def test_get_agent_schema_returns_the_input_and_output_schema_on_demand(db):
@@ -153,7 +157,8 @@ async def test_a_launch_runs_the_child_in_the_same_job_and_returns_its_output_to
     parent_row, child_row = await db.list_runs(job_id=job_id)
     assert (parent_row.agent_name, parent_row.depth, parent_row.parent_agent_run_id) == ("parent", 1, None)
     assert (child_row.agent_name, child_row.depth) == ("child", 2)
-    assert child_row.parent_agent_run_id == parent_row.agent_run_id and child_row.input == {"topic": "x"}
+    assert child_row.parent_agent_run_id == parent_row.agent_run_id
+    assert child_row.input_hash == input_hash(ChildInput(topic="x"))  # the input is in the hash, not in the row
     (returned,) = (json.loads(t) for t in tool_messages(model))
     assert returned == {
         "status": "SUCCESS",
@@ -237,8 +242,8 @@ async def test_depth_stops_the_chain_where_the_limit_is(db):
     assert result.status == RunStatus.SUCCESS
     top_row, mid_row = await db.list_runs()
     assert (top_row.depth, mid_row.depth) == (1, 2)
-    assert top_row.tool_names == ["launch_agent", "get_agent_schema"]
-    assert mid_row.tool_names == []  # Mid has a sub-agent, but no depth left to launch it
+    assert top_row.tools_hash == tools_hash([], ["launch_agent", "get_agent_schema"])
+    assert mid_row.tools_hash == tools_hash([], [])  # Mid has a sub-agent, but no depth left to launch it
     mid_prompt = next(
         p for p in system_prompts(model) if "Do the task." in p and "- leaf" not in p and "- mid" not in p
     )
@@ -269,7 +274,7 @@ async def test_a_depth_of_one_turns_launching_off(db):
 
     await runner_with(db, model, max_depth=1).run(Parent, PARENT_INPUT)
 
-    assert (await db.list_runs())[0].tool_names == []
+    assert (await db.list_runs())[0].tools_hash == tools_hash([], [])
     assert all("launch_agent" not in p for p in system_prompts(model))
 
 
@@ -385,7 +390,9 @@ async def test_several_launches_in_one_turn_hand_the_slot_back_once(db):
 
     assert result.status == RunStatus.SUCCESS and result.output.answer == "both"
     rows = await db.list_runs()
-    assert sorted(r.input.get("topic", "") for r in rows if r.agent_name == "child") == ["a", "b"]
+    assert sorted(r.input_hash for r in rows if r.agent_name == "child") == sorted(
+        input_hash(ChildInput(topic=t)) for t in ("a", "b")
+    )  # the two children had the inputs a and b
     assert runner._slots._value == 2  # not a permit leaked or lost
 
 

@@ -79,8 +79,8 @@ async with AgentRunner(db) as runner:  # the servers stay up between runs, and s
 The tools of a server with `discover=False` are bound to the model like the agent's own, with their schemas. (The default
 is to [find them by search](#finding-tools-by-search) instead, and this section is about what a tool returns either way.) An agent's own `tools`, MCP
 tools and the tools the runner adds ([launching](launching-agents.md), [skills](skills.md)) are checked together before
-the model sees any: two tools with one name fail the attempt, and so does a name Gemini would refuse. The run log's
-`tool_names` lists them all.
+the model sees any: two tools with one name fail the attempt, and so does a name Gemini would refuse. The
+`attempt_started` log line lists them all (`tools=...`); the run log keeps `tools_hash`.
 
 | The tool returns | The model gets |
 |---|---|
@@ -115,7 +115,7 @@ You can find more tools by searching. These servers have tools you can search fo
 - A discovered tool has the same timeout, size cap and failures-as-text as a bound one.
 - **Opt out with `discover=False`** for a small server, where one native call beats a search and a call. One agent can bind
   one server and search another. The agent's own `tools` are always bound.
-- The run log's `tool_names` shows `search_tools` and `call_tool`, not the tools behind them. Each search logs
+- The `tools=` of the `attempt_started` log line shows `search_tools` and `call_tool`, not the tools behind them. Each search logs
   `tool_search ... keywords=... hits=...` and each call `tool_call_via_search ... status=ok|invalid`.
 
 [specs/tool-discovery.md](specs/tool-discovery.md) has the design.
@@ -157,7 +157,7 @@ What can differ between two agents that share a server is on the agent's side. W
 
 Each call logs `mcp_call agent_run_id=... server=... tool=... status=ok|error|timeout|unavailable ms=...`, and starting and
 stopping a server logs `mcp_open server=... transport=...` and `mcp_close server=...`. Arguments and results are not
-logged. No new table or column: the tools of an attempt are in `tool_names`.
+logged. No new table or column: the tools of an attempt are in the `attempt_started` line, and `tools_hash` is in the run log.
 
 ## Caveats
 

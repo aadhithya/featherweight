@@ -9,12 +9,12 @@ from pydantic import ValidationError
 from test_resume import model, run_steps, texts
 from test_streaming import Chat, say
 
-from featherweight.db import Database
 from featherweight.errors import SetupError
 from featherweight.fingerprint import agent_hash, input_hash
 from featherweight.jobs import run_job
 from featherweight.models import RunStatus
 from featherweight.results import ResultKey, ResultStore, SqliteResultStore
+from featherweight.sqlite import SqliteDatabase
 from featherweight.testing import MemoryResultStore, check_result_store
 
 HASH = "a" * 64
@@ -24,7 +24,7 @@ def echo_key(job_id: str, text: str = "a") -> ResultKey:
     return ResultKey(job_id=job_id, agent_hash=agent_hash(Echo()), input_hash=input_hash(EchoInput(text=text)))
 
 
-async def kept(db: Database) -> list[tuple[str, str]]:
+async def kept(db: SqliteDatabase) -> list[tuple[str, str]]:
     async with db.conn.execute("SELECT job_id, output FROM results ORDER BY job_id") as cur:
         return [(r["job_id"], r["output"]) for r in await cur.fetchall()]
 
@@ -51,9 +51,9 @@ async def test_the_contract_catches_a_store_that_breaks_it():
 
 async def test_the_sqlite_store_keeps_results_in_the_file(tmp_path):
     key = echo_key("job-1")
-    async with Database(tmp_path / "f.db") as db:
+    async with SqliteDatabase(tmp_path / "f.db") as db:
         await SqliteResultStore(db).put(key, {"echoed": "a"})
-    async with Database(tmp_path / "f.db") as db:
+    async with SqliteDatabase(tmp_path / "f.db") as db:
         assert await SqliteResultStore(db).get(key) == {"echoed": "a"}
 
 

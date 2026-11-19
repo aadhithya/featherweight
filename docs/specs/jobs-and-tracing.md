@@ -1,9 +1,9 @@
 # Spec: jobs and tracing
 
 Status: implemented. How to use it is in [agents.md](../agents.md#jobs-and-tracing). The code is
-[db.py](../../src/featherweight/db.py), [jobs.py](../../src/featherweight/jobs.py) and [log.py](../../src/featherweight/log.py).
-
-> **Change in progress:** `Database` becomes an abstract class with `SqliteDatabase` and `PostgresDatabase`, the schema holds metadata only (no input, output, tool names or error text), it is made by numbered migrations, and a job opts in to being resumed (`resumable`). See the [persistence spec](persistence.md).
+[db.py](../../src/featherweight/db.py) (the abstract class, the records and rows), [sqlite.py](../../src/featherweight/sqlite.py),
+[migrations.py](../../src/featherweight/migrations.py), [jobs.py](../../src/featherweight/jobs.py) and [log.py](../../src/featherweight/log.py). The
+run log holds metadata only: see the [persistence spec](persistence.md) for why, and for `PostgresDatabase`, which is still to come.
 
 - [Goal](#goal)
 - [Jobs](#jobs)
@@ -62,38 +62,40 @@ The limits:
 
 ## The run log
 
-A sqlite file (`FTW_DB_PATH`, default `featherweight.db`) with two tables. `Database` is an async context manager over one
-connection, with foreign keys on.
+The orchestration, and no data. `ftw.Database` is an abstract class (see the [persistence spec](persistence.md)), and
+`SqliteDatabase` (a file, `FTW_DB_PATH`, default `featherweight.db`) implements it for local development. Records go in
+(`RunStart`, `RunEnd`) and rows come out (`JobRow`, `AgentRunRow`) as frozen Pydantic models, so the same constraints hold
+for every implementation; timestamps are timezone-aware `datetime`s. The tables are made by numbered migrations, applied
+when the database connects and recorded in `schema_migrations`; a database from before migrations is refused (`SetupError`).
+There is **no input, output, message or error text in any of them**. Foreign keys are on.
 
-**`jobs`**: `job_id`, `name`, `status`, `created_at`, `completed_at`, `error`, `resumed_from` (the job this one resumes; `NULL` otherwise).
+**`jobs`**: `job_id`, `name`, `status`, `resumable` (the job keeps the outputs of its steps, so that it can be resumed),
+`resumed_from` (the job this one resumes; `NULL` otherwise), `error_type`, `error_hash`, `created_at`, `completed_at`.
 
 **`agent_runs`**, one row **per attempt**:
 
 | Column | |
 |---|---|
+| `seq` | Monotonic; rows come back in this order |
 | `agent_run_id` | The attempt |
 | `invocation_id`, `attempt` | Attempts of one `run()` call share an `invocation_id` |
 | `job_id` | The job, or empty. A job id that does not exist is refused by the foreign key |
 | `parent_agent_run_id`, `depth` | For an agent launched by another: the attempt that launched it, and its depth (1 at the top) |
-| `agent_name`, `agent_version`, `tool_names` | The agent. `tool_names` lists everything bound to the model, the runner's and MCP tools included |
-| `model_name`, `reasoning`, `provider`, `settings`, `reported_model_name` | What was asked for (the model, the effort or thinking level, the provider, and all the settings as JSON; `NULL` for rows from before the last two existed), and what the API reported |
-| `system_prompt_hash` | SHA-256 of the assembled system prompt |
-| `agent_hash` | SHA-256 of the whole agent declaration, input and output schemas included (see [agents](agents.md)); `NULL` for rows from before it existed |
-| `input_hash` | SHA-256 of the input's `model_dump(mode='json')`, serialised with sorted keys and fixed separators; `NULL` for rows from before it existed |
+| `agent_name`, `agent_version` | The agent, readable |
+| `agent_hash` | SHA-256 of the whole agent declaration, input and output schemas included (see [agents](agents.md)) |
+| `system_prompt_hash`, `tools_hash` | SHA-256 of the assembled system prompt, and of the tools bound to the model (names, descriptions, argument schemas, and the runner's tools). They say what changed when `agent_hash` does. Tool names are not kept: they can be client-specific. The `attempt_started` log line lists them |
+| `provider`, `model_name`, `reasoning`, `settings`, `reported_model_name` | What was asked for (the provider, the model, the effort or thinking level, all the settings as JSON), and what the API reported |
+| `input_hash`, `output_hash` | SHA-256 of the input and of the output, as canonical JSON with sorted keys (a streaming run: of the `ChatInput` and of its text). `output_hash` is set when the run produced an output |
 | `reused_from_agent_run_id` | For a run that reused an earlier one: that row. `NULL` otherwise |
 | `thread_id` | For a [streaming](streaming.md) run, the conversation the client named. `NULL` otherwise |
-| `output_hash` | For a streaming run, SHA-256 of its text. `NULL` otherwise |
-| `status`, `error` | See below |
-| `input`, `output` | JSON. A failed attempt keeps its error, not the model's raw reply. A [streaming](streaming.md) run keeps **no content**: `{"messages": n}` and `{"chars": n}` |
-| `input_tokens`, `output_tokens`, `latency_ms` | Of the attempt |
-| `created_at`, `completed_at` | UTC, ISO 8601 |
+| `status` | See below |
+| `error_type`, `error_hash` | For a failed attempt: the class name of the exception, and the SHA-256 of its message. The text can quote data, so it is in the logs and the result, never the log |
+| `input_tokens`, `output_tokens`, `latency_ms` | Of the attempt (non-negative) |
+| `created_at`, `started_at`, `completed_at` | Created (waiting for a slot), holds a slot, ended. `completed_at - started_at` is the run; `started_at - created_at` the wait |
 
-Rows come back in insertion order (`rowid`), filtered by `job_id` and `invocation_id` if given. The whole launch tree of a
-job is one query on `parent_agent_run_id` and `depth`.
-
-**Older databases** get the columns added after the first version (`parent_agent_run_id`, `depth`, `provider`, `settings`, `agent_hash`, `input_hash`, `reused_from_agent_run_id`, `thread_id`, `output_hash`, and
-`resumed_from` on `jobs`) when they are opened. An index on `(job_id, agent_hash, input_hash)` makes the lookup for reuse
-cheap.
+A reused or cancelled-while-queued run has no `started_at`. The whole launch tree of a job is one query on
+`parent_agent_run_id` and `depth`. Indexes on the job, the invocation, the parent, and `(job_id, agent_hash, input_hash)`
+(the lookup for reuse) keep the queries cheap.
 
 ## Statuses
 

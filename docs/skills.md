@@ -67,7 +67,7 @@ Nothing raises: the agent reads the text and carries on. **The agent decides** w
 nothing activates a skill for it. An agent reads only the skills it lists. Skills are not passed on to an agent it
 launches: each agent has its own.
 
-**In the log:** `tool_names` of the attempt includes `get_skill`, and each read logs
+**In the log:** the `tools=` of the attempt's `attempt_started` line includes `get_skill`, and each read logs
 `skill_read agent=... skill=... resource=...`. Reads are not stored as rows of their own.
 
 The tokens are the usual ones: the instructions the agent reads are tool results, so they are in its input tokens from

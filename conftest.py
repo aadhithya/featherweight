@@ -11,8 +11,8 @@ import pytest
 import pytest_asyncio
 from fakes import MODELS
 
-from featherweight.db import Database
 from featherweight.log import setup_logging
+from featherweight.sqlite import SqliteDatabase
 
 
 def is_e2e(node) -> bool:
@@ -67,5 +67,5 @@ async def db(request, tmp_path):
         print(f"\n[db] {path}")
     else:
         path = tmp_path / "test.db"
-    async with Database(path) as database:
+    async with SqliteDatabase(path) as database:
         yield database

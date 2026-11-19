@@ -77,7 +77,8 @@ async def test_cancelling_while_text_streams_ends_the_stream_cleanly_and_keeps_t
     assert "".join(e.delta for e in events if e.type.value == "TEXT_MESSAGE_CONTENT") == "Let me think about "
     assert run.status is RunStatus.CANCELLED and run.error is None
     row = await db.get_run(run.run_id)
-    assert row.status is RunStatus.CANCELLED and row.output == {"chars": 19} and row.error is None
+    assert row.status is RunStatus.CANCELLED and (row.error_type, row.error_hash) == (None, None)
+    assert row.output_hash is None  # a stopped run produced no output
     assert [(type(m), m.content) for m in run.new_messages] == [(AIMessage, "Let me think about ")]
 
 

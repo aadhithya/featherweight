@@ -74,7 +74,7 @@ import featherweight as ftw
 
 
 async def main():
-    async with ftw.Database("featherweight.db") as db:
+    async with ftw.SqliteDatabase("featherweight.db") as db:
         job_id = await db.create_job("demo")  # runs of one pipeline share a job
         runner = ftw.AgentRunner(db)
         result = await runner.run(PeopleExtractor, ExtractInput(text="Anna Berger met Tom Okafor."), job_id=job_id)

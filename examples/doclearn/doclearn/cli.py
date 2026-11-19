@@ -287,7 +287,7 @@ async def run(args: argparse.Namespace, console: Console, run_dir: Path) -> None
     documents = read_documents(args.folder)
     started = time.monotonic()
     console.say(f"Learning '{category}' from {len(documents)} documents in {args.folder}")
-    async with ftw.Database(ftw.default_db_path()) as db:
+    async with ftw.SqliteDatabase(ftw.default_db_path()) as db:
         store = await LearnedStore.open(db)
         runner = ftw.AgentRunner(db)
 

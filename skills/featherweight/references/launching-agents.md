@@ -120,12 +120,13 @@ Children are in the same job. Each row in `agent_runs` records:
 The whole tree of a job is one query:
 
 ```
-sqlite3 featherweight.db "select depth, agent_name, attempt, status, parent_agent_run_id from agent_runs where job_id = '<job id>' order by rowid"
+sqlite3 featherweight.db "select depth, agent_name, attempt, status, parent_agent_run_id from agent_runs where job_id = '<job id>' order by seq"
 ```
 
 The log has one line per launch: `agent_launch parent_agent_run_id=... child=... depth=2 launch=1/10`.
 
-The runner records the tools an agent had, `launch_agent` and `get_agent_schema` among them, in `tool_names`.
+The `attempt_started` log line lists the tools an agent had, `launch_agent` and `get_agent_schema` among them (`tools=...`).
+The run log keeps only `tools_hash`, which changes when they do: a tool's name can be client-specific, so names are not stored.
 
 ## What is not supported
 

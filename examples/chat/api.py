@@ -17,7 +17,7 @@ import featherweight as ftw
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with ftw.Database(ftw.default_db_path()) as db, ftw.AgentRunner(db) as app.state.runner:
+    async with ftw.SqliteDatabase(ftw.default_db_path()) as db, ftw.AgentRunner(db) as app.state.runner:
         yield
 
 

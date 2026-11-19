@@ -7,11 +7,12 @@ input and output models.
 
 import hashlib
 import json
+from collections.abc import Sequence
 from typing import Any
 
 from langchain_core.tools import BaseTool
 
-from featherweight.models import AgentBase, AgentInput
+from featherweight.models import AgentBase, AgentInput, AgentOutput
 
 
 def _tool(tool: BaseTool) -> dict[str, Any]:
@@ -74,3 +75,30 @@ def input_hash(agent_input: AgentInput) -> str:
     """SHA-256 of the input as canonical JSON, so that equal inputs give equal hashes."""
     text = json.dumps(agent_input.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(text.encode()).hexdigest()
+
+
+def _digest(value: Any) -> str:
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def output_hash(output: AgentOutput) -> str:
+    """SHA-256 of the output as canonical JSON."""
+    return _digest(output.model_dump(mode="json"))
+
+
+def text_hash(text: str) -> str:
+    """SHA-256 of a text (what a streaming run produced)."""
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def tools_hash(tools: Sequence[BaseTool], runner_tool_names: Sequence[str]) -> str:
+    """SHA-256 of the tools bound to the model: each one's name, description and argument schema, and the names of the tools
+    the runner added. It says that the tools changed without saying what they are (a tool's name can be client-specific)."""
+    declared = sorted((_tool(tool) for tool in tools), key=lambda tool: tool["name"])
+    return _digest(_canonical({"tools": declared, "runner": sorted(runner_tool_names)}))
+
+
+def error_fields(exc: BaseException) -> tuple[str, str]:
+    """What the run log keeps of an error: its class name, and the SHA-256 of its message. The message can quote data (a
+    validation error quotes the value, `check_output` is the user's code), so the log never keeps it."""
+    return type(exc).__name__, text_hash(str(exc))
