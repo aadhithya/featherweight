@@ -71,4 +71,6 @@ runner ──────────── runs agents: attempts, retries, conc
   out on purpose. If a guide and a spec disagree, the spec and the code are right, and the guide should be fixed.
 - **An example** is a folder you can run (`make example-skills`, `make example-launching`, `make example-mcp`, `make
   example-resume`, `make pipeline`). Each has a README that says what to look at.
+- **Releasing** is for the maintainers: [Releasing](releasing.md) says how a release is made, and the changelog is
+  [`CHANGELOG.md`](../CHANGELOG.md).
 - **The tests** are in [`tests/`](../tests), and each spec says which files cover it. `tests/e2e` uses the real model.

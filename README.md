@@ -153,7 +153,7 @@ docs/                 documentation
 tests/                the harness's tests; tests/e2e uses the real model
 ```
 
-Issues and pull requests are welcome. Run `make hooks` once: commit messages follow
+Issues and pull requests are welcome. How a release is made: [docs/releasing.md](docs/releasing.md). Run `make hooks` once: commit messages follow
 [Conventional Commits](https://www.conventionalcommits.org) (`feat(runner): ...`, `fix: ...`), and `make check` and
 `make test` must pass.
 
