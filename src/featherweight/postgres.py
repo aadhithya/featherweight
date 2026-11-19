@@ -8,9 +8,21 @@ the user to decide, so pass `results=` to the runner. Needs the extra `featherwe
 
 import logging
 import re
+from collections.abc import Sequence
 from typing import Any
 
-from featherweight.db import AgentRunRow, Database, JobRow, RunEnd, RunStart, now
+from featherweight.db import (
+    FINAL,
+    STATUS_EVENT,
+    AgentRunRow,
+    Database,
+    EventType,
+    JobEvent,
+    JobRow,
+    RunEnd,
+    RunStart,
+    now,
+)
 from featherweight.errors import SetupError
 from featherweight.migrations import MIGRATIONS
 from featherweight.model_settings import require
@@ -90,6 +102,26 @@ class PostgresDatabase(Database):
 
     # jobs
 
+    async def _write_event(
+        self,
+        job_id: str,
+        type: EventType,
+        status: RunStatus,
+        error_type: str | None = None,
+        error_hash: str | None = None,
+    ) -> JobEvent:
+        """Write an event in the transaction that is open. The caller publishes it after the commit."""
+        at = now()
+        cur = await self.conn.execute(
+            "INSERT INTO job_events (job_id, type, status, error_type, error_hash, at) VALUES (%s, %s, %s, %s, %s, %s) "
+            "RETURNING seq",
+            (job_id, type, status.value, error_type, error_hash, at),
+        )
+        row = await cur.fetchone()
+        return JobEvent(
+            seq=row["seq"], job_id=job_id, type=type, status=status, error_type=error_type, error_hash=error_hash, at=at
+        )
+
     async def insert_job(
         self,
         job_id: str,
@@ -99,11 +131,14 @@ class PostgresDatabase(Database):
         job_hash: str | None,
         input_hash: str | None,
     ) -> str:
-        await self.conn.execute(
-            "INSERT INTO jobs (job_id, name, status, resumable, resumed_from, job_hash, input_hash, created_at) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
-            (job_id, name, RunStatus.INIT.value, resumable, resumed_from, job_hash, input_hash, now()),
-        )
+        async with self.conn.transaction():  # the job and its event, or neither
+            await self.conn.execute(
+                "INSERT INTO jobs (job_id, name, status, resumable, resumed_from, job_hash, input_hash, created_at) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                (job_id, name, RunStatus.INIT.value, resumable, resumed_from, job_hash, input_hash, now()),
+            )
+            event = await self._write_event(job_id, "queued", RunStatus.INIT)
+        self._publish(event)
         logger.info("job_created job_id=%s name=%s resumed_from=%s resumable=%s", job_id, name, resumed_from, resumable)
         return job_id
 
@@ -111,29 +146,68 @@ class PostgresDatabase(Database):
         self, job_id: str, status: RunStatus, *, error_type: str | None = None, error_hash: str | None = None
     ) -> None:
         status = RunStatus(status)
-        terminal = status in (RunStatus.SUCCESS, RunStatus.FAILED, RunStatus.CANCELLED)
         failed = status is RunStatus.FAILED
         started = ", started_at = %s" if status in (RunStatus.RUNNING, RunStatus.INIT) else ""
-        cur = await self.conn.execute(
-            f"UPDATE jobs SET status = %s, completed_at = %s, error_type = %s, error_hash = %s{started} WHERE job_id = %s",
-            (
-                status.value,
-                now() if terminal else None,
-                error_type if failed else None,
-                error_hash if failed else None,
-                *([now() if status is RunStatus.RUNNING else None] if started else []),
-                job_id,
-            ),
-        )
-        if cur.rowcount == 0:
-            raise LookupError(f"No such job: {job_id}")
+        async with self.conn.transaction():  # the status and its event, or neither
+            cur = await self.conn.execute(
+                f"UPDATE jobs SET status = %s, completed_at = %s, error_type = %s, error_hash = %s{started} WHERE job_id = %s",
+                (
+                    status.value,
+                    now() if status in FINAL else None,
+                    error_type if failed else None,
+                    error_hash if failed else None,
+                    *([now() if status is RunStatus.RUNNING else None] if started else []),
+                    job_id,
+                ),
+            )
+            if cur.rowcount == 0:
+                raise LookupError(f"No such job: {job_id}")
+            event = await self._write_event(
+                job_id, STATUS_EVENT[status], status, error_type if failed else None, error_hash if failed else None
+            )
+        self._publish(event)
         log = logger.warning if failed else logger.info
         log("job_status job_id=%s status=%s error_type=%s", job_id, status.value, error_type if failed else None)
+
+    async def request_job_cancel(self, job_id: str) -> bool:
+        async with self.conn.transaction():
+            cur = await self.conn.execute(
+                "SELECT status, cancel_requested FROM jobs WHERE job_id = %s FOR UPDATE", (job_id,)
+            )
+            row = await cur.fetchone()
+            if row is None or RunStatus(row["status"]) in FINAL:
+                return False
+            if row["cancel_requested"]:
+                return True  # asked already: nothing changes, no second event
+            await self.conn.execute("UPDATE jobs SET cancel_requested = true WHERE job_id = %s", (job_id,))
+            event = await self._write_event(job_id, "cancel_requested", RunStatus(row["status"]))
+        self._publish(event)
+        logger.info("job_cancel_requested job_id=%s", job_id)
+        return True
 
     async def get_job(self, job_id: str) -> JobRow | None:
         cur = await self.conn.execute("SELECT * FROM jobs WHERE job_id = %s", (job_id,))
         row = await cur.fetchone()
         return JobRow(**row) if row else None
+
+    # job events
+
+    async def list_job_events(self, job_id: str, after: int = 0, limit: int | None = None) -> list[JobEvent]:
+        sql = "SELECT * FROM job_events WHERE job_id = %s AND seq > %s ORDER BY seq"
+        params: list[Any] = [job_id, after]
+        if limit is not None:
+            sql += " LIMIT %s"
+            params.append(limit)
+        cur = await self.conn.execute(sql, params)
+        return [JobEvent(**row) for row in await cur.fetchall()]
+
+    async def poll_job_events(self, job_ids: Sequence[str], after: int = 0) -> list[JobEvent]:
+        if not job_ids:
+            return []
+        cur = await self.conn.execute(
+            "SELECT * FROM job_events WHERE job_id = ANY(%s) AND seq > %s ORDER BY seq", (list(job_ids), after)
+        )
+        return [JobEvent(**row) for row in await cur.fetchall()]
 
     # agent runs
 

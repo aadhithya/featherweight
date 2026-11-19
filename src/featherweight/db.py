@@ -9,9 +9,10 @@ come out as Pydantic models, so the same constraints hold whatever the database 
 import os
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -97,6 +98,31 @@ class JobRow(_Model):
     completed_at: datetime | None
 
 
+EventType = Literal["queued", "running", "succeeded", "failed", "cancelled", "cancel_requested"]
+# The event that a new status makes.
+STATUS_EVENT: dict[RunStatus, EventType] = {
+    RunStatus.INIT: "queued",
+    RunStatus.RUNNING: "running",
+    RunStatus.SUCCESS: "succeeded",
+    RunStatus.FAILED: "failed",
+    RunStatus.CANCELLED: "cancelled",
+}
+FINAL_EVENTS: tuple[EventType, ...] = ("succeeded", "failed", "cancelled")
+FINAL = (RunStatus.SUCCESS, RunStatus.FAILED, RunStatus.CANCELLED)
+
+
+class JobEvent(_Model):
+    """A change in the life of a job. Metadata only: no content."""
+
+    seq: int  # monotonic across all jobs
+    job_id: str
+    type: EventType
+    status: RunStatus
+    error_type: str | None = None
+    error_hash: str | None = None
+    at: datetime
+
+
 class AgentRunRow(_Model):
     seq: int
     agent_run_id: str
@@ -136,6 +162,13 @@ class Database(ABC):
 
     Rows come back in the order they were made. Timestamps are timezone-aware `datetime`s: convert what your database stores.
     """
+
+    def _publish(self, event: JobEvent) -> None:
+        """Tell the listeners in this process about an event, once its transaction has committed. An implementation calls it
+        after every event it writes; it needs nothing else for them. (Listeners in other processes read the table.)"""
+        from featherweight.events import hub_for
+
+        hub_for(self).publish(event)
 
     async def __aenter__(self) -> Self:
         await self.connect()
@@ -203,6 +236,23 @@ class Database(ABC):
 
     @abstractmethod
     async def get_job(self, job_id: str) -> JobRow | None: ...
+
+    @abstractmethod
+    async def request_job_cancel(self, job_id: str) -> bool:
+        """Ask for a job that is not final to be cancelled: set `cancel_requested` and write a `cancel_requested` event, in one
+        transaction. Returns False, and changes nothing, for a job that does not exist or is already final. Asking twice writes
+        one event. The job's worker does the cancelling."""
+
+    # job events
+
+    @abstractmethod
+    async def list_job_events(self, job_id: str, after: int = 0, limit: int | None = None) -> list[JobEvent]:
+        """The events of a job after the sequence number `after`, in order."""
+
+    @abstractmethod
+    async def poll_job_events(self, job_ids: Sequence[str], after: int = 0) -> list[JobEvent]:
+        """The events of any of these jobs after `after`, in order, in one query. It is what the one reader of a process asks
+        for, whatever the number of streams that are open."""
 
     # agent runs
 

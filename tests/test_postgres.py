@@ -68,7 +68,12 @@ async def test_connect_makes_the_schema_in_its_own_schema_and_records_the_baseli
         r["table_name"]
         for r in await query(schema, "SELECT table_name FROM information_schema.tables WHERE table_schema = %s", schema)
     }
-    assert tables == {"jobs", "agent_runs", "schema_migrations"}  # no results table: we ship no Postgres result store
+    assert tables == {
+        "jobs",
+        "agent_runs",
+        "job_events",
+        "schema_migrations",
+    }  # no results table: we ship no Postgres result store
     public = await query(
         "public",
         "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'agent_runs'",

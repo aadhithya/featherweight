@@ -232,6 +232,35 @@ own (Redis, SQS, a database) and check it: `await ftw.testing.check_queue(lambda
 the smallest example, for tests. Delivery is at-least-once; a message whose receiver dies stays claimed in the sqlite queue (leases
 come later).
 
+**Following a job: job events and SSE.** Every change of a job's status is an **event** (`queued`, `running`, `succeeded`,
+`failed`, `cancelled`, and `cancel_requested`), and the database writes it **in the same transaction** as the change, whoever
+makes it (`run_job`, a client, a worker). An event is metadata only (`seq`, `job_id`, `type`, `status`, the error's type and hash,
+`at`). `ftw.job_events(db, job_id, after=0)` streams them: the stored ones first, then each as it happens, ending after a final
+one. A stream that starts late replays what it missed, and one that reconnects passes the `seq` of the last event it had.
+
+```python
+async for event in ftw.job_events(db, job_id):
+    print(event.type)  # queued, running, succeeded
+row = await ftw.wait_for_job(
+    db, job_id, timeout=60
+)  # the same stream, until the job is final (a convenience for scripts and tests)
+```
+
+In the process that wrote an event, the listener hears it at commit, with no polling. From another process, the table is read by
+**one reader task per `Database` object**, with a short, growing delay, for every open stream together: a hundred open streams
+cost one query, not a hundred. Polling is in that one place.
+
+**SSE** is the one way events are streamed to a client. `ftw.sse.encode` turns the stream into server-sent events
+(`id` is the `seq`, so `Last-Event-ID` resumes; a comment goes out every 15 seconds to keep the connection open) and
+`ftw.sse.HEADERS` has the headers. Featherweight runs no server: your API sends the response.
+
+```python
+@app.get("/jobs/{job_id}/events")
+async def events(job_id: str, request: Request):
+    after = int(request.headers.get("last-event-id", 0))
+    return StreamingResponse(ftw.sse.encode(ftw.job_events(db, job_id, after)), headers=ftw.sse.HEADERS)
+```
+
 **What is on record, and what is not.** The run log is the state of the orchestration: what ran, in what order, which agent
 launched which, with what outcome, at what cost. It holds **no inputs, outputs, messages or error text**: where a name or a
 text could carry a client's data, there is a hash instead. The data stays with your application.

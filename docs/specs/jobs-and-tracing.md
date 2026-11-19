@@ -74,6 +74,12 @@ There is **no input, output, message or error text in any of them**. Foreign key
 **`jobs`**: `job_id`, `name`, `status`, `job_hash` and `input_hash` (a submitted job: see [submitted jobs](submitted-jobs.md); `NULL` for a job made by `run_job`), `cancel_requested`, `started_at`, `resumable` (the job keeps the outputs of its steps, so that it can be resumed),
 `resumed_from` (the job this one resumes; `NULL` otherwise), `error_type`, `error_hash`, `created_at`, `completed_at`.
 
+**`job_events`**: one row for every change of a job's status, written in the same transaction as the change: `seq` (monotonic,
+across all jobs), `job_id`, `type` (`queued`, `running`, `succeeded`, `failed`, `cancelled`, `cancel_requested`), `status` (the
+status the job had after the change), `error_type`, `error_hash` (for `failed`), `at`. Metadata only. Read with
+`list_job_events(job_id, after, limit)`, or for several jobs in one query with `poll_job_events(job_ids, after)`;
+[submitted jobs](submitted-jobs.md#job-events) says how they are streamed.
+
 **`agent_runs`**, one row **per attempt**:
 
 | Column | |
