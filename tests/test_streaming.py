@@ -13,10 +13,19 @@ from ag_ui.core import (
     UserMessage,
 )
 from ag_ui.core import SystemMessage as AgUiSystem
-from fakes import Echo, EchoInput, FakeSettings, Streams, runner_with, tool_call_chunk
-from langchain_core.messages import AIMessage, HumanMessage
+from fakes import (
+    Echo,
+    EchoInput,
+    FakeSettings,
+    Streams,
+    runner_with,
+    tool_call_chunk,
+    use_model,
+)
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from langchain_core.tools import tool
 from pydantic import ValidationError
+from stream_check import assert_valid
 
 from micro.fingerprint import input_hash
 from micro.model_settings import ModelSettings
@@ -37,7 +46,9 @@ def say(text: str, *, id: str = "m1") -> ChatInput:
 
 
 async def collect(run) -> list:
-    return [event async for event in run]
+    events = [event async for event in run]
+    assert_valid(events)  # every stream follows the protocol's order
+    return events
 
 
 def types(events) -> list[str]:
@@ -134,11 +145,13 @@ async def test_a_turn_streams_text_in_order(db):
 
     assert types(events) == [
         "RUN_STARTED",
+        "STEP_STARTED",
         "TEXT_MESSAGE_START",
         "TEXT_MESSAGE_CONTENT",
         "TEXT_MESSAGE_CONTENT",
         "TEXT_MESSAGE_CONTENT",
         "TEXT_MESSAGE_END",
+        "STEP_FINISHED",
         "RUN_FINISHED",
     ]
     assert "".join(e.delta for e in events if isinstance(e, TextMessageContentEvent)) == "Hello there"
@@ -261,7 +274,12 @@ async def test_a_failure_is_an_error_event_and_a_failed_row_and_is_not_retried(d
     run = runner.stream(Chat, say("hi"))
     events = await collect(run)
 
-    assert types(events)[-3:] == ["TEXT_MESSAGE_CONTENT", "TEXT_MESSAGE_END", "RUN_ERROR"]  # the open message is closed
+    assert types(events)[-4:] == [
+        "TEXT_MESSAGE_CONTENT",
+        "TEXT_MESSAGE_END",
+        "STEP_FINISHED",
+        "RUN_ERROR",
+    ]  # all closed
     assert isinstance(events[-1], RunErrorEvent) and "provider down" in events[-1].message
     assert model.calls == 1  # not retried
     assert run.status is RunStatus.FAILED and "provider down" in run.error
@@ -320,7 +338,77 @@ async def test_a_tool_is_called_and_its_answer_reaches_the_model(db):
 
     assert "".join(e.delta for e in events if isinstance(e, TextMessageContentEvent)) == "It is sunny."
     assert events[-1].type == EventType.RUN_FINISHED
+    assert types(events) == [
+        "RUN_STARTED",
+        "STEP_STARTED",
+        "TOOL_CALL_START",
+        "TOOL_CALL_ARGS",
+        "TOOL_CALL_END",
+        "TOOL_CALL_RESULT",
+        "STEP_FINISHED",
+        "STEP_STARTED",
+        "TEXT_MESSAGE_START",
+        "TEXT_MESSAGE_CONTENT",
+        "TEXT_MESSAGE_END",
+        "STEP_FINISHED",
+        "RUN_FINISHED",
+    ]
+    assert events[2].tool_call_name == "weather" and events[3].delta == '{"city": "Paris"}'
+    assert events[5].content == "sunny in Paris"
     second_call = model.seen[1]
     assert any("sunny in Paris" in str(m.content) for m in second_call)
     row = await db.get_run(run.run_id)
     assert "weather" in row.tool_names and (row.input_tokens, row.output_tokens) == (6, 8)  # two model calls
+
+
+# thoughts
+
+
+def thinking(text, **extra):
+    block = {"type": "thinking", "thinking": text, "index": 0, **extra}
+    return AIMessageChunk(content=[block], response_metadata={"model_provider": "anthropic"})
+
+
+async def test_thoughts_are_streamed_when_the_settings_show_them(db):
+    class Thinker(Chat):
+        model: ModelSettings = FakeSettings(show_thoughts=True)
+
+    runner = runner_with(db, Streams(turns=[[thinking("Hmm. "), thinking("", signature="SIG"), "The answer."]]))
+    events = await collect(runner.stream(Thinker, say("why?")))
+    assert "REASONING_MESSAGE_CONTENT" in types(events) and "REASONING_ENCRYPTED_VALUE" in types(events)
+    assert types(events).index("REASONING_END") < types(events).index("TEXT_MESSAGE_START")
+
+
+async def test_thoughts_are_not_streamed_by_default(db):
+    runner = runner_with(db, Streams(turns=[[thinking("secret thoughts"), "The answer."]]))
+    events = await collect(runner.stream(Chat, say("why?")))
+    assert not [t for t in types(events) if t.startswith("REASONING")]
+    assert "secret" not in " ".join(e.model_dump_json() for e in events)
+
+
+# a launched sub-agent is a tool call, and its words are not streamed
+
+
+async def test_a_launched_agent_is_a_tool_call_and_its_text_is_not_streamed(db):
+    child = Streams(
+        turns=[["child text that must not leak", tool_call_chunk("EchoOutput", {"echoed": "hi"}, "call-child")]]
+    )
+    use_model(child, "child")
+
+    class Child(Echo):
+        model: ModelSettings = FakeSettings(key="child")
+
+    class Parent2(Chat):
+        subagents: list[type] = [Child]
+
+    launch = tool_call_chunk("launch_agent", {"agent_name": "echo", "input_json": '{"text": "hi"}'}, "launch-1")
+    runner = runner_with(db, Streams(turns=[[launch], ["Done."]]))
+    events = await collect(runner.stream(Parent2, say("ask the echo agent")))
+
+    assert [e.tool_call_name for e in events if e.type == EventType.TOOL_CALL_START] == ["launch_agent"]
+    result = next(e for e in events if e.type == EventType.TOOL_CALL_RESULT)
+    assert '"echoed": "hi"' in result.content
+    streamed = "".join(e.delta for e in events if isinstance(e, TextMessageContentEvent))
+    assert streamed == "Done."  # not the child's words
+    rows = await db.list_runs()
+    assert [r.agent_name for r in rows] == ["chat", "echo"] and rows[1].parent_agent_run_id == rows[0].agent_run_id

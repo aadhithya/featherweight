@@ -309,7 +309,7 @@ class AgentRunner:
                 thread_id=chat_input.thread_id,
             )
             await slot.acquire()  # the row stays INIT while it waits
-            mapper = EventMapper()
+            mapper = EventMapper(show_thoughts=agent.model.show_thoughts)
             output_length = 0
             output_digest = hashlib.sha256()
             try:

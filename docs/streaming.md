@@ -4,11 +4,12 @@ An agent that talks to a person while it works: a chat, or any task someone watc
 as events, and nothing is validated at the end.
 
 > **Status: being built** ([epic #29](https://github.com/aadhithya/micro/issues/29)). What works today is on this page. The
-> design is in the [spec](specs/streaming.md), which also lists what is still to come: the full set of events (tool calls and
-> thoughts), tool calls in the history, stopping a response, and the AG-UI and Vercel AI SDK adapters.
+> design is in the [spec](specs/streaming.md), which also lists what is still to come: tool calls in the history, stopping a
+> response, and the AG-UI and Vercel AI SDK adapters.
 
 - [A streaming agent](#a-streaming-agent)
 - [Streaming a turn](#streaming-a-turn)
+- [Thoughts](#thoughts)
 - [The conversation is yours](#the-conversation-is-yours)
 - [What is logged](#what-is-logged)
 - [How it differs from an agent](#how-it-differs-from-an-agent)
@@ -53,9 +54,19 @@ async for event in run:
 | Event | When |
 |---|---|
 | `RUN_STARTED` | First. It has the `thread_id` (made up when the client named none) and the `run_id` |
-| `TEXT_MESSAGE_START`, `TEXT_MESSAGE_CONTENT` (one per chunk), `TEXT_MESSAGE_END` | The model writes text. A message is closed when the model turn changes or the run ends |
+| `STEP_STARTED`, `STEP_FINISHED` | One step per model turn, named `model`. A step also holds the tool results that follow the turn |
+| `TEXT_MESSAGE_START`, `TEXT_MESSAGE_CONTENT` (one per chunk), `TEXT_MESSAGE_END` | The model writes text |
+| `REASONING_START`, `REASONING_MESSAGE_START`, `REASONING_MESSAGE_CONTENT`, `REASONING_MESSAGE_END`, `REASONING_END` | The model's thoughts, **only with** [`show_thoughts`](#thoughts) |
+| `REASONING_ENCRYPTED_VALUE` | A provider's opaque or signed value for a thought (Claude's signature, OpenAI's encrypted content) |
+| `TOOL_CALL_START` (name, id), `TOOL_CALL_ARGS` (the arguments, in pieces), `TOOL_CALL_END` | The model calls a tool |
+| `TOOL_CALL_RESULT` | The tool returned (the text of its result, or of its error) |
 | `RUN_FINISHED` | Last, on success: `outcome` is `success`, and `usage` has the tokens |
-| `RUN_ERROR` | Last, on failure. Whatever was open is closed first |
+| `RUN_ERROR` | Last, on failure |
+
+The order: a text message, a thought or a tool call is **closed before another kind opens**, and everything that is open
+is closed before a step ends and before `RUN_FINISHED` or `RUN_ERROR`. A tool call carries the id of the assistant message of
+its turn in `parent_message_id`. A launched sub-agent shows as a tool call (`launch_agent`) with its result: its own words are
+not streamed.
 
 When the loop ends, `run.status` is `SUCCESS` or `FAILED`, `run.error` says why, and `run.usage` has the tokens.
 `run.run_id` is the id of the run in the [run log](#what-is-logged).
@@ -67,6 +78,17 @@ To stop early, leave the loop and close the run (`contextlib.aclosing(run)` does
 `stream()` raises for a mistake in your code: an agent that is not a `StreamingAgent`, an input that is not a `ChatInput`
 (`TypeError`), or a `job_id` that does not exist (raised when the loop starts). A `StreamingAgent` passed to `runner.run()` is a
 `TypeError` too. Failures at run time (a provider that is down) are events, not exceptions.
+
+## Thoughts
+
+```python
+model: ModelSettings = Claude(model="claude-sonnet-5-5", effort="medium", show_thoughts=True)
+```
+
+`show_thoughts` is a setting of [every model class](models.md): it asks the provider to return the model's thoughts, and
+the reasoning events carry them. Off by default; with it off there are no reasoning events. It is a summary of the thinking
+for most providers, not the raw reasoning. A provider's thoughts that must go back with the next request are kept whether
+they are shown or not (that comes with the messages part of the epic).
 
 ## The conversation is yours
 
@@ -109,6 +131,6 @@ The slot is held for the whole stream. A streaming run is never reused when a jo
 
 ## What is not there yet
 
-Tracked in [epic #29](https://github.com/aadhithya/micro/issues/29): tool call and thought events (#31), messages in and out
+Tracked in [epic #29](https://github.com/aadhithya/micro/issues/29): messages in and out
 (#32), stopping a response (#33), the AG-UI adapter (#34), the Vercel AI SDK adapter (#35), an example and the full guide (#36).
 Background agents, jobs across processes and stored conversations are not part of it.

@@ -175,3 +175,38 @@ def test_a_class_that_does_not_write_build_says_so():
 
     with pytest.raises(NotImplementedError, match="must write build"):
         Bare(model="x").build()
+
+
+# --- show_thoughts: ask the provider to return the model's thoughts
+
+
+def test_thoughts_are_not_asked_for_by_default():
+    assert Gemini().show_thoughts is False
+    assert not Gemini().build().include_thoughts
+    assert "display" not in Claude().build().thinking
+    assert OpenAI().build().reasoning == {"effort": "medium"}
+
+
+def test_gemini_and_gemma_ask_for_thought_summaries():
+    assert Gemini(show_thoughts=True).build().include_thoughts is True
+    assert Gemma(show_thoughts=True).build().include_thoughts is True
+
+
+def test_claude_asks_for_summarized_thinking_because_newer_models_omit_it():
+    chat = Claude(model="claude-sonnet-5-5", show_thoughts=True).build()
+    assert chat.thinking == {"type": "adaptive", "display": "summarized"}
+
+
+def test_openai_asks_for_a_reasoning_summary():
+    assert OpenAI(effort="low", show_thoughts=True).build().reasoning == {"effort": "low", "summary": "auto"}
+
+
+def test_thoughts_cannot_be_shown_where_the_model_does_not_think():
+    with pytest.raises(ValidationError, match="show_thoughts needs thinking"):
+        Claude(model="claude-haiku-5-5", effort="low", thinking="off", show_thoughts=True)
+    with pytest.raises(ValidationError, match="show_thoughts needs reasoning"):
+        OpenAI(model="gpt-6-luna", effort="none", show_thoughts=True)
+
+
+def test_show_thoughts_is_part_of_the_declaration_of_an_agent():
+    assert Claude(show_thoughts=True) != Claude()
