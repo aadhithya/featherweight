@@ -211,8 +211,8 @@ One `agent_runs` row per turn, as for any run, with these differences:
 | | |
 |---|---|
 | `status` | `INIT` while it waits for a slot, `RUNNING` while it streams, then `SUCCESS`, `FAILED` or **`CANCELLED`** (new; the column is text, so no migration) |
-| `input` | The `ChatInput` JSON (the whole history of the request, so the log grows with each turn; this is the price of a stateless server) |
-| `output` | The final assistant text of the turn (for a cancel, the text so far) |
+| `input` | **No messages are stored.** A small placeholder with the message count, such as `{"messages": 7}` (the column is `NOT NULL` in sqlite, so it cannot be left empty), and `input_hash`, the hash of the whole `ChatInput` |
+| `output` | **No text is stored.** A placeholder with the length, such as `{"chars": 412}`, and an `output_hash` (new nullable column). For a cancel, the length so far |
 | `thread_id` | **New nullable column.** The conversation, so its turns can be found |
 | `agent_hash` | Recorded as for any run |
 | Reuse | **None.** Resuming a job does not reuse a streaming run |
@@ -256,7 +256,10 @@ A third format is a third adapter: the events are the contract.
   Vercel translation. It ties us to a spec we do not control; it is open, at 1.0, and the format that Pydantic AI and others
   already speak.
 - **No retries.** A failure is an error event and a `FAILED` row.
-- **Stateless on our side.** No sessions, no conversation store, no checkpointer. The cost is a growing `input` in the run log.
+- **Stateless on our side.** No sessions, no conversation store, no checkpointer. The run log holds **no message content** either, only counts, hashes,
+  tokens, status and timing: `micro` is not a persistence layer. The app keeps the words (with LangChain's stores) and saves the
+  `run_id` from `RUN_STARTED` next to each turn, so it can join its messages to the log. Where the log should keep content for
+  all agents is a wider question, parked in the ideas notes (the run log and persistence boundary).
 - **Client history is untrusted:** no `system` or `developer` roles; the application still validates what it stores and sends.
 - **Cancel keeps the partial turn,** with a synthetic result for a tool call that did not return.
 - **`show_thoughts` is a `ModelSettings` field, default off.** (Taken in this spec; to confirm in review: a streaming agent
