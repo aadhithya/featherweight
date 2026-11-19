@@ -207,7 +207,7 @@ row **per attempt**:
 | `agent_name`, `agent_version`, `tool_names` | The agent. `tool_names` includes the tools the runner added |
 | `model_name`, `reasoning`, `provider`, `settings`, `reported_model_name` | What was asked for (the model, the effort, the provider, all settings as JSON), and what the API reported |
 | `system_prompt_hash` | The hash of the assembled system prompt |
-| `agent_hash` | The hash of the whole agent: its prompt, version, limits, model settings, tools, sub-agents, skills and MCP servers. Same hash, same agent. `NULL` for older rows |
+| `agent_hash` | The hash of the whole agent: its prompt, version, limits, model settings (and the settings class), tools, sub-agents, skills and MCP servers. Same hash, same agent. `NULL` for older rows |
 | `status`, `error` | `INIT` (queued for a slot), `RUNNING`, `SUCCESS` or `FAILED` |
 | `input`, `output` | JSON. A failed attempt keeps its error, not the model's raw reply |
 | `input_tokens`, `output_tokens`, `latency_ms` | Of the attempt |

@@ -48,7 +48,8 @@ def agent_declaration(agent: AgentBase, _seen: tuple[type, ...] = ()) -> dict[st
             "recursion_limit": agent.recursion_limit,
             "allow_user_questions": agent.allow_user_questions,
             "raise_conflicts": agent.raise_conflicts,
-            "model": agent.model.model_dump(mode="json"),
+            "model": {"class": type(agent.model).__qualname__, "provider": agent.model.provider}
+            | agent.model.model_dump(mode="json"),  # the class too: two classes with equal fields are not one model
             "tools": [_tool(t) for t in agent.tools],
             "subagents": subagents,
             "skills": [s.model_dump(mode="json", by_alias=True) for s in agent.skills],

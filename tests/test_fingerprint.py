@@ -102,6 +102,13 @@ def test_each_part_of_the_declaration_changes_the_hash():
     assert len(set(hashes.values())) == len(hashes)
 
 
+def test_a_settings_class_with_the_same_fields_gives_another_hash():
+    class OtherGemini(Gemini):
+        pass
+
+    assert agent_hash(echo(model=Gemini())) != agent_hash(echo(model=OtherGemini()))
+
+
 def test_a_tools_description_and_schema_change_the_hash():
     described = shout.model_copy(update={"description": "Shout it."})
     assert agent_hash(echo(tools=[shout])) != agent_hash(echo(tools=[described]))
