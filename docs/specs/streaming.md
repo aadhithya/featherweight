@@ -3,6 +3,8 @@
 Status: implemented (epic #29 is done). #33 (stopping a response) and #36 (the example and the guide) are done too. #30 (the class, `ChatInput`, `runner.stream()`, the run log), #31 (the events: text, tool calls, thoughts, steps; `show_thoughts`), #32 (messages in and out: the converters, `from_langchain`, `from_agui`, `new_messages`), #34 (the AG-UI adapter) and #35 (the Vercel adapter) are done; the other issues are not. It is tracked in [epic #29](https://github.com/aadhithya/featherweight/issues/29), and each part has its own
 issue (listed [at the end](#the-work)). When a part is built, this page says so and the guide `docs/streaming.md` shows how to use it.
 
+> **Change in progress:** the run log keeps no placeholders for a streaming run's input and output (the columns go), and `error` becomes `error_type` and `error_hash`. See the [persistence spec](persistence.md).
+
 It changes [agents](agents.md) (a new kind of agent), [the runner](runner.md) (`stream()`, and `run()` refuses a streaming
 agent), [models](models.md) (`show_thoughts`) and [jobs and tracing](jobs-and-tracing.md) (a `thread_id` column and a
 `CANCELLED` status).

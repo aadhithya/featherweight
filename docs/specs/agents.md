@@ -2,6 +2,8 @@
 
 Status: implemented. How to use it is in [agents.md](../agents.md). The code is [models.py](../../src/featherweight/models.py).
 
+> **Change in progress:** `agent_hash` will cover the input and output schemas too, and resuming a job goes through a result store. See the [persistence spec](persistence.md).
+
 - [Goal](#goal)
 - [The definition](#the-definition)
 - [Checked when an agent is built](#checked-when-an-agent-is-built)
