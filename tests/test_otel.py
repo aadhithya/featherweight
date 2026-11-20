@@ -1,6 +1,7 @@
 """OTelObserver: the spans, their parents and attributes, content on and off, and the trace context. Fake models, and the
 OpenTelemetry SDK's in-memory exporter."""
 
+import asyncio
 import json
 
 import pytest
@@ -10,15 +11,18 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import SpanKind, StatusCode
+from test_job_observers import In, Out, Shout
 from test_resume import model, steps
 from test_streaming import Chat, say
 from test_subagents import PARENT_INPUT, Parent, child_done, launch_child, parent_done
 
-from featherweight import AgentRunner, OTelObserver
+from featherweight import AgentRunner, JobClient, JobWorker, OTelObserver, SqliteQueue, run_job
+from featherweight.events import wait_for_job
+from featherweight.jobs import Job, JobContext
 from featherweight.models import RunStatus
 from featherweight.observers import JobEnd, JobStart, JobSubmitted
 from featherweight.otel import ATTRIBUTES, CAPTURE_CONTENT_ENV, CORE_CONVENTIONS, GENAI_CONVENTIONS
-from featherweight.testing import check_observer
+from featherweight.testing import MemoryResultStore, check_observer
 
 ECHO = EchoInput(text="hello")
 CONTENT = {
@@ -379,3 +383,78 @@ async def test_with_no_sdk_nothing_is_recorded_and_nothing_fails(db):
 async def test_the_kit_accepts_the_observer(telemetry):
     await check_observer(lambda: observer_for(telemetry))
     await check_observer(lambda: observer_for(telemetry, capture_content=True))
+
+
+# a job in a process, a job on a worker: the same spans
+
+
+async def test_a_job_that_a_client_submits_and_a_worker_runs_is_one_trace_across_the_queue(db, telemetry):
+    queue = SqliteQueue(db)
+    client = JobClient(db, queue, MemoryResultStore(), observers=[observer_for(telemetry)])
+    runner = runner_with(db, Scripted(script=[echoed()]), observers=[observer_for(telemetry)])
+    worker = JobWorker(db, queue, runner, [Shout], results=MemoryResultStore(), receive_timeout=0.05, cancel_poll=0.05)
+    api = telemetry[0].get_tracer("my api")
+
+    with api.start_as_current_span("POST /jobs") as request:
+        job_id = await client.submit(Shout, In(text="hello"))
+    task = asyncio.create_task(worker.run())  # another task, another time: nothing of the request is current
+    try:
+        row = await wait_for_job(db, job_id, timeout=5)
+    finally:
+        await worker.stop(grace=1)
+        await asyncio.wait_for(task, timeout=5)
+
+    assert row.status == RunStatus.SUCCESS
+    spans = spans_of(telemetry)
+    assert edges(spans) == [
+        ("POST /jobs", None),
+        ("chat fake-model", "invoke_agent echo"),
+        ("invoke_agent echo", "invoke_workflow shout"),
+        ("invoke_workflow shout", "POST /jobs"),
+    ]
+    assert {s.context.trace_id for s in spans} == {request.get_span_context().trace_id}
+    job = named(spans, "invoke_workflow shout")[0].attributes
+    assert (job["ftw.job.id"], job["ftw.job.version"], job["ftw.job.hash"]) == (job_id, "3", Shout.job_hash())
+    assert job["gen_ai.agent.name"] == "shout" and "ftw.resumed_from" not in job
+
+
+async def test_a_job_run_in_your_process_has_the_same_spans_and_your_own_span_nests_in_it(db, telemetry):
+    mine = telemetry[0].get_tracer("my app")
+
+    class Mine(Job):
+        name = "shout"
+        version = "3"
+        input_model = In
+        output_model = Out
+
+        async def run(self, ctx: JobContext, input: In) -> Out:
+            with mine.start_as_current_span("load documents"):
+                result = await ctx.run(Echo, EchoInput(text=input.text))
+            return Out(shouted=result.output.echoed.upper())
+
+    runner = runner_with(db, Scripted(script=[echoed()]), observers=[observer_for(telemetry)])
+
+    outcome = await run_job(runner, Mine, In(text="hello"))
+
+    assert outcome.status == RunStatus.SUCCESS
+    assert edges(spans_of(telemetry)) == [
+        ("chat fake-model", "invoke_agent echo"),
+        ("invoke_agent echo", "load documents"),
+        ("invoke_workflow shout", None),
+        ("load documents", "invoke_workflow shout"),
+    ]
+    job = named(spans_of(telemetry), "invoke_workflow shout")[0]
+    assert job.attributes["ftw.job.version"] == "3" and job.status.status_code == StatusCode.UNSET
+
+
+async def test_a_job_that_fails_in_a_worker_or_in_your_process_is_an_error_span_without_its_text(db, telemetry):
+    from test_job_observers import Boom
+
+    runner = runner_with(db, Scripted(script=[]), observers=[observer_for(telemetry, capture_content=True)])
+
+    outcome = await run_job(runner, Boom, In(text="x"))
+
+    assert outcome.status == RunStatus.FAILED
+    (job,) = named(spans_of(telemetry), "invoke_workflow boom")
+    assert job.status.status_code == StatusCode.ERROR and job.attributes["error.type"] == "RuntimeError"
+    assert "secret failure" not in json.dumps(dict(job.attributes), default=str)
