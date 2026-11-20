@@ -15,7 +15,7 @@ description = "An opinionated agent harness where Pydantic is the specification:
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.12"
-authors = [{ name = "Aadhithya" }]
+authors = [{ name = "Aadhithya" }, { name = "Claude", email = "noreply@anthropic.com" }]
 keywords = ["agents", "llm", "pydantic", "langchain", "langgraph", "mcp", "streaming", "ag-ui"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -62,6 +62,9 @@ postgres = [
 ]
 otel = [
     "opentelemetry-api>=1.30",
+]
+all = [
+    "featherweight[mcp,anthropic,openai,postgres,otel]",
 ]
 
 [dependency-groups]
