@@ -6,6 +6,7 @@ application's tables. There is no result store for Postgres: where a deployment 
 the user to decide, so pass `results=` to the runner. Needs the extra `featherweight[postgres]` (`psycopg`, version 3).
 """
 
+import contextlib
 import logging
 import re
 from collections.abc import Mapping, Sequence
@@ -56,11 +57,19 @@ class PostgresDatabase(Database):
         psycopg = require("psycopg", "postgres")
         rows = require("psycopg.rows", "postgres")
         self._conn = await psycopg.AsyncConnection.connect(self.dsn, autocommit=True, row_factory=rows.dict_row)
+        key = f"featherweight:{self.schema}"
         try:
-            await self._conn.execute(f"CREATE SCHEMA IF NOT EXISTS {self.schema}")
-            await self._conn.execute(f"SET search_path TO {self.schema}")
-            await self._conn.execute("SET TIME ZONE 'UTC'")
-            await self._migrate()
+            # Processes that connect to a fresh database at the same moment (an API and workers started together) would race to make
+            # the schema and the tables. One at a time, by an advisory lock on the schema: the others wait, then find it all done.
+            await self._conn.execute("SELECT pg_advisory_lock(hashtextextended(%s, 0))", (key,))
+            try:
+                await self._conn.execute(f"CREATE SCHEMA IF NOT EXISTS {self.schema}")
+                await self._conn.execute(f"SET search_path TO {self.schema}")
+                await self._conn.execute("SET TIME ZONE 'UTC'")
+                await self._migrate()
+            finally:  # closing the connection releases it too, so a failure to unlock here is harmless
+                with contextlib.suppress(Exception):
+                    await self._conn.execute("SELECT pg_advisory_unlock(hashtextextended(%s, 0))", (key,))
         except BaseException:
             await self.close()
             raise

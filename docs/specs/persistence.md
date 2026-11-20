@@ -128,6 +128,12 @@ never edited once released.
 carried over: an old database is **not read**. One that has `agent_runs` but no `schema_migrations` raises `SetupError` ("this
 database is from before migrations: delete it and run again").
 
+**Concurrent first connects.** Processes that connect to a fresh database at the same moment (an API and workers started together) must not
+race on the schema and the tables. On Postgres, `connect()` takes a session advisory lock, keyed on the schema (`pg_advisory_lock` on a hash of
+`featherweight:<schema>`), around creating the schema and applying the migrations, and releases it after: one connection makes the tables, and
+the others wait and then find them applied. Different schemas do not block each other. sqlite needs nothing: its file locking is enough (checked
+with six processes on one fresh file).
+
 ## The schema
 
 Types are given as *Postgres / sqlite*. A `CHECK` is in both.
@@ -311,7 +317,8 @@ No live model call. Fake models, and the dict store.
 
 - **Conformance kits:** the `Database` contract against sqlite and, when a URL is set, Postgres; the `ResultStore` contract against
   the sqlite store and the dict store.
-- **Migrations:** applied once, in order, recorded; a second `connect()` does nothing; an old database is refused.
+- **Migrations:** applied once, in order, recorded; a second `connect()` does nothing; an old database is refused; several processes
+  connecting to a fresh Postgres schema at the same moment all connect, and the migration is applied once.
 - **Metadata only:** after runs of every kind (success, failure, retry, reused, launched, streaming, stopped), no table holds an
   input, an output, a message or an error text, and no column named `input`, `output`, `tool_names` or `error` exists.
 - **Typed models:** a wrong status, a malformed hash or a negative token count is refused when the record or row is built.

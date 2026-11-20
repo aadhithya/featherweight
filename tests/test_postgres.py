@@ -1,6 +1,7 @@
 """PostgresDatabase: the same contract as sqlite, with native types, in its own schema. Needs FTW_TEST_POSTGRES_URL (the
 compose service `postgres` provides it in Docker); without it the tests that need a server are skipped."""
 
+import asyncio
 import hashlib
 import json
 import os
@@ -88,6 +89,18 @@ async def test_a_second_connect_applies_nothing_and_keeps_the_rows(schema):
     async with PostgresDatabase(URL, schema=schema) as db:
         assert await db.get_job(job) is not None
     assert (await query(schema, "SELECT COUNT(*) AS n FROM schema_migrations"))[0]["n"] == 1
+
+
+@needs_postgres
+async def test_processes_that_connect_at_the_same_moment_to_a_fresh_schema_all_connect(schema):
+    """An API and several workers started together on an empty database: one makes the schema, the rest wait for it."""
+
+    async def connect() -> bool:
+        async with PostgresDatabase(URL, schema=schema):
+            return True
+
+    assert await asyncio.gather(*(connect() for _ in range(6))) == [True] * 6
+    assert await query(schema, "SELECT version FROM schema_migrations") == [{"version": 1}]  # applied once
 
 
 @needs_postgres
