@@ -29,12 +29,13 @@ def minutes_between(start: str, end: str) -> str:
     return str(int((datetime.fromisoformat(end) - datetime.fromisoformat(start)).total_seconds() // 60))
 
 
-class Report(AgentInput):
+class Report(AgentInput):  # what goes in: a typed model, checked before the model is called
     text: str
 
 
 class Summary(AgentOutput):  # also carries `open_questions: list[str]`
-    title: str = ""
+    title: str = ""  # every field has a default: a model that does not know is not forced to invent
+    # only these values, or None when the report does not say
     severity: Literal["low", "medium", "high"] | None = None
     service: str | None = None
     impact: str = ""
@@ -54,17 +55,17 @@ class Plan(AgentOutput):
 class ActionPlanner(AgentBase):  # the sub-agent
     name: str = "action_planner"
     description: str = "Proposes two or three next steps for an incident, from its impact"
-    version: str = "1"
+    version: str = "1"  # change it when the prompt or the behaviour changes: runs are told apart by it
     prompt: str = "Propose two or three concrete next steps for the incident."
     model: ModelSettings = MODEL
-    input_model: ClassVar[type[AgentInput]] = Impact
+    input_model: ClassVar[type[AgentInput]] = Impact  # the contract is set on the class: the same for every run
     output_model: ClassVar[type[AgentOutput]] = Plan
 
 
 class IncidentSummariser(AgentBase):
-    name: str = "incident_summariser"
+    name: str = "incident_summariser"  # how the run log and the traces name the agent
     description: str = "Turns an incident report into a short, structured summary"
-    version: str = "6"
+    version: str = "6"  # change it when the prompt or the behaviour changes: runs are told apart by it
     prompt: str = (
         "Summarise the incident report. Use only what the report says. "
         "If the severity is not stated, decide it with your skill. If the service is not stated, leave it out and ask in open_questions. "
@@ -87,7 +88,7 @@ class IncidentSummariser(AgentBase):
             description="Who owns a service, and who is on call",
         )
     ]
-    input_model: ClassVar[type[AgentInput]] = Report
+    input_model: ClassVar[type[AgentInput]] = Report  # the contract is set on the class: the same for every run
     output_model: ClassVar[type[AgentOutput]] = Summary
 
     def check_output(self, agent_input, output):  # a rule the schema cannot say: raise to reject the attempt

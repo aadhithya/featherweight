@@ -10,13 +10,14 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from featherweight import AgentRunner, ChatInput, Gemini, ModelSettings, SqliteDatabase, StreamingAgent, default_db_path
 
 
-class IncidentAssistant(StreamingAgent):
+class IncidentAssistant(StreamingAgent):  # a streaming agent answers in a chat: no output model, no retries
     name: str = "incident_assistant"
     description: str = "Answers questions about an incident report"
-    version: str = "1"
+    version: str = "1"  # change it when the prompt or the behaviour changes: runs are told apart by it
     prompt: str = (
         "The first message is an incident report. Answer questions about it in a sentence or two, only from the report."
     )
+    # the model is a setting of the agent
     model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
 
 
@@ -38,6 +39,7 @@ async def main(path: str = "reports/01-checkout-outage.txt") -> None:
     async with SqliteDatabase(default_db_path()) as db, AgentRunner(db) as runner:
         while text := await read_line("\nyou> "):  # an empty line leaves
             user = HumanMessage(text)
+            # the conversation is yours: the whole history goes in at each turn
             run = runner.stream(IncidentAssistant, ChatInput.from_langchain([*history, user]))
             async for event in run:
                 if isinstance(event, TextMessageContentEvent):

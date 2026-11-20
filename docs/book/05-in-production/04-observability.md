@@ -37,7 +37,7 @@ class ReportFile(BaseModel):
     path: str
 
 
-@job
+@job  # a class made from this function: a name, a version, a typed input and output
 async def summarise_file(ctx: JobContext, input: ReportFile) -> Summary:
     with trace.get_tracer("incident_app").start_as_current_span("read the report"):  # your span, under the job's
         report = Report(text=Path(input.path).read_text())
@@ -70,7 +70,7 @@ invoke_workflow summarise_file
 
 **What to notice**
 
-- **`OTelObserver`** is an observer on the runner. featherweight uses only the OpenTelemetry **API**: you configure the SDK and the exporter for your backend, as for any application
+- **`OTelObserver`** is the observer that ships, and observers are classes: yours is [Part 6](../06-bring-your-own-storage/05-an-observer.md). It goes on the runner. featherweight uses only the OpenTelemetry **API**: you configure the SDK and the exporter for your backend, as for any application
   (here an in-memory one, so that the book can print the tree; a real app exports with OTLP to its platform). Without an SDK it records nothing and costs nothing.
 - **The spans** follow the OpenTelemetry GenAI conventions, so platforms read them as they are:
 

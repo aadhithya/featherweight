@@ -9,6 +9,7 @@ from featherweight import AgentRunner, JobWorker, SqliteDatabase, SqliteQueue, d
 
 async def main() -> None:
     async with SqliteDatabase(default_db_path()) as db:
+        # takes jobs from the queue until it is stopped
         await JobWorker(db, SqliteQueue(db), AgentRunner(db), jobs=[summarise_all]).run()
 
 

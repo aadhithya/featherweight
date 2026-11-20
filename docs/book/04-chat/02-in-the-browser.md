@@ -27,13 +27,14 @@ from featherweight import (
 from featherweight.adapters import agui, vercel
 
 
-class IncidentAssistant(StreamingAgent):
+class IncidentAssistant(StreamingAgent):  # a streaming agent answers in a chat: no output model, no retries
     name: str = "incident_assistant"
     description: str = "Answers questions about an incident report"
-    version: str = "1"
+    version: str = "1"  # change it when the prompt or the behaviour changes: runs are told apart by it
     prompt: str = (
         "The first message is an incident report. Answer questions about it in a sentence or two, only from the report."
     )
+    # the model is a setting of the agent
     model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
 
 
