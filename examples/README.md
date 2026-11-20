@@ -2,13 +2,14 @@
 
 Each folder here is an example you can run. Most use the real model, so they need `GOOGLE_API_KEY` in `.env` (copy
 `.env.example`) and make real, small API calls. `mcp` also needs a read-only `GITHUB_TOKEN`. They use `gemini-3.5-flash-lite`, except the `doclearn` agents, which use `gemini-3.8-flash` for the harder steps, and `resume`,
-which use `claude-haiku-5-5` and need `ANTHROPIC_API_KEY` (so does `chat`).
+which use `claude-haiku-5-5` and need `ANTHROPIC_API_KEY` (so do `chat` and `background`).
 
 | Folder | What it shows | Run it |
 |---|---|---|
 | [`launching`](launching) | One agent launching other agents: an allow-list, the two tools, and the run tree in the trace | `make example-launching` |
 | [`mcp`](mcp) | An agent that uses the tools of an MCP server (GitHub's, read-only), with an allow-list and a token read by name | `make example-mcp` |
 | [`resume`](resume) | Resuming a job: a pipeline that crashes halfway, and a second run with `resume_from` that reuses the first half | `make example-resume` |
+| [`background`](background) | A chat agent that starts a background agent and goes on talking, and a small session that wakes it when the work is done | `make example-background` |
 | [`chat`](chat) | A streaming chat agent: a chat in the terminal (about 30 lines), and the same agent behind FastAPI for AG-UI and the Vercel AI SDK | `make example-chat`, `make example-chat-api` |
 | [`observability`](observability) | A job traced with OpenTelemetry, with a span of your own inside it (no model, no key) | `make example-observability` |
 | [`jobs`](jobs) | Submitting a job to a queue and running a worker for it, following it with events and SSE, and a worker that dies mid-job (no model, no key) | `make example-jobs`, `make example-takeover` |

@@ -7,7 +7,8 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from fakes import FakeSettings, Reactive, Scripted, structured_reply, use_model
+from fakes import FakeSettings, Reactive, Scripted, Streams, structured_reply, tool_call_chunk, use_model
+from langchain_core.messages import HumanMessage
 
 from featherweight.client import JobClient
 from featherweight.jobs import run_job
@@ -15,6 +16,7 @@ from featherweight.model_settings import ModelSettings
 from featherweight.models import AgentInput, AgentOutput, RunStatus
 from featherweight.queue import SqliteQueue
 from featherweight.runner import AgentRunner
+from featherweight.sqlite import SqliteDatabase
 from featherweight.worker import JobWorker
 
 EXAMPLES = Path(__file__).parent.parent / "examples"
@@ -352,3 +354,37 @@ def test_the_takeover_example_kills_a_worker_and_another_takes_the_job_over():
     events = [line for line in run.stdout.splitlines() if line in {"queued", "running", "lost", "succeeded", "failed"}]
     assert events == ["queued", "running", "lost", "running", "succeeded"]
     assert "2 executions" in run.stdout
+
+
+# the background example: a chat agent that starts a researcher, and a session that wakes it when the researcher is done
+
+
+async def test_the_background_example_wakes_the_chat_with_the_result_when_the_researcher_is_done(monkeypatch, capsys):
+    monkeypatch.syspath_prepend(str(EXAMPLES / "background"))
+    session = __import__("session")
+
+    class FakeResearcher(session.Researcher):
+        model: ModelSettings = FakeSettings(key="researcher")
+
+    class FakeAssistant(session.Assistant):
+        model: ModelSettings = FakeSettings(key="assistant")
+        background_agents: list[type] = [FakeResearcher]
+
+    monkeypatch.setattr(session, "Assistant", FakeAssistant)
+    start = tool_call_chunk(
+        "start_background", {"agent_name": "researcher", "input_json": '{"topic": "kettles"}'}, "t1"
+    )
+    assistant = Streams(turns=[[start], ["On it, I am researching."], ["The note says: kettles boil water."]])
+    use_model(assistant, "assistant")
+    use_model(Scripted(script=[structured_reply("Note", {"note": "Kettles boil water."})]), "researcher")
+
+    async with SqliteDatabase(":memory:") as db, AgentRunner(db) as runner:
+        chat = session.Session(db, runner)
+        await chat.say(HumanMessage("research kettles"))  # the first turn ends with the researcher still working
+        await asyncio.wait_for(asyncio.gather(*chat.watching), timeout=30)  # the session wakes the chat on its own
+
+    assert assistant.calls == 3  # the tool call, the answer, and the turn that nobody typed
+    woken = assistant.seen[-1]  # what the model was shown in the turn that nobody typed
+    assert any("<background_result" in str(m.content) and "Kettles boil water." in str(m.content) for m in woken)
+    out = capsys.readouterr().out
+    assert "On it, I am researching." in out and "The note says: kettles boil water." in out

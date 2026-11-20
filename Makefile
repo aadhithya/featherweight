@@ -1,4 +1,4 @@
-.PHONY: skill build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching example-resume example-results example-jobs example-takeover example-observability example-chat example-chat-api example-mcp shell
+.PHONY: skill build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching example-resume example-results example-jobs example-takeover example-observability example-chat example-chat-api example-background example-mcp shell
 
 build:
 	docker compose build
@@ -86,6 +86,10 @@ example-takeover:
 # Run a job and print its trace (no model, no key; see examples/observability).
 example-observability:
 	docker compose run --rm --no-deps featherweight python examples/observability/trace.py
+
+# A chat agent that starts a background agent and is woken when it is done (real Claude Haiku calls; needs ANTHROPIC_API_KEY, see examples/background).
+example-background:
+	docker compose run --rm --no-deps featherweight python examples/background/session.py
 
 # A chat in the terminal with a streaming agent (real Claude Haiku calls; needs ANTHROPIC_API_KEY in .env, see examples/chat).
 example-chat:
