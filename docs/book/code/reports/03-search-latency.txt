@@ -1,0 +1,6 @@
+Incident report: search was slow
+
+Severity: medium. Service: search.
+Search results took more than 8 seconds for most of the morning on 2026-03-03. A nightly index rebuild ran into the
+morning because it processed twice the usual data. We stopped the rebuild and results were fast again. Please tell the team
+that owns search, so that the rebuild gets a time limit.

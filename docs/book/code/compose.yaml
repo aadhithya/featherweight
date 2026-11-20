@@ -1,0 +1,26 @@
+# Run the book's code in a container: `make build`, then `make chapter N=1-2` (see README.md). Nothing else is started.
+name: featherweight-book
+
+services:
+  book:
+    image: featherweight-book
+    build:
+      # From the repository's source by default; `make build INSTALL=pypi` builds from PyPI (README.md).
+      context: ${BOOK_CONTEXT:-../../..}
+      dockerfile: ${BOOK_DOCKERFILE:-docs/book/code/Dockerfile.source}
+    working_dir: /code
+    volumes:
+      - .:/code # the code, so that you can edit a chapter and run it again
+      - book-data:/data # the sqlite file: the run log and the results
+    environment:
+      FTW_DB_PATH: /data/book.db
+      # Only these are handed to the container, from your shell or the .env file in this folder. Nothing else is.
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      FTW_LOG_LEVEL: ${FTW_LOG_LEVEL:-}
+    stdin_open: true # the chat reads your keyboard
+    tty: true
+
+volumes:
+  book-data:

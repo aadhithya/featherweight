@@ -1,0 +1,6 @@
+Incident report: checkout was down
+
+Severity: high. Service: checkout.
+On 2026-03-02 customers could not pay for about 40 minutes. A new release of the payment form sent a field that the payment
+provider rejects, so every payment failed. We rolled the release back at 10:25 and payments recovered. About 1,200 orders
+were affected. Follow-up: add a test with the provider's sandbox before each release.

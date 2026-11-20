@@ -1,0 +1,5 @@
+Incident report: sign-in trouble
+
+Some people could not sign in for a while on Tuesday afternoon. They saw a blank page after typing their password.
+Support got a few dozen messages. It went away after a restart of one of the servers, and we have not seen it since.
+We do not know the cause yet.
