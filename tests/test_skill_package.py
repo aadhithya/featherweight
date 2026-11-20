@@ -32,7 +32,7 @@ def test_the_skill_loads_with_our_own_skill_model():
 
 def test_every_reference_the_skill_points_to_exists():
     body = (SKILL / "SKILL.md").read_text()
-    named = set(re.findall(r"`(references/[\w\-]+\.md)`", body))
+    named = set(re.findall(r"`(references/[\w\-/]+\.md)`", body))  # the guides, and the chapters of the book
     assert named and all((SKILL / path).is_file() for path in named)
 
 
