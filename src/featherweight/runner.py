@@ -24,7 +24,7 @@ from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_core.tools import BaseTool, tool
 from pydantic import ValidationError
 
-from featherweight.context import CURRENT_AGENT_RUN_ID, RunContext
+from featherweight.context import CURRENT_AGENT_RUN_ID, CURRENT_TOOL_CALL_ID, RunContext
 from featherweight.db import Database, RunEnd, RunStart, new_id
 from featherweight.discovery import discovery_tools
 from featherweight.errors import RETRYABLE_4XX, SetupError
@@ -41,6 +41,7 @@ from featherweight.models import (
     AgentResult,
     RunStatus,
 )
+from featherweight.observers import AttemptEnd, AttemptStart, Entered, Observer, Observers, ReusedRun
 from featherweight.registry import ToolRegistry
 from featherweight.results import ResultKey, ResultStore, SqliteResultStore
 from featherweight.sqlite import SqliteDatabase
@@ -201,6 +202,8 @@ class AgentRunner:
         max_depth: int | None = None,
         max_launches: int | None = None,
         results: ResultStore | None | Literal["default"] = "default",
+        observers: Sequence[Observer] = (),
+        observer_timeout: float = 1.0,
     ):
         """`store` is what the `store_get` / `store_set` tools read and write (default: a new RunStore).
 
@@ -214,6 +217,9 @@ class AgentRunner:
         `results` is where the outputs that resuming a job reads back are kept (a `ResultStore`), for the jobs created
         `resumable=True`. With a `SqliteDatabase` the default is a sqlite store in the same file; with any other database there is
         no default, so pass your own. `None` keeps nothing, and then a job that resumes another is a `SetupError`.
+
+        `observers` hear what the runner does (`featherweight.observers`): they are called inline, each with a timeout of
+        `observer_timeout` seconds, and what they raise is logged and ignored, so they never change or fail a run.
         """
         if max_attempts < 1:
             raise ValueError("max_attempts must be at least 1")
@@ -237,6 +243,7 @@ class AgentRunner:
         )
         self.max_attempts = max_attempts
         self.retry_delay_s = retry_delay_s
+        self._observers = Observers(observers, observer_timeout)
         self._keep_open = False  # True inside `async with`: MCP servers stay up between runs
         self._mcp: MCPConnections | None = None  # created when a run first needs an MCP server
         self._streams: dict[str, StreamingRun] = {}  # the streaming runs going on now, by run id, for `cancel()`
@@ -333,6 +340,7 @@ class AgentRunner:
             chat_input.thread_id,
         )
         lease = Lease(self._connections)
+        scope: Entered | None = None  # the observers' scope of this turn, once its row exists
         try:
             registry = ToolRegistry()
             setup_error: Exception | None = None
@@ -363,6 +371,28 @@ class AgentRunner:
                 )
             )
             self._streams[run.run_id] = run
+            if self._observers:
+                scope = await self._observers.enter(
+                    "attempt",
+                    AttemptStart(
+                        agent_run_id=run.run_id,
+                        invocation_id=run.run_id,
+                        attempt=1,
+                        max_attempts=1,
+                        job_id=job_id,
+                        agent_name=agent.name,
+                        agent_version=agent.version,
+                        agent_description=agent.description,
+                        agent_hash=agent_hash(agent),
+                        provider=agent.model.provider,
+                        model=agent.model.model,
+                        streaming=True,
+                        input={"messages": [m.model_dump(mode="json") for m in chat_input.messages]}
+                        if self._observers.wants_content
+                        else None,
+                        system_prompt=system_prompt if self._observers.wants_content else None,
+                    ),
+                )
             turn = _Turn(EventMapper(show_thoughts=agent.model.show_thoughts))
             emit(RunStartedEvent(thread_id=thread_id, run_id=run.run_id))
             consumer = asyncio.create_task(
@@ -388,10 +418,12 @@ class AgentRunner:
                 outcome, failure = "failed", exc
             finally:
                 run._interrupt = None
-            await self._end_stream(run, turn, emit, outcome, failure, agent, thread_id, started)
+            await self._end_stream(run, turn, emit, outcome, failure, agent, thread_id, started, scope)
             if outcome == "left":
                 raise asyncio.CancelledError
         finally:
+            if scope is not None:
+                await scope.leave()  # a no-op once the turn ended; this is for a turn that never got there
             self._streams.pop(run.run_id, None)
             await lease.release()
 
@@ -436,6 +468,7 @@ class AgentRunner:
         agent: StreamingAgent,
         thread_id: str,
         started: float,
+        scope: Entered | None = None,
     ) -> None:
         """End the run: the events (when someone reads them), the row, and the messages the turn leaves."""
         mapper = turn.mapper
@@ -476,6 +509,18 @@ class AgentRunner:
                 latency_ms=(time.perf_counter() - started) * 1000,
             ),
         )
+        if scope is not None:
+            await scope.leave(
+                AttemptEnd(
+                    status=status,
+                    final=True,
+                    input_tokens=mapper.input_tokens,
+                    output_tokens=mapper.output_tokens,
+                    latency_ms=(time.perf_counter() - started) * 1000,
+                    error_type=error_type,
+                    error=error if self._observers.wants_content else None,
+                )
+            )
         log = logger.info if outcome == "success" else logger.warning
         log("stream_ended agent_run_id=%s outcome=%s error=%s", run.run_id, outcome, error)
 
@@ -501,7 +546,10 @@ class AgentRunner:
         lc_agent = create_agent(model, tools=registry.tools, system_prompt=system_prompt, context_schema=RunContext)
         async for mode, data in lc_agent.astream(
             {"messages": to_langchain(chat_input.messages)},
-            config={"recursion_limit": agent.recursion_limit},
+            config={
+                "recursion_limit": agent.recursion_limit,
+                "callbacks": self._observers.callbacks(context.agent_run_id, agent.model.provider, agent.model.model),
+            },
             context=context,
             stream_mode=["messages", "updates"],
         ):
@@ -549,6 +597,7 @@ class AgentRunner:
         *,
         job_id: str | None,
         parent_agent_run_id: str | None = None,
+        parent_tool_call_id: str | None = None,
         depth: int = 1,
     ) -> AgentResult[Any]:
         """`run`, for the agents launched by other agents too: `depth` is 1 for a top-level run, and the child shares
@@ -557,7 +606,13 @@ class AgentRunner:
         lease = Lease(self._connections)
         try:
             return await self._invoke(
-                agent_cls, agent_input, lease, job_id=job_id, parent_agent_run_id=parent_agent_run_id, depth=depth
+                agent_cls,
+                agent_input,
+                lease,
+                job_id=job_id,
+                parent_agent_run_id=parent_agent_run_id,
+                parent_tool_call_id=parent_tool_call_id,
+                depth=depth,
             )
         finally:
             await lease.release()
@@ -570,6 +625,7 @@ class AgentRunner:
         *,
         job_id: str | None,
         parent_agent_run_id: str | None,
+        parent_tool_call_id: str | None,
         depth: int,
     ) -> AgentResult[Any]:
         agent = agent_cls()  # ty: ignore[missing-argument]  # a subclass supplies the defaults
@@ -641,6 +697,8 @@ class AgentRunner:
                     input_hash=input_hash(agent_input),
                 )
             )
+            scope: Entered | None = None  # the observers' scope of this attempt, once it runs
+            attempt_end: AttemptEnd | None = None
             # The attempt row stays INIT while it waits for a slot, and is RUNNING only once it holds one.
             queued = self._slots.locked()
             if queued:
@@ -667,6 +725,28 @@ class AgentRunner:
                     ),  # in the log only: the run log keeps a hash of the tools
                 )
                 attempt_started = time.perf_counter()
+                if self._observers:
+                    scope = await self._observers.enter(
+                        "attempt",
+                        AttemptStart(
+                            agent_run_id=agent_run_id,
+                            invocation_id=invocation_id,
+                            attempt=attempt,
+                            max_attempts=self.max_attempts,
+                            job_id=job_id,
+                            parent_agent_run_id=parent_agent_run_id,
+                            parent_tool_call_id=parent_tool_call_id,
+                            depth=depth,
+                            agent_name=agent.name,
+                            agent_version=agent.version,
+                            agent_description=agent.description,
+                            agent_hash=declaration_hash,
+                            provider=agent.model.provider,
+                            model=agent.model.model,
+                            input=agent_input.model_dump(mode="json") if self._observers.wants_content else None,
+                            system_prompt=system_prompt if self._observers.wants_content else None,
+                        ),
+                    )
 
                 try:
                     if setup_error is not None:
@@ -681,6 +761,11 @@ class AgentRunner:
                     await self.db.finish_run(
                         agent_run_id,
                         RunEnd(status=RunStatus.CANCELLED, latency_ms=(time.perf_counter() - attempt_started) * 1000),
+                    )
+                    attempt_end = AttemptEnd(
+                        status=RunStatus.CANCELLED,
+                        final=True,
+                        latency_ms=(time.perf_counter() - attempt_started) * 1000,
                     )
                     logger.warning(
                         "attempt_cancelled agent_run_id=%s attempt=%d/%d", agent_run_id, attempt, self.max_attempts
@@ -701,6 +786,13 @@ class AgentRunner:
                             latency_ms=(time.perf_counter() - attempt_started) * 1000,
                         ),
                     )
+                    attempt_end = AttemptEnd(
+                        status=RunStatus.FAILED,
+                        final=non_retryable or attempt >= self.max_attempts,
+                        latency_ms=(time.perf_counter() - attempt_started) * 1000,
+                        error_type=error_type,
+                        error=error if self._observers.wants_content else None,
+                    )
                     logger.warning(
                         "attempt_failed agent_run_id=%s attempt=%d/%d non_retryable=%s error=%s",
                         agent_run_id,
@@ -720,6 +812,15 @@ class AgentRunner:
                             latency_ms=(time.perf_counter() - attempt_started) * 1000,
                             reported_model_name=reported_model,
                         ),
+                    )
+                    attempt_end = AttemptEnd(
+                        status=RunStatus.SUCCESS,
+                        final=True,
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        reported_model=reported_model,
+                        latency_ms=(time.perf_counter() - attempt_started) * 1000,
+                        output=output.model_dump(mode="json") if self._observers.wants_content else None,
                     )
                     if depth == 1 and job_id is not None:  # only a step of a pipeline can be resumed
                         await self._keep_result(job_id, declaration_hash, input_hash(agent_input), output)
@@ -743,6 +844,8 @@ class AgentRunner:
                         model_name=reported_model,
                     )
             finally:
+                if scope is not None:
+                    await scope.leave(attempt_end)
                 slot.release()
 
             # The slot is released here, so a retry delay never holds one.
@@ -841,6 +944,21 @@ class AgentRunner:
             job_id, declaration_hash, this_input_hash, output
         )  # a later attempt resumes from this job too
         logger.info("run_reused agent_run_id=%s reused_from=%s agent=%s", agent_run_id, old.agent_run_id, agent.name)
+        if self._observers:
+            await self._observers.emit(
+                "reused",
+                ReusedRun(
+                    agent_run_id=agent_run_id,
+                    invocation_id=invocation_id,
+                    reused_from_agent_run_id=old.agent_run_id,
+                    resumed_from=job.resumed_from,
+                    job_id=job_id,
+                    agent_name=agent.name,
+                    agent_version=agent.version,
+                    agent_hash=declaration_hash,
+                    output=output.model_dump(mode="json") if self._observers.wants_content else None,
+                ),
+            )
         return result_cls(
             status=RunStatus.SUCCESS,
             output=output,
@@ -949,6 +1067,7 @@ class AgentRunner:
                     child_input,
                     job_id=context.job_id,
                     parent_agent_run_id=context.agent_run_id,
+                    parent_tool_call_id=CURRENT_TOOL_CALL_ID.get(),  # set by the observers' callback; None without one
                     depth=depth + 1,
                 )
             finally:
@@ -1008,7 +1127,12 @@ class AgentRunner:
         try:
             result = await lc_agent.ainvoke(
                 {"messages": [{"role": "user", "content": message}]},
-                config={"recursion_limit": agent.recursion_limit},
+                config={
+                    "recursion_limit": agent.recursion_limit,
+                    "callbacks": self._observers.callbacks(
+                        context.agent_run_id, agent.model.provider, agent.model.model
+                    ),
+                },
                 context=context,  # reaches tools through ToolRuntime; the model never sees it
             )
         finally:
