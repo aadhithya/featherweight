@@ -23,6 +23,7 @@ GUIDES = [
     "streaming.md",
     "persistence.md",
     "submitted-jobs.md",
+    "observability.md",
     "example-pipeline.md",
 ]
 REPO_URL = "https://github.com/aadhithya/featherweight/blob/main"

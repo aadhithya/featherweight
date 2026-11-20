@@ -370,8 +370,8 @@ A failed pipeline can be diagnosed from those rows (which step failed, and with 
 Log lines go to stdout through `setup_logging()` (`featherweight.log`), such as `attempt_started agent_run_id=... attempt=1/3`.
 
 **Why sqlite, and not OpenTelemetry or Langfuse?** To keep it as small and simple as possible: two tables, no
-collector, no account. A real deployment will want a proper backend, and an observer will send traces to it
-([observers and OpenTelemetry](specs/observability.md), designed, not built).
+collector, no account. A real deployment will want a proper backend, and an observer sends traces to it
+([observability](observability.md)).
 
 ## Resuming a job
 

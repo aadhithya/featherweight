@@ -12,7 +12,7 @@ not supported, tests.
 | [Jobs and tracing](jobs-and-tracing.md) | Jobs, the run log, statuses, logging |
 | [The run log and the persistence boundary](persistence.md) | What featherweight keeps and never keeps, hashes, `Database` and `ResultStore`, migrations, the schema, resumable jobs, Postgres |
 | [Submitted jobs](submitted-jobs.md) | A job as a declared class, `JobQueue`, `JobClient`, `JobWorker`, cancelling, job events and SSE |
-| [Observers and OpenTelemetry](observability.md) | The `Observer` class and what it receives, `OTelObserver` and the GenAI conventions, spans for jobs, attempts, model calls and tool calls, evaluation (designed, not built) |
+| [Observers and OpenTelemetry](observability.md) | The `Observer` class and what it receives, `OTelObserver` and the GenAI conventions, spans for jobs, attempts, model calls and tool calls, evaluation |
 | [Streaming agents](streaming.md) | `StreamingAgent`, `runner.stream()`, AG-UI events, thoughts, stopping a response, messages, the AG-UI and Vercel adapters |
 | [Skills](skills.md) | The skill model, loading, how an agent reads a skill, the Agent Skills specification |
 | [Tools, the registry and the store](tools-and-store.md) | Tools on an agent, the tool registry, the ready-made tools, the run context, the run store |

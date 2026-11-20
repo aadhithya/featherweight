@@ -107,5 +107,5 @@ the job id of its keys, or be one per tenant.
 ## Not here yet
 
 **Observers**: a way for the content of a run (input, output, error text) to leave featherweight without being stored, for
-debugging and tracing. It is designed ([observers and OpenTelemetry](specs/observability.md)), and not built yet. Until then the content is in the logs only where the code logs it, and in what
+debugging and tracing. An observer that asks for it receives the content ([observability](observability.md)); otherwise the content is in the logs only where the code logs it, and in what
 `AgentRunner.run` returns to you.
