@@ -38,7 +38,9 @@ def _stamp(moment: datetime | None) -> str | None:
 
 class SqliteDatabase(Database):
     def __init__(self, path: str | Path):
+        """`path` is the sqlite file, or `":memory:"` for a database that lives in memory (no file, gone when it closes)."""
         self.path = Path(path)
+        self.in_memory = str(path) == ":memory:"
         self._conn: aiosqlite.Connection | None = None
         self._lock = asyncio.Lock()  # one write transaction at a time: they share one connection
 
@@ -62,8 +64,9 @@ class SqliteDatabase(Database):
                 raise
 
     async def connect(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = await aiosqlite.connect(self.path)
+        if not self.in_memory:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._conn = await aiosqlite.connect(":memory:" if self.in_memory else self.path)
         self._conn.row_factory = aiosqlite.Row
         await self._conn.execute("PRAGMA foreign_keys = ON")
         try:
@@ -144,19 +147,21 @@ class SqliteDatabase(Database):
         name: str,
         resumed_from: str | None,
         resumable: bool,
+        job_version: str | None,
         job_hash: str | None,
         input_hash: str | None,
     ) -> str:
         async with self.transaction():
             await self.conn.execute(
-                "INSERT INTO jobs (job_id, name, status, resumable, resumed_from, job_hash, input_hash, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO jobs (job_id, name, status, resumable, resumed_from, job_version, job_hash, input_hash, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     job_id,
                     name,
                     RunStatus.INIT.value,
                     int(resumable),
                     resumed_from,
+                    job_version,
                     job_hash,
                     input_hash,
                     now().isoformat(),

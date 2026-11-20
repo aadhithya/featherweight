@@ -109,7 +109,7 @@ runner = AgentRunner(db)
 
 **In memory.** `SqliteDatabase(":memory:")` keeps everything (the jobs, the events, the run log and the default result store) in
 memory: no file and no service, and it is gone when the database closes. It is the same code and the same migrations. It is for
-trying a job and for tests (designed, not built: [#91](https://github.com/aadhithya/featherweight/issues/91)).
+trying a job and for tests .
 
 Another database is an implementation of the class. To make that safe, the [schema](#the-schema) is documented (every column, its
 type, nullability and constraint), the rows and records are models, and a **conformance kit** (`featherweight.testing`) runs the
@@ -225,8 +225,8 @@ checked, not trusted; it is how a tenant-scoped store, a bucket or Redis is veri
 Postgres store**: how results are kept in a deployment (a database per tenant, a table per tenant, something else) is for the user to
 decide. With a `PostgresDatabase` the default is no store: pass `results=`, or resume is unavailable.
 
-**Opt-in, per job.** Results are stored only for a job created `resumable=True`, decided before the pipeline runs (`run_job(db, name,
-pipeline, resumable=True)`, `db.create_job(name, resumable=True)`). A job that does not need to be resumed holds nothing. A job
+**Opt-in, per job.** Results are stored only for a job created `resumable=True`, decided before the pipeline runs (`run_job(runner, job, input,
+resumable=True)`, `db.create_job(name, resumable=True)`). A job that does not need to be resumed holds nothing. A job
 created with `resume_from` is resumable too, so that a third attempt is possible.
 
 **What is stored.** The output of a top-level run (depth 1) that succeeds inside a resumable job. Not a run with no job, a launched

@@ -62,6 +62,7 @@ class JobClient:
             job_id,
             resume_from=resume_from,
             resumable=resumable,
+            job_version=declared.version,
             job_hash=declared.job_hash(),
             input_hash=input_hash(input),
         )

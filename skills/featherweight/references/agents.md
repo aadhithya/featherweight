@@ -188,20 +188,29 @@ with `discover=False` (see [mcp.md](mcp.md)).
 
 ## Jobs and tracing
 
-A **job** is one run of a pipeline. `run_job` creates it, marks it `RUNNING`, awaits your function and marks it
-`SUCCESS`, or `FAILED` with the error. A pipeline that raises comes back as a failed `JobOutcome`, not an exception.
+A **job** is one run of a pipeline, declared as a class with typed input and output, like an agent. It runs in your process,
+or on a worker ([submitted jobs](submitted-jobs.md)), and it is the same job either way. `run_job` creates it, marks it `RUNNING`,
+runs it and marks it `SUCCESS`, or `FAILED` with the error. A job that raises comes back as a failed `JobOutcome`, not an exception.
 
 ```python
-from featherweight import run_job
+from featherweight import AgentRunner, JobContext, job, run_job
 
-outcome = await run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, job_id))
-# outcome.status, outcome.result (on success), outcome.error ("ExceptionType: message", on failure)
+
+@job
+async def my_pipeline(ctx: JobContext, input: PipelineInput) -> PipelineOutput:
+    return PipelineOutput(...)  # plain async Python: ctx.run and ctx.run_many run agents in this job
+
+
+outcome = await run_job(AgentRunner(db), my_pipeline, PipelineInput(...))
+# outcome.status, outcome.result (the output model, on success), outcome.error ("ExceptionType: message", on failure)
 ```
 
-To run in the background and hand the caller the id first, create the job with `db.create_job` and use
-`asyncio.create_task(run_job(db, name, pipeline, job_id=job_id))`.
+The output is also written to the runner's result store if it has one (`results=None` keeps nothing; you still get it back). To
+run in the background and hand the caller the id first, create the job with `db.create_job` and use
+`asyncio.create_task(run_job(runner, my_pipeline, input, job_id=job_id))`. For a quick try, `SqliteDatabase(":memory:")` keeps
+everything in memory: no file, no service.
 
-**A job as a class.** A job that a worker is to run by name is a declared class, like an agent:
+**A job as a class.** A job is a declared class, like an agent (`@job`, below, builds one from a function):
 
 ```python
 class Shout(Job):
@@ -226,8 +235,8 @@ For a job that is just a function, `@job` builds the class from it, reading the 
 async def shout(ctx: JobContext, input: ShoutInput) -> ShoutOutput: ...
 ```
 
-The name is the function's, the version `"1"`, and the result is a `Job` class, usable wherever one is (the function is `shout.function`). The job
-worker that runs submitted jobs is being built ([epic #71](https://github.com/aadhithya/featherweight/issues/71)).
+The name is the function's, the version `"1"` (the version of the job is the version of the pipeline: change it when its
+behaviour changes), and the result is a `Job` class, usable wherever one is (the function is `shout.function`).
 
 **The job queue.** What connects a client to a worker is an abstract class, `JobQueue` (`enqueue`, `receive`, `ack`,
 `nack`), whose message carries the job id, the job's name and its input as JSON (or references inside it). `SqliteQueue(db)`
@@ -363,9 +372,8 @@ A failed pipeline can be diagnosed from those rows (which step failed, and with 
 Log lines go to stdout through `setup_logging()` (`featherweight.log`), such as `attempt_started agent_run_id=... attempt=1/3`.
 
 **Why sqlite, and not OpenTelemetry or Langfuse?** To keep it as small and simple as possible: two tables, no
-collector, no account. A real deployment will want a proper backend. Every attempt passes through one loop in
-`AgentRunner` and every pipeline through `run_job`, so exporting traces is a change in those two places, and the fields
-a span needs are already recorded.
+collector, no account. A real deployment will want a proper backend, and an observer will send traces to it
+([observers and OpenTelemetry](https://github.com/aadhithya/featherweight/blob/main/docs/specs/observability.md), designed, not built).
 
 ## Resuming a job
 
@@ -373,8 +381,8 @@ A pipeline fails at step 2. Run it again with `resume_from`, and step 1 is not p
 before it runs**, because featherweight keeps no outputs unless you ask:
 
 ```python
-first = await run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, job_id), resumable=True)  # fails at step 2
-outcome = await run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, job_id), resume_from=first.job_id)
+first = await run_job(runner, my_pipeline, PipelineInput(...), resumable=True)  # fails at step 2
+outcome = await run_job(runner, my_pipeline, PipelineInput(...), resume_from=first.job_id)
 ```
 
 - **`resumable=True`** keeps the output of each step of the job, in a **result store**. Without it nothing is kept, and

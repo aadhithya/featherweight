@@ -98,11 +98,11 @@ asyncio.run(main())
 - **Pass the class to the runner, not an instance.** `runner.run(PeopleExtractor, input)`. The runner builds it.
 - **Check `result.status`.** It is a `RunStatus`, a string enum: `RunStatus.SUCCESS` or `RunStatus.FAILED`. A failed run
   returns `FAILED` and `result.error`. It does not raise. A wrong input type does raise, and that is a bug in your code.
-  `run_job` returns a `JobOutcome` with `job_id`, `status`, `result` (what your pipeline returned) and `error`.
+  `run_job(runner, job, input)` runs a job class (`@job` declares one from a function) and returns a `JobOutcome` with `job_id`, `status`, `result` (the job's output model) and `error`.
 - **Two kinds of bad output.** A reply that breaks the schema (a wrong type, a value outside a `Literal`) goes back to the
   model within the same attempt. A rejection by `check_output` fails the attempt, and the runner retries it, up to 3
   attempts. Use a `Literal` or validator for rules on the output alone, `check_output` for rules about the input too.
-- **Resuming a failed job:** `run_job(db, name, pipeline, resume_from=old_job_id)` makes a new job. Agent runs that
+- **Resuming a failed job:** `run_job(runner, job, input, resume_from=old_job_id)` makes a new job. Agent runs that
   already succeeded with the same agent and input are reused (`result.reused`, zero tokens); the rest run. The code
   between agents must be deterministic, the run store is not used for resuming, and only top-level runs are reused
   (see `references/agents.md`).

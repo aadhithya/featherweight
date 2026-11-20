@@ -4,14 +4,13 @@ import json
 import logging
 
 import pytest
-from fakes import Echo, EchoInput, Streams, runner_with
+from fakes import Echo, EchoInput, Streams, run_pipeline, runner_with
 from pydantic import ValidationError
 from test_resume import model, run_steps, texts
 from test_streaming import Chat, say
 
 from featherweight.errors import SetupError
 from featherweight.fingerprint import agent_hash, input_hash
-from featherweight.jobs import run_job
 from featherweight.models import RunStatus
 from featherweight.results import ResultKey, ResultStore, SqliteResultStore
 from featherweight.sqlite import SqliteDatabase
@@ -103,7 +102,7 @@ async def test_job_id_cannot_be_combined_with_resumable(db):
         return None
 
     with pytest.raises(ValueError, match="job_id"):
-        await run_job(db, "p", pipeline, job_id=job, resumable=True)
+        await run_pipeline(db, "p", pipeline, job_id=job, resumable=True)
 
 
 # what is kept, and when
@@ -216,11 +215,13 @@ async def test_resuming_with_no_store_is_a_setup_error(db):
 async def test_a_store_of_the_users_own_serves_a_resume(db):
     store = MemoryResultStore()
     runner = runner_with(db, model(), max_attempts=1, results=store)
-    first = await run_job(db, "p", lambda job_id: runner.run(Echo, EchoInput(text="a"), job_id=job_id), resumable=True)
+    first = await run_pipeline(
+        db, "p", lambda job_id: runner.run(Echo, EchoInput(text="a"), job_id=job_id), resumable=True
+    )
     assert await store.get(echo_key(first.job_id)) == {"echoed": "a", "open_questions": []}
     counting = model()
     runner = runner_with(db, counting, max_attempts=1, results=store)
-    second = await run_job(
+    second = await run_pipeline(
         db, "p", lambda job_id: runner.run(Echo, EchoInput(text="a"), job_id=job_id), resume_from=first.job_id
     )
     assert second.result is not None and second.result.reused and counting.counts == {}

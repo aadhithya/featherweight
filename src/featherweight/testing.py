@@ -248,12 +248,12 @@ async def check_database(make_db: Callable[[], Database]) -> None:
             raise AssertionError("set_job_status of a job that does not exist must raise LookupError")
 
         # the columns of a submitted job: its hashes, when it started, and the flag
-        hashed = await db.create_job("p", job_hash=_hash("job"), input_hash=_hash("in"))
+        hashed = await db.create_job("p", job_version="2", job_hash=_hash("job"), input_hash=_hash("in"))
         row = await db.get_job(hashed)
-        assert row is not None and (row.job_hash, row.input_hash) == (_hash("job"), _hash("in"))
+        assert row is not None and (row.job_version, row.job_hash, row.input_hash) == ("2", _hash("job"), _hash("in"))
         assert row.started_at is None and row.cancel_requested is False
         plain = await db.get_job(job_id)
-        assert plain is not None and plain.job_hash is None and plain.input_hash is None
+        assert plain is not None and plain.job_version is None and plain.job_hash is None and plain.input_hash is None
         await db.set_job_status(hashed, RunStatus.RUNNING)
         row = await db.get_job(hashed)
         assert row is not None and row.started_at is not None, "RUNNING sets started_at"

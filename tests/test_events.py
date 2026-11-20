@@ -6,11 +6,11 @@ import uuid
 from datetime import UTC, datetime
 
 import pytest
+from fakes import run_pipeline
 
 from featherweight import sse
 from featherweight.db import JobEvent
 from featherweight.events import hub_for, job_events, wait_for_job
-from featherweight.jobs import run_job
 from featherweight.models import RunStatus
 from featherweight.postgres import PostgresDatabase
 from featherweight.sqlite import SqliteDatabase
@@ -75,8 +75,8 @@ async def test_run_job_makes_the_events_of_its_statuses(any_db):
     async def slow(job_id):
         await asyncio.sleep(60)
 
-    ok = await run_job(db, "p", good)
-    no = await run_job(db, "p", bad)
+    ok = await run_pipeline(db, "p", good)
+    no = await run_pipeline(db, "p", bad)
     started = asyncio.Event()
 
     async def wait_then_run(job_id):
@@ -84,7 +84,7 @@ async def test_run_job_makes_the_events_of_its_statuses(any_db):
         await slow(job_id)
 
     job = await db.create_job("p")
-    task = asyncio.create_task(run_job(db, "p", wait_then_run, job_id=job))
+    task = asyncio.create_task(run_pipeline(db, "p", wait_then_run, job_id=job))
     await started.wait()
     task.cancel()
     with pytest.raises(asyncio.CancelledError):

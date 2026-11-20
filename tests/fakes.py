@@ -7,7 +7,9 @@ from typing import Any, ClassVar
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
+from pydantic import BaseModel
 
+from featherweight.jobs import Job, run_job
 from featherweight.model_settings import ModelSettings
 from featherweight.models import AgentBase, AgentInput, AgentOutput
 from featherweight.runner import AgentRunner
@@ -35,6 +37,27 @@ class FakeSettings(ModelSettings):
 def use_model(model: BaseChatModel, key: str = "default") -> None:
     """From now on, agents whose settings have this `key` are run by `model`."""
     MODELS[key] = model
+
+
+class Nothing(BaseModel):
+    """The input and the output of a job that is only a pipeline in a test."""
+
+
+async def run_pipeline(db, name: str, pipeline, **kwargs):
+    """Run `pipeline(job_id)` as a job class, in this process: for the tests whose subject is the pipeline and what it does to the
+    run log. The returned outcome has what the pipeline returned in `result`. The job's own output is not kept (`results=None`),
+    so that a test of the result store counts only the steps."""
+    returned: list = []
+
+    async def run(self, ctx, input):
+        returned.append(await pipeline(ctx.job_id))
+        return Nothing()
+
+    pipeline_job = type(
+        "Pipeline", (Job,), {"name": name, "version": "1", "input_model": Nothing, "output_model": Nothing, "run": run}
+    )
+    outcome = await run_job(AgentRunner(db, results=None), pipeline_job, Nothing(), **kwargs)
+    return outcome.model_copy(update={"result": returned[0] if returned else None})
 
 
 def runner_with(db, model, **kwargs) -> AgentRunner:

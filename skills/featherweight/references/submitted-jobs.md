@@ -66,7 +66,8 @@ async for event in client.events(job_id):  # queued, running, succeeded
 print(await client.result(shout, job_id))  # Shouted(shouted='HELLO'), read from your result store
 ```
 
-`result` is `None` until the job succeeded. `wait(job_id, timeout)` polls the database until the job is final: fine in
+The same job runs in your process with `run_job(runner, shout, Text(text="hello"))`: it writes the same row, events and result, and
+returns the outcome. `result` is `None` until the job succeeded. `wait(job_id, timeout)` polls the database until the job is final: fine in
 a script or a test, but a web handler should return the job id and let the caller follow `events`.
 
 ## Cancelling

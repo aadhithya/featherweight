@@ -308,7 +308,7 @@ to it:
 ## Background work, today
 
 A chat agent that hands work to a background agent has to be woken up when the work is done, and `featherweight` keeps no
-conversation to wake. The application does it: start the work as a job (`db.create_job` and `asyncio.create_task(run_job(...))`),
+conversation to wake. The application does it: start the work as a job (`asyncio.create_task(run_job(runner, job, input))`),
 keep the conversation in your store, and when the job finishes start the next turn with the history and a message that carries
 the result. A launched sub-agent (`subagents`) is different: it blocks the chat turn until it returns. A background agent
 that the chat carries on without is [parked](specs/streaming.md#not-supported) as an epic of its own, after jobs.

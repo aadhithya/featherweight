@@ -1,4 +1,4 @@
-"""Jobs: `run_job` runs a pipeline you hold as a job, and a `Job` is a declared class that a worker can run by name.
+"""Jobs: a `Job` is a declared class, run in your process by `run_job` or on a worker by name, by the same code (`execute_job`).
 
 A `Job` has a name, a version, an input model and an output model (Pydantic), and `async run(ctx, input)`. A plain agent can
 be a job too (`as_job`). A job is what a client submits to a queue and a job worker runs (see docs/specs/submitted-jobs.md).
@@ -14,9 +14,9 @@ from typing import Any, ClassVar, Generic, TypeVar, get_type_hints, overload
 
 from pydantic import BaseModel, ConfigDict
 
-from featherweight.db import Database
-from featherweight.fingerprint import agent_hash, error_fields, job_hash
+from featherweight.fingerprint import agent_hash, error_fields, input_hash, job_hash
 from featherweight.models import AgentBase, AgentInput, AgentResult, RunStatus
+from featherweight.results import ResultKey, ResultStore
 from featherweight.runner import AgentRunner
 
 logger = logging.getLogger(__name__)
@@ -180,55 +180,111 @@ class JobOutcome(BaseModel, Generic[T]):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     job_id: str
-    status: RunStatus  # SUCCESS or FAILED
-    result: T | None = None  # what the pipeline returned, on SUCCESS
+    status: RunStatus  # SUCCESS or FAILED (CANCELLED or INIT when the job was not started: see `run_job`)
+    result: T | None = None  # the job's output model, on SUCCESS
     error: str | None = None  # `ExceptionType: message`, on FAILED
 
 
+class InvalidJobOutput(Exception):
+    """A job returned something that is not an instance of its output model."""
+
+
+async def execute_job(
+    runner: AgentRunner,
+    job: type[Job],
+    job_id: str,
+    job_input: BaseModel,
+    results: ResultStore | None,
+    *,
+    on_cancel: Callable[[], Awaitable[None]] | None = None,
+) -> JobOutcome[BaseModel]:
+    """Run a job that has been started (its row is `RUNNING`), keep its result and set its final status. This is the one function
+    that runs a job, for `run_job` (in your process) and for the job worker, so that the two cannot differ: the same row, hashes,
+    events and result.
+
+    A job that raises is a `FAILED` outcome, not an exception (the error type and hash go to the run log, the text to the log and
+    the outcome). A cancelled task sets `CANCELLED` (or runs `on_cancel`, which the worker uses to put a job back on the queue)
+    and re-raises the cancellation."""
+    logger.info("job_started job_id=%s job=%s", job_id, job.name)
+    try:
+        output = await job().run(JobContext(runner=runner, job_id=job_id), job_input)
+        if not isinstance(output, job.output_model):
+            raise InvalidJobOutput(f"{job.name} returned {type(output).__name__}, not {job.output_model.__name__}")
+        if results is not None:  # the output is the job's product: if it cannot be kept, the job fails
+            row = await runner.db.get_job(job_id)
+            if row is not None and row.job_hash and row.job_hash != job.job_hash():
+                logger.warning(
+                    "job_hash_differs job_id=%s: this process's %s is not the one that was submitted", job_id, job.name
+                )
+            key = ResultKey(
+                job_id=job_id,
+                agent_hash=(row.job_hash if row else None) or job.job_hash(),
+                input_hash=(row.input_hash if row else None) or input_hash(job_input),
+            )
+            await results.put(key, output.model_dump(mode="json"))
+    except asyncio.CancelledError:
+        if on_cancel is not None:
+            await on_cancel()
+        else:
+            await runner.db.set_job_status(job_id, RunStatus.CANCELLED)
+            logger.warning("job_cancelled job_id=%s job=%s", job_id, job.name)
+        raise
+    except Exception as exc:
+        error = f"{type(exc).__name__}: {exc}"[:MAX_ERROR_CHARS]
+        error_type, error_hash = error_fields(exc)  # the text is returned and logged, not kept
+        await runner.db.set_job_status(job_id, RunStatus.FAILED, error_type=error_type, error_hash=error_hash)
+        logger.error("job_failed job_id=%s job=%s error=%s", job_id, job.name, error, exc_info=exc)
+        return JobOutcome[BaseModel](job_id=job_id, status=RunStatus.FAILED, error=error)
+    await runner.db.set_job_status(job_id, RunStatus.SUCCESS)
+    logger.info("job_finished job_id=%s job=%s status=SUCCESS", job_id, job.name)
+    return JobOutcome[BaseModel](job_id=job_id, status=RunStatus.SUCCESS, result=output)
+
+
 async def run_job(
-    db: Database,
-    name: str,
-    pipeline: Callable[[str], Awaitable[T]],
+    runner: AgentRunner,
+    job: type[Job] | type[AgentBase],
+    input: BaseModel,
     *,
     job_id: str | None = None,
     resume_from: str | None = None,
     resumable: bool = False,
-) -> JobOutcome[T]:
-    """Run `pipeline(job_id)` as a job: create it (or use `job_id`), mark it RUNNING, await the pipeline, then
-    mark it SUCCESS, or FAILED with the error. A pipeline that raises is returned as a FAILED outcome, not raised.
-    A cancelled run is marked CANCELLED and the cancellation is re-raised.
+) -> JobOutcome[Any]:
+    """Run a job in your process: create it (or use `job_id`), start it, run it with `execute_job` (the code a worker runs it
+    with), and return the outcome. `job` is a `Job` class, or a plain (non-streaming) agent class; `input` must be an instance
+    of its input model (`TypeError` otherwise). The output is the job's output model, in `outcome.result`, and it is also written
+    to the runner's result store if the runner has one. A job that raises is a FAILED outcome, not an exception; a cancelled
+    task is marked CANCELLED and the cancellation is re-raised.
 
-    `resumable=True` keeps the outputs of the job's steps, so that a later job can resume it. It is decided here, before the
-    pipeline runs: a job that did not keep them cannot be resumed.
+    `resumable=True` keeps the outputs of the job's steps, so that a later job can resume it. It is decided here, before the job
+    runs: a job that did not keep them cannot be resumed. `resume_from` is the id of an earlier, resumable job: the new job
+    records it, and a step that the earlier job already finished, with the same agent and input, is answered from the kept result
+    instead of calling the model. `resume_from` and `resumable` cannot be combined with `job_id`: create the job with
+    `db.create_job(name, resume_from=...)` and pass that.
 
-    `resume_from` is the id of an earlier, resumable job: the new job records it, and a step that the earlier job already
-    finished, with the same agent and input, is answered from the kept result instead of calling the model. `resume_from`
-    and `resumable` cannot be combined with `job_id`: create the job with `db.create_job(name, resume_from=...)` and pass
-    that.
-
-    To run in the background and give the caller the id first: create the job yourself with `db.create_job`,
-    then `asyncio.create_task(run_job(db, name, pipeline, job_id=job_id))`.
+    To run in the background and give the caller the id first: create the job yourself with `db.create_job`, then
+    `asyncio.create_task(run_job(runner, job, input, job_id=job_id))`. A job that was cancelled (or started) before it could
+    start is not run: the outcome has the status it has and no result.
     """
+    declared = as_job(job)
+    if not isinstance(input, declared.input_model):
+        raise TypeError(f"{declared.name} expects a {declared.input_model.__name__}, got {type(input).__name__}")
     if job_id is not None and (resume_from is not None or resumable):
         raise ValueError(
             "Use either job_id or resume_from/resumable: create the job with db.create_job(name, resume_from=..., "
             "resumable=...)"
         )
-    job_id = job_id or await db.create_job(name, resume_from=resume_from, resumable=resumable)
-    await db.set_job_status(job_id, RunStatus.RUNNING)
-    logger.info("job_started job_id=%s name=%s", job_id, name)
-    try:
-        result = await pipeline(job_id)
-    except asyncio.CancelledError:
-        await db.set_job_status(job_id, RunStatus.CANCELLED)
-        logger.warning("job_cancelled job_id=%s name=%s", job_id, name)
-        raise
-    except Exception as exc:
-        error = f"{type(exc).__name__}: {exc}"[:MAX_ERROR_CHARS]
-        error_type, error_hash = error_fields(exc)  # the text is returned and logged, not kept
-        await db.set_job_status(job_id, RunStatus.FAILED, error_type=error_type, error_hash=error_hash)
-        logger.error("job_failed job_id=%s name=%s error=%s", job_id, name, error, exc_info=exc)
-        return JobOutcome[T](job_id=job_id, status=RunStatus.FAILED, error=error)
-    await db.set_job_status(job_id, RunStatus.SUCCESS)
-    logger.info("job_finished job_id=%s name=%s status=SUCCESS", job_id, name)
-    return JobOutcome[T](job_id=job_id, status=RunStatus.SUCCESS, result=result)
+    db = runner.db
+    job_id = job_id or await db.create_job(
+        declared.name,
+        resume_from=resume_from,
+        resumable=resumable,
+        job_version=declared.version,
+        job_hash=declared.job_hash(),
+        input_hash=input_hash(input),
+    )
+    if not await db.start_job(job_id):  # the same compare-and-set step as the worker's
+        row = await db.get_job(job_id)
+        status = row.status if row is not None else RunStatus.FAILED
+        logger.info("job_not_started job_id=%s status=%s", job_id, status.value)
+        return JobOutcome[Any](job_id=job_id, status=status, error=f"The job is {status.value}, so it did not run")
+    return await execute_job(runner, declared, job_id, input, runner.results)

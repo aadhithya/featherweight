@@ -4,13 +4,12 @@ import asyncio
 
 import pytest
 from ag_ui.core import UserMessage
-from fakes import Echo, EchoInput, Scripted, Streams, runner_with, structured_reply, use_model
+from fakes import Echo, EchoInput, Scripted, Streams, run_pipeline, runner_with, structured_reply, use_model
 from test_resume import model, steps
 from test_streaming import Chat, say
 from test_subagents import PARENT_INPUT, Parent, child_done, launch_child, parent_done
 
 from featherweight import AgentRunner, Observer
-from featherweight.jobs import run_job
 from featherweight.models import RunStatus
 from featherweight.observers import ModelCallStart, Observers
 from featherweight.testing import RecordingContentObserver, RecordingObserver, check_observer
@@ -177,10 +176,10 @@ async def test_a_launched_agent_is_attributed_to_the_tool_call_that_launched_it(
 async def test_a_step_that_is_reused_is_an_event_and_not_an_attempt(db):
     seen = RecordingObserver()
     runner = runner_with(db, model(), observers=[seen], max_attempts=1)
-    first = await run_job(db, "p", steps(runner, ["a", "b"]), resumable=True)
+    first = await run_pipeline(db, "p", steps(runner, ["a", "b"]), resumable=True)
     attempts = seen.names().count("attempt.enter")
 
-    again = await run_job(db, "p", steps(runner, ["a", "b"]), resume_from=first.job_id)
+    again = await run_pipeline(db, "p", steps(runner, ["a", "b"]), resume_from=first.job_id)
 
     assert again.status == RunStatus.SUCCESS and attempts == 2
     assert seen.names().count("attempt.enter") == 2  # nothing ran again

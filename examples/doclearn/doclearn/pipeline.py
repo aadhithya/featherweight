@@ -39,10 +39,9 @@ async def learn_document_tree(
     Steps: analyze every document (a document that fails is skipped), reconcile the vocabulary, align each
     unit across the documents, assemble and check the tree, then save the reconciled template, the learned
     tree and the facts schema. Any hard failure raises `LearningError` (or the agent's own failure), so run it
-    through `featherweight.jobs.run_job`, which marks the job FAILED with the error and saves nothing:
+    in a job (see `doclearn.cli.learn_job`), which marks the job FAILED with the error and saves nothing:
 
-        outcome = await run_job(db, "learn", lambda job_id: learn_document_tree(
-            runner, store, documents, category, job_id=job_id))
+        outcome = await run_job(runner, learn_job(store, console), LearnInput(documents=documents, category=category))
         learned = await store.get(outcome.result.learned_id)   # or store.latest(category)
 
     The result itself lives in the database. `progress`, if given, is called with a line at each stage. Skipped

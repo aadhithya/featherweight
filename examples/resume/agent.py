@@ -2,9 +2,9 @@
 
     python examples/resume/agent.py
 
-Needs ANTHROPIC_API_KEY and the `anthropic` extra. A release-notes pipeline: a `Summariser` summarises each of four commit
+Needs ANTHROPIC_API_KEY and the `anthropic` extra. A release-notes job: a `Summariser` summarises each of four commit
 messages, then a `ReleaseNotes` agent writes the notes from the summaries. The first run is made to crash in the
-pipeline's own code after the summaries, as if the process had died. The second run uses `resume_from` the first: the
+job's own code after the summaries, as if the process had died. The second run uses `resume_from` the first: the
 four summaries are answered from the results the first job kept (no model call, no tokens), and only the notes are written.
 The results are kept by the **default result store**, a table in the run log's sqlite file: the example does not pass one.
 To keep them somewhere else, write your own (see examples/results). After each run the script prints the runs of the job, so
@@ -20,6 +20,8 @@ import sys
 from pathlib import Path
 from typing import ClassVar
 
+from pydantic import BaseModel
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))  # so that this runs without installing anything
 
 from featherweight import (  # noqa: E402
@@ -28,10 +30,12 @@ from featherweight import (  # noqa: E402
     AgentOutput,
     AgentRunner,
     Claude,
+    JobContext,
     ModelSettings,
     RunStatus,
     SqliteDatabase,
     default_db_path,
+    job,
     run_job,
     setup_logging,
 )
@@ -86,15 +90,27 @@ COMMITS = [
 ]
 
 
-async def pipeline(runner, job_id, commits, *, crash=False, summariser=Summariser, writer=ReleaseNotes):
-    """The pipeline is plain async Python. Everything between the agent calls is deterministic, which is what lets a
-    resumed run ask for the same things again, and find them in the log."""
-    results = await runner.run_many(summariser, [SummaryInput(commit=c) for c in commits], job_id=job_id)
+class Commits(BaseModel):
+    commits: list[str]
+    crash: bool = False  # to show a failure: the job dies after the summaries
+
+
+class Notes(BaseModel):
+    notes: str
+
+
+@job
+async def release_notes(ctx: JobContext, input: Commits) -> Notes:
+    """The job is plain async Python. Everything between the agent calls is deterministic, which is what lets a resumed
+    run ask for the same things again, and find them in the log."""
+    results = await ctx.run_many(Summariser, [SummaryInput(commit=c) for c in input.commits])
     summaries = [r.output.summary for r in results if r.status == RunStatus.SUCCESS and r.output and r.output.summary]
-    if crash:
+    if input.crash:
         raise RuntimeError("simulated crash: the process died after the summaries")
-    notes = await runner.run(writer, NotesInput(summaries=summaries), job_id=job_id)
-    return notes.output.notes if notes.status == RunStatus.SUCCESS and notes.output else None
+    notes = await ctx.run(ReleaseNotes, NotesInput(summaries=summaries))
+    if notes.status != RunStatus.SUCCESS or not notes.output or not notes.output.notes:
+        raise RuntimeError("the notes were not written")
+    return Notes(notes=notes.output.notes)
 
 
 def print_runs(rows) -> None:
@@ -116,20 +132,16 @@ async def main() -> int:
         runner = AgentRunner(db)
 
         print("first run: the process dies after the summaries")
-        first = await run_job(
-            db, "release-notes", lambda job_id: pipeline(runner, job_id, COMMITS, crash=True), resumable=True
-        )
+        first = await run_job(runner, release_notes, Commits(commits=COMMITS, crash=True), resumable=True)
         print(f"  job {first.status.value}: {first.error}")
         print_runs(await db.list_runs(job_id=first.job_id))
 
-        print("\nsecond run: the same pipeline, with resume_from the first job")
-        second = await run_job(
-            db, "release-notes", lambda job_id: pipeline(runner, job_id, COMMITS), resume_from=first.job_id
-        )
+        print("\nsecond run: the same job, with resume_from the first one")
+        second = await run_job(runner, release_notes, Commits(commits=COMMITS), resume_from=first.job_id)
         print(f"  job {second.status.value}")
         print_runs(await db.list_runs(job_id=second.job_id))
         if second.result:
-            print(f"\n{second.result}")
+            print(f"\n{second.result.notes}")
     return 0 if second.status == RunStatus.SUCCESS else 1
 
 
