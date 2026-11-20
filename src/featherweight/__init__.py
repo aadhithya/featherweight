@@ -69,6 +69,7 @@ _EXPORTS = {
     "JobClient": "client",
     "job": "jobs",
     "JobContext": "jobs",
+    "JobTimeout": "jobs",
     "as_job": "jobs",
     # what an agent can have, and what a tool can use
     "Skill": "skills",
@@ -142,6 +143,7 @@ if TYPE_CHECKING:  # for editors and type checkers: the same names, imported
     from featherweight.jobs import Job as Job
     from featherweight.jobs import JobContext as JobContext
     from featherweight.jobs import JobOutcome as JobOutcome
+    from featherweight.jobs import JobTimeout as JobTimeout
     from featherweight.jobs import as_job as as_job
     from featherweight.jobs import job as job
     from featherweight.jobs import run_job as run_job

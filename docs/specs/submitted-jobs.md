@@ -1,6 +1,6 @@
 # Spec: submitted jobs
 
-Status: implemented, except [several workers](#several-workers), which is designed and not built ([epic #103](https://github.com/aadhithya/featherweight/issues/103)). #72 (the `Job` class, `JobContext`, the job columns and `CANCELLED`), #73 (the queue), #74 (job events and SSE), #75 (the client), #76 (the worker, with the compare-and-set steps for taking and cancelling a job), #77 (the `@job` decorator) and #78 (the guide, the example and the skill reference) are done. It is tracked in [epic #71](https://github.com/aadhithya/featherweight/issues/71), and each part has
+Status: implemented, except [several workers](#several-workers), which is designed and not built, apart from the job timeout, which is built ([epic #103](https://github.com/aadhithya/featherweight/issues/103)). #72 (the `Job` class, `JobContext`, the job columns and `CANCELLED`), #73 (the queue), #74 (job events and SSE), #75 (the client), #76 (the worker, with the compare-and-set steps for taking and cancelling a job), #77 (the `@job` decorator) and #78 (the guide, the example and the skill reference) are done. It is tracked in [epic #71](https://github.com/aadhithya/featherweight/issues/71), and each part has
 its own issue (listed [at the end](#the-work)). When a part is built, this page says so, and the guide `docs/submitted-jobs.md`
 shows how to use it.
 
@@ -65,8 +65,9 @@ class Summarise(Job):
 - **A plain agent can be a job:** a non-streaming agent class can be submitted directly. Its name is the job name, its input model
   the input, its output model the output, and `agent_hash` stands in for the job hash. A streaming agent cannot be a job (it
   streams to a person).
-- **`timeout`** (designed, not built): how long one execution of the job may run, in seconds. The default is 600 (ten minutes), and
-  `None` means no limit. See [several workers](#several-workers).
+- **`timeout`**: how long one execution of the job may run, in seconds. The default is 600 (ten minutes), and `None` means no limit. It is
+  checked when the class is defined (a positive number, or `None`), it is not part of `job_hash`, and `@job(timeout=...)` sets it. An agent used
+  as a job has the default. See [the timeout](#several-workers).
 - **`@job`** is sugar: it builds a `Job` class from an async function, taking the name from the function (or `name=`), the
   version `"1"` (or `version=`), and the models from the annotations of `input` and the return type.
 - **`run_job`** runs a `Job` class in your process, with the same code as the worker ([running a job
@@ -201,9 +202,10 @@ for ever. This section is the recovery from that, and it is all that it is: we d
   ends with error type `JobLost`). It keeps running its other jobs. Before the worker writes a result it checks that it still owns the
   job; that is not atomic, so in a very small window a stalled worker can write a result under the same key as the new owner, for the same
   input, and the last write wins. The effects that the job's own code already had (a mail sent, an API called) are not undone: **a job must be safe to run twice**.
-- **The timeout.** One execution of a job may run for `Job.timeout` seconds (default 600, `None` for no limit). When it is exceeded the
+- **The timeout** (built: [#107](https://github.com/aadhithya/featherweight/issues/107)). One execution of a job may run for `Job.timeout` seconds (default 600, `None` for no limit). When it is exceeded the
   task is cancelled and the job is `FAILED` with error type `JobTimeout`; it is not retried (the user resumes it). It applies to a job run
-  by `run_job` too, because it is in the shared `execute_job`. A heartbeat cannot do this, because a hung job in a healthy worker still
+  by `run_job` too, because it is in the shared `execute_job`. Only the limit's own expiry counts: a `TimeoutError` that the job raises itself, and a
+  cancellation from outside, do not (the job ends `FAILED` with that error, and `CANCELLED`). The agent runs that it interrupts end `CANCELLED`. A heartbeat cannot do this, because a hung job in a healthy worker still
   heartbeats.
 - **Delivery count.** `Delivery.delivery_count` says how many times a message has been delivered. **How many redeliveries are allowed is the
   queue's business**: a broker has its own policy and dead-letter queue. Ours, `SqliteQueue`, allows 3 by default (`max_deliveries`), then marks

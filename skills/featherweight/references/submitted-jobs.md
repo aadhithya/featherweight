@@ -52,7 +52,8 @@ async def shout(ctx: JobContext, input: Text) -> Shouted:
 
 The name is the function name, and the models are read from the annotations. For more control, subclass `Job` and set
 `name`, `version`, `input_model` and `output_model` yourself. An agent is a job too: pass an agent class to `submit` and the
-job worker runs it. Inside a job, `await ctx.run(SomeAgent, input)` and `ctx.run_many(...)` run agents in the same job.
+job worker runs it. A job may run for `timeout` seconds (default 600, `None` for no limit): set `timeout = 120` on the class, or `@job(timeout=120)`.
+A job that runs longer is cancelled and fails with error type `JobTimeout`, in a worker and in `run_job` alike. Inside a job, `await ctx.run(SomeAgent, input)` and `ctx.run_many(...)` run agents in the same job.
 
 ## Submitting and following
 
