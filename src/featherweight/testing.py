@@ -431,6 +431,14 @@ async def check_database(make_db: Callable[[], Database]) -> None:
         assert row is not None and (row.job_version, row.job_hash, row.input_hash) == ("2", _hash("job"), _hash("in"))
         assert row.started_at is None and row.cancel_requested is False
         plain = await db.get_job(job_id)
+        child = await db.create_job("bg", parent_agent_run_id="run-parent")
+        row = await db.get_job(child)
+        assert (
+            row is not None
+            and row.parent_agent_run_id == "run-parent"
+            and plain is not None
+            and plain.parent_agent_run_id is None
+        )
         assert plain is not None and plain.job_version is None and plain.job_hash is None and plain.input_hash is None
         await db.set_job_status(hashed, RunStatus.RUNNING)
         row = await db.get_job(hashed)

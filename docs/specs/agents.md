@@ -31,7 +31,7 @@ A subclass of `AgentBase`. The runner instantiates it (`agent_cls()`), so a subc
 | `recursion_limit` | `int`, 25, at least 1 | Passed to langgraph. Stops a runaway tool loop inside one run; a run that hits it fails |
 | `allow_user_questions`, `raise_conflicts` | `bool`, `False` | Each only adds a sentence to the prompt. Neither is enforced |
 | `subagents` | `list[type]`, empty | Agent classes this agent may launch ([runner](runner.md#launching-agents)) |
-| `background_agents` | `list[type]`, empty | Agent or job classes this agent may start in the background (designed: [background agents](background-agents.md#the-tool)) |
+| `background_agents` | `list[type]`, empty | Agent or job classes this agent may start in the background ([background agents](background-agents.md#the-tool)) |
 | `skills` | `list[Skill]`, empty | Skills this agent can read ([skills](skills.md)) |
 | `mcp_servers` | `list[StdioMCPServer \| HttpMCPServer]`, empty | MCP servers whose tools this agent may use ([MCP tools](mcp-tools.md)) |
 | `input_model`, `output_model` | `ClassVar`, `AgentInput` and `AgentOutput` | The agent's contract |
@@ -44,7 +44,7 @@ Each of these raises a `ValidationError` (a programming error, not a failed run)
 
 - `subagents`: every entry is an `AgentBase` subclass; none is the agent's own class; the names of the sub-agents are
   distinct.
-- `background_agents` (designed): every entry is a non-streaming agent class or a `Job` class; none is the agent's own class; the names are
+- `background_agents`: every entry is a non-streaming agent class or a `Job` class; none is the agent's own class; the names are
   distinct; an agent may be in `subagents` too, to be run inline or in the background (the model chooses); an agent that is in a `background_agents` list does not declare its own ([background agents](background-agents.md#the-tool)).
 - `skills`: the names are distinct.
 - `mcp_servers`: the names are distinct. Each server model checks itself too (name format, timeouts, caps).
@@ -96,6 +96,8 @@ changed, not the prompt. Resuming a job uses it: a run is reused only when the h
 - each tool's name, description and argument schema, as the model sees them
 - each sub-agent's own declaration, recursively. A sub-agent already being described further up is named only, so a
   cycle ends
+- each agent in `background_agents` the same way (a job class by its name, version and `job_hash`), only when there are some, so that
+  an agent without any keeps the hash it had
 - each skill in full, and each MCP server as declared (environment variable names, never values)
 - the assembled system prompt
 - the JSON schema of the `input_model` and of the `output_model`, so that a changed field, type, description or default is another agent (`check_output` is code and is not hashed: `version` is its signal, and a reused output is checked against it again)

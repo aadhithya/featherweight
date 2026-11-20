@@ -14,7 +14,7 @@ from typing import Any, ClassVar, Generic, TypeVar, get_type_hints, overload
 
 from pydantic import BaseModel, ConfigDict
 
-from featherweight.context import CURRENT_JOB_EXECUTION
+from featherweight.context import CURRENT_JOB_EXECUTION, IN_BACKGROUND_JOB
 from featherweight.db import JobLost, JobOwner, new_id
 from featherweight.fingerprint import agent_hash, error_fields, input_hash, job_hash
 from featherweight.models import AgentBase, AgentInput, AgentResult, RunStatus
@@ -252,8 +252,9 @@ async def execute_job(
     job was lost (`lost()` says so) writes nothing to the job either."""
     observers = runner._observers
     scope: Entered | None = None
+    row = await runner.db.get_job(job_id)
+    in_background = row is not None and row.parent_agent_run_id is not None  # started as a background agent
     if observers:
-        row = await runner.db.get_job(job_id)
         scope = await observers.enter(
             "job",
             JobStart(
@@ -270,7 +271,12 @@ async def execute_job(
             ),
         )
     try:
-        outcome, error_type = await _execute(runner, job, job_id, job_input, results, on_cancel, owner)
+        token = IN_BACKGROUND_JOB.set(True) if in_background else None  # what it runs cannot start background agents
+        try:
+            outcome, error_type = await _execute(runner, job, job_id, job_input, results, on_cancel, owner)
+        finally:
+            if token is not None:
+                IN_BACKGROUND_JOB.reset(token)
     except asyncio.CancelledError:
         if scope is not None:
             if lost is not None and lost():  # for tracing only: nothing is written to the job

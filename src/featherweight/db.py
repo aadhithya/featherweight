@@ -91,6 +91,7 @@ class JobRow(_Model):
     status: RunStatus
     resumable: bool
     resumed_from: str | None
+    parent_agent_run_id: str | None  # a background agent: the attempt that started this job; None for any other job
     job_version: str | None  # the version of the job class that it runs; None for a job made without one
     job_hash: str | None  # the hash of the job's declaration; None for a job made without a job class
     input_hash: str | None  # a submitted job: the hash of its input
@@ -219,6 +220,7 @@ class Database(ABC):
         job_version: str | None = None,
         job_hash: str | None = None,
         input_hash: str | None = None,
+        parent_agent_run_id: str | None = None,
     ) -> str:
         """Create a job. `resumable=True` keeps the outputs of its steps (in the runner's result store), so that a later job
         can resume it; it is decided here, before the pipeline runs.
@@ -238,7 +240,7 @@ class Database(ABC):
                 )
             resumable = True
         return await self.insert_job(
-            job_id or new_id(), name, resume_from, resumable, job_version, job_hash, input_hash
+            job_id or new_id(), name, resume_from, resumable, job_version, job_hash, input_hash, parent_agent_run_id
         )
 
     @abstractmethod
@@ -251,6 +253,7 @@ class Database(ABC):
         job_version: str | None,
         job_hash: str | None,
         input_hash: str | None,
+        parent_agent_run_id: str | None = None,
     ) -> str:
         """Write a new job in status `INIT`, and return its id. The rules are checked in `create_job`."""
 

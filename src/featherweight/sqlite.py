@@ -152,11 +152,12 @@ class SqliteDatabase(Database):
         job_version: str | None,
         job_hash: str | None,
         input_hash: str | None,
+        parent_agent_run_id: str | None = None,
     ) -> str:
         async with self.transaction():
             await self.conn.execute(
-                "INSERT INTO jobs (job_id, name, status, resumable, resumed_from, job_version, job_hash, input_hash, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO jobs (job_id, name, status, resumable, resumed_from, job_version, job_hash, input_hash, "
+                "parent_agent_run_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     job_id,
                     name,
@@ -166,6 +167,7 @@ class SqliteDatabase(Database):
                     job_version,
                     job_hash,
                     input_hash,
+                    parent_agent_run_id,
                     now().isoformat(),
                 ),
             )

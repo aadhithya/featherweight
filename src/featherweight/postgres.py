@@ -133,12 +133,24 @@ class PostgresDatabase(Database):
         job_version: str | None,
         job_hash: str | None,
         input_hash: str | None,
+        parent_agent_run_id: str | None = None,
     ) -> str:
         async with self.conn.transaction():  # the job and its event, or neither
             await self.conn.execute(
-                "INSERT INTO jobs (job_id, name, status, resumable, resumed_from, job_version, job_hash, input_hash, created_at) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                (job_id, name, RunStatus.INIT.value, resumable, resumed_from, job_version, job_hash, input_hash, now()),
+                "INSERT INTO jobs (job_id, name, status, resumable, resumed_from, job_version, job_hash, input_hash, "
+                "parent_agent_run_id, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (
+                    job_id,
+                    name,
+                    RunStatus.INIT.value,
+                    resumable,
+                    resumed_from,
+                    job_version,
+                    job_hash,
+                    input_hash,
+                    parent_agent_run_id,
+                    now(),
+                ),
             )
             event = await self._write_event(job_id, "queued", RunStatus.INIT)
         self._publish(event)
