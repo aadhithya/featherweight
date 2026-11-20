@@ -2,6 +2,8 @@
 
 # A production stack
 
+[![docs for](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Faadhithya%2Ffeatherweight%2Fmain%2Fpyproject.toml&query=%24.project.version&label=docs%20for&color=blue)](https://pypi.org/project/featherweight/)
+
 featherweight is the harness. The infrastructure is yours. This page is one coherent, production-shaped way to put the pieces together,
 and what to reach for in each place.
 

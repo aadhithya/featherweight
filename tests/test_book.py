@@ -47,7 +47,7 @@ def test_it_writes_breadcrumbs_links_contents_and_listings(build_book, book):
     assert build_book.main(["--check"]) == 0
     second = (book / "01-one" / "02-second.md").read_text()
     assert second.startswith(
-        "<!-- nav:top -->\n[Book](../README.md) › [Part 1: One](../README.md#part-1-one) › Second\n"
+        f"<!-- nav:top -->\n[Book](../README.md) › [Part 1: One](../README.md#part-1-one) › Second  {build_book.VERSION_BADGE}\n"
     )
     assert (
         "[← First](01-first.md) · [Part 1: One](../README.md#part-1-one) · [Third →](../02-two/01-third.md)" in second

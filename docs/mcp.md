@@ -1,5 +1,7 @@
 # MCP tools
 
+[![docs for](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Faadhithya%2Ffeatherweight%2Fmain%2Fpyproject.toml&query=%24.project.version&label=docs%20for&color=blue)](https://pypi.org/project/featherweight/)
+
 An agent can use the tools of [MCP](https://modelcontextprotocol.io) servers. The agent declares the servers; the runner
 connects to them and gives the agent their tools next to its own. Defining agents is in [agents.md](agents.md). The
 design and what was checked is in [specs/mcp-tools.md](specs/mcp-tools.md).

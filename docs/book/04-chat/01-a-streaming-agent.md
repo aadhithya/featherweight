@@ -1,5 +1,5 @@
 <!-- nav:top -->
-[Book](../README.md) › [Part 4: Chat](../README.md#part-4-chat) › A streaming agent
+[Book](../README.md) › [Part 4: Chat](../README.md#part-4-chat) › A streaming agent  [![docs for](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Faadhithya%2Ffeatherweight%2Fmain%2Fpyproject.toml&query=%24.project.version&label=docs%20for&color=blue)](https://pypi.org/project/featherweight/)
 <!-- /nav:top -->
 
 # A streaming agent

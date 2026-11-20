@@ -1,6 +1,7 @@
 """The release setup: the version is in step, and the workflow keeps the release pull request manual."""
 
 import json
+import re
 import tomllib
 from pathlib import Path
 
@@ -19,8 +20,17 @@ def test_the_release_config_and_the_manifest_are_valid_and_agree():
     config = json.loads((ROOT / "release-please-config.json").read_text())
     manifest = json.loads((ROOT / ".release-please-manifest.json").read_text())
     assert set(config["packages"]) == set(manifest) == {"."}
-    assert config["packages"]["."]["extra-files"] == ["src/featherweight/__init__.py"]
+    extra = config["packages"]["."]["extra-files"]
+    assert extra == [
+        "src/featherweight/__init__.py",
+        {"type": "json", "path": ".claude-plugin/plugin.json", "jsonpath": "$.version"},
+    ]
     assert "x-release-please-version" in (ROOT / "src" / "featherweight" / "__init__.py").read_text()
+    # Every place that holds the version is bumped by the release, so they must agree (a new place goes in extra-files too).
+    init = re.search(r'__version__ = "([^"]+)"', (ROOT / "src" / "featherweight" / "__init__.py").read_text())
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
+    plugin = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text())["version"]
+    assert init and init[1] == pyproject == plugin
     assert config["bump-minor-pre-major"] is True  # below 1.0, a breaking change bumps the minor version
     title = config[
         "pull-request-title-pattern"

@@ -8,9 +8,11 @@ request**, and merging that pull request is the approval.
 Only the release pull request is a manual step. Merging it is how you choose when a release is made.
 
 1. **Run the workflow.** In GitHub, Actions, `release`, Run workflow (or `gh workflow run release`). It reads the commit
-   messages since the last release and opens, or updates, **one release pull request**. The pull request changes three
-   things: the version in `pyproject.toml`, `__version__` in `src/featherweight/__init__.py`, and a new section at the top of
-   [`CHANGELOG.md`](../CHANGELOG.md). Nothing is tagged or released yet.
+   messages since the last release and opens, or updates, **one release pull request**. The pull request changes the
+   version in `pyproject.toml`, `__version__` in `src/featherweight/__init__.py`, `version` in `.claude-plugin/plugin.json` and the manifest,
+   and adds a new section at the top of [`CHANGELOG.md`](../CHANGELOG.md). The docs and the book show a "docs for" badge that reads the version
+   from `pyproject.toml` on `main`, so a release does not edit them. A new place that holds the version goes in `extra-files` of
+   `release-please-config.json`. Nothing is tagged or released yet.
 2. **Review and merge it** when its checks are green. Read the version and the changelog section first.
 3. **That is all.** The merge makes the tag `vX.Y.Z` and a GitHub release whose notes are the changelog section, by itself,
    and then the `publish` job builds the package and publishes it to PyPI. The built files are attached to the release.
