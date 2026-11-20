@@ -42,7 +42,16 @@ In Claude Code:
 /plugin install featherweight@featherweight
 ```
 
-Any other tool that reads Agent Skills: copy [`skills/featherweight`](https://github.com/aadhithya/featherweight/blob/main/skills/featherweight) into its skills folder.
+OpenAI Codex, Cursor, GitHub Copilot, Gemini CLI and the other tools that read Agent Skills: install it with the [`skills`](https://github.com/vercel-labs/skills) CLI,
+which puts it where each tool looks (it needs Node.js).
+
+```
+npx skills add aadhithya/featherweight                 # asks which tools to install it for
+npx skills add aadhithya/featherweight -a codex        # or name one: codex, cursor, claude-code, ...
+```
+
+Or copy [`skills/featherweight`](https://github.com/aadhithya/featherweight/blob/main/skills/featherweight) into the tool's skills folder yourself. There is also an
+[`AGENTS.md`](https://github.com/aadhithya/featherweight/blob/main/AGENTS.md) at the root, for the tools that read that.
 
 ## What you get
 
