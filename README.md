@@ -98,7 +98,7 @@ They are. Use them. This is built on LangChain and LangGraph anyway.
   ([streaming agents](https://github.com/aadhithya/featherweight/blob/main/docs/streaming.md)), but there is no UI, and no stored conversations.
 - **Very opinionated.** Sorry, not sorry. Don't like them? Fork off.
 
-Want durable execution, evals or OpenTelemetry? Pydantic AI. Want a graph that pauses and resumes? LangGraph.
+Want durable execution or built-in evals? Pydantic AI. Traces for any OpenTelemetry platform come with featherweight. Want a graph that pauses and resumes? LangGraph.
 
 ## Documentation
 

@@ -30,6 +30,8 @@ or finding out why it behaves as it does.
   built on featherweight. Run it with `make pipeline`.
 - **I want to run jobs in the background.** [Submitted jobs](submitted-jobs.md): a client submits, a worker runs, and you follow
   it with events. Then [`examples/jobs`](../examples/jobs).
+- **I want to see what my jobs and agents do.** [Observability](observability.md): OpenTelemetry spans for jobs, attempts, model calls
+  and tool calls, ready for an evaluation platform. Then [`examples/observability`](../examples/observability).
 - **I want to work on featherweight itself.** [Development](development.md): the commands, the layout, how to contribute.
 - **I want to know why it works this way, or to change it.** [Specs](specs). Start with the
   [agent runner](specs/runner.md), which most behaviour passes through.
@@ -47,6 +49,7 @@ or finding out why it behaves as it does.
 | [Development](development.md) | The make commands, the layout of the repository, contributing | |
 | [Persistence](persistence.md) | What is kept and what is not, resuming a job, result stores, choosing a database, tenants | [Persistence](specs/persistence.md) |
 | [Submitted jobs](submitted-jobs.md) | A job as a class or a decorator, `JobClient`, `JobWorker`, `JobQueue`, cancelling, job events and SSE, the example | [Submitted jobs](specs/submitted-jobs.md) |
+| [Observability](observability.md) | Observers, `OTelObserver`, what is on the spans, content, your own spans, evaluation, the convention versions | [Observers and OpenTelemetry](specs/observability.md) |
 | [Skills](skills.md) | The skill model, how an agent reads its skills, loading, what the specification covers | [Skills](specs/skills.md) |
 | [Example pipeline](example-pipeline.md) | `doclearn`: what it does, its agents, how it handles failures, and its limits | |
 
@@ -79,7 +82,7 @@ runner ──────────── runs agents: attempts, retries, conc
 - **A spec** is written from the code. It states the rules as they are, the decisions with their reasons, and what was left
   out on purpose. If a guide and a spec disagree, the spec and the code are right, and the guide should be fixed.
 - **An example** is a folder you can run (`make example-skills`, `make example-launching`, `make example-mcp`, `make
-  example-resume`, `make example-jobs`, `make pipeline`). Each has a README that says what to look at.
+  example-resume`, `make example-jobs`, `make example-observability`, `make pipeline`). Each has a README that says what to look at.
 - **Releasing** is for the maintainers: [Releasing](releasing.md) says how a release is made, and the changelog is
   [`CHANGELOG.md`](../CHANGELOG.md).
 - **The tests** are in [`tests/`](../tests), and each spec says which files cover it. `tests/e2e` uses the real model.

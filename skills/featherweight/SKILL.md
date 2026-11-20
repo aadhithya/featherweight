@@ -145,10 +145,11 @@ Read only the reference for the task. Each is a guide from the featherweight rep
 | A chat agent that streams its answer: `StreamingAgent`, `runner.stream()`, AG-UI and Vercel adapters, stopping, keeping the conversation | `references/streaming.md` |
 | What is kept and what is not, resuming a job (`resumable=True`), a result store of your own, choosing a database | `references/persistence.md` |
 | Submit a job to a queue and run it in a worker: `JobClient`, `JobWorker`, `JobQueue`, cancelling, events and SSE | `references/submitted-jobs.md` |
+| See what jobs and agents do: observers, `OTelObserver` (OpenTelemetry spans for jobs, attempts, model calls and tool calls), content, your own spans, evaluation | `references/observability.md` |
 | See a whole pipeline of several agents | `references/example-pipeline.md` |
 
 The full specs, which say what each part does and why, are in `docs/specs` of the repository, and runnable examples are in
-`examples/` (`launching`, `skills`, `mcp`, `resume`, `results`, `chat`, `jobs`, `doclearn`): https://github.com/aadhithya/featherweight
+`examples/` (`launching`, `skills`, `mcp`, `resume`, `results`, `chat`, `jobs`, `observability`, `doclearn`): https://github.com/aadhithya/featherweight
 
 ## Before you say it works
 

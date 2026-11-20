@@ -1,6 +1,6 @@
 # Spec: observers and OpenTelemetry
 
-Status: being built. #92 (the `Observer` class, its records, `testing.check_observer`, and the runner's calls), the job scope and the trace context across the queue (#93) and `OTelObserver` (#94, pinned to `semantic-conventions-genai@622b2b6`, which refers to core semantic conventions 1.45.0) are done; the guide (#95) is not. It is tracked in [epic #90](https://github.com/aadhithya/featherweight/issues/90), and each part has its own issue. When
+Status: implemented. #92 (the `Observer` class, its records, `testing.check_observer`, and the runner's calls), the job scope and the trace context across the queue (#93) and `OTelObserver` (#94, pinned to `semantic-conventions-genai@622b2b6`, which refers to core semantic conventions 1.45.0) and the guide, the example and the skill reference (#95) are done. It is tracked in [epic #90](https://github.com/aadhithya/featherweight/issues/90), and each part has its own issue. When
 a part is built, this page says so, and the guide `docs/observability.md` shows how to use it.
 
 It builds on [the persistence spec](persistence.md) (the rule that featherweight keeps metadata only, and that content never

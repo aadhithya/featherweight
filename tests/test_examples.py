@@ -327,3 +327,15 @@ async def test_the_jobs_example_api_submits_follows_over_sse_and_reads_the_resul
     finally:
         await worker.stop(grace=1)
         await asyncio.wait_for(running, timeout=5)
+
+
+def test_the_observability_example_prints_the_job_span_and_the_users_span_under_it():
+    import subprocess
+    import sys
+
+    run = subprocess.run(
+        [sys.executable, str(EXAMPLES / "observability" / "trace.py")], capture_output=True, text=True, timeout=60
+    )
+    assert run.returncode == 0, run.stderr
+    assert '"name": "invoke_workflow shout"' in run.stdout and '"name": "make it loud"' in run.stdout
+    assert "shouted='HELLO'" in run.stdout
