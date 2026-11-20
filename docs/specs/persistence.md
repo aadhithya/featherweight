@@ -283,8 +283,8 @@ that must route by tenant can do so from the job id of its keys, or be one per t
 
 ## Not decided yet
 
-- **Observers:** a way for the full content of a run (input, output, error text) to leave featherweight without being stored, for
-  debugging and tracing (OpenTelemetry would be one). Discussed later; until then, content is in the logs only where the code logs it.
+- **Observers:** designed in [observers and OpenTelemetry](observability.md): a way for content to leave featherweight without
+  being stored, only for an observer that asks for it. Until it is built, content is in the logs only where the code logs it.
 
 ## Not supported
 

@@ -24,7 +24,8 @@ failed pipeline can be diagnosed from its rows, and replayed against them, witho
 
 ## Jobs
 
-A job is one run of a pipeline. `run_job(db, name, pipeline, job_id=None)`:
+A job is one run of a pipeline. `run_job(db, name, pipeline, job_id=None)`: (a change is designed: `run_job` will take a runner, a
+`Job` class and an input, and share its code with the worker: see [observers and OpenTelemetry](observability.md#one-way-to-run-a-job).)
 
 1. creates the job (or uses `job_id`, which must exist) and marks it `RUNNING`;
 2. awaits `pipeline(job_id)`;
@@ -129,13 +130,13 @@ Failures log at warning or error.
 
 ## Decisions
 
-- **sqlite, not OpenTelemetry or Langfuse.** To keep it as small as possible: two tables, no collector, no account. A real
-  deployment will want a proper backend. Every attempt passes through one loop in the runner, and every pipeline through
-  `run_job`, so exporting traces is a change in those two places, and the fields a span needs are already recorded.
+- **sqlite for the run log, and OpenTelemetry as an observer.** The log is small: two tables, no collector, no account. A real
+  deployment sends traces to its own backend through an observer ([observers and OpenTelemetry](observability.md)), and the
+  log stays the source of truth.
 - **One row per attempt**, so a retry is visible, and a failed attempt keeps its error.
 - **The prompt is recorded as a hash**, not as text: enough to tell two runs apart, and it keeps secrets and size out of
   the table.
-- **Inputs and outputs are in plaintext.** The log is for diagnosis.
+- **Inputs and outputs are not in the log.** It keeps metadata only ([persistence](persistence.md)); content leaves only through an observer that asks for it.
 - **A failed job is a value** (`JobOutcome`), the same rule as for a failed run.
 
 ## Not supported

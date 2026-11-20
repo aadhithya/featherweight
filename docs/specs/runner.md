@@ -183,6 +183,10 @@ is needed for the real model. A missing key is a setup error: the run fails at o
 `agent_launch` (parent, child, depth and launch count), `skill_read`, and the `mcp_*` lines. All are plain
 `key=value` text through `logging`.
 
+**Observers.** `AgentRunner(db, observers=[...])` calls each observer as an attempt starts and ends, when a step is reused, and
+for each model call and tool call (through a callback on the attempt). It is designed in [observers and
+OpenTelemetry](observability.md); an observer never changes a run.
+
 ## Decisions
 
 - **The runner does not choose the model.** The agent's `model` settings are the only way to pick one, and the runner calls

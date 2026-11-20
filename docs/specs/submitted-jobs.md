@@ -67,7 +67,9 @@ class Summarise(Job):
   streams to a person).
 - **`@job`** is sugar: it builds a `Job` class from an async function, taking the name from the function (or `name=`), the
   version `"1"` (or `version=`), and the models from the annotations of `input` and the return type.
-- **`run_job`** stays, as the in-process convenience for a function you hold. A job whose task is cancelled is `CANCELLED` now
+- **`run_job`** stays, as the in-process way to run a job (a change is designed: it will take a runner, a `Job` class and an input, so that
+  a job runs the same way in your process and on a worker: see [observers and OpenTelemetry](observability.md#one-way-to-run-a-job)).
+  Before that change it is the convenience for a function you hold. A job whose task is cancelled is `CANCELLED` now
   (it was `FAILED` with "CancelledError").
 
 ## The queue
