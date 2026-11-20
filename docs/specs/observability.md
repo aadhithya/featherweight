@@ -1,22 +1,22 @@
-# Spec: observers, OpenTelemetry and one way to run a job
+# Spec: observers and OpenTelemetry
 
 Status: designed, not built. It is tracked in [epic #90](https://github.com/aadhithya/featherweight/issues/90), and each part has its own issue. When
 a part is built, this page says so, and the guide `docs/observability.md` shows how to use it.
 
 It builds on [the persistence spec](persistence.md) (the rule that featherweight keeps metadata only, and that content never
-goes into the run log, even by option) and [submitted jobs](submitted-jobs.md) (jobs, the worker, the queue). It changes
-[jobs and tracing](jobs-and-tracing.md) (`run_job` runs a job class, the job version), [the runner](runner.md) (observers, and
-the callback that sees model calls and tool calls) and [submitted jobs](submitted-jobs.md) (the trace context on the message).
+goes into the run log, even by option). It is about what an observer is, what it receives, and the OpenTelemetry observer. What the
+other specs do about it is in them, and not here: [the runner](runner.md#observers) (when it calls observers, and how it sees model calls
+and tool calls), [submitted jobs](submitted-jobs.md#the-queue) (the trace context in the message), and [jobs and
+tracing](jobs-and-tracing.md#running-a-job-class) (a job runs the same way in your process and on a worker, and has a version), which the
+spans of a job depend on.
 
 - [Goal](#goal)
 - [The principle](#the-principle)
-- [One way to run a job](#one-way-to-run-a-job)
 - [Observers](#observers)
 - [What an observer sees](#what-an-observer-sees)
 - [OpenTelemetry](#opentelemetry)
 - [Your own spans](#your-own-spans)
 - [Evaluation](#evaluation)
-- [Versions](#versions)
 - [What changes](#what-changes)
 - [Decisions](#decisions)
 - [Not supported](#not-supported)
@@ -32,8 +32,6 @@ seeing their data.
   observer does with the events is the user's.
 - **OpenTelemetry:** one observer that we ship, because every observability and evaluation platform reads it. It follows the
   OpenTelemetry GenAI semantic conventions, so the traces are readable by those platforms as they are.
-- **One way to run a job:** a job is a declared class, whether a worker runs it or you await it in your process, so that a job
-  has one definition, one version and one trace shape.
 
 ## The principle
 
@@ -48,39 +46,6 @@ seeing their data.
   stored by us. In particular **no trace id or span id is stored** in any table: they are application and telemetry state.
 - **Observers never change a run.** One that raises or is slow is logged and ignored, so a broken exporter cannot fail a job.
 - **We do not run evaluations or score anything.** We emit traces that make that trivial on a platform of the user's choice.
-
-## One way to run a job
-
-Today a job is two things: a function you pass to `run_job`, and a `Job` class that you submit. This spec makes it one.
-
-```python
-@job
-async def summarise(ctx: JobContext, input: In) -> Out: ...
-
-
-outcome = await run_job(runner, summarise, In(...))  # in your process: you await it
-job_id = await client.submit(summarise, In(...))  # on a worker: you follow it
-```
-
-- **`run_job(runner, job, input, *, job_id=None, resume_from=None, resumable=False)`** runs a `Job` class (or an agent class,
-  as `submit` does) in your process and returns a `JobOutcome` with the typed output. A plain function is no longer accepted: `@job`
-  makes a job from a function in three lines, and the input and output become typed. It needs the runner (a job's `run` gets
-  a `JobContext` that holds it), and the runner holds the database.
-- **Parity.** The only difference between running a job in your process and on a worker is **who runs it, and where**. There
-  is one function, used by `run_job` and by the worker, that starts the job (`start_job`), runs it, writes the result, sets the
-  final status and writes the events. So both:
-  - write the same job row, the same hashes and the same events (`events()` and the traces cannot tell them apart);
-  - write the result to the runner's result store **if there is one**, and keep nothing if `results=None` (the caller still
-    gets the output back from `run_job`);
-  - resume the same way (`resume_from`, `resumable`);
-  - fail the same way: a job that raises is a `FAILED` outcome, a cancelled task is `CANCELLED`.
-- **What stays different:** a submitted job's input is JSON, because it crosses a queue; in your process it is the model as
-  you built it. A submitted job is cancelled through the database (`client.cancel`), and one in your process by cancelling
-  its task.
-- **Without a database.** `SqliteDatabase(":memory:")` runs everything in memory, with no file and no service: the same code,
-  the same migrations. The job row, the events and the default result store live in it, and are gone when it closes. It is the
-  quick way to try a job, and the way to test one.
-- **Streaming agents** cannot be jobs, as before.
 
 ## Observers
 
@@ -111,14 +76,10 @@ class Observer(ABC):
   `scope.finish(end)` with the outcome before leaving. This is what lets an observer make its span the *current* one while
   the work runs (see [your own spans](#your-own-spans)). `model_call` and `tool_call` are start and finish events: they come
   from a callback in another task, so they cannot wrap anything.
-- **Inline.** Every call is awaited by the runner, with a timeout (a second by default) and with its errors logged and
-  ignored. A slow observer buffers for itself. OpenTelemetry's own exporters already batch in the background, so ours is
-  cheap.
-- **Where they are set.** `AgentRunner(db, observers=[...])`. A worker runs its jobs with its runner, so it has them too, and
-  a job run by `run_job` and one run by a worker call the same observers. `JobClient(db, queue, observers=[...])` takes
-  observers for `submitted` only.
-- **Streaming runs** call the same hooks for the start and the end of the run, the model calls and the tool calls, and none per
-  token.
+- **Inline, and harmless.** Every call is awaited, with a timeout and with its errors logged and ignored ([the runner](runner.md#observers)).
+  A slow observer buffers for itself. OpenTelemetry's own exporters already batch in the background, so ours is cheap.
+- **Where they are set.** On the runner (`AgentRunner(db, observers=[...])`: see [the runner](runner.md#observers) for when it calls them), and
+  on the client (`JobClient(db, queue, observers=[...])`, for `submitted` only).
 
 ## What an observer sees
 
@@ -139,10 +100,6 @@ results, and error text.
 - **A tool call**: tool name, call id, type; with content: arguments and result. A tool that launches an agent (the runner's
   launch tools) has the launched agent's attempt as its child.
 
-**How the runner sees model calls and tool calls.** An attempt is one `lc_agent.ainvoke(...)`: the model calls and tool calls
-happen inside LangChain's agent loop. A callback handler, added to the config of each attempt (and of a streamed run), turns
-LangChain's callbacks (`on_chat_model_start/end`, `on_tool_start/end`) into the observer's events, with real timings. It is the
-one place that depends on LangChain's callback interface, and it does nothing when there are no observers.
 
 ## OpenTelemetry
 
@@ -219,28 +176,17 @@ and tool calls have their own spans, and why content is an opt-in switch and not
 - **To evaluate the answer:** turn content on. The span of an attempt has the input and the final output; the model call has the messages.
 - **To evaluate the path:** the tool calls, in order, with their arguments and results, under the attempt that made them.
 - **To tell which attempt counted:** `ftw.attempt.final`, and `error.type` on the ones that were rejected.
-- **To compare versions:** the agent name, version and hash, the job name and version, and the model are on the spans. The
-  code release is the OpenTelemetry resource attribute `service.version`, which the user sets (a git sha or a tag), and which
-  evaluation platforms already group by.
+- **To compare versions:** the agent name, version and hash, the job name and version ([a job's version](jobs-and-tracing.md#running-a-job-class)),
+  and the model are on the spans. The code release is the OpenTelemetry resource attribute `service.version`, which the user sets (a git sha
+  or a tag), and which evaluation platforms already group by.
 - We do not run evaluations, score, or have a feedback API.
-
-## Versions
-
-- **A job has a version**, as an agent has: `Job.version`, set by hand when the pipeline's behaviour changes. `@job` takes
-  `version=` (default `"1"`). It is stored on the job (`jobs.job_version`) and is on the job's span as `ftw.job.version`.
-- **A pipeline's code is not hashed.** Arbitrary Python cannot be fingerprinted in a way that means anything (closures,
-  imports, everything they call). `job_hash` covers the declaration: name, version and the two models.
-- The deterministic code around the agents is versioned by the job's `version`, and by `service.version`, as above.
 
 ## What changes
 
-- **`run_job`** takes a runner, a job class and an input (see [one way to run a job](#one-way-to-run-a-job)). One function runs
-  a job, for it and for the worker. Examples, docs and tests that passed a function now declare a job.
-- **`Database`**: `jobs.job_version` (the baseline migration is edited, as nothing is released). `SqliteDatabase(":memory:")` works.
-- **`JobMessage`** gets `trace_context: dict[str, str]` (empty by default); `check_queue` checks that a queue carries it.
-- **`AgentRunner`** gets `observers`, a callback handler for each attempt and each streamed run, and the calls to the observers.
-  `JobClient` gets `observers`.
-- **New:** `Observer` and its records, `testing.check_observer`, `OTelObserver`, `featherweight[otel]`.
+- **New:** `Observer` and its records, `testing.check_observer`, `OTelObserver`, and the extra `featherweight[otel]`.
+- **Elsewhere,** each in the spec that owns it: the runner calls observers ([runner](runner.md#observers)); `JobMessage.trace_context` and
+  `JobClient(observers=)` ([submitted jobs](submitted-jobs.md#the-queue)); `run_job` runs a job class, and the job version
+  ([jobs and tracing](jobs-and-tracing.md#running-a-job-class)); `SqliteDatabase(":memory:")` and `jobs.job_version` ([persistence](persistence.md)).
 - **Not changed:** the run log's tables for attempts, the result store, resuming, the job events, SSE.
 
 ## Decisions
@@ -252,9 +198,6 @@ and tool calls have their own spans, and why content is an opt-in switch and not
 - **Spans for model calls and tool calls,** because evaluation needs the path. The cost is the callback handler.
 - **No trace or span ids in the run log.** They are the application's. The reuse reference is the ids we already store.
 - **No API for your own spans.** The principle is a clean line between what we offer and what you do.
-- **A job is a class, in your process or on a worker;** the version of a job is the version of the pipeline, and the pipeline
-  code is not hashed.
-- **A plain function is no longer a job for `run_job`;** `@job` is the short way to declare one.
 - **Observers are on the runner,** so a job run by `run_job` and a job run by a worker report the same way, and nothing is reported twice.
 
 ## Not supported
@@ -264,7 +207,6 @@ and tool calls have their own spans, and why content is an opt-in switch and not
 - **Content as events** (the conventions' `EVENT_ONLY` and `SPAN_AND_EVENT`), and per-token events for a streaming run.
 - **Metrics and logs** through OpenTelemetry. Spans only. The logger lines stay as they are.
 - **Storing any trace data,** and an observer that changes a run.
-- **A job that is a plain function in `run_job`.**
 - **A different tracing library** than OpenTelemetry as a product feature. Write an observer.
 
 ## Tests
@@ -272,8 +214,6 @@ and tool calls have their own spans, and why content is an opt-in switch and not
 No live model call. Fake models (with tool calls), `MemoryQueue`, an in-memory span exporter from the OpenTelemetry SDK (a dev
 dependency only).
 
-- **`run_job` and the worker:** the same job, run both ways, gives the same row, hashes, events and result; `:memory:`;
-  `results=None`; resume; a failing and a cancelled job.
 - **Observers:** every hook is called in order and with the right records; an observer that raises, or is too slow, changes
   nothing; content is built only when an observer asks; `check_observer` against a no-op observer and a recording one.
 - **The callback handler:** model calls and tool calls of a fake model, with timings, and with a launched agent under its tool call.
@@ -283,9 +223,10 @@ dependency only).
 
 ## The work
 
-Tracked in [epic #90](https://github.com/aadhithya/featherweight/issues/90). One issue and one pull request each, in this order:
+Tracked in [epic #90](https://github.com/aadhithya/featherweight/issues/90). One issue and one pull request each, in this order. The first,
+[#91](https://github.com/aadhithya/featherweight/issues/91), is specified in [jobs and tracing](jobs-and-tracing.md#running-a-job-class), and the others depend on it:
 
-1. [#91](https://github.com/aadhithya/featherweight/issues/91) **`run_job` runs a job class,** one function for `run_job` and the worker, `:memory:`, `job_version`; examples, docs and tests converted.
+1. [#91](https://github.com/aadhithya/featherweight/issues/91) **`run_job` runs a job class** (in the jobs spec, as above).
 2. [#92](https://github.com/aadhithya/featherweight/issues/92) **The `Observer` class,** its records, `check_observer`, the runner's calls, the callback handler for model and tool calls, and the content switch.
 3. [#93](https://github.com/aadhithya/featherweight/issues/93) **Jobs, and the trace across the queue:** the job scope for `run_job` and the worker, `JobMessage.trace_context`, `JobClient` observers, the queue kit.
 4. [#94](https://github.com/aadhithya/featherweight/issues/94) **`OTelObserver`:** the GenAI mapping, the `ftw.` attributes, the pinned version and its test, `featherweight[otel]`.

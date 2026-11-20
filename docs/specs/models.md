@@ -13,7 +13,6 @@ and [jobs and tracing](jobs-and-tracing.md) (two columns).
 - [Per provider](#per-provider)
 - [Extending it](#extending-it)
 - [Tokens and the run log](#tokens-and-the-run-log)
-- [What changes](#what-changes)
 - [Testing](#testing)
 - [Decisions](#decisions)
 - [Not supported](#not-supported)
@@ -201,26 +200,8 @@ All three give `input_tokens` as the whole input and `output_tokens` as the whol
 Gemini, Gemma, Claude and OpenAI. A class that does not set it (Ollama puts `model`) leaves `AgentResult.model_name` empty.
 Cache reads and writes are available in `input_token_details` and are not stored.
 
-**The run log** keeps `model_name` (the requested model) and `reasoning` (the `label()`), and adds:
-
-| Column | |
-|---|---|
-| `provider` | `google`, `anthropic`, `openai`, or the class's own |
-| `settings` | The settings as JSON (`model_dump_json()`), so the run can be reproduced |
-
-Both are added by the migration that adds columns to an older log. They are `NULL` for rows written before. The tracing
-spec and the [guide](../agents.md) are updated.
-
-## What changes
-
-- `AgentBase`: `model_name` and `reasoning` are removed, `model` is added. **This breaks every agent.** The library is not
-  released, and the examples, docs and tests change with it.
-- `ModelName` and `Reasoning` are removed. `ModelSettings`, `ModelInfo`, `Gemini`, `Gemma`, `Claude` and `OpenAI` are
-  in `featherweight.model_settings`.
-- `default_model_factory(agent)` becomes `agent.model.build()`, and the `model_factory` argument is removed
-  ([testing](#testing)). The agent's settings are the only way to choose a model.
-- `pyproject.toml`: extras `anthropic` and `openai`, and both in the dev group.
-- `.env.example` has the three keys.
+**The run log** records the requested model, the effort (the `label()`), the provider (`google`, `anthropic`, `openai`, or the class's own) and
+the settings as JSON, so that a run can be reproduced. The columns are in [the schema](persistence.md#the-schema).
 
 ## Testing
 

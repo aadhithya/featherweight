@@ -16,7 +16,6 @@ data). It changes [jobs and tracing](jobs-and-tracing.md) (the job columns, the 
 - [The worker](#the-worker)
 - [Cancelling](#cancelling)
 - [Job events](#job-events)
-- [What changes](#what-changes)
 - [Decisions](#decisions)
 - [Later](#later)
 - [Not supported](#not-supported)
@@ -67,9 +66,8 @@ class Summarise(Job):
   streams to a person).
 - **`@job`** is sugar: it builds a `Job` class from an async function, taking the name from the function (or `name=`), the
   version `"1"` (or `version=`), and the models from the annotations of `input` and the return type.
-- **`run_job`** stays, as the in-process way to run a job (a change is designed: it will take a runner, a `Job` class and an input, so that
-  a job runs the same way in your process and on a worker: see [observers and OpenTelemetry](observability.md#one-way-to-run-a-job)).
-  Before that change it is the convenience for a function you hold. A job whose task is cancelled is `CANCELLED` now
+- **`run_job`** runs a job in your process ([running a job class](jobs-and-tracing.md#running-a-job-class) says how it changes to run
+  a `Job` class, with the same code as the worker). Until then it is the convenience for a function you hold. A job whose task is cancelled is `CANCELLED` now
   (it was `FAILED` with "CancelledError").
 
 ## The queue
@@ -81,6 +79,7 @@ class JobMessage(BaseModel):            # frozen
     job_id: str
     job_name: str
     input: dict[str, Any]               # JSON, or references inside it
+    trace_context: dict[str, str] = {}  # the W3C trace context of the submitter, if an observer gave one (designed: see below)
 
 class Delivery(BaseModel):              # frozen
     message: JobMessage
@@ -107,6 +106,10 @@ limit until the next epic adds leases). `featherweight.testing.check_queue(make_
 
 There is no Redis, SQS or Postgres queue: how jobs travel in a deployment is the user's decision, and the abstract class and its
 kit are how they check theirs. Dead-lettering is the user's broker's business.
+
+The **trace context** (designed, not built: [#93](https://github.com/aadhithya/featherweight/issues/93)) is how a worker's span joins the trace of
+the client that submitted the job ([observers and OpenTelemetry](observability.md#opentelemetry)). It is empty unless the client has an observer
+that gives one, and it travels in the message only: it is stored in no table. Every queue carries it, and `check_queue` checks that it does.
 
 ## The client
 
@@ -208,18 +211,6 @@ data: {"seq":12,"job_id":"…","status":"RUNNING","at":"2026-11-20T10:00:01Z"}
 out every 15 seconds to keep the connection open, and the stream ends after a final event. featherweight runs **no server**: the
 user's API sends the response (a `StreamingResponse` in FastAPI, about a dozen lines, in the example). No WebSockets, one job per
 stream, no stream of all jobs.
-
-## What changes
-
-- **`jobs` table** (the baseline migration is edited: nothing has been released): `job_hash`, `input_hash` (null for jobs made by
-  `run_job`), `started_at`, `cancel_requested` (default false). **`job_events`** and **`job_queue`** (sqlite only) are new tables.
-  `JobRow` gains the columns.
-- **`CANCELLED` is a status of jobs** (it was unused for jobs).
-- **`Database`:** `create_job` takes `job_hash` and `input_hash`; new `request_job_cancel` and `list_job_events`; `set_job_status`
-  writes events and sets `started_at`; going back to `INIT` clears it. The conformance kit and `PostgresDatabase` follow.
-- **New in the package:** `Job`, `JobContext`, `job` (the decorator), `JobQueue`, `JobMessage`, `Delivery`, `SqliteQueue`,
-  `JobClient`, `JobWorker`, `JobEvent`, and `sse`; `MemoryQueue` and `check_queue` in `featherweight.testing`.
-- **Not changed:** `run_job`, resuming, the result store, the agents.
 
 ## Decisions
 

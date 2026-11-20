@@ -220,7 +220,7 @@ One `agent_runs` row per turn, as for any run, with these differences. The run l
 | `agent_hash` | Recorded as for any run |
 | Reuse | **None.** Resuming a job does not reuse a streaming run |
 
-The run's `job_id` works as for `run()`. Marking a *job* `CANCELLED` is part of the jobs epic.
+The run's `job_id` works as for `run()`.
 
 ## The adapters
 
