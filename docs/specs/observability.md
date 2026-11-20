@@ -1,6 +1,6 @@
 # Spec: observers, OpenTelemetry and one way to run a job
 
-Status: designed, not built. It is tracked in an epic (listed [at the end](#the-work)), and each part has its own issue. When
+Status: designed, not built. It is tracked in [epic #90](https://github.com/aadhithya/featherweight/issues/90), and each part has its own issue. When
 a part is built, this page says so, and the guide `docs/observability.md` shows how to use it.
 
 It builds on [the persistence spec](persistence.md) (the rule that featherweight keeps metadata only, and that content never
@@ -283,10 +283,10 @@ dependency only).
 
 ## The work
 
-Tracked in an epic. One issue and one pull request each, in this order:
+Tracked in [epic #90](https://github.com/aadhithya/featherweight/issues/90). One issue and one pull request each, in this order:
 
-1. **`run_job` runs a job class,** one function for `run_job` and the worker, `:memory:`, `job_version`; examples, docs and tests converted.
-2. **The `Observer` class,** its records, `check_observer`, the runner's calls, the callback handler for model and tool calls, and the content switch.
-3. **Jobs, and the trace across the queue:** the job scope for `run_job` and the worker, `JobMessage.trace_context`, `JobClient` observers, the queue kit.
-4. **`OTelObserver`:** the GenAI mapping, the `ftw.` attributes, the pinned version and its test, `featherweight[otel]`.
-5. **The guide, an example, the skill,** and dropping "OpenTelemetry? Too big" from the README.
+1. [#91](https://github.com/aadhithya/featherweight/issues/91) **`run_job` runs a job class,** one function for `run_job` and the worker, `:memory:`, `job_version`; examples, docs and tests converted.
+2. [#92](https://github.com/aadhithya/featherweight/issues/92) **The `Observer` class,** its records, `check_observer`, the runner's calls, the callback handler for model and tool calls, and the content switch.
+3. [#93](https://github.com/aadhithya/featherweight/issues/93) **Jobs, and the trace across the queue:** the job scope for `run_job` and the worker, `JobMessage.trace_context`, `JobClient` observers, the queue kit.
+4. [#94](https://github.com/aadhithya/featherweight/issues/94) **`OTelObserver`:** the GenAI mapping, the `ftw.` attributes, the pinned version and its test, `featherweight[otel]`.
+5. [#95](https://github.com/aadhithya/featherweight/issues/95) **The guide, an example, the skill,** and dropping "OpenTelemetry? Too big" from the README.
