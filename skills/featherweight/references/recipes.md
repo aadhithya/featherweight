@@ -267,7 +267,8 @@ async for event in client.events(job_id):
 print(await client.result(shout, job_id))
 ```
 
-`references/submitted-jobs.md` has cancelling, shutdown, and writing your own queue. `examples/jobs` runs it.
+Run as many workers as you like: a worker that dies loses its lease, and another takes the job over (`executions` + 1; a resumable job reuses its finished steps).
+A job must be safe to run twice, and `@job(timeout=...)` (600 s by default) stops one that hangs. `references/submitted-jobs.md` has cancelling, shutdown, leases and writing your own queue. `examples/jobs` runs it, and `takeover.py` kills a worker mid-job.
 
 ## Traces for jobs and agents
 

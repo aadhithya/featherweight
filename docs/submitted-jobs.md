@@ -11,6 +11,7 @@ Spec: [Submitted jobs](specs/submitted-jobs.md). Example: `examples/jobs` (`make
 - [Cancelling](#cancelling)
 - [Events and SSE](#events-and-sse)
 - [Running a worker](#running-a-worker)
+- [Several workers](#several-workers)
 - [Your own queue](#your-own-queue)
 - [What is not here](#what-is-not-here)
 
@@ -113,6 +114,28 @@ await worker.stop(grace=30)
 - On `stop`, the worker takes no new messages, waits up to `grace` seconds, then cancels what is left, puts those messages back on the queue and
   sets those jobs back to `INIT`, so they run again.
 
+## Several workers
+
+Run as many workers as you like on one queue: a message goes to one of them, and one wins the job. (`SqliteQueue` is for one machine; for
+several, use a queue and a database that are shared: [your own queue](#your-own-queue).)
+
+- **A worker that dies.** While a worker runs a job it renews two leases about every 20 seconds (a third of `lease`, 60 seconds by default): the
+  job's, in the database, and its message's, in the queue. If the worker dies, the leases run out. The message comes back to another worker,
+  which sees that the job's lease expired and **takes it over**: the same job, with `executions` one higher and a `lost` event in its
+  events (queued, running, lost, running, succeeded). A message that arrives while the job's lease is still alive is a duplicate: it is acknowledged and the job is left alone.
+- **What the new worker reuses.** If the job is `resumable`, the steps that finished before the worker died are reused, as in a
+  [resume](persistence.md#resuming-a-job); otherwise the job runs again from the start. A resume is you running a job that *ended* again, as a new
+  job; a takeover is the system running a job that *did not end* again, as the same job.
+- **A worker that only stalled.** If a worker was paused (not dead) and wakes up after a takeover, its writes are refused, because every write of a running
+  job checks that the worker still owns it. It stops the job at once and writes nothing more. Only featherweight's writes are checked: **a job must be safe
+  to run twice**, because what its own code already did (a mail sent, an API called) is not undone.
+- **A job that hangs.** The heartbeat only shows that a worker is alive. Each job has a `timeout` (`@job(timeout=...)`, 600 seconds by default, `None` for no limit):
+  when it passes, the job is cancelled and fails with error type `JobTimeout`. It is not retried; you resume it.
+- **How often a message may come back** is your queue's policy. `SqliteQueue(db, lease=60, max_deliveries=3)` marks a message `dead` after three deliveries and
+  fails its job (`DeadLettered`). If your own queue dead-letters a message, call `client.fail(job_id)` from its dead-letter handler to end the job.
+
+`examples/jobs/takeover.py` does it: it kills a worker with SIGKILL in the middle of a job, and another one takes the job over (`make example-takeover`).
+
 ## Your own queue
 
 `SqliteQueue` is the only queue that featherweight ships, for local work. For production, subclass `JobQueue`
@@ -138,6 +161,6 @@ A dead-letter queue is yours to configure on your queue: a message that is `nack
 
 ## What is not here
 
-- Several workers on one queue (leases, heartbeats, a worker that dies): a later epic.
+- A worker registry, a scheduler, priorities, and a sweeper for a job whose message never comes back.
 - Agents that run in the background: a later epic.
 - An event channel such as pub/sub: events are read from the database for now.
