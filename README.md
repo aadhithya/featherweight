@@ -102,6 +102,7 @@ Want durable execution or built-in evals? Pydantic AI. Traces for any OpenTeleme
 
 ## Documentation
 
+- [**The book**](https://github.com/aadhithya/featherweight/blob/main/docs/book/README.md): build something step by step, from a first agent to workers
 - [**Getting started**](https://github.com/aadhithya/featherweight/blob/main/docs/getting-started.md): install it, write an agent, run it
 - [**Docs**](https://github.com/aadhithya/featherweight/blob/main/docs/README.md): the guides, and where to begin
 - [**Specs**](https://github.com/aadhithya/featherweight/blob/main/docs/specs/README.md): what each part does, and why

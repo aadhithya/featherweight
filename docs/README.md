@@ -1,19 +1,22 @@
 # Documentation
 
-Three kinds of page, from "how do I use it" to "why is it this way". Start at the top and go down only as far as you need.
+Four kinds of page, from "how do I build it" to "why is it this way". Start at the top and go down only as far as you need.
 
 | Level | Answers | Where |
 |---|---|---|
 | **Overview** | What is featherweight, and is it for me? | The [README](../README.md) |
+| **The book** | How do I build something, step by step? | [`book/`](book/README.md) |
 | **Guides** | How do I do X? | [This folder](#guides) |
 | **Specs** | What exactly does it do, what was decided and why, and what is left out? | [`specs/`](specs) |
 | **Examples** | Show me running code | [`examples/`](../examples) |
 
-The guides and the specs cover the same features. A guide is for using one, and its spec is for relying on it, changing it,
+The book teaches in order; the guides and the specs are for looking things up. The guides and the specs cover the same features. A guide is for using one, and its spec is for relying on it, changing it,
 or finding out why it behaves as it does.
 
 ## Where to start
 
+- **I want to build something, step by step.** [The book](book/README.md): a short chapter at a time, one small project that grows from a
+  typed agent to a chat and a pipeline on workers. Start with [the map](book/00-start-here/02-the-map.md). The guides and the specs below are the reference.
 - **I want a coding agent to build with it.** [The skill](../skills/featherweight/SKILL.md): install it in Claude Code, or copy
   `skills/featherweight` into another tool's skills folder. It carries the rules, a working app and the guides.
 - **I'm new here.** [Getting started](getting-started.md): install it, write an agent, run it.

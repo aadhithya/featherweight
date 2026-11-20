@@ -1,6 +1,6 @@
 # Getting started
 
-Install it, write an agent, run it.
+Install it, write an agent, run it. For a guided path that builds one small project from a first agent to workers, read [the book](book/README.md).
 
 ## Install
 

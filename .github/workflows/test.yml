@@ -19,3 +19,5 @@ jobs:
         run: uv run ruff format --check .
       - name: Types
         run: uv run ty check
+      - name: Book
+        run: python3 scripts/build_book.py --check

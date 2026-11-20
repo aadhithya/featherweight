@@ -37,6 +37,16 @@ repos:
         types: [python]
         pass_filenames: false
 
+  # The navigation of the book (docs/book) and its code listings must match its table of contents. Fast, no Docker.
+  - repo: local
+    hooks:
+      - id: book-navigation
+        name: book navigation
+        entry: python3 scripts/build_book.py --check
+        language: system
+        files: ^(docs/book/|scripts/build_book\.py$)
+        pass_filenames: false
+
   # Unit tests, in the Docker container. They never call a real model: the e2e tests are excluded and the container gets
   # blank API keys, so an accidental call fails at once and costs nothing. They run here and not in CI, which only
   # lints and type checks. Needs Docker running and the image built (`make build`; rebuild after a dependency change).
