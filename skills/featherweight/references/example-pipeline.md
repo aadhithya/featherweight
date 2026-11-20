@@ -110,7 +110,7 @@ problems are returned in the result.
 ## What it shows about the harness
 
 - A pipeline is an ordinary async function, `learn_document_tree(runner, store, documents, category, job_id=...)`. It
-  calls `runner.run` and `runner.run_many`, runs code between the calls, and is wrapped in `run_job`.
+  calls `runner.run` and `runner.run_many`, runs code between the calls, and runs inside a job (`run_job`, with a typed input and output).
 - Typed agents make hand-offs cheap: the output model of one agent is the input of a function, which builds the input
   model of the next.
 - Retries and `check_output` absorb an occasional bad reply; pipeline code decides what is fatal (one section failing)

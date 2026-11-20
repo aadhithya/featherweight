@@ -35,8 +35,10 @@ are in [agents](agents.md#jobs-and-tracing).
 A job keeps the outputs of its steps only if it **opts in, before it runs**:
 
 ```python
-first = await run_job(db, "notes", pipeline, resumable=True)  # fails halfway
-second = await run_job(db, "notes", pipeline, resume_from=first.job_id)  # the finished steps are not paid for again
+first = await run_job(runner, notes, NotesInput(...), resumable=True)  # a job (see agents.md): fails halfway
+second = await run_job(
+    runner, notes, NotesInput(...), resume_from=first.job_id
+)  # the finished steps are not paid for again
 ```
 
 The outputs go to a **result store**. With a `SqliteDatabase` the default is a table in the same file, which is for local

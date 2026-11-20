@@ -13,11 +13,11 @@ from typing import Literal
 from pydantic import BaseModel, ValidationError
 
 from featherweight.db import FINAL, Database, JobRow
-from featherweight.fingerprint import error_fields, input_hash
-from featherweight.jobs import Job, JobContext, as_job
+from featherweight.fingerprint import error_fields
+from featherweight.jobs import Job, as_job, execute_job
 from featherweight.models import AgentBase, RunStatus
 from featherweight.queue import Delivery, JobQueue
-from featherweight.results import ResultKey, ResultStore, SqliteResultStore
+from featherweight.results import ResultStore, SqliteResultStore
 from featherweight.runner import AgentRunner
 from featherweight.sqlite import SqliteDatabase
 
@@ -30,10 +30,6 @@ class UnknownJob(Exception):
 
 class InvalidJobInput(Exception):
     """The input of a message does not fit the input model of its job."""
-
-
-class InvalidJobOutput(Exception):
-    """A job returned something that is not an instance of its output model."""
 
 
 class JobWorker:
@@ -195,13 +191,8 @@ class JobWorker:
 
     async def _run_job(self, delivery: Delivery, row: JobRow, job: type[Job], job_input: BaseModel) -> None:
         job_id = row.job_id
-        logger.info("job_started job_id=%s job=%s", job_id, job.name)
-        try:
-            output = await job().run(JobContext(runner=self.runner, job_id=job_id), job_input)
-            if not isinstance(output, job.output_model):
-                raise InvalidJobOutput(f"{job.name} returned {type(output).__name__}, not {job.output_model.__name__}")
-            await self._keep(row, job, job_input, output)
-        except asyncio.CancelledError:
+
+        async def on_cancel() -> None:
             if job_id in self._requeue:  # a shutdown: back to the queue, to run again
                 await self.db.set_job_status(job_id, RunStatus.INIT)
                 await self.queue.nack(delivery, requeue=True)
@@ -210,24 +201,12 @@ class JobWorker:
                 await self.db.set_job_status(job_id, RunStatus.CANCELLED)
                 await self.queue.ack(delivery)
                 logger.warning("job_cancelled job_id=%s", job_id)
-        except Exception as exc:
-            await self._fail(job_id, exc, delivery)
-        else:
-            await self.db.set_job_status(job_id, RunStatus.SUCCESS)
-            await self.queue.ack(delivery)
-            logger.info("job_finished job_id=%s", job_id)
 
-    async def _keep(self, row: JobRow, job: type[Job], job_input: BaseModel, output: BaseModel) -> None:
-        """Write the output through the user's store. If it cannot be kept the job fails: the output is its product."""
-        if self.results is None:
-            return
-        declared_hash = row.job_hash or job.job_hash()
-        if row.job_hash and row.job_hash != job.job_hash():
-            logger.warning(
-                "job_hash_differs job_id=%s: this worker's %s is not the one that was submitted", row.job_id, job.name
-            )
-        key = ResultKey(job_id=row.job_id, agent_hash=declared_hash, input_hash=row.input_hash or input_hash(job_input))
-        await self.results.put(key, output.model_dump(mode="json"))
+        try:  # the same code as `run_job` runs a job with: the worker only adds the queue
+            await execute_job(self.runner, job, job_id, job_input, self.results, on_cancel=on_cancel)
+        except asyncio.CancelledError:
+            return  # `on_cancel` has settled the message and the status
+        await self.queue.ack(delivery)
 
     # cancelling and stopping
 

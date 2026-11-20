@@ -226,7 +226,7 @@ dependency only).
 Tracked in [epic #90](https://github.com/aadhithya/featherweight/issues/90). One issue and one pull request each, in this order. The first,
 [#91](https://github.com/aadhithya/featherweight/issues/91), is specified in [jobs and tracing](jobs-and-tracing.md#running-a-job-class), and the others depend on it:
 
-1. [#91](https://github.com/aadhithya/featherweight/issues/91) **`run_job` runs a job class** (in the jobs spec, as above).
+1. [#91](https://github.com/aadhithya/featherweight/issues/91) **`run_job` runs a job class** (built; specified in the jobs spec, as above).
 2. [#92](https://github.com/aadhithya/featherweight/issues/92) **The `Observer` class,** its records, `check_observer`, the runner's calls, the callback handler for model and tool calls, and the content switch.
 3. [#93](https://github.com/aadhithya/featherweight/issues/93) **Jobs, and the trace across the queue:** the job scope for `run_job` and the worker, `JobMessage.trace_context`, `JobClient` observers, the queue kit.
 4. [#94](https://github.com/aadhithya/featherweight/issues/94) **`OTelObserver`:** the GenAI mapping, the `ftw.` attributes, the pinned version and its test, `featherweight[otel]`.

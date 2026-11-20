@@ -24,7 +24,7 @@ data). It changes [jobs and tracing](jobs-and-tracing.md) (the job columns, the 
 
 ## Goal
 
-Today a job is a convenience: `run_job` awaits a function you hold, in your process. A job should be something a client can
+A job is a declared class that runs in your process (`run_job`) or on a worker, by the same code. It should be something a client can
 **submit**, from anywhere, that a **separate worker** picks up and runs, with the client able to follow it, cancel it, and read
 its result. The client and the worker are independent: **the queue and the database are their only connection**, so they can live
 in different processes, or on different machines. This spec is for **one worker**. Several workers (leases, a dead worker,
@@ -66,9 +66,8 @@ class Summarise(Job):
   streams to a person).
 - **`@job`** is sugar: it builds a `Job` class from an async function, taking the name from the function (or `name=`), the
   version `"1"` (or `version=`), and the models from the annotations of `input` and the return type.
-- **`run_job`** runs a job in your process ([running a job class](jobs-and-tracing.md#running-a-job-class) says how it changes to run
-  a `Job` class, with the same code as the worker). Until then it is the convenience for a function you hold. A job whose task is cancelled is `CANCELLED` now
-  (it was `FAILED` with "CancelledError").
+- **`run_job`** runs a `Job` class in your process, with the same code as the worker ([running a job
+  class](jobs-and-tracing.md#running-a-job-class)). A job whose task is cancelled is `CANCELLED`.
 
 ## The queue
 
@@ -145,7 +144,8 @@ database, the queue and the user's store.
 
 1. **Receive** a message. If the job is already `CANCELLED`, acknowledge and skip it. If the job name is unknown, or the input does
    not validate, mark the job `FAILED` (`error_type`, `error_hash`) and acknowledge.
-2. **Start:** mark the job `RUNNING` (`started_at`, a `running` event) and run it as an asyncio task, up to `concurrency` at a time.
+2. **Start:** take the job (`start_job`: `RUNNING`, `started_at`, a `running` event) and run it as an asyncio task, up to `concurrency` at a time. What the
+   task does is `execute_job`, the function that also runs a job for `run_job` ([running a job class](jobs-and-tracing.md#running-a-job-class)): the worker adds the queue.
 3. **Success:** write the output through the user's `ResultStore` under `ResultKey(job_id, job_hash, input_hash)`, mark the job
    `SUCCESS`, acknowledge. **If the store fails to keep the result, the job is `FAILED`**, because the result is its product (a lost
    step result only reruns the step; a lost job result is the deliverable). `results=None` keeps nothing, and `client.result` has

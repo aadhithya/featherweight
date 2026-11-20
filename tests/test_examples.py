@@ -82,7 +82,7 @@ def test_the_resume_example_uses_the_smallest_claude_model_with_thinking_off():
         assert agent.model.label() == "off"
 
 
-async def test_the_resume_example_crashes_after_the_summaries_and_the_resumed_run_reuses_them(db):
+async def test_the_resume_example_crashes_after_the_summaries_and_the_resumed_run_reuses_them(db, monkeypatch):
     """The example's own pipeline, on fake models: the first run raises after the summaries, and the second run, with
     `resume_from`, answers the summaries from the log and runs only the notes."""
     example = load("resume")
@@ -93,25 +93,22 @@ async def test_the_resume_example_crashes_after_the_summaries_and_the_resumed_ru
     class FakeWriter(example.ReleaseNotes):
         model: ModelSettings = FakeSettings(key="notes")
 
+    monkeypatch.setattr(example, "Summariser", FakeSummariser)  # the job looks the agents up when it runs
+    monkeypatch.setattr(example, "ReleaseNotes", FakeWriter)
     summaries = Reactive(respond=lambda text, n: structured_reply("SummaryOutput", {"summary": "A change."}))
     notes = Scripted(script=[structured_reply("NotesOutput", {"notes": "The notes."})])
     use_model(summaries, "summaries")
     use_model(notes, "notes")
     runner = AgentRunner(db, retry_delay_s=0)
-    agents = {"summariser": FakeSummariser, "writer": FakeWriter}
     commits = example.COMMITS
 
-    first = await run_job(
-        db, "t", lambda job_id: example.pipeline(runner, job_id, commits, crash=True, **agents), resumable=True
-    )
+    first = await run_job(runner, example.release_notes, example.Commits(commits=commits, crash=True), resumable=True)
     assert first.status == RunStatus.FAILED and "simulated crash" in (first.error or "")
     assert [r.agent_name for r in await db.list_runs(job_id=first.job_id)] == ["summariser"] * len(commits)
 
     calls_before = sum(summaries.counts.values())
-    second = await run_job(
-        db, "t", lambda job_id: example.pipeline(runner, job_id, commits, **agents), resume_from=first.job_id
-    )
-    assert second.status == RunStatus.SUCCESS and second.result == "The notes."
+    second = await run_job(runner, example.release_notes, example.Commits(commits=commits), resume_from=first.job_id)
+    assert second.status == RunStatus.SUCCESS and second.result.notes == "The notes."
     assert sum(summaries.counts.values()) == calls_before  # the summaries were not asked for again
     assert notes.calls == 1
     rows = await db.list_runs(job_id=second.job_id)

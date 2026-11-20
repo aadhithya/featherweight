@@ -26,29 +26,30 @@ failed pipeline can be diagnosed from its rows, and replayed against them, witho
 ## Jobs
 
 A job is one run of a pipeline. It is declared as a `Job` class ([submitted jobs](submitted-jobs.md#the-job)), and it runs either in your
-process or on a worker. Today `run_job(db, name, pipeline, job_id=None)` runs a function you hold, in your process (it changes: see
-[running a job class](#running-a-job-class)):
+process or on a worker. `run_job(runner, job, input, *, job_id=None, resume_from=None, resumable=False)` runs it in your process:
 
-1. creates the job (or uses `job_id`, which must exist) and marks it `RUNNING`;
-2. awaits `pipeline(job_id)`;
-3. marks it `SUCCESS`, or `FAILED` with the error, and returns a `JobOutcome` (`job_id`, `status`, `result` on success,
-   `error` on failure).
+1. creates the job (or uses `job_id`, which must exist), with the job's name, version, hash and the hash of the input, and starts it
+   (`start_job`, the same compare-and-set step as a worker's), so it is `RUNNING`;
+2. runs `job.run(ctx, input)`, where the `JobContext` holds the runner and the job's id;
+3. writes the output through the runner's result store, if it has one, and marks the job `SUCCESS`, or `FAILED` with the error; it
+   returns a `JobOutcome` (`job_id`, `status`, `result` (the output model) on success, `error` on failure).
 
-- A pipeline that raises is a **failed outcome**, not an exception. The error is `ExceptionType: message`, up to 2,000
-  characters.
-- A cancelled run marks the job `CANCELLED` and re-raises the cancellation.
+- `job` is a `Job` class, or a plain (non-streaming) agent class, as for `submit`; the input must be an instance of its input model
+  (`TypeError` otherwise). A plain function is not a job: `@job` makes one from it.
+- A job that raises is a **failed outcome**, not an exception. The error is `ExceptionType: message`, up to 2,000 characters.
+- A cancelled task marks the job `CANCELLED` and re-raises the cancellation.
+- A job that was cancelled before it could start is not run: the outcome has the status the job has, no result, and an error that says so.
 - `run_job(..., resume_from=old_job_id)` and `db.create_job(name, resume_from=old_job_id)` create a **new** job that
   records `resumed_from` (an unknown job raises `LookupError`; `run_job` refuses `job_id` and `resume_from` together).
   See [resuming a job](#resuming-a-job).
 - To run in the background and hand the caller the id first: `db.create_job`, then
-  `asyncio.create_task(run_job(db, name, pipeline, job_id=job_id))`.
+  `asyncio.create_task(run_job(runner, job, input, job_id=job_id))`.
 - `set_job_status` keeps `error` only for `FAILED`, and sets `completed_at` only for `SUCCESS` and `FAILED`. A job that
   does not exist raises `LookupError`.
 
 ## Running a job class
 
-**Designed, not built** ([#91](https://github.com/aadhithya/featherweight/issues/91)). Today a job is two things: a function that you
-pass to `run_job`, and a `Job` class that you submit. It becomes one: a job is a declared class, and it runs in your process or on a worker.
+A job is one thing: a declared class, and it runs in your process or on a worker.
 
 ```python
 @job
@@ -59,17 +60,15 @@ outcome = await run_job(runner, summarise, In(...))  # you run it, in your proce
 job_id = await client.submit(summarise, In(...))  # a worker runs it
 ```
 
-- **`run_job(runner, job, input, *, job_id=None, resume_from=None, resumable=False)`** runs a `Job` class (or an agent class, as
-  `submit` does) and returns a `JobOutcome` with the typed output. A plain function is no longer accepted: `@job` makes a job from a function in
-  three lines, and the input and output become typed. It takes the runner because a job's `run` gets a `JobContext` that holds it, and the runner
-  holds the database.
-- **Parity.** The only difference between running a job in your process and on a worker is **who runs it, and where**. One function, used by
-  `run_job` and by the [worker](submitted-jobs.md#the-worker), starts the job (`start_job`), runs it, writes the result, sets the final status and
-  writes the events. So both write the same job row, hashes and events (`events()` cannot tell them apart); write the result to the runner's
-  result store **if there is one**, and keep nothing if `results=None` (`run_job` still returns the output); resume the same way; and fail
-  the same way: a job that raises is a `FAILED` outcome, a cancelled task is `CANCELLED`.
+- **Parity.** The only difference between running a job in your process and on a worker is **who runs it, and where**. One function,
+  `execute_job`, is used by `run_job` and by the [worker](submitted-jobs.md#the-worker): it runs the started job, writes the result, sets the
+  final status and so writes the events. So both write the same job row, hashes and events (`events()` cannot tell them apart); write the
+  result to the result store **if there is one** (`run_job` uses the runner's, the worker its own), and keep nothing if it is `None`
+  (`run_job` still returns the output); resume the same way; and fail the same way. A job whose output cannot be kept fails, because
+  the output is its product.
 - **What stays different:** a submitted job's input is JSON, because it crosses a queue; in your process it is the model as you built it. A
-  submitted job is cancelled through the database (`client.cancel`), and one in your process by cancelling its task.
+  submitted job is cancelled through the database (`client.cancel`), and one in your process by cancelling its task. The worker also settles
+  the queue's message, and puts a job back on the queue when it shuts down.
 - **No file, no service:** `SqliteDatabase(":memory:")` ([persistence](persistence.md#the-database)) runs it all in memory.
 - **Streaming agents** cannot be jobs, as before.
 - **Tests:** the same job run both ways gives the same row, hashes, events and result; `:memory:`; `results=None`; resume; a failing and a

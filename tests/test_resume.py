@@ -11,6 +11,7 @@ from fakes import (
     FakeSettings,
     Reactive,
     Scripted,
+    run_pipeline,
     runner_with,
     structured_reply,
     tool_reply,
@@ -19,7 +20,6 @@ from test_subagents import Parent, ParentInput
 
 from featherweight.db import RunEnd, RunStart
 from featherweight.fingerprint import agent_hash, input_hash, output_hash, text_hash
-from featherweight.jobs import run_job
 from featherweight.model_settings import ModelSettings
 from featherweight.models import RunStatus
 from featherweight.results import ResultKey, SqliteResultStore
@@ -57,7 +57,7 @@ def steps(runner, inputs, agent=Echo):
 
 async def run_steps(db, inputs, fake=None, agent=Echo, **kwargs):
     kwargs.setdefault("resumable", True)  # a job that is to be resumed keeps its results: decided before it runs
-    return await run_job(db, "p", steps(runner_with(db, fake or model(), max_attempts=1), inputs, agent), **kwargs)
+    return await run_pipeline(db, "p", steps(runner_with(db, fake or model(), max_attempts=1), inputs, agent), **kwargs)
 
 
 async def test_a_resumed_job_reuses_step_one_and_runs_the_steps_after_it(db):
@@ -250,12 +250,12 @@ async def test_run_many_with_one_failed_input_reruns_only_that_input(db):
         return await runner.run_many(Echo, [EchoInput(text=t) for t in "abc"], job_id=job_id)
 
     runner = runner_with(db, model({"b"}), max_attempts=1)
-    failed = await run_job(db, "p", lambda job_id: fan_out(runner, job_id), resumable=True)
+    failed = await run_pipeline(db, "p", lambda job_id: fan_out(runner, job_id), resumable=True)
     assert [r.status for r in failed.result or []] == [RunStatus.SUCCESS, RunStatus.FAILED, RunStatus.SUCCESS]
 
     healthy = model()
     runner = runner_with(db, healthy, max_attempts=1)
-    resumed = await run_job(db, "p", lambda job_id: fan_out(runner, job_id), resume_from=failed.job_id)
+    resumed = await run_pipeline(db, "p", lambda job_id: fan_out(runner, job_id), resume_from=failed.job_id)
 
     assert texts(healthy) == ["b"]
     assert [r.reused for r in resumed.result or []] == [True, False, True]
@@ -267,8 +267,8 @@ async def test_identical_inputs_in_one_run_many_are_all_reused(db):
         return await runner.run_many(Echo, [EchoInput(text="a")] * 2, job_id=job_id)
 
     runner = runner_with(db, model(), max_attempts=1)
-    first = await run_job(db, "p", lambda job_id: fan_out(runner, job_id), resumable=True)
-    resumed = await run_job(db, "p", lambda job_id: fan_out(runner, job_id), resume_from=first.job_id)
+    first = await run_pipeline(db, "p", lambda job_id: fan_out(runner, job_id), resumable=True)
+    resumed = await run_pipeline(db, "p", lambda job_id: fan_out(runner, job_id), resume_from=first.job_id)
 
     assert [r.reused for r in resumed.result or []] == [True, True]
 
@@ -338,4 +338,4 @@ async def test_resume_from_and_job_id_cannot_be_combined(db):
         return None
 
     with pytest.raises(ValueError, match="resume_from"):
-        await run_job(db, "p", pipeline, job_id=new, resume_from=old)
+        await run_pipeline(db, "p", pipeline, job_id=new, resume_from=old)

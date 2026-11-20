@@ -27,13 +27,15 @@ from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
 
+from pydantic import BaseModel
+
 from doclearn.autofill import AutofillError, FilledForm, check_form, fill_form
 from doclearn.generation import GeneratedDocument, GenerationError, generate_document
 from doclearn.models import Document, FactsSchema, FieldValue
 from doclearn.pipeline import LearningResult, learn_document_tree
 from doclearn.report import GUIDANCE_KEY, form_file_content, overview, write_learned_files
 from doclearn.store import LearnedDocument, LearnedStore
-from featherweight import AgentRunner, Database, RunStatus, SqliteDatabase, default_db_path, run_job
+from featherweight import AgentRunner, JobContext, RunStatus, SqliteDatabase, default_db_path, job, run_job
 
 DONE, FAILED, STOPPED = 0, 1, 2
 DEFAULT_OUT_DIR = "runs"
@@ -160,20 +162,28 @@ def setup_run_logging(run_dir: Path, verbose: bool) -> Callable[[], None]:
 # the steps
 
 
+class LearnInput(BaseModel):
+    documents: list[Document]
+    category: str
+
+
+def learn_job(store: LearnedStore, console: Console):
+    """The learning job. It is declared here, in a function, because it needs the store and the terminal; its input is the data."""
+
+    @job(name="learn")
+    async def learn(ctx: JobContext, input: LearnInput) -> LearningResult:
+        return await learn_document_tree(
+            ctx.runner, store, input.documents, input.category, job_id=ctx.job_id, progress=console.step
+        )
+
+    return learn
+
+
 async def learn(
-    runner: AgentRunner,
-    store: LearnedStore,
-    db: Database,
-    documents: list[Document],
-    category: str,
-    console: Console,
+    runner: AgentRunner, store: LearnedStore, documents: list[Document], category: str, console: Console
 ) -> tuple[LearnedDocument, LearningResult]:
-    outcome = await run_job(
-        db,
-        "learn",
-        lambda job_id: learn_document_tree(runner, store, documents, category, job_id=job_id, progress=console.step),
-    )
-    if outcome.status != RunStatus.SUCCESS:
+    outcome = await run_job(runner, learn_job(store, console), LearnInput(documents=documents, category=category))
+    if outcome.status != RunStatus.SUCCESS or outcome.result is None:
         raise CliError(f"Learning failed: {outcome.error} (job {outcome.job_id}; the agent runs are in the database)")
     learned = await store.get(outcome.result.learned_id)
     assert learned is not None
@@ -210,16 +220,40 @@ def show_form(console: Console, form: FilledForm, schema: FactsSchema) -> None:
     console.say(f"Story:\n  {form.story}")
 
 
-async def auto_form(
-    runner: AgentRunner, db: Database, learned: LearnedDocument, console: Console, path: Path
-) -> FilledForm:
+class FillInput(BaseModel):
+    learned: LearnedDocument
+
+
+class GenerateInput(BaseModel):
+    learned: LearnedDocument
+    form: FilledForm
+
+
+def fill_job(console: Console):
+    @job(name="autofill")
+    async def autofill(ctx: JobContext, input: FillInput) -> FilledForm:
+        return await fill_form(ctx.runner, input.learned, job_id=ctx.job_id, progress=console.step)
+
+    return autofill
+
+
+def generate_job(console: Console):
+    @job(name="generate")
+    async def generate_a_document(ctx: JobContext, input: GenerateInput) -> GeneratedDocument:
+        form = input.form
+        return await generate_document(
+            ctx.runner, input.learned, form.facts, form.story, job_id=ctx.job_id, progress=console.step
+        )
+
+    return generate_a_document
+
+
+async def auto_form(runner: AgentRunner, learned: LearnedDocument, console: Console, path: Path) -> FilledForm:
     """Have the agent invent a case; the user accepts it, edits it or has it redone."""
     schema = learned.facts_schema
     while True:
-        outcome = await run_job(
-            db, "autofill", lambda job_id: fill_form(runner, learned, job_id=job_id, progress=console.step)
-        )
-        if outcome.status != RunStatus.SUCCESS:
+        outcome = await run_job(runner, fill_job(console), FillInput(learned=learned))
+        if outcome.status != RunStatus.SUCCESS or outcome.result is None:
             raise CliError(f"Filling the form failed: {outcome.error} (job {outcome.job_id})")
         form = outcome.result
         while True:
@@ -236,14 +270,10 @@ async def auto_form(
 
 
 async def generate(
-    runner: AgentRunner, db: Database, learned: LearnedDocument, form: FilledForm, console: Console
+    runner: AgentRunner, learned: LearnedDocument, form: FilledForm, console: Console
 ) -> GeneratedDocument:
-    outcome = await run_job(
-        db,
-        "generate",
-        lambda job_id: generate_document(runner, learned, form.facts, form.story, job_id=job_id, progress=console.step),
-    )
-    if outcome.status != RunStatus.SUCCESS:
+    outcome = await run_job(runner, generate_job(console), GenerateInput(learned=learned, form=form))
+    if outcome.status != RunStatus.SUCCESS or outcome.result is None:
         raise CliError(f"Generation failed: {outcome.error} (job {outcome.job_id})")
     return outcome.result
 
@@ -291,7 +321,7 @@ async def run(args: argparse.Namespace, console: Console, run_dir: Path) -> None
         store = await LearnedStore.open(db)
         runner = AgentRunner(db)
 
-        learned, result = await learn(runner, store, db, documents, category, console)
+        learned, result = await learn(runner, store, documents, category, console)
         console.say(f"  ✓ Learned in {time.monotonic() - started:.0f}s\n")
         write_learned_files(run_dir / "learned", learned, result)
         console.say(overview(learned, result))
@@ -311,11 +341,11 @@ async def run(args: argparse.Namespace, console: Console, run_dir: Path) -> None
         if mode == "m":
             form = edit_form(console, form_path, schema, {}, "")
         else:
-            form = await auto_form(runner, db, learned, console, form_path)
+            form = await auto_form(runner, learned, console, form_path)
         form_path.write_text(form_file_content(schema, form.facts, form.story), encoding="utf-8")
         (run_dir / "story.txt").write_text(form.story + "\n", encoding="utf-8")
 
-        document = await generate(runner, db, learned, form, console)
+        document = await generate(runner, learned, form, console)
         report(console, document, run_dir / "generated.md")
         console.say(f"\nRun folder: {run_dir}")
 

@@ -4,39 +4,50 @@ Patterns for building with `featherweight`. Each snippet is complete enough to a
 
 ## A pipeline of two agents
 
-Order and branching are plain Python. Both runs share a job, so they share the run store and the trace.
+A pipeline is a job: a function with a typed input and output. Order and branching are plain Python. Every agent it runs with `ctx`
+belongs to the job, so they share the run store and the trace.
 
 ```python
-from featherweight import AgentRunner, run_job, RunStatus, SqliteDatabase
+from pydantic import BaseModel
+
+from featherweight import AgentRunner, JobContext, RunStatus, SqliteDatabase, job, run_job
 
 
-async def pipeline(runner, job_id, texts):
-    results = await runner.run_many(PeopleExtractor, [ExtractInput(text=t) for t in texts], job_id=job_id)
+class Texts(BaseModel):
+    texts: list[str]
+
+
+class People(BaseModel):
+    people: list[str]
+
+
+@job
+async def find_people(ctx: JobContext, input: Texts) -> People:
+    results = await ctx.run_many(PeopleExtractor, [ExtractInput(text=t) for t in input.texts])
     people = []
     for result in results:
         if result.status == RunStatus.SUCCESS:  # decide here what a failed run means: skip, stop, ask again
             people.extend(result.output.people)
-    return sorted(set(people))
+    return People(people=sorted(set(people)))
 
 
 async def main():
-    async with SqliteDatabase("featherweight.db") as db:
-        runner = AgentRunner(db)
-        outcome = await run_job(db, "people", lambda job_id: pipeline(runner, job_id, ["Anna met Tom.", "Li came."]))
-        # outcome.status, outcome.result on success, outcome.error on failure
+    async with SqliteDatabase("featherweight.db") as db:  # or ":memory:" for no file
+        outcome = await run_job(AgentRunner(db), find_people, Texts(texts=["Anna met Tom.", "Li came."]))
+        # outcome.status, outcome.result (a People) on success, outcome.error on failure
 ```
 
-`run_job` creates the job, runs your function and records `SUCCESS` or `FAILED`. A pipeline that raises comes back as a
-failed outcome, not an exception.
+`run_job` creates the job, runs it and records `SUCCESS` or `FAILED`. A job that raises comes back as a failed outcome, not an
+exception. The same job can be submitted to a queue and run by a worker (`references/submitted-jobs.md`).
 
 ## Resuming a failed job
 
-Create the first job with `resumable=True` (it keeps the outputs of its steps), and when it fails, run the same pipeline again
+Create the first job with `resumable=True` (it keeps the outputs of its steps), and when it fails, run the same job again
 and point it at the failed job:
 
 ```python
-first = await run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, job_id), resumable=True)
-outcome = await run_job(db, "my_pipeline", lambda job_id: my_pipeline(runner, job_id), resume_from=first.job_id)
+first = await run_job(runner, find_people, texts, resumable=True)
+outcome = await run_job(runner, find_people, texts, resume_from=first.job_id)
 ```
 
 Agent runs that succeeded with the same agent and input are answered from the kept results (`result.reused`, zero tokens). Keep
