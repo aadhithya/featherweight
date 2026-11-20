@@ -1,7 +1,12 @@
 # A production stack
 
 featherweight is the harness. The infrastructure is yours. This page is one coherent, production-shaped way to put the pieces together,
-and what to reach for in each place. It is a suggestion for how the abstractions fit, not a deployment you must copy.
+and what to reach for in each place.
+
+> **This is a suggestion, and one way of many.** Every component here can be swapped for whatever you want or already run, and your own
+> stack always wins over this page. featherweight requires none of these choices: it asks only that what you plug in implements its interface
+> (a `Database`, a `JobQueue`, a `ResultStore`, an `Observer`). Use Redis where it says Postgres, keep results in object storage, run workers on a
+> platform of your choice: it is all your call.
 
 ```mermaid
 flowchart LR
@@ -19,7 +24,7 @@ flowchart LR
 
 ## What to use where
 
-| Piece | What featherweight ships | What to use in production |
+| Piece | What featherweight ships | A good choice (swap it freely) |
 |---|---|---|
 | **Metadata database** (jobs, events, the run log, leases) | `SqliteDatabase` and `PostgresDatabase` | **Postgres**, in anything that is not a toy. The API and every worker point at the same one. sqlite is for local work: one machine, one file. |
 | **Job queue** | `SqliteQueue` (one machine) and `MemoryQueue` (tests) | **Implement `JobQueue`** over what your environment already runs. Good choices: Postgres (a table with `SELECT ... FOR UPDATE SKIP LOCKED`, and `LISTEN/NOTIFY` to wake a worker), Redis streams, or a cloud queue (SQS, Pub/Sub). We do not ship these: they are thin and specific to where you run. The interface asks for a lease, `extend` and a delivery count, which these already have: see [your own queue](submitted-jobs.md#your-own-queue). |
