@@ -339,3 +339,16 @@ def test_the_observability_example_prints_the_job_span_and_the_users_span_under_
     assert run.returncode == 0, run.stderr
     assert '"name": "invoke_workflow shout"' in run.stdout and '"name": "make it loud"' in run.stdout
     assert "shouted='HELLO'" in run.stdout
+
+
+def test_the_takeover_example_kills_a_worker_and_another_takes_the_job_over():
+    import subprocess
+    import sys
+
+    run = subprocess.run(
+        [sys.executable, str(EXAMPLES / "jobs" / "takeover.py")], capture_output=True, text=True, timeout=90
+    )
+    assert run.returncode == 0, run.stderr
+    events = [line for line in run.stdout.splitlines() if line in {"queued", "running", "lost", "succeeded", "failed"}]
+    assert events == ["queued", "running", "lost", "running", "succeeded"]
+    assert "2 executions" in run.stdout

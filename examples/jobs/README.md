@@ -20,6 +20,13 @@ curl -N localhost:8000/jobs/<job id>/events                # server-sent events,
 curl localhost:8000/jobs/<job id>/result
 ```
 
+A worker can die in the middle of a job. [`takeover.py`](takeover.py) kills one with SIGKILL while it holds a job, and another worker takes the job
+over once the lease runs out (the events read `queued`, `running`, `lost`, `running`, `succeeded`):
+
+```
+make example-takeover
+```
+
 [`shout.py`](shout.py) is the job: `@job` over an async function with a Pydantic input and output. The default queue and result
 store are sqlite, which is for local development; in a deployment you give the worker and the client a queue and a result store
 of your own (see the [guide](../../docs/submitted-jobs.md)).

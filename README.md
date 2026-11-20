@@ -23,7 +23,7 @@ It has opinions. Take them, or fork off.
 | **Plain Python pipelines** | Order, loops and branching are `if` and `for`. No graph to draw, and no pretending to be a workflow engine. |
 | **Subagents on a leash** | Agents delegate to agents, but only the ones they are allowed to, and only so deep and so wide. |
 | **Resume instead of rerun** | A pipeline that dies halfway picks up where it stopped, without paying for the steps that worked. |
-| **Run it in the background** | Submit from your API, run on a worker, follow it live, cancel it. The two sides never talk to each other directly. |
+| **Run it in the background** | Submit from your API, run on workers, follow it live, cancel it. Lose a worker mid-job and another takes over. The two sides never talk to each other directly. |
 | **Streams to your UI** | Live job status and chat answers stream over standard protocols, so a browser can listen as is. |
 | **Any model, any tool** | Gemini, Gemma, Claude, OpenAI or your own. MCP servers and skills plug in and stay out of the context until needed. |
 | **Your data is yours** | The framework stores metadata and nothing else: status, tokens, timing. Everything else is handed back to you, and how it gets stored is your call. |

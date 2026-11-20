@@ -20,7 +20,6 @@ runner](runner.md) (resuming reads through a result store), [agents](agents.md) 
 - [Postgres](#postgres)
 - [Tenants](#tenants)
 - [Decisions](#decisions)
-- [Not decided yet](#not-decided-yet)
 - [Not supported](#not-supported)
 - [Tests](#tests)
 - [The work](#the-work)
@@ -293,11 +292,7 @@ that must route by tenant can do so from the job id of its keys, or be one per t
   with what it is sent.
 - **Job ids and thread ids are the user's:** we do not hash them.
 - **No tenant label.**
-
-## Not decided yet
-
-- **Observers:** a way for content to leave featherweight without being stored is designed in [observers and
-  OpenTelemetry](observability.md). Until it is built, content is in the logs only where the code logs it.
+- **Content leaves only through an observer,** one that asks for it ([observers and OpenTelemetry](observability.md)); it is never stored by us.
 
 ## Not supported
 

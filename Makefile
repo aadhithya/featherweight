@@ -1,4 +1,4 @@
-.PHONY: skill build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching example-resume example-results example-jobs example-observability example-chat example-chat-api example-mcp shell
+.PHONY: skill build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching example-resume example-results example-jobs example-takeover example-observability example-chat example-chat-api example-mcp shell
 
 build:
 	docker compose build
@@ -77,6 +77,10 @@ example-results:
 # Submit a job and run a worker for it (no model, no key; see examples/jobs).
 example-jobs:
 	docker compose run --rm featherweight python examples/jobs/run.py
+
+# Kill a worker in the middle of a job and watch another take it over (no model, no key; see examples/jobs).
+example-takeover:
+	docker compose run --rm featherweight python examples/jobs/takeover.py
 
 # Run a job and print its trace (no model, no key; see examples/observability).
 example-observability:
