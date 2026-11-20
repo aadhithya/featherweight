@@ -15,6 +15,8 @@ A malformed agent never reaches the model. A running one has a known input and a
 
 It has opinions. Take them, or fork off.
 
+And there's a skill, so your coding agent can build with it from the first prompt.
+
 > Designed by a human. Implemented by Claude.
 >
 > **Alpha.** The API can still change before 1.0.
@@ -29,6 +31,34 @@ featherweight doesn't replace LangChain. It sits on it.
 
 So what LangChain already gives you, a pile of integrations and adapters, can plug into agents that are typed, bounded and run on workers.
 We test the providers and tools featherweight ships with. Other LangChain integrations go into the same slots, but we haven't verified them one by one.
+
+## What you get
+
+| | |
+|---|---|
+| **Typed, declared, enforced** | An agent is a class. What goes in and what comes out is a schema. A bad declaration fails when it is written, a bad answer is caught and retried before your code ever sees it. |
+| **Least privilege** | Everything is an allow-list. A capability an agent has is one the developer gave it, on purpose. |
+| **Plain Python, failures as values** | Order, loops and branching are `if` and `for`: no graph, no workflow engine. A failed run hands you the error and a status, not an exception. |
+| **Agents that delegate** | Subagents on a leash, only the ones allowed, only so deep. Or background agents: one starts another and goes on, and the result comes back when it is ready. |
+| **Resume instead of rerun** | A pipeline that dies halfway picks up where it stopped, without paying for the steps that worked. |
+| **Workers, and a lost worker is fine** | Submit a job from your API, run it on workers, follow it live, cancel it. Lose a worker mid-job and another takes over. |
+| **Streams to your UI** | Chat answers and job status stream over standard protocols (AG-UI, the Vercel AI SDK, SSE), so a browser can listen as is. |
+| **See what it did** | OpenTelemetry traces of jobs, attempts, model calls and tool calls, in the format observability and evaluation platforms already read. Content stays off unless you turn it on. |
+| **Any model, any tool** | Gemini, Gemma, Claude, OpenAI or your own. MCP servers and skills plug in and stay out of the context until needed. |
+| **Your data, your storage** | The framework stores metadata and nothing else. Databases, result stores, queues and observers are interfaces: implement one, run the kit that checks it. `SqliteDatabase` for local work and `PostgresDatabase` for deployment both ship, to get you going. |
+
+## What you don't get
+
+| | |
+|---|---|
+| **A workflow engine** | No graph to draw, no nodes and edges. Order is `if` and `for`, and you already know those. |
+| **A server or a UI** | We stream, you serve. Bring your own API and frontend: it speaks AG-UI, the Vercel AI SDK and SSE. |
+| **Your data** | No stored conversations, no stored outputs. Metadata only. What happens to the rest is your call, and your problem. |
+| **An evaluation platform** | We don't score anything. We emit traces your platform already reads, and it does the judging. |
+| **A way around the rules** | An agent that doesn't declare itself properly doesn't run. These are opinions. Take them, or fork off. |
+
+Want durable execution or built-in evals? Pydantic AI. Want a graph that pauses and resumes? LangGraph. Want typed, bounded agents on
+workers, in plain Python? Here.
 
 ## Built for agentic coding
 
@@ -52,31 +82,6 @@ npx skills add aadhithya/featherweight -a codex        # or name one: codex, cur
 
 Or copy [`skills/featherweight`](https://github.com/aadhithya/featherweight/blob/main/skills/featherweight) into the tool's skills folder yourself. There is also an
 [`AGENTS.md`](https://github.com/aadhithya/featherweight/blob/main/AGENTS.md) at the root, for the tools that read that.
-
-## What you get
-
-| | |
-|---|---|
-| **Typed, declared, enforced** | An agent is a class. What goes in and what comes out is a schema. A bad declaration fails when it is written, a bad answer is caught and retried before your code ever sees it. |
-| **Least privilege** | Everything is an allow-list. A capability an agent has is one the developer gave it, on purpose. |
-| **Plain Python, failures as values** | Order, loops and branching are `if` and `for`: no graph, no workflow engine. A failed run hands you the error and a status, not an exception. |
-| **Agents that delegate** | Subagents on a leash, only the ones allowed, only so deep. Or background agents: one starts another and goes on, and the result comes back when it is ready. |
-| **Resume instead of rerun** | A pipeline that dies halfway picks up where it stopped, without paying for the steps that worked. |
-| **Workers, and a lost worker is fine** | Submit a job from your API, run it on workers, follow it live, cancel it. Lose a worker mid-job and another takes over. |
-| **Streams to your UI** | Chat answers and job status stream over standard protocols (AG-UI, the Vercel AI SDK, SSE), so a browser can listen as is. |
-| **See what it did** | OpenTelemetry traces of jobs, attempts, model calls and tool calls, in the format observability and evaluation platforms already read. Content stays off unless you turn it on. |
-| **Any model, any tool** | Gemini, Gemma, Claude, OpenAI or your own. MCP servers and skills plug in and stay out of the context until needed. |
-| **Your data, your storage** | The framework stores metadata and nothing else. Databases, result stores, queues and observers are interfaces: implement one, run the kit that checks it. `SqliteDatabase` for local work and `PostgresDatabase` for deployment both ship, to get you going. |
-
-## Where it stops
-
-- Not a workflow engine: no graph, no pause-and-resume UI.
-- No server, no UI, no stored conversations. You bring the API and the frontend; it streams to them.
-- It doesn't run evaluations. It emits traces that make it easy to.
-- Very opinionated. Don't like the opinions? Fork off.
-
-Want durable execution or built-in evals? Pydantic AI. Want a graph that pauses and resumes? LangGraph. Want agents that are typed, bounded,
-on workers and traced, in plain Python? Here.
 
 ## Getting started
 
