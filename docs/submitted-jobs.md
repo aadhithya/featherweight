@@ -162,5 +162,4 @@ A dead-letter queue is yours to configure on your queue: a message that is `nack
 ## What is not here
 
 - A worker registry, a scheduler, priorities, and a sweeper for a job whose message never comes back.
-- Agents that run in the background: a later epic.
 - An event channel such as pub/sub: events are read from the database for now.

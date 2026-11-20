@@ -14,7 +14,6 @@ data has to be kept for a feature (resuming a job), you provide the place.
 - [Choosing a database](#choosing-a-database)
 - [Adding another database](#adding-another-database)
 - [Tenants](#tenants)
-- [Not here yet](#not-here-yet)
 
 ## What the run log holds
 
@@ -31,6 +30,11 @@ included), `system_prompt_hash` (so that you can see *the prompt* changed), `too
 attempt keeps `error_type` (the class, such as `ValidationError`) and `error_hash`, because a message can quote data. You still get
 the error text in the `AgentResult` you are returned, in the logs, and (for a streaming run) in the `RUN_ERROR` event. The columns
 are in [agents](agents.md#jobs-and-tracing).
+
+Content leaves featherweight in two ways only: in what `AgentRunner.run` returns to you, and through an **observer** that asks for it
+([observability](observability.md)): never into the run log. The two exceptions are the sqlite queue and the sqlite result store, for
+local work: they hold a submitted job's input until a worker acknowledges it, and its result. For a deployment those are yours
+([a production stack](production-stack.md)).
 
 ## Resuming a job
 
@@ -105,9 +109,3 @@ its dialect to each.
 There is no tenant column: the run log holds nothing of a client's, so one database can be shared. To attribute runs to a tenant,
 choose the job id (`create_job(name, job_id="acme-...")`) or the name. A result store that must separate tenants can route by
 the job id of its keys, or be one per tenant.
-
-## Not here yet
-
-**Observers**: a way for the content of a run (input, output, error text) to leave featherweight without being stored, for
-debugging and tracing. An observer that asks for it receives the content ([observability](observability.md)); otherwise the content is in the logs only where the code logs it, and in what
-`AgentRunner.run` returns to you.
