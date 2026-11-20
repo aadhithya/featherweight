@@ -371,50 +371,73 @@ async def check_database(make_db: Callable[[], Database]) -> None:
 
 
 class MemoryQueue(JobQueue):
-    """A `JobQueue` in memory: nothing survives the process. For tests, and the smallest example of the class."""
+    """A `JobQueue` in memory: nothing survives the process. For tests, and the smallest example of the class. A received message
+    is leased for `lease` seconds (pass a very short one in a test): if it is not acked, nacked or extended in time, it is
+    delivered again with a higher `delivery_count`. There is no limit on redeliveries."""
 
-    def __init__(self) -> None:
+    def __init__(self, lease: float = 60.0) -> None:
+        if lease <= 0:
+            raise ValueError("lease must be positive")
+        self.lease = lease
         self._seq = 0
-        self._ready: list[tuple[int, JobMessage]] = []
-        self._claimed: dict[str, tuple[int, JobMessage]] = {}
+        self._ready: list[tuple[int, int, JobMessage]] = []  # seq, deliveries so far, message
+        self._claimed: dict[str, tuple[int, int, JobMessage, float]] = {}  # token -> seq, count, message, lease ends
 
     async def enqueue(self, message: JobMessage) -> None:
         self._seq += 1
-        self._ready.append((self._seq, message.model_copy(deep=True)))
+        self._ready.append((self._seq, 0, message.model_copy(deep=True)))
+
+    def _expire(self, moment: float) -> None:
+        for token, (seq, count, message, ends) in list(self._claimed.items()):
+            if ends <= moment:  # its receiver went quiet: available again, in its place
+                del self._claimed[token]
+                self._ready.append((seq, count, message))
+        self._ready.sort(key=lambda item: item[0])
 
     async def receive(self, timeout: float) -> Delivery | None:
         loop = asyncio.get_running_loop()
         deadline = loop.time() + timeout
         while True:
+            self._expire(loop.time())
             if self._ready:
-                seq, message = self._ready.pop(0)  # a claim is one step: no other receiver can take it too
-                self._claimed[str(seq)] = (seq, message)
-                return Delivery(message=message.model_copy(deep=True), token=str(seq))
+                seq, count, message = self._ready.pop(0)  # a claim is one step: no other receiver can take it too
+                count += 1
+                token = f"{seq}:{count}"
+                self._claimed[token] = (seq, count, message, loop.time() + self.lease)
+                return Delivery(message=message.model_copy(deep=True), token=token, delivery_count=count)
             remaining = deadline - loop.time()
             if remaining <= 0:
                 return None
             await asyncio.sleep(min(0.005, remaining))
 
     async def ack(self, delivery: Delivery) -> None:
-        self._claimed.pop(delivery.token, None)
+        self._claimed.pop(delivery.token, None)  # a stale token is not a claim any more: nothing happens
 
     async def nack(self, delivery: Delivery, *, requeue: bool) -> None:
         claimed = self._claimed.pop(delivery.token, None)
         if claimed is not None and requeue:
-            self._ready.append(claimed)
+            seq, count, message, _ = claimed
+            self._ready.append((seq, count, message))
             self._ready.sort(key=lambda item: item[0])  # back in its place in the order
 
+    async def extend(self, delivery: Delivery) -> None:
+        claimed = self._claimed.get(delivery.token)
+        if claimed is not None:
+            seq, count, message, _ = claimed
+            self._claimed[delivery.token] = (seq, count, message, asyncio.get_running_loop().time() + self.lease)
 
-async def check_queue(make_queue: Callable[[], JobQueue | Awaitable[JobQueue]]) -> None:
-    """Run the `JobQueue` contract against a queue. `make_queue` returns a fresh, empty queue (it may be async). Raises
-    `AssertionError` that says which rule a queue breaks.
+
+async def check_queue(make_queue: Callable[[float], JobQueue | Awaitable[JobQueue]]) -> None:
+    """Run the `JobQueue` contract against a queue. `make_queue(lease)` returns a fresh, empty queue whose lease is `lease`
+    seconds (it may be async): the kit uses a short one to see a message come back, and needs a queue that delivers a message at
+    least three times. Raises `AssertionError` that says which rule a queue breaks.
 
         async def test_my_queue():
-            await check_queue(lambda: MyQueue(...))
+            await check_queue(lambda lease: MyQueue(visibility_timeout=lease))
     """
 
-    async def fresh() -> JobQueue:
-        made = make_queue()
+    async def fresh(lease: float = 30.0) -> JobQueue:
+        made = make_queue(lease)
         return await made if isinstance(made, Awaitable) else made
 
     def message(n: int, **input: Any) -> JobMessage:
@@ -472,6 +495,51 @@ async def check_queue(make_queue: Callable[[], JobQueue | Awaitable[JobQueue]]) 
     assert rest is not None and rest.message.job_id == "job-2", "nack(requeue=False) must drop the message"
     await queue.ack(rest)
     assert await queue.receive(0.05) is None, "a dropped message must not come back"
+
+    # the lease: a message whose receiver goes quiet comes back, with a higher delivery count
+    lease = 0.4
+    queue = await fresh(lease)
+    await queue.enqueue(message(1))
+    first = await queue.receive(1.0)
+    assert first is not None and first.delivery_count == 1, "the first delivery of a message has a delivery_count of 1"
+    assert await queue.receive(0.05) is None, "a message must be invisible to other receivers while its lease lasts"
+    again = await queue.receive(lease * 6)
+    assert again is not None and again.message.job_id == "job-1", (
+        "a message that is not acked, nacked or extended must be delivered again when its lease ends"
+    )
+    assert again.delivery_count == 2, "a message that is delivered again must have a higher delivery_count"
+    await queue.ack(again)
+    await asyncio.sleep(lease * 1.5)
+    assert await queue.receive(0.05) is None, "an acked message must never come back, not after its lease either"
+
+    # extend keeps the message with its receiver
+    queue = await fresh(lease)
+    await queue.enqueue(message(1))
+    held = await queue.receive(1.0)
+    assert held is not None
+    for _ in range(6):  # three leases' worth of time, renewed every half lease
+        await asyncio.sleep(lease / 2)
+        await queue.extend(held)
+        assert await queue.receive(0.01) is None, "a message whose lease is extended must not be delivered again"
+    await queue.ack(held)
+
+    # a stale delivery has no effect on the delivery that replaced it
+    queue = await fresh(lease)
+    await queue.enqueue(message(1))
+    stale = await queue.receive(1.0)
+    assert stale is not None
+    current = await queue.receive(lease * 6)
+    assert current is not None and current.delivery_count == 2
+    for stale_call in (queue.ack(stale), queue.extend(stale), queue.nack(stale, requeue=False)):
+        try:  # a queue may refuse a stale delivery with an error, or ignore it; either is fine
+            await stale_call
+        except Exception:  # noqa: S110
+            pass
+    third = await queue.receive(lease * 6)
+    assert third is not None and third.message.job_id == "job-1" and third.delivery_count == 3, (
+        "a stale ack, nack or extend must not remove the message, or extend the lease of the delivery that replaced it"
+    )
+    await queue.ack(third)
 
     queue = await fresh()
     await queue.enqueue(message(1))

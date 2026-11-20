@@ -114,11 +114,20 @@ await worker.stop(grace=30)
 ## Your own queue
 
 `SqliteQueue` is the only queue that featherweight ships, for local work. For production, subclass `JobQueue`
-(`enqueue`, `receive`, `ack`, `nack`) over the queue you run, and check it with the kit:
+(`enqueue`, `receive`, `ack`, `nack`, `extend`) over the queue you run, and check it with the kit. The kit gives your factory the lease in seconds
+(a short one, to see a message come back):
 
 ```python
-await testing.check_queue(lambda: MyQueue())
+await testing.check_queue(lambda lease: MyQueue(visibility_timeout=lease))
 ```
+
+**The lease.** A received message is yours for a limited time. If you do not `ack` it, `nack` it or `extend` it before the lease ends, it is
+delivered again to another receiver, and its `Delivery.delivery_count` is higher. `extend` renews the lease; a delivery that has been replaced
+(a stale one) must change nothing. You do not have to build it: a broker has it. On SQS the lease is the visibility timeout
+(`extend` is `ChangeMessageVisibility`, and the delivery count is `ApproximateReceiveCount`); on a Redis stream it is the pending list
+(`XAUTOCLAIM` takes a message over, `extend` is a `XCLAIM` of your own entry to reset its idle time, and the delivery counter is in `XPENDING`).
+How many times a message may be delivered is your broker's policy, with its own dead-letter queue. The kit asks that a message can be delivered at
+least three times. `SqliteQueue(db, lease=60, max_deliveries=3)` is the one we ship: after `max_deliveries` it marks the message `dead`.
 
 A message also carries a `trace_context` (a small mapping of strings, empty unless the client has an observer that gives one): carry it
 unchanged, and the kit checks that you do.

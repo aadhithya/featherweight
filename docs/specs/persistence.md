@@ -190,7 +190,7 @@ after the change), `error_type`, `error_hash`, `at`. Index: `(job_id, seq)`. Met
 
 **`job_queue`** (sqlite only: the queue we ship, see [the queue](submitted-jobs.md#the-queue)): `seq`, `job_id`, `job_name`, `input` (JSON: this is the one table that
 holds a job's input, until the message is acknowledged), `trace_context` (JSON: the submitter's trace context, if an observer gave one;
-the one place it is kept, and gone with the message), `state` (`ready` or `claimed`; with the lease, also `dead`), `enqueued_at`, `claimed_at`, and, designed, `lease_expires_at` and `delivery_count`.
+the one place it is kept, and gone with the message), `state` (`ready`, `claimed` or `dead`), `enqueued_at`, `claimed_at`, `lease_expires_at` (when the claim's lease ends) and `delivery_count` (how many times it has been delivered).
 
 **`results`** (the sqlite result store only): `job_id`, `agent_hash`, `input_hash` (together the primary key), `output` (`text`, JSON),
 `created_at`. **`schema_migrations`:** `version` (primary key), `name`, `applied_at`.
