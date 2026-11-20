@@ -44,6 +44,8 @@ if __name__ == "__main__":
     print(agent.name, agent.version)
     print(list(Summary.model_fields))
 ```
+
+```text
 incident_summariser 1
 ['open_questions', 'title', 'severity', 'service', 'impact', 'next_steps']
 ```

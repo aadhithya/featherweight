@@ -69,6 +69,8 @@ if __name__ == "__main__":
     else:
         asyncio.run(main())
 ```
+
+```text
 queued
 running
 worker A killed

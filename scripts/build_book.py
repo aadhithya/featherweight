@@ -110,6 +110,10 @@ def build() -> tuple[dict[Path, str], list[str]]:
             heading = re.search(r"^# (.+?)\s*$", text, re.M)
             if not heading or heading[1] != title:
                 problems.append(f"{path}: the first heading must be '{title}' (as in SUMMARY.md)")
+            if sum(1 for line in text.splitlines() if line.startswith("```")) % 2:
+                problems.append(
+                    f"{path}: a code fence is not closed (an odd number of ``` lines): the rest of the page would render as code"
+                )
             index = [p for _, p in order].index(path)
             before = order[index - 1] if index else None
             after = order[index + 1] if index + 1 < len(order) else None

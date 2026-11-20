@@ -55,6 +55,8 @@ async def main() -> None:
 if __name__ == "__main__":
     asyncio.run(main())
 ```
+
+```text
 open_questions=[] title='Checkout was down' severity='high' service='checkout' impact='About 1,200 orders affected ...' next_steps=[...]
 SUCCESS attempts=1 tokens=312+96
 ```

@@ -27,6 +27,8 @@ print("featherweight", __version__)
 for key in ("GOOGLE_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
     print(key, "is set" if os.environ.get(key) else "is not set")
 ```
+
+```text
 featherweight 0.1.0
 GOOGLE_API_KEY is set
 ANTHROPIC_API_KEY is not set

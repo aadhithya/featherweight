@@ -60,6 +60,8 @@ async def main(path: str = "reports/01-checkout-outage.txt") -> None:
 if __name__ == "__main__":
     asyncio.run(main(*sys.argv[1:2]))
 ```
+
+```text
 invoke_workflow summarise_file
   read the report
   invoke_agent incident_summariser

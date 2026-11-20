@@ -58,6 +58,8 @@ async def main() -> None:
 if __name__ == "__main__":
     asyncio.run(main())
 ```
+
+```text
 SUCCESS attempts=2 open_questions=['What was the cause?', ...] title='Sign-in trouble' severity=None service=None ...
 attempt 1: FAILED ValueError
 attempt 2: SUCCESS
