@@ -90,6 +90,7 @@ not write every abstract method cannot be built.
 | `create_job(...)`, `insert_job(...)`, `get_job(job_id)`, `set_job_status(...)` | Create, read and change a job. A change of status writes its [event](submitted-jobs.md#job-events) in the same transaction |
 | `start_job(job_id)`, `cancel_queued_job(job_id)`, `request_job_cancel(job_id)`, `list_cancel_requested(job_ids)` | The compare-and-set steps that take or cancel a job, so that exactly one of a worker and a client wins ([cancelling](submitted-jobs.md#cancelling)) |
 | `list_job_events(job_id, after, limit)`, `poll_job_events(job_ids, after)` | The events of one job, or of many in one query |
+| `renew_job_leases(worker_id, ...)`, `take_over_job(job_id, worker_id)` | A worker's heartbeat (one update for all of its jobs), and taking a job whose lease expired ([several workers](submitted-jobs.md#several-workers); designed, not built). The writes of a running job are conditional on its owner |
 | `create_run(RunStart)`, `mark_run_running(...)`, `finish_run(RunEnd)`, `get_run(...)`, `list_runs(...)` | Runs |
 | `find_reusable_run(job_id, agent_hash, input_hash)` | The run of a job that succeeded with this agent and input: metadata only |
 
@@ -177,6 +178,8 @@ about the same: the change is in what the table holds. **Audited and kept:** `ag
 | `resumed_from` | `text` null, foreign key `jobs` | The job this one resumes |
 | `job_hash`, `input_hash` | `text` null | A submitted job: the hash of its declaration and of its input. `NULL` for a job made without a job class |
 | `cancel_requested` | `boolean` / `integer` not null, default false | A running job that was asked to stop |
+| `worker_id`, `lease_expires_at` | `text` null, `timestamptz` / `text` null | Designed: the worker that runs the job and when its lease ends. Renewed in place |
+| `executions` | `integer` not null, default 0 | Designed: how many times a worker started the job; 1 for the first, more for each takeover |
 | `error_type`, `error_hash` | `text` null | Set for `FAILED` |
 | `created_at`, `started_at`, `completed_at` | `timestamptz` / `text` | `started_at` is cleared when the job goes back to the queue |
 
@@ -186,7 +189,7 @@ after the change), `error_type`, `error_hash`, `at`. Index: `(job_id, seq)`. Met
 
 **`job_queue`** (sqlite only: the queue we ship, see [the queue](submitted-jobs.md#the-queue)): `seq`, `job_id`, `job_name`, `input` (JSON: this is the one table that
 holds a job's input, until the message is acknowledged), `trace_context` (JSON: the submitter's trace context, if an observer gave one;
-the one place it is kept, and gone with the message), `state` (`ready` or `claimed`), `enqueued_at`, `claimed_at`.
+the one place it is kept, and gone with the message), `state` (`ready` or `claimed`; with the lease, also `dead`), `enqueued_at`, `claimed_at`, and, designed, `lease_expires_at` and `delivery_count`.
 
 **`results`** (the sqlite result store only): `job_id`, `agent_hash`, `input_hash` (together the primary key), `output` (`text`, JSON),
 `created_at`. **`schema_migrations`:** `version` (primary key), `name`, `applied_at`.

@@ -1,6 +1,6 @@
 # Spec: submitted jobs
 
-Status: implemented. #72 (the `Job` class, `JobContext`, the job columns and `CANCELLED`), #73 (the queue), #74 (job events and SSE), #75 (the client), #76 (the worker, with the compare-and-set steps for taking and cancelling a job), #77 (the `@job` decorator) and #78 (the guide, the example and the skill reference) are done. It is tracked in [epic #71](https://github.com/aadhithya/featherweight/issues/71), and each part has
+Status: implemented, except [several workers](#several-workers), which is designed and not built. #72 (the `Job` class, `JobContext`, the job columns and `CANCELLED`), #73 (the queue), #74 (job events and SSE), #75 (the client), #76 (the worker, with the compare-and-set steps for taking and cancelling a job), #77 (the `@job` decorator) and #78 (the guide, the example and the skill reference) are done. It is tracked in [epic #71](https://github.com/aadhithya/featherweight/issues/71), and each part has
 its own issue (listed [at the end](#the-work)). When a part is built, this page says so, and the guide `docs/submitted-jobs.md`
 shows how to use it.
 
@@ -14,6 +14,7 @@ data). It changes [jobs and tracing](jobs-and-tracing.md) (the job columns, the 
 - [The queue](#the-queue)
 - [The client](#the-client)
 - [The worker](#the-worker)
+- [Several workers](#several-workers)
 - [Cancelling](#cancelling)
 - [Job events](#job-events)
 - [Decisions](#decisions)
@@ -64,6 +65,8 @@ class Summarise(Job):
 - **A plain agent can be a job:** a non-streaming agent class can be submitted directly. Its name is the job name, its input model
   the input, its output model the output, and `agent_hash` stands in for the job hash. A streaming agent cannot be a job (it
   streams to a person).
+- **`timeout`** (designed, not built): how long one execution of the job may run, in seconds. The default is 600 (ten minutes), and
+  `None` means no limit. See [several workers](#several-workers).
 - **`@job`** is sugar: it builds a `Job` class from an async function, taking the name from the function (or `name=`), the
   version `"1"` (or `version=`), and the models from the annotations of `input` and the return type.
 - **`run_job`** runs a `Job` class in your process, with the same code as the worker ([running a job
@@ -83,23 +86,28 @@ class JobMessage(BaseModel):            # frozen
 class Delivery(BaseModel):              # frozen
     message: JobMessage
     token: str                          # opaque: the implementation's own
+    delivery_count: int = 1             # how many times this message has been delivered, this one included (designed: see below)
 
 class JobQueue(ABC):
     async def enqueue(self, message: JobMessage) -> None
     async def receive(self, timeout: float) -> Delivery | None
     async def ack(self, delivery: Delivery) -> None
     async def nack(self, delivery: Delivery, *, requeue: bool) -> None
+    async def extend(self, delivery: Delivery) -> None   # renew the lease of a received message (designed: see below)
 ```
 
 **The contract:** delivery is at-least-once. A received message is invisible to other receivers until it is acknowledged or
 nacked. `nack(requeue=True)` makes it available again; `nack(requeue=False)` drops it, and a broker may dead-letter it. Messages
 come out in the order they went in where the implementation can. `receive` returns `None` after the timeout. Calls can be
-concurrent. What happens to a message whose receiver dies is the implementation's business: ours leaves it claimed (a documented
-limit until the next epic adds leases). `featherweight.testing.check_queue(make_queue)` runs the contract against any queue.
+concurrent. **A lease** (designed, not built: [several workers](#several-workers)): a received message is invisible to other receivers for a limited
+time, and not for ever. If it is neither acknowledged, nacked nor `extend`ed before the lease ends, it becomes available again,
+with a higher `delivery_count`, so that a worker that died does not hold a message for ever. `extend` renews the lease. These are
+what real brokers already have (SQS's visibility timeout and receive count, a Redis stream's pending list), so an implementation
+over one is thin. Today ours leaves a message claimed for ever, a documented limit until then. `featherweight.testing.check_queue(make_queue)` runs the contract against any queue.
 
 **What we ship:**
 - **`SqliteQueue(db)`**: a `job_queue` table in the run log's sqlite file, for local development, and our only product
-  implementation. A message is claimed atomically, `ack` deletes the row, `nack` requeues or deletes it. The payload is in the table
+  implementation. A message is claimed atomically, `ack` deletes the row, `nack` requeues or deletes it. With the lease (designed): `SqliteQueue(db, lease=60, max_deliveries=3)`; a message whose lease ends goes back to `ready`, and one that was delivered `max_deliveries` times is marked `dead`, kept in the table for inspection, and its job is failed (`DeadLettered`). The payload is in the table
   until it is acknowledged, on the same terms as the sqlite result store: sqlite is for local development.
 - **`MemoryQueue`**, in `featherweight.testing`, for tests.
 
@@ -156,8 +164,47 @@ database, the queue and the user's store.
 
 **Shutdown.** `await worker.stop(grace)` takes no new messages, waits the grace period for running jobs, then cancels the rest and
 `nack`s their messages with `requeue=True`: those jobs return to `INIT` (a `queued` event), the interrupted attempts are `CANCELLED`,
-and a worker (this one, later, or another) runs them again from the start. Reusing the steps that finished before the interruption
-is part of the next epic.
+and a worker (this one, later, or another) runs them again from the start. The steps that finished before the interruption are
+not reused ([not supported](#not-supported)).
+
+## Several workers
+
+**Designed, not built.** Several workers on one queue already work today: a message is claimed by one receiver, `start_job` is a
+compare-and-set that exactly one worker wins, a cancel is checked by the worker that owns the job, the events have one reader per
+process, and a shutdown requeues. What does not work is a worker that **dies**: its message stays claimed, and its job stays `RUNNING`
+for ever. This section is the recovery from that, and it is all that it is: we do not build a broker, a scheduler or a registry of workers.
+
+- **Two leases, with one job each.** The queue's lease keeps a *message* from other receivers, and it comes back by itself when the worker
+  stops renewing it. The job's lease is on the job row (`jobs.worker_id`, `jobs.lease_expires_at`), and is what makes it *exclusive*:
+  at-least-once delivery can deliver a message twice even without a lease running out, so the job needs a lock of its own. The default
+  lease is 60 seconds.
+- **The heartbeat.** One task per worker renews, every third of the lease (20 seconds), the job lease of every job it runs
+  (**one `UPDATE`, in place, no new rows**) and the queue lease of each of their messages (`extend`). It proves that the worker is alive,
+  and not that a job makes progress: that is the timeout.
+- **Takeover.** A message comes back after its lease ended and reaches a worker. If the job is `RUNNING` and its lease has expired, the
+  worker takes it over with one compare-and-set (`Database.take_over_job`): the job goes back to `INIT` (a `lost` event), and at once
+  to `RUNNING` with the new owner and `executions` higher by one (a `running` event), in one transaction. If the lease has not
+  expired (a duplicate delivery of a job that is alive), the worker acknowledges the message and leaves the job alone. A job whose
+  message never comes back is not found: the queue's redelivery is the only trigger, and there is no sweeper.
+- **Executions.** `jobs.executions` counts how many times a worker started the job: 1 for the first, and one more for each takeover. (It is
+  not `attempt`, which is the retry of one agent call.) It is on the job's span as `ftw.job.execution`.
+- **The owner is checked on every write.** The writes of a running job (renewing the lease, the events, the final status) are conditional on
+  `worker_id` and `executions` being the worker's own, in the same statement. A worker that was stalled and wakes up after a takeover finds
+  that its write changes no row, which is how it learns that it lost the job. There is no token and no timer in it: the database
+  decides, and the stalled worker's clock does not matter.
+- **A lost job** is dropped quietly: the worker cancels the task at once (so that it stops spending), writes nothing to the job,
+  does not acknowledge the message (the delivery is stale), logs `job_lost job_id=... execution=...`, and tells its observers (the span
+  ends with error type `JobLost`). It keeps running its other jobs. Before the worker writes a result it checks that it still owns the
+  job; that is not atomic, so in a very small window a stalled worker can write a result under the same key as the new owner, for the same
+  input, and the last write wins. The effects that the job's own code already had (a mail sent, an API called) are not undone: **a job must be safe to run twice**.
+- **The timeout.** One execution of a job may run for `Job.timeout` seconds (default 600, `None` for no limit). When it is exceeded the
+  task is cancelled and the job is `FAILED` with error type `JobTimeout`; it is not retried (the user resumes it). It applies to a job run
+  by `run_job` too, because it is in the shared `execute_job`. A heartbeat cannot do this, because a hung job in a healthy worker still
+  heartbeats.
+- **Delivery count.** `Delivery.delivery_count` says how many times a message has been delivered. **How many redeliveries are allowed is the
+  queue's business**: a broker has its own policy and dead-letter queue. Ours, `SqliteQueue`, allows 3 by default (`max_deliveries`), then marks
+  the message `dead` and fails the job with error type `DeadLettered`. A user's queue that dead-letters a message must end its job itself
+  (the `Database` is public); until it does, the job stays `INIT`.
 
 ## Cancelling
 
@@ -178,7 +225,9 @@ a job. Events are metadata only: no content (content going out is [not decided](
 class JobEvent(BaseModel):  # frozen
     seq: int  # monotonic
     job_id: str
-    type: Literal["queued", "running", "succeeded", "failed", "cancelled", "cancel_requested"]
+    type: Literal[
+        "queued", "running", "succeeded", "failed", "cancelled", "cancel_requested", "lost"
+    ]  # "lost": designed, see several workers
     status: RunStatus
     error_type: str | None
     error_hash: str | None
@@ -226,20 +275,30 @@ stream, no stream of all jobs.
 - **Polling is centralised, not removed:** one reader per process, behind `events()`.
 - **Cancel:** a queued job is marked and skipped; a running job's flag is checked by the worker about every second.
 - **Shutdown:** a grace period, then cancel and requeue.
+- **A lease on the queue and one on the job** (designed): the queue's keeps the message, the job's keeps the job exclusive. Heartbeats are
+  in-place updates. A lost lease puts the job back to `INIT`, and `FAILED` comes only when the user's policy runs out.
+- **A takeover is the same job with `executions` + 1,** not a new job: the client holds the id, and its events, its cancel and its result
+  are all keyed by it. A resume is a new job; a takeover is not ([not supported](#not-supported) says what a takeover reuses).
+- **The write is checked against the owner,** not against a clock.
+- **Job timeout, default ten minutes.** Redelivery limits are the queue's, except for ours.
 
 ## Later
 
 - **An event channel as an abstract class,** like `Database`: Postgres `LISTEN/NOTIFY`, Redis pub/sub or a cloud broker would remove
   the polling across processes. Pub/sub is vendor-specific and not available everywhere, so we do not write one per vendor now.
   If it is wanted, it is one abstract class behind the same `events()`, with a conformance kit.
-- **Several workers, leases, heartbeats, a dead worker, redelivery that reuses finished steps:** the next epic.
+- **A takeover that reuses the steps that finished** (a `job_execution` on each run, and the reuse lookup widened to earlier executions of the
+  same job: the same mechanism as a resume, with the same job as its source). A takeover reruns the job from the start until then.
+- **A worker-level limit on redeliveries,** and a helper for ending the job of a dead-lettered message.
 - **Background agents:** the epic after, built on the job events.
 
 ## Not supported
 
 - **A durable queue we ship** beyond sqlite, and a pub/sub channel.
 - **Automatic retry of a failed job.**
-- **Several workers on one queue,** and recovering from a worker that died with a message claimed.
+- **Reusing finished steps on a takeover,** and a sweeper for a job whose message never comes back.
+- **A worker registry, scheduling, priorities, autoscaling,** and a broker of our own.
+- **Fencing the user's stores and the effects of their code:** only our own writes are checked.
 - **Progress with content** in events, and a stream of all jobs.
 - **A server, a router or WebSockets.** The example shows an SSE endpoint.
 - **Pruning events:** the table grows, and pruning is the user's for now.
@@ -253,6 +312,10 @@ No live model call. Fake models, `MemoryQueue`, the dict result store.
 - **Events:** every status change makes exactly one event, whoever makes it; a late listener replays; the same-process wake-up; a
   writer and a reader on one file in two processes; one reader serving many streams; the stream ends at a final event; the SSE
   format and `Last-Event-ID`; the `Database` conformance kit on sqlite and Postgres.
+- **Several workers** (designed): `check_queue` with a short lease (a message comes back with a higher count, `extend` keeps it, an acknowledged one
+  does not); `SqliteQueue` with `max_deliveries` (dead, and its job `FAILED`); two workers, one killed mid-job: the other takes the job over,
+  `executions` is 2 and the events read queued, running, lost, running, succeeded; a duplicate delivery of a live job is skipped; a stalled
+  worker that wakes up loses its job quietly and writes nothing; the heartbeat keeps a long job alive; the timeout fails a hung job (in the worker and in `run_job`).
 - **The client and the worker:** submit, status, wait, result; a failing enqueue; every cancel case, in the same process and from
   another; success, failure, an unknown job, an invalid input, a failing result store, a skipped cancelled job; shutdown with the
   grace period and the requeue; concurrency; resuming through `submit`; and a client in one process with a worker in another.
