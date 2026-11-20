@@ -136,7 +136,7 @@ application.
   when it is on. `OTelObserver(capture_content=...)` decides, and its default follows the
   conventions' own switch, `OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT`: `NO_CONTENT` (the default) or `SPAN_ONLY` are
   supported; the values that send content as events are not, and are logged and treated as `NO_CONTENT`.
-- **Ours, in the `ftw.` namespace:** `ftw.job.id`, `ftw.job.name`, `ftw.job.version`, `ftw.job.hash`, `ftw.agent.hash`,
+- **Ours, in the `ftw.` namespace:** `ftw.job.id`, `ftw.job.name`, `ftw.job.version`, `ftw.job.hash`, `ftw.job.execution` (designed: [several workers](submitted-jobs.md#several-workers)), `ftw.agent.hash`,
   `ftw.run.id` (the `agent_run_id`), `ftw.invocation.id`, `ftw.attempt` and `ftw.attempts` (the number, and how many are
   allowed), `ftw.attempt.final`, `ftw.tokens.input` and `ftw.tokens.output` (the attempt's totals), `ftw.reused`,
   `ftw.reused_from_agent_run_id`, `ftw.resumed_from`.

@@ -73,6 +73,7 @@ job_id = await client.submit(summarise, In(...))  # a worker runs it
 - **Observers.** That one function enters the observers' `job` scope around the pipeline and finishes it with the status and the error
   type, so both report the same ([the runner](runner.md#observers)); a worker also gives it the message's trace context.
 - **Streaming agents** cannot be jobs, as before.
+- **The timeout** (`Job.timeout`, default 600 seconds; designed, not built) applies to both: it is in the shared function ([several workers](submitted-jobs.md#several-workers)).
 - **Tests:** the same job run both ways gives the same row, hashes, events and result; `:memory:`; `results=None`; resume; a failing and a
   cancelled job.
 
@@ -82,6 +83,8 @@ cannot be fingerprinted in a way that means anything (closures, imports, everyth
 the version and the two models. The code release is the user's, as the OpenTelemetry resource attribute `service.version`.
 
 ## Resuming a job
+
+A resume is the user running a job that **ended** again, as a **new** job. (A job that did not end, because its worker died, is taken over by another worker as the **same** job: [several workers](submitted-jobs.md#several-workers). Both reuse finished steps with the mechanism below.)
 
 A pipeline that failed at step 2 is run again with `resume_from=<failed job>`, if the failed job was created `resumable=True`
 (decided before it ran; otherwise nothing was kept and `create_job` raises). This is replay with memoised agent calls, not
