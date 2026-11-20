@@ -99,6 +99,37 @@ pip install 'featherweight[all]'    # or just: mcp, anthropic, openai, postgres,
 
 Python 3.12 or later. Import what you use: `from featherweight import AgentBase, AgentRunner`. (`import featherweight as ftw` works too, as a joke.)
 
+## Showcase: fw-concierge
+
+> ### [fw-concierge](https://github.com/aadhithya/fw-concierge) ✨
+> *A concierge that books a physio appointment, end to end, built on featherweight.*
+>
+> A chat assistant finds an appointment in Munich. A background worker researches providers while you keep chatting.
+> Nothing is booked until you say yes. One command runs the whole thing.
+
+**[fw-concierge](https://github.com/aadhithya/fw-concierge)** is a full, end-to-end app built on featherweight: a streaming chat, a
+background worker, MCP tools in their own container, resumable jobs and OpenTelemetry traces, all in one small codebase.
+
+```
+git clone https://github.com/aadhithya/fw-concierge && cd fw-concierge
+make up        # build and start everything, then open http://localhost:8000
+```
+
+It starts in **demo mode**: deterministic fake models, no API key, works offline. Everything in it is fictional.
+
+| What it shows | Where |
+|---|---|
+| A streaming chat agent, streamed over AG-UI | `backend/concierge/chat.py` |
+| A background agent: the chat starts a job and carries on | `Concierge.background_agents` |
+| A background agent on its own worker, with an MCP tool | `backend/concierge/research.py` |
+| An agent using an MCP server that runs in its own container | `backend/concierge/mcp.py` |
+| A resumable job: fails after its first agent, and a retry reuses that work | `backend/concierge/booking_prep.py` |
+| Your own queue and result store, checked with the conformance kits | `backend/concierge/fw_adapters.py` |
+| One OpenTelemetry trace from the API request to the worker's agents | `docs/guide.md` |
+
+Read the code next to the [architecture](https://github.com/aadhithya/fw-concierge/blob/main/docs/architecture.md) and you have
+seen featherweight in a real app: the chat, the worker, the tools, the retries and the traces.
+
 ## Read more
 
 - [**The book**](https://github.com/aadhithya/featherweight/blob/main/docs/book/README.md): build something step by step, from a first agent to workers
