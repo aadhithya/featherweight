@@ -1,4 +1,9 @@
-# featherweight
+# featherweight [ftw.]
+
+[![PyPI](https://img.shields.io/pypi/v/featherweight)](https://pypi.org/project/featherweight/)
+[![Python](https://img.shields.io/pypi/pyversions/featherweight)](https://pypi.org/project/featherweight/)
+[![License](https://img.shields.io/pypi/l/featherweight)](https://github.com/aadhithya/featherweight/blob/main/LICENSE)
+[![tests](https://github.com/aadhithya/featherweight/actions/workflows/test.yml/badge.svg)](https://github.com/aadhithya/featherweight/actions/workflows/test.yml)
 
 **An opinionated agent harness. Pydantic is the spec. Everything else follows.**
 
@@ -12,6 +17,8 @@ both are enforced. No guessing.
 It has opinions. Take them, or fork off.
 
 > Designed by a human. Implemented by Claude.
+>
+> **Alpha.** The API can still change before 1.0.
 
 ## What you get
 
@@ -21,10 +28,12 @@ It has opinions. Take them, or fork off.
 | **Declared, not assembled** | An agent is a class. A bad declaration fails when it is written, not in production at 3 a.m. |
 | **Failures are values** | A failed run hands you the error and a status. No try/except pyramid. |
 | **Plain Python pipelines** | Order, loops and branching are `if` and `for`. No graph to draw, and no pretending to be a workflow engine. |
-| **Subagents on a leash** | Agents delegate to agents, but only the ones they are allowed to, and only so deep and so wide. Inline, or in the background while the chat goes on. |
+| **Subagents on a leash** | Agents delegate to agents, but only the ones they are allowed to, and only so deep and so wide. |
+| **Background agents** | An agent starts another and goes on. The result comes back when it is ready, as a message, and your app decides what to do with it. |
 | **Resume instead of rerun** | A pipeline that dies halfway picks up where it stopped, without paying for the steps that worked. |
-| **Run it in the background** | Submit from your API, run on workers, follow it live, cancel it. Lose a worker mid-job and another takes over. The two sides never talk to each other directly. |
+| **Workers, and a lost worker is fine** | Submit a job from your API, run it on workers, follow it live, cancel it. Lose a worker mid-job and another takes over. The two sides never talk to each other directly. |
 | **Streams to your UI** | Live job status and chat answers stream over standard protocols, so a browser can listen as is. |
+| **See what it did** | OpenTelemetry traces of jobs, attempts, model calls and tool calls, in the format the observability and evaluation platforms already read. Content stays off unless you turn it on. |
 | **Any model, any tool** | Gemini, Gemma, Claude, OpenAI or your own. MCP servers and skills plug in and stay out of the context until needed. |
 | **Your data is yours** | The framework stores metadata and nothing else: status, tokens, timing. Everything else is handed back to you, and how it gets stored is your call. |
 | **Your storage, your call** | Where and how things are stored is up to you. Implement the interface, and we don't care what is behind it. sqlite and Postgres are there to get you going. |
@@ -68,6 +77,9 @@ if result.status == RunStatus.SUCCESS:
 
 ## Getting started
 
+The quickest way in is [the book](https://github.com/aadhithya/featherweight/blob/main/docs/book/README.md): a tiny incident report
+assistant that grows from a first agent to workers, chapter by chapter, with code that runs in a container.
+
 ### Install
 
 ```
@@ -95,7 +107,7 @@ Other tools that read Agent Skills: copy [`skills/featherweight`](https://github
 They are. Use them. This is built on LangChain and LangGraph anyway.
 
 - **Boredom.** Every agent project needs the same retries, limits and MCP wiring. I wrote them once and got on with my day.
-- **Mostly background agents.** Pipelines, batches, fan-out: nobody is watching the tokens. A chat agent streams its answer
+- **Mostly pipelines.** Batches, fan-out and jobs on workers: nobody is watching the tokens. A chat agent streams its answer
   ([streaming agents](https://github.com/aadhithya/featherweight/blob/main/docs/streaming.md)), but there is no UI, and no stored conversations.
 - **Very opinionated.** Sorry, not sorry. Don't like them? Fork off.
 
@@ -108,6 +120,7 @@ Want durable execution or built-in evals? Pydantic AI. Traces for any OpenTeleme
 - [**Docs**](https://github.com/aadhithya/featherweight/blob/main/docs/README.md): the guides, and where to begin
 - [**Specs**](https://github.com/aadhithya/featherweight/blob/main/docs/specs/README.md): what each part does, and why
 - [**Examples**](https://github.com/aadhithya/featherweight/blob/main/examples/README.md): code you can run
+- [**Changelog**](https://github.com/aadhithya/featherweight/blob/main/CHANGELOG.md): what changed in each release
 - [**Development**](https://github.com/aadhithya/featherweight/blob/main/docs/development.md): the commands, the layout, contributing
 
 ## License
