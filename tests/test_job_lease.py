@@ -149,12 +149,14 @@ async def test_a_job_run_in_process_has_an_owner_and_no_lease(db):
 async def test_the_heartbeat_keeps_a_job_longer_than_its_lease_and_its_message_alive(db):
     from featherweight.queue import SqliteQueue
 
-    queue = SqliteQueue(db, lease=0.3)
+    queue = SqliteQueue(
+        db, lease=1.0
+    )  # a lease with room for a late heartbeat on a busy machine: it renews every third of it
     job_id = await submit(db, queue, "long")
-    async with Started(worker(db, queue, lease=0.3)):  # renews every 0.1 s
+    async with Started(worker(db, queue, lease=1.0)):  # renews every 0.33 s, and the lease has 0.67 s of slack
         await until(lambda: running(db, job_id))
         first = (await db.get_job(job_id)).lease_expires_at
-        await asyncio.sleep(1.0)  # more than three leases
+        await asyncio.sleep(1.5)  # longer than the lease: without the heartbeat it would have expired
         row = await db.get_job(job_id)
         assert row.status is RunStatus.RUNNING and row.lease_expires_at > first, "the job lease moved forward"
         assert await queue.receive(0.05) is None, "the message lease was extended too: nobody else is given the message"

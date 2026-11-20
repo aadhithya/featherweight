@@ -21,3 +21,5 @@ jobs:
         run: uv run ty check
       - name: Book
         run: python3 scripts/build_book.py --check
+      - name: Release setup
+        run: uv run pytest tests/test_release.py
