@@ -22,7 +22,7 @@ from pydantic import BaseModel
 from featherweight import AgentRunner, JobContext, SqliteDatabase, job, run_job
 
 
-@job
+@job  # a class made from this function: a name, a version, a typed input and output
 async def summarise(ctx: JobContext, input: Report) -> Summary:
     result = await ctx.run(IncidentSummariser, input)  # an agent run, inside the job
     if result.output is None:
@@ -38,7 +38,7 @@ class Digest(BaseModel):
     summaries: list[Summary]
 
 
-@job
+@job  # a class made from this function: a name, a version, a typed input and output
 async def summarise_all(ctx: JobContext, input: Reports) -> Digest:
     reports = [Report(text=Path(path).read_text()) for path in input.paths]
     results = await ctx.run_many(IncidentSummariser, reports)  # all at once, in order
@@ -73,9 +73,13 @@ SUCCESS ['Checkout was down', 'Sign-in trouble', 'Search was slow', 'Batch was l
 - **`ctx.run` and `ctx.run_many` run agents in the job.** They share the job's id, so the agent runs are recorded under it (the next chapter).
 - **The pipeline is plain Python.** `summarise_all` reads files and collects results with a list comprehension: no graph, no special syntax.
 - **`SqliteDatabase(":memory:")`** keeps the run log in memory: a quick try with no file, gone when the program ends.
+- **When to use a job.** Use one when the work is something you want to name, follow, run again or hand to someone else: it spans several agent runs, an API
+  triggers it, or it can fail halfway and should pick up again. A single agent call in a script needs no job: `runner.run` is enough.
+- **What a job gives you that a function does not.** A name and a version, so a change is visible; a status, events and a run log you can read; its output in
+  a store you choose; resume after a failure; and the same job on a worker, with no rewrite.
 
 > **Why a class.** A declared job has a name, a version and typed models, so the same job can be run here (`run_job`) or on a worker (Part 5), and be told
-> apart when it changes. See [the job](../../specs/submitted-jobs.md#the-job) and [running a job class](../../specs/jobs-and-tracing.md#running-a-job-class).
+> apart when it changes. See [the philosophy](../00-start-here/03-philosophy.md), [the job](../../specs/submitted-jobs.md#the-job), [running a job class](../../specs/jobs-and-tracing.md#running-a-job-class) and [the guide](../../submitted-jobs.md).
 
 Next: what the run recorded.
 
