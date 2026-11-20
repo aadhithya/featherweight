@@ -26,6 +26,9 @@ class JobMessage(BaseModel):
     job_id: str
     job_name: str
     input: dict[str, Any]
+    trace_context: dict[
+        str, str
+    ] = {}  # the submitter's trace context (W3C `traceparent`, ...) if an observer gave one; stored nowhere else
 
 
 class Delivery(BaseModel):
@@ -83,8 +86,14 @@ class SqliteQueue(JobQueue):
     async def enqueue(self, message: JobMessage) -> None:
         async with self.db.transaction() as conn:
             await conn.execute(
-                "INSERT INTO job_queue (job_id, job_name, input, state, enqueued_at) VALUES (?, ?, ?, 'ready', ?)",
-                (message.job_id, message.job_name, json.dumps(message.input), now().isoformat()),
+                "INSERT INTO job_queue (job_id, job_name, input, trace_context, state, enqueued_at) VALUES (?, ?, ?, ?, 'ready', ?)",
+                (
+                    message.job_id,
+                    message.job_name,
+                    json.dumps(message.input),
+                    json.dumps(message.trace_context),
+                    now().isoformat(),
+                ),
             )
 
     async def _claim(self) -> Delivery | None:
@@ -92,13 +101,18 @@ class SqliteQueue(JobQueue):
             async with conn.execute(
                 """UPDATE job_queue SET state = 'claimed', claimed_at = ?
                    WHERE seq = (SELECT seq FROM job_queue WHERE state = 'ready' ORDER BY seq LIMIT 1)
-                   RETURNING seq, job_id, job_name, input""",
+                   RETURNING seq, job_id, job_name, input, trace_context""",
                 (now().isoformat(),),
             ) as cur:
                 row = await cur.fetchone()
         if row is None:
             return None
-        message = JobMessage(job_id=row["job_id"], job_name=row["job_name"], input=json.loads(row["input"]))
+        message = JobMessage(
+            job_id=row["job_id"],
+            job_name=row["job_name"],
+            input=json.loads(row["input"]),
+            trace_context=json.loads(row["trace_context"]),
+        )
         return Delivery(message=message, token=str(row["seq"]))
 
     async def receive(self, timeout: float) -> Delivery | None:

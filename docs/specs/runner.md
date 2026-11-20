@@ -185,14 +185,14 @@ is needed for the real model. A missing key is a setup error: the run fails at o
 
 ## Observers
 
-**Built** ([#92](https://github.com/aadhithya/featherweight/issues/92); the job scope is [#93](https://github.com/aadhithya/featherweight/issues/93), not built yet). What an observer is, and what it receives, is in
+**Built** ([#92](https://github.com/aadhithya/featherweight/issues/92) and [#93](https://github.com/aadhithya/featherweight/issues/93)). What an observer is, and what it receives, is in
 [observers and OpenTelemetry](observability.md). What the runner does:
 
 - **Where they are set.** `AgentRunner(db, observers=[...], observer_timeout=1.0)`. A worker runs its jobs with its runner, so a job run by `run_job` and a job
   run by a worker call the same observers, and nothing is reported twice.
 - **When it calls them.** Around each attempt (from the moment it holds a slot and runs, until its row is finished; a streamed run: from its row to
   its end), when a step is reused ([resuming](#resuming): an event, not an attempt), and for each model call and tool call of an attempt. A
-  streaming run is one attempt, with its model calls and tool calls, and none per token. Around the job: [#93](https://github.com/aadhithya/featherweight/issues/93).
+  streaming run is one attempt, with its model calls and tool calls, and none per token. Around the job: the one function that runs a job (`execute_job`, for `run_job` and for a worker) enters the observers' `job` scope before the pipeline and finishes it with the status and the error type, so an observer can make its span current while the pipeline runs ([jobs](jobs-and-tracing.md#running-a-job-class)); a worker hands it the message's trace context.
 - **Model calls and tool calls.** An attempt is one `lc_agent.ainvoke(...)`, so they happen inside LangChain's agent loop. A callback handler
   added to the config of each attempt (and of a streamed run) turns LangChain's callbacks into the observers' events, with real timings. It does
   nothing when there are no observers.

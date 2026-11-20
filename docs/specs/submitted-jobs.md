@@ -78,7 +78,7 @@ class JobMessage(BaseModel):            # frozen
     job_id: str
     job_name: str
     input: dict[str, Any]               # JSON, or references inside it
-    trace_context: dict[str, str] = {}  # the W3C trace context of the submitter, if an observer gave one (designed: see below)
+    trace_context: dict[str, str] = {}  # the W3C trace context of the submitter, if an observer gave one (see below)
 
 class Delivery(BaseModel):              # frozen
     message: JobMessage
@@ -106,13 +106,14 @@ limit until the next epic adds leases). `featherweight.testing.check_queue(make_
 There is no Redis, SQS or Postgres queue: how jobs travel in a deployment is the user's decision, and the abstract class and its
 kit are how they check theirs. Dead-lettering is the user's broker's business.
 
-The **trace context** (designed, not built: [#93](https://github.com/aadhithya/featherweight/issues/93)) is how a worker's span joins the trace of
+The **trace context** ([#93](https://github.com/aadhithya/featherweight/issues/93), built) is how a worker's span joins the trace of
 the client that submitted the job ([observers and OpenTelemetry](observability.md#opentelemetry)). It is empty unless the client has an observer
 that gives one, and it travels in the message only: it is stored in no table. Every queue carries it, and `check_queue` checks that it does.
 
 ## The client
 
-`JobClient(db, queue, results)` submits and follows jobs, from any process:
+`JobClient(db, queue, results, observers=[...])` submits and follows jobs, from any process. The observers are heard on `submit` only: each can return a
+carrier (the trace context) that travels in the message ([the queue](#the-queue)), and an observer that raises changes nothing.
 
 ```python
 client = JobClient(db, queue, results)

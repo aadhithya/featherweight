@@ -121,6 +121,9 @@ await worker.stop(grace=30)
 await testing.check_queue(lambda: MyQueue())
 ```
 
+A message also carries a `trace_context` (a small mapping of strings, empty unless the client has an observer that gives one): carry it
+unchanged, and the kit checks that you do.
+
 A dead-letter queue is yours to configure on your queue: a message that is `nack`ed without `requeue` is yours to keep or drop.
 
 ## What is not here

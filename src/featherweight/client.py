@@ -6,7 +6,7 @@ keeps no results of its own. See docs/specs/submitted-jobs.md.
 """
 
 import logging
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Sequence
 from typing import Any, Literal
 
 from pydantic import BaseModel
@@ -16,6 +16,7 @@ from featherweight.events import job_events, wait_for_job
 from featherweight.fingerprint import error_fields, input_hash
 from featherweight.jobs import Job, as_job
 from featherweight.models import AgentBase, RunStatus
+from featherweight.observers import JobSubmitted, Observer, Observers
 from featherweight.queue import JobMessage, JobQueue
 from featherweight.results import ResultKey, ResultStore, SqliteResultStore
 from featherweight.sqlite import SqliteDatabase
@@ -29,10 +30,15 @@ class JobClient:
     `result` has nothing to read)."""
 
     def __init__(
-        self, db: Database, queue: JobQueue, results: ResultStore | None | Literal["default"] = "default"
+        self,
+        db: Database,
+        queue: JobQueue,
+        results: ResultStore | None | Literal["default"] = "default",
+        observers: Sequence[Observer] = (),
     ) -> None:
         self.db = db
         self.queue = queue
+        self._observers = Observers(observers)  # heard on `submit`: the carrier they return travels in the message
         self.results: ResultStore | None = (
             results
             if not isinstance(results, str)
@@ -66,9 +72,26 @@ class JobClient:
             job_hash=declared.job_hash(),
             input_hash=input_hash(input),
         )
+        trace_context: dict[str, str] = {}
+        if self._observers:  # nothing about a trace is stored: the carrier goes in the message and nowhere else
+            trace_context = await self._observers.submitted(
+                JobSubmitted(
+                    job_id=job_id,
+                    name=declared.name,
+                    version=declared.version,
+                    job_hash=declared.job_hash(),
+                    input_hash=input_hash(input),
+                    input=input.model_dump(mode="json") if self._observers.wants_content else None,
+                )
+            )
         try:
             await self.queue.enqueue(
-                JobMessage(job_id=job_id, job_name=declared.name, input=input.model_dump(mode="json"))
+                JobMessage(
+                    job_id=job_id,
+                    job_name=declared.name,
+                    input=input.model_dump(mode="json"),
+                    trace_context=trace_context,
+                )
             )
         except Exception as exc:
             error_type, error_hash = error_fields(exc)

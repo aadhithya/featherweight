@@ -436,6 +436,16 @@ async def check_queue(make_queue: Callable[[], JobQueue | Awaitable[JobQueue]]) 
     await queue.ack(got)
     assert await queue.receive(0.05) is None, "an acked message must be gone"
 
+    carrier = {"traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01", "tracestate": "ftw=é"}
+    await queue.enqueue(JobMessage(job_id="job-t", job_name="shout", input={"n": 1}, trace_context=carrier))
+    got = await queue.receive(1.0)
+    assert got is not None and got.message.trace_context == carrier, "the trace context must come back unchanged"
+    await queue.ack(got)
+    await queue.enqueue(message(0))
+    got = await queue.receive(1.0)
+    assert got is not None and got.message.trace_context == {}, "a message without a trace context has an empty one"
+    await queue.ack(got)
+
     queue = await fresh()
     for n in range(5):
         await queue.enqueue(message(n))

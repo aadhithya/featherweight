@@ -70,6 +70,8 @@ job_id = await client.submit(summarise, In(...))  # a worker runs it
   submitted job is cancelled through the database (`client.cancel`), and one in your process by cancelling its task. The worker also settles
   the queue's message, and puts a job back on the queue when it shuts down.
 - **No file, no service:** `SqliteDatabase(":memory:")` ([persistence](persistence.md#the-database)) runs it all in memory.
+- **Observers.** That one function enters the observers' `job` scope around the pipeline and finishes it with the status and the error
+  type, so both report the same ([the runner](runner.md#observers)); a worker also gives it the message's trace context.
 - **Streaming agents** cannot be jobs, as before.
 - **Tests:** the same job run both ways gives the same row, hashes, events and result; `:memory:`; `results=None`; resume; a failing and a
   cancelled job.
