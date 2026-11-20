@@ -12,6 +12,7 @@ data has to be kept for a feature (resuming a job), you provide the place.
 - [Resuming a job](#resuming-a-job)
 - [A result store of your own](#a-result-store-of-your-own)
 - [Choosing a database](#choosing-a-database)
+- [Migrations](#migrations)
 - [Adding another database](#adding-another-database)
 - [Tenants](#tenants)
 
@@ -90,6 +91,26 @@ runner = AgentRunner(db)
   and `make test` runs the tests of `PostgresDatabase` against it.
 
 Rows come back as Pydantic models (`JobRow`, `AgentRunRow`) with timezone-aware `datetime`s, whichever database it is.
+
+## Migrations
+
+The tables are made by **numbered migrations**, written by hand for each dialect (`featherweight/migrations.py`): a version, a name, and the SQL
+for sqlite and for Postgres.
+
+- **They run when you connect.** `async with SqliteDatabase(...)` or `async with PostgresDatabase(...)` applies every migration that is not
+  applied yet, in order, in whichever process connects. There is no separate command and no CLI, and a connection cannot skip them.
+- **They are recorded.** Each applied migration is a row in the `schema_migrations` table (`version`, `name`, `applied_at`), so a later connect
+  skips it. Each one runs in a transaction: a failing migration leaves nothing behind.
+- **A new featherweight version with a schema change brings a new migration.** It is applied the first time something connects with that
+  version. A migration that has been released is never edited, and there are no down-migrations.
+- **Postgres creates its schema.** The first connect runs `CREATE SCHEMA IF NOT EXISTS` for the schema you named (`featherweight` by default),
+  so the database user needs permission to create a schema and tables, at least that once.
+- **An old database is refused.** One from before migrations existed raises `SetupError` ("delete it and run again"): nothing is carried over.
+- **Start one process first.** Migrations take no lock. If several processes connect to a **fresh** Postgres database at the same moment (an API and
+  workers started together), all but one fail at start-up with a `UniqueViolation`, and connect fine when started again. Start one process first, or
+  connect once as a deploy step, and then the rest.
+
+The rules and the reasons are in the [spec](https://github.com/aadhithya/featherweight/blob/main/docs/specs/persistence.md#migrations).
 
 ## Adding another database
 
