@@ -35,6 +35,7 @@ or finding out why it behaves as it does.
   result coming back as a message. Then [`examples/background`](../examples/background).
 - **I want to run jobs in the background.** [Submitted jobs](submitted-jobs.md): a client submits, a worker runs, and you follow
   it with events. Then [`examples/jobs`](../examples/jobs).
+- **I want to run it in production.** [A production stack](production-stack.md): what to use where, with Postgres, your own queue and result store.
 - **I want to see what my jobs and agents do.** [Observability](observability.md): OpenTelemetry spans for jobs, attempts, model calls
   and tool calls, ready for an evaluation platform. Then [`examples/observability`](../examples/observability).
 - **I want to work on featherweight itself.** [Development](development.md): the commands, the layout, how to contribute.
@@ -55,6 +56,7 @@ or finding out why it behaves as it does.
 | [Development](development.md) | The make commands, the layout of the repository, contributing | |
 | [Persistence](persistence.md) | What is kept and what is not, resuming a job, result stores, choosing a database, tenants | [Persistence](specs/persistence.md) |
 | [Submitted jobs](submitted-jobs.md) | A job as a class or a decorator, `JobClient`, `JobWorker`, `JobQueue`, cancelling, job events and SSE, the example | [Submitted jobs](specs/submitted-jobs.md) |
+| [A production stack](production-stack.md) | What to use where: Postgres, your queue, your result store, the API, workers, traces; the wiring | [Persistence](specs/persistence.md), [submitted jobs](specs/submitted-jobs.md) |
 | [Observability](observability.md) | Observers, `OTelObserver`, what is on the spans, content, your own spans, evaluation, the convention versions | [Observers and OpenTelemetry](specs/observability.md) |
 | [Skills](skills.md) | The skill model, how an agent reads its skills, loading, what the specification covers | [Skills](specs/skills.md) |
 | [Example pipeline](example-pipeline.md) | `doclearn`: what it does, its agents, how it handles failures, and its limits | |
