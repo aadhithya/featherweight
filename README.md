@@ -1,6 +1,7 @@
 # featherweight [ftw.]
 
 [![PyPI](https://img.shields.io/pypi/v/featherweight)](https://pypi.org/project/featherweight/)
+[![Release](https://img.shields.io/github/v/release/aadhithya/featherweight)](https://github.com/aadhithya/featherweight/releases)
 [![Python](https://img.shields.io/pypi/pyversions/featherweight)](https://pypi.org/project/featherweight/)
 [![License](https://img.shields.io/pypi/l/featherweight)](https://github.com/aadhithya/featherweight/blob/main/LICENSE)
 [![tests](https://github.com/aadhithya/featherweight/actions/workflows/test.yml/badge.svg)](https://github.com/aadhithya/featherweight/actions/workflows/test.yml)
