@@ -11,7 +11,7 @@ An agent is a typed class. A runner runs it with retries, limits and a trace. Yo
 runs next. It has opinions, but they are defaults: follow them unless the user wants something else.
 
 Install (Python 3.12 or later). Add the extras the app needs: `mcp` for MCP servers, `anthropic` for Claude, `openai` for
-OpenAI. Gemini and Gemma need no extra.
+OpenAI, `otel` for OpenTelemetry spans (`OTelObserver`). Gemini and Gemma need no extra.
 
 ```
 pip install featherweight

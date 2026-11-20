@@ -63,6 +63,7 @@ _EXPORTS = {
     "ModelCallEnd": "observers",
     "ToolCallStart": "observers",
     "ToolCallEnd": "observers",
+    "OTelObserver": "otel",
     "JobOutcome": "jobs",
     "Job": "jobs",
     "JobClient": "client",
@@ -172,6 +173,7 @@ if TYPE_CHECKING:  # for editors and type checkers: the same names, imported
     from featherweight.observers import Scope as Scope
     from featherweight.observers import ToolCallEnd as ToolCallEnd
     from featherweight.observers import ToolCallStart as ToolCallStart
+    from featherweight.otel import OTelObserver as OTelObserver
     from featherweight.postgres import PostgresDatabase as PostgresDatabase
     from featherweight.queue import Delivery as Delivery
     from featherweight.queue import JobMessage as JobMessage
