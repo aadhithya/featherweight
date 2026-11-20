@@ -8,7 +8,7 @@ the user to decide, so pass `results=` to the runner. Needs the extra `featherwe
 
 import logging
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from featherweight.db import (
@@ -18,6 +18,8 @@ from featherweight.db import (
     Database,
     EventType,
     JobEvent,
+    JobLost,
+    JobOwner,
     JobRow,
     RunEnd,
     RunStart,
@@ -144,14 +146,27 @@ class PostgresDatabase(Database):
         return job_id
 
     async def set_job_status(
-        self, job_id: str, status: RunStatus, *, error_type: str | None = None, error_hash: str | None = None
+        self,
+        job_id: str,
+        status: RunStatus,
+        *,
+        error_type: str | None = None,
+        error_hash: str | None = None,
+        owner: JobOwner | None = None,
     ) -> None:
         status = RunStatus(status)
         failed = status is RunStatus.FAILED
         started = ", started_at = %s" if status in (RunStatus.RUNNING, RunStatus.INIT) else ""
+        extra = ""
+        if status is RunStatus.INIT:
+            extra = ", worker_id = NULL, lease_expires_at = NULL"  # back in the queue: nobody owns it
+        elif status in FINAL:
+            extra = ", lease_expires_at = NULL"
+        who = " AND worker_id = %s AND executions = %s AND status = %s" if owner is not None else ""
         async with self.conn.transaction():  # the status and its event, or neither
             cur = await self.conn.execute(
-                f"UPDATE jobs SET status = %s, completed_at = %s, error_type = %s, error_hash = %s{started} WHERE job_id = %s",
+                f"UPDATE jobs SET status = %s, completed_at = %s, error_type = %s, error_hash = %s{started}{extra} "
+                f"WHERE job_id = %s{who}",
                 (
                     status.value,
                     now() if status in FINAL else None,
@@ -159,10 +174,14 @@ class PostgresDatabase(Database):
                     error_hash if failed else None,
                     *([now() if status is RunStatus.RUNNING else None] if started else []),
                     job_id,
+                    *([owner.worker_id, owner.executions, RunStatus.RUNNING.value] if owner is not None else []),
                 ),
             )
             if cur.rowcount == 0:
-                raise LookupError(f"No such job: {job_id}")
+                exists = await (await self.conn.execute("SELECT 1 FROM jobs WHERE job_id = %s", (job_id,))).fetchone()
+                if exists is None:
+                    raise LookupError(f"No such job: {job_id}")
+                raise JobLost(f"Job {job_id} is not owned by {owner} any more")
             event = await self._write_event(
                 job_id, STATUS_EVENT[status], status, error_type if failed else None, error_hash if failed else None
             )
@@ -186,15 +205,46 @@ class PostgresDatabase(Database):
         logger.info("job_cancel_requested job_id=%s", job_id)
         return True
 
-    async def start_job(self, job_id: str) -> bool:
+    async def start_job(self, job_id: str, worker_id: str | None = None, lease: float | None = None) -> bool:
+        # The lease ends by the database's own clock, so that workers on different machines agree on when it does.
+        expires = "now() + make_interval(secs => %s)" if lease is not None else "NULL"
         return await self._take(
             job_id,
-            "UPDATE jobs SET status = %s, started_at = %s, completed_at = NULL, error_type = NULL, error_hash = NULL "
+            "UPDATE jobs SET status = %s, started_at = %s, completed_at = NULL, error_type = NULL, error_hash = NULL, "
+            f"worker_id = %s, lease_expires_at = {expires}, executions = executions + 1 "
             "WHERE job_id = %s AND status = %s AND NOT cancel_requested",
-            (RunStatus.RUNNING.value, now(), job_id, RunStatus.INIT.value),
+            (
+                RunStatus.RUNNING.value,
+                now(),
+                worker_id,
+                *([lease] if lease is not None else []),
+                job_id,
+                RunStatus.INIT.value,
+            ),
             "running",
             RunStatus.RUNNING,
         )
+
+    async def renew_job_leases(self, worker_id: str, jobs: Mapping[str, int], lease: float) -> set[str]:
+        if not jobs:
+            return set()
+        pairs = ", ".join("(%s, %s)" for _ in jobs)
+        held = [value for job_id, executions in jobs.items() for value in (job_id, executions)]
+        async with self.conn.transaction():
+            cur = await self.conn.execute(
+                "UPDATE jobs SET lease_expires_at = now() + make_interval(secs => %s) "
+                "WHERE worker_id = %s AND status = %s "
+                f"AND (job_id, executions) IN (VALUES {pairs}) RETURNING job_id",
+                [lease, worker_id, RunStatus.RUNNING.value, *held],
+            )
+            return {row["job_id"] for row in await cur.fetchall()}
+
+    async def owns_job(self, job_id: str, owner: JobOwner) -> bool:
+        cur = await self.conn.execute(
+            "SELECT 1 FROM jobs WHERE job_id = %s AND worker_id = %s AND executions = %s AND status = %s",
+            (job_id, owner.worker_id, owner.executions, RunStatus.RUNNING.value),
+        )
+        return await cur.fetchone() is not None
 
     async def cancel_queued_job(self, job_id: str) -> bool:
         return await self._take(

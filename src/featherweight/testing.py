@@ -10,7 +10,7 @@ from contextlib import AbstractAsyncContextManager
 from datetime import timedelta
 from typing import Any
 
-from featherweight.db import Database, RunEnd, RunStart
+from featherweight.db import Database, JobLost, JobOwner, RunEnd, RunStart
 from featherweight.models import RunStatus
 from featherweight.observers import (
     AttemptEnd,
@@ -150,6 +150,84 @@ async def _check_taking_a_job(db: Database) -> None:
         assert row is not None and row.status is (RunStatus.RUNNING if started else RunStatus.CANCELLED)
         types = [e.type for e in await db.list_job_events(racing)]
         assert types == ["queued", "running" if started else "cancelled"], "the winner writes exactly one event"
+
+
+async def _check_job_lease(db: Database) -> None:
+    """The owner of a running job, its lease, and the writes that are conditional on being the owner."""
+    job = await db.create_job("lease")
+    row = await db.get_job(job)
+    assert row is not None and row.worker_id is None and row.lease_expires_at is None and row.executions == 0
+
+    assert await db.start_job(job, worker_id="w1", lease=30) is True
+    row = await db.get_job(job)
+    assert row is not None and row.worker_id == "w1" and row.executions == 1, (
+        "start_job records the owner and the execution"
+    )
+    assert row.lease_expires_at is not None and row.lease_expires_at.tzinfo is not None, "a lease has an expiry"
+    first = row.lease_expires_at
+    owner = JobOwner(worker_id="w1", executions=1)
+    assert await db.owns_job(job, owner) is True
+    assert await db.owns_job(job, JobOwner(worker_id="w2", executions=1)) is False, "another worker does not own it"
+    assert await db.owns_job(job, JobOwner(worker_id="w1", executions=2)) is False, "another execution is not the owner"
+
+    # renewing: one update for many jobs, in place, only for the jobs that are still the worker's
+    other = await db.create_job("lease")
+    assert await db.start_job(other, worker_id="w1", lease=30) is True
+    mine = await db.create_job("lease")
+    assert await db.start_job(mine, worker_id="w2", lease=30) is True
+    held = {job: 1, other: 1, mine: 1, "no-such-job": 1}
+    assert await db.renew_job_leases("w1", held, 60) == {job, other}, "renewal covers what the worker owns, and no more"
+    assert await db.renew_job_leases("w1", {job: 2}, 60) == set(), "a job of another execution is not renewed"
+    assert await db.renew_job_leases("w1", {}, 60) == set()
+    row = await db.get_job(job)
+    assert row is not None and row.lease_expires_at is not None and row.lease_expires_at > first, (
+        "renewal moves the expiry"
+    )
+    assert [e.type for e in await db.list_job_events(job)] == ["queued", "running"], "a renewal writes no event"
+
+    # a write by someone who is not the owner changes nothing, and writes no event
+    for stranger in (JobOwner(worker_id="w2", executions=1), JobOwner(worker_id="w1", executions=2)):
+        try:
+            await db.set_job_status(job, RunStatus.SUCCESS, owner=stranger)
+        except JobLost:
+            pass
+        else:
+            raise AssertionError("a status write by a worker that does not own the job must raise JobLost")
+    row = await db.get_job(job)
+    assert row is not None and row.status is RunStatus.RUNNING and row.completed_at is None
+    assert [e.type for e in await db.list_job_events(job)] == ["queued", "running"], "a refused write writes no event"
+    try:
+        await db.set_job_status("no-such-job", RunStatus.SUCCESS, owner=owner)
+    except LookupError:
+        pass
+    else:
+        raise AssertionError("a status write for a job that does not exist must raise LookupError")
+
+    # the owner's write goes through, and a final status ends the lease
+    await db.set_job_status(job, RunStatus.SUCCESS, owner=owner)
+    row = await db.get_job(job)
+    assert (
+        row is not None and row.status is RunStatus.SUCCESS and row.lease_expires_at is None and row.worker_id == "w1"
+    )
+    assert await db.owns_job(job, owner) is False, "a job that ended is nobody's"
+    assert await db.renew_job_leases("w1", {job: 1}, 60) == set(), "a job that ended is not renewed"
+    try:
+        await db.set_job_status(job, RunStatus.FAILED, owner=owner)
+    except JobLost:
+        pass
+    else:
+        raise AssertionError("a write for a job that already ended must raise JobLost")
+
+    # back in the queue: nobody owns it, and the next start is the next execution
+    await db.set_job_status(other, RunStatus.INIT, owner=JobOwner(worker_id="w1", executions=1))
+    row = await db.get_job(other)
+    assert row is not None and row.status is RunStatus.INIT and row.worker_id is None and row.lease_expires_at is None
+    assert row.executions == 1, "going back to the queue keeps the count"
+    assert await db.start_job(other, worker_id="w3") is True
+    row = await db.get_job(other)
+    assert row is not None and row.worker_id == "w3" and row.executions == 2 and row.lease_expires_at is None, (
+        "a job without a lease has none, and a start is a new execution"
+    )
 
 
 async def _check_job_events(db: Database) -> None:
@@ -368,6 +446,8 @@ async def check_database(make_db: Callable[[], Database]) -> None:
         await _check_job_events(db)
 
         await _check_taking_a_job(db)
+
+        await _check_job_lease(db)
 
 
 class MemoryQueue(JobQueue):

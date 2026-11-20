@@ -73,6 +73,8 @@ job_id = await client.submit(summarise, In(...))  # a worker runs it
 - **Observers.** That one function enters the observers' `job` scope around the pipeline and finishes it with the status and the error
   type, so both report the same ([the runner](runner.md#observers)); a worker also gives it the message's trace context.
 - **Streaming agents** cannot be jobs, as before.
+- **A job run in your process has an owner and no lease:** `run_job` starts it as `process-<id>` (`executions` 1) and every write to it is conditional on that owner, as a worker's are
+  ([several workers](submitted-jobs.md#several-workers)); nothing renews a lease or takes the job over, so it has none to lose.
 - **The timeout** (`Job.timeout`, default 600 seconds) applies to both: it is in the shared function ([several workers](submitted-jobs.md#several-workers)).
 - **Tests:** the same job run both ways gives the same row, hashes, events and result; `:memory:`; `results=None`; resume; a failing and a
   cancelled job.

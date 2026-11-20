@@ -12,7 +12,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ValidationError
 
-from featherweight.db import FINAL, Database, JobRow
+from featherweight.db import FINAL, Database, JobLost, JobOwner, JobRow, new_id
 from featherweight.fingerprint import error_fields
 from featherweight.jobs import Job, as_job, execute_job
 from featherweight.models import AgentBase, RunStatus
@@ -38,6 +38,11 @@ class JobWorker:
     `results` is where the output of a job is written (a `ResultStore`; the default is a sqlite store in the run log's file
     for a `SqliteDatabase`, and none for another database; `None` keeps nothing). `concurrency` is how many jobs run at once.
 
+    `lease` is how long, in seconds, the worker's claim on a job lasts without being renewed (60 by default). While it runs
+    jobs, the worker renews the lease of each, and `extend`s the queue's lease of its message, every `heartbeat` seconds (a third of
+    the lease by default). A worker that lost a job (another one took it over) stops it and writes nothing more to it.
+    `worker_id` names the worker in `jobs.worker_id` (a new id by default).
+
         worker = JobWorker(db, queue, runner, jobs=[Summarise])
         await worker.run()           # until `await worker.stop()` is called, from another task
     """
@@ -53,9 +58,14 @@ class JobWorker:
         concurrency: int = 10,
         receive_timeout: float = 1.0,
         cancel_poll: float = 1.0,
+        lease: float = 60.0,
+        heartbeat: float | None = None,
+        worker_id: str | None = None,
     ):
         if concurrency < 1:
             raise ValueError("concurrency must be at least 1")
+        if lease <= 0 or (heartbeat is not None and heartbeat <= 0):
+            raise ValueError("lease and heartbeat must be positive")
         self.db = db
         self.queue = queue
         self.runner = runner
@@ -67,6 +77,9 @@ class JobWorker:
         self.concurrency = concurrency
         self.receive_timeout = receive_timeout
         self.cancel_poll = cancel_poll
+        self.lease = lease
+        self.heartbeat = heartbeat if heartbeat is not None else lease / 3
+        self.worker_id = worker_id or f"worker-{new_id()}"
         self._jobs: dict[str, type[Job]] = {}
         for job in jobs:
             declared = as_job(job)
@@ -75,6 +88,8 @@ class JobWorker:
             self._jobs[declared.name] = declared
         self._tasks: dict[str, asyncio.Task[None]] = {}  # the jobs running now, by job id
         self._deliveries: dict[str, Delivery] = {}
+        self._owners: dict[str, JobOwner] = {}  # who owns each job running here: this worker, and the execution
+        self._lost: set[str] = set()  # the jobs that were found taken from this worker
         self._requeue: set[str] = set()  # the jobs that are cancelled by a shutdown, to go back to the queue
         self._wake = asyncio.Event()  # a job ended, or the worker was asked to stop
         self._stopping = False
@@ -92,6 +107,7 @@ class JobWorker:
         self._running, self._stopping = True, False
         self._stopped.clear()
         poller = asyncio.create_task(self._poll_cancels())
+        heart = asyncio.create_task(self._heartbeat())
         try:
             await self._loop()
             await self._shutdown(self._grace)
@@ -100,6 +116,7 @@ class JobWorker:
             raise
         finally:
             poller.cancel()
+            heart.cancel()
             self._running = False
             self._stopped.set()
 
@@ -165,21 +182,29 @@ class JobWorker:
         # Take the job in one atomic step: it succeeds only if the job is still queued and nobody asked to cancel it. A client
         # that cancels at the same moment loses or wins cleanly, and a job is never both cancelled and run. (A real redelivery
         # of a job that another worker is running is the next epic's.)
-        if not await self.db.start_job(row.job_id):
+        if not await self.db.start_job(row.job_id, worker_id=self.worker_id, lease=self.lease):
             current = await self.db.get_job(row.job_id)
             if current is not None and current.status is RunStatus.INIT and current.cancel_requested:
                 await self.db.cancel_queued_job(row.job_id)  # asked to cancel before it started
             logger.info("worker_skipped job_id=%s: it was cancelled, or is not queued any more", row.job_id)
             await self.queue.ack(delivery)
             return
-        task = asyncio.create_task(self._run_job(delivery, row, job, job_input))
+        started = await self.db.get_job(row.job_id)
+        if started is None:  # deleted under us: nothing to run
+            await self.queue.ack(delivery)
+            return
+        owner = JobOwner(worker_id=self.worker_id, executions=started.executions)
+        task = asyncio.create_task(self._run_job(delivery, row, job, job_input, owner))
         self._tasks[row.job_id] = task
         self._deliveries[row.job_id] = delivery
+        self._owners[row.job_id] = owner
         task.add_done_callback(lambda _: self._ended(row.job_id))
 
     def _ended(self, job_id: str) -> None:
         self._tasks.pop(job_id, None)
         self._deliveries.pop(job_id, None)
+        self._owners.pop(job_id, None)
+        self._lost.discard(job_id)
         self._requeue.discard(job_id)
         self._wake.set()
 
@@ -189,18 +214,25 @@ class JobWorker:
         logger.error("job_failed job_id=%s error=%s: %s", job_id, error_type, exc)
         await self.queue.ack(delivery)
 
-    async def _run_job(self, delivery: Delivery, row: JobRow, job: type[Job], job_input: BaseModel) -> None:
+    async def _run_job(
+        self, delivery: Delivery, row: JobRow, job: type[Job], job_input: BaseModel, owner: JobOwner
+    ) -> None:
         job_id = row.job_id
 
         async def on_cancel() -> None:
-            if job_id in self._requeue:  # a shutdown: back to the queue, to run again
-                await self.db.set_job_status(job_id, RunStatus.INIT)
-                await self.queue.nack(delivery, requeue=True)
-                logger.warning("job_requeued job_id=%s", job_id)
-            else:  # a client asked, or `cancel()` was called
-                await self.db.set_job_status(job_id, RunStatus.CANCELLED)
-                await self.queue.ack(delivery)
-                logger.warning("job_cancelled job_id=%s", job_id)
+            if job_id in self._lost:  # it is not ours any more: write nothing, and the message is not ours to settle
+                return
+            try:
+                if job_id in self._requeue:  # a shutdown: back to the queue, to run again
+                    await self.db.set_job_status(job_id, RunStatus.INIT, owner=owner)
+                    await self.queue.nack(delivery, requeue=True)
+                    logger.warning("job_requeued job_id=%s", job_id)
+                else:  # a client asked, or `cancel()` was called
+                    await self.db.set_job_status(job_id, RunStatus.CANCELLED, owner=owner)
+                    await self.queue.ack(delivery)
+                    logger.warning("job_cancelled job_id=%s", job_id)
+            except JobLost:
+                self._log_lost(job_id)
 
         try:  # the same code as `run_job` runs a job with: the worker only adds the queue
             await execute_job(
@@ -211,10 +243,53 @@ class JobWorker:
                 self.results,
                 on_cancel=on_cancel,
                 trace_context=delivery.message.trace_context,
+                owner=owner,
+                lost=lambda: job_id in self._lost,
             )
         except asyncio.CancelledError:
-            return  # `on_cancel` has settled the message and the status
+            return  # `on_cancel` has settled the message and the status, or the job was lost
+        except JobLost:
+            self._log_lost(job_id)
+            return  # a write found the job taken: it is not ours, so nothing is written and the message is not acknowledged
         await self.queue.ack(delivery)
+
+    # the lease
+
+    def _log_lost(self, job_id: str) -> None:
+        owner = self._owners.get(job_id)
+        logger.warning("job_lost job_id=%s execution=%s", job_id, owner.executions if owner else "?")
+
+    def _lose(self, job_id: str) -> None:
+        """The job was taken from this worker: stop it at once, quietly (nothing is written to it)."""
+        if job_id in self._lost:
+            return
+        self._lost.add(job_id)
+        self._log_lost(job_id)
+        self.cancel(job_id)
+
+    async def _heartbeat(self) -> None:
+        """Every `heartbeat` seconds: renew, in one update, the lease of every job running here, and extend the queue's lease of
+        its message. A job whose lease could not be renewed was taken from this worker: it is stopped."""
+        while True:
+            await asyncio.sleep(self.heartbeat)
+            held = {job_id: owner.executions for job_id, owner in self._owners.items() if job_id not in self._lost}
+            if not held:
+                continue
+            try:
+                owned = await self.db.renew_job_leases(self.worker_id, held, self.lease)
+            except Exception:
+                logger.exception("worker_heartbeat_failed")
+                continue
+            for job_id in held.keys() - owned:
+                self._lose(job_id)
+            for job_id in owned:
+                delivery = self._deliveries.get(job_id)
+                if delivery is None:
+                    continue
+                try:
+                    await self.queue.extend(delivery)
+                except Exception:
+                    logger.exception("worker_extend_failed job_id=%s", job_id)
 
     # cancelling and stopping
 

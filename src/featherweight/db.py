@@ -9,7 +9,7 @@ come out as Pydantic models, so the same constraints hold whatever the database 
 import os
 import uuid
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, Self
@@ -92,11 +92,29 @@ class JobRow(_Model):
     job_hash: str | None  # the hash of the job's declaration; None for a job made without a job class
     input_hash: str | None  # a submitted job: the hash of its input
     cancel_requested: bool
+    worker_id: str | None  # the worker that runs it (the last one, once it ended); None while it is queued
+    lease_expires_at: (
+        datetime | None
+    )  # when the worker's lease on it ends; None for a job that has none (queued, final, or run in-process)
+    executions: int  # how many times a worker started it: 1 for the first
     error_type: str | None
     error_hash: str | None
     created_at: datetime
     started_at: datetime | None  # when it began to run (cleared when it goes back to the queue)
     completed_at: datetime | None
+
+
+class JobOwner(_Model):
+    """Who owns a running job: the worker, and which execution of the job it is. The writes of a running job are conditional on
+    both, in the statement itself, so that a worker that lost the job cannot change it."""
+
+    worker_id: str
+    executions: int = Field(ge=1)
+
+
+class JobLost(Exception):
+    """A write for a job that is not this worker's any more: another worker took it over, or it ended, or it was put back in the
+    queue. Nothing was written. The worker that gets it stops the job and writes nothing more to it."""
 
 
 EventType = Literal["queued", "running", "succeeded", "failed", "cancelled", "cancel_requested"]
@@ -234,10 +252,20 @@ class Database(ABC):
 
     @abstractmethod
     async def set_job_status(
-        self, job_id: str, status: RunStatus, *, error_type: str | None = None, error_hash: str | None = None
+        self,
+        job_id: str,
+        status: RunStatus,
+        *,
+        error_type: str | None = None,
+        error_hash: str | None = None,
+        owner: JobOwner | None = None,
     ) -> None:
         """Set the status of a job. The error is kept only for FAILED. `RUNNING` sets `started_at`; going back to `INIT` (a job
-        that returns to the queue) clears it. `LookupError` for a job that does not exist."""
+        that returns to the queue) clears it and its owner; a final status ends its lease. `LookupError` for a job that does not
+        exist.
+
+        With `owner`, the write is conditional, in the same statement, on the job being `RUNNING` and having that `worker_id`
+        and `executions`: if it does not, nothing is written (no status, no event) and `JobLost` is raised."""
 
     @abstractmethod
     async def get_job(self, job_id: str) -> JobRow | None: ...
@@ -249,10 +277,25 @@ class Database(ABC):
         one event. The job's worker does the cancelling."""
 
     @abstractmethod
-    async def start_job(self, job_id: str) -> bool:
+    async def start_job(self, job_id: str, worker_id: str | None = None, lease: float | None = None) -> bool:
         """Mark a queued job `RUNNING` (`started_at`, a `running` event) **only if it is still `INIT` and has no
         `cancel_requested`**, in one atomic step, and say whether it did. It is what a worker calls to take a job: it and
-        `cancel_queued_job` cannot both succeed, so a job is never cancelled and run at once."""
+        `cancel_queued_job` cannot both succeed, so a job is never cancelled and run at once.
+
+        The same step records the owner: `worker_id`, `executions` one higher, and, if `lease` (seconds) is given, a
+        `lease_expires_at` that far ahead (the database's own clock, where it has one). A job without a lease (one that
+        runs in the process that started it) has no lease to lose."""
+
+    @abstractmethod
+    async def renew_job_leases(self, worker_id: str, jobs: Mapping[str, int], lease: float) -> set[str]:
+        """A worker's heartbeat: in **one in-place update**, move `lease_expires_at` of each job in `jobs` (job id to the
+        `executions` the worker holds) `lease` seconds ahead, for those that are still `RUNNING` with this `worker_id` and
+        that `executions`. Returns the ids that were renewed: the others are lost. No rows are added, and nothing else changes."""
+
+    @abstractmethod
+    async def owns_job(self, job_id: str, owner: JobOwner) -> bool:
+        """Whether the job is `RUNNING` and still has this owner. A cheap read, for a check before a step that cannot be made
+        conditional (writing a result to the user's store); it is not atomic with what follows."""
 
     @abstractmethod
     async def cancel_queued_job(self, job_id: str) -> bool:

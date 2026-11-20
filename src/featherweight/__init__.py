@@ -43,6 +43,8 @@ _EXPORTS = {
     "RunStart": "db",
     "RunEnd": "db",
     "JobRow": "db",
+    "JobOwner": "db",
+    "JobLost": "db",
     "AgentRunRow": "db",
     "JobEvent": "db",
     "job_events": "events",
@@ -133,6 +135,8 @@ if TYPE_CHECKING:  # for editors and type checkers: the same names, imported
     from featherweight.db import AgentRunRow as AgentRunRow
     from featherweight.db import Database as Database
     from featherweight.db import JobEvent as JobEvent
+    from featherweight.db import JobLost as JobLost
+    from featherweight.db import JobOwner as JobOwner
     from featherweight.db import JobRow as JobRow
     from featherweight.db import RunEnd as RunEnd
     from featherweight.db import RunStart as RunStart
