@@ -90,6 +90,6 @@ docker compose run --rm --no-deps book python 5-1/submit.py     # terminal 2
 - **It is the same job as in Part 3.** `run_job(runner, summarise_all, ...)` runs it here, and `client.submit(summarise_all, ...)` has a worker run it: only who runs it, and where, differs.
 
 > **Why a queue and a database.** Nothing connects the two sides directly, so either can restart or move without the other. featherweight ships a sqlite queue for local
-> work; in production the queue is yours. See [submitted jobs](https://github.com/aadhithya/featherweight/blob/main/docs/specs/submitted-jobs.md#the-principle) and [the guide](../../submitted-jobs.md).
+> work; in production the queue is yours. The database is shared too: `SqliteDatabase` on one machine, and `PostgresDatabase`, which ships in the package, across machines ([Part 6](../06-bring-your-own-storage/01-postgres.md)). See [submitted jobs](https://github.com/aadhithya/featherweight/blob/main/docs/specs/submitted-jobs.md#the-principle) and [the guide](../../submitted-jobs.md).
 
 Next: more than one worker, and a worker that dies.
