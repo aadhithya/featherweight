@@ -1,12 +1,12 @@
 ---
 name: featherweight
-description: "Build background AI agents and pipelines with the featherweight Python framework: typed Pydantic agents, a runner with retries and concurrency limits, sub-agents, MCP tools, Agent Skills, and a sqlite trace. Use when the user wants to build, extend, test or debug an app, pipeline, batch job or agent system with featherweight, or when code imports `featherweight.models`, `featherweight.runner` or `featherweight.model_settings`."
+description: "Build AI agents and pipelines with the featherweight Python framework: typed Pydantic agents, a runner with retries and limits, sub-agents and background agents, MCP tools, Agent Skills, jobs and workers with resume, streaming chat, and OpenTelemetry traces. Use when the user wants to build, extend, test or debug an app, pipeline, chat, batch job or agent system with featherweight, or when code imports `featherweight`, `featherweight.models`, `featherweight.runner` or `featherweight.model_settings`."
 ---
 
 # Building with featherweight
 
-featherweight is a small Python framework for **background agents**: pipelines, batches, fan-out. A chat agent that streams its
-answer is a `StreamingAgent`; there is no UI and no stored conversation.
+featherweight is a small Python framework for **agents that run in pipelines and on workers**: batches, fan-out, jobs, background agents. A chat
+agent that streams its answer is a `StreamingAgent`; there is no UI and no stored conversation.
 An agent is a typed class. A runner runs it with retries, limits and a trace. Your code, plain async Python, decides what
 runs next. It has opinions, but they are defaults: follow them unless the user wants something else.
 
@@ -19,6 +19,25 @@ pip install "featherweight[all]"   # with all the extras (mcp, anthropic, openai
 ```
 
 Gemini is the default model and needs `GOOGLE_API_KEY`. Claude needs `ANTHROPIC_API_KEY` and OpenAI `OPENAI_API_KEY`.
+
+## What do you want to build?
+
+Read the chapters of the book for the task, in order. They build one small project, an incident report assistant, and each ends with code that
+runs. Paths are under `references/`; the book's home is `references/book/README.md`.
+
+| You want to build | Read, in order |
+|---|---|
+| To see how the pieces fit first | `references/book/00-start-here/02-the-map.md`, `references/book/00-start-here/03-philosophy.md` |
+| A typed agent, and run it | `references/book/01-your-first-agent/02-a-typed-agent.md`, `references/book/01-your-first-agent/03-running-it.md`, `references/book/01-your-first-agent/05-failures-and-check-output.md`, then `references/book/01-your-first-agent/06-choosing-a-model.md` for the provider |
+| What a run recorded | `references/book/01-your-first-agent/04-what-happened.md` |
+| Tools, MCP servers, skills, subagents for an agent | `references/book/02-abilities/01-tools.md`, `references/book/02-abilities/02-mcp.md`, `references/book/02-abilities/03-skills.md`, `references/book/02-abilities/04-sub-agents.md` |
+| A pipeline over many inputs, with resume | `references/book/03-jobs-and-pipelines/01-what-a-job-is.md`, `references/book/03-jobs-and-pipelines/02-status-and-events.md`, `references/book/03-jobs-and-pipelines/03-results-and-the-result-store.md`, `references/book/03-jobs-and-pipelines/04-resume.md` |
+| A chat agent that streams, in a terminal or a browser | `references/book/04-chat/01-a-streaming-agent.md`, `references/book/04-chat/02-in-the-browser.md`, `references/book/04-chat/03-stopping-and-the-conversation.md` |
+| Jobs on workers, and workers that die | `references/book/05-in-production/01-submit-and-a-worker.md`, `references/book/05-in-production/02-several-workers.md` |
+| An agent that starts another and goes on | `references/book/05-in-production/03-background-agents.md` |
+| Traces, and input for an evaluation platform | `references/book/05-in-production/04-observability.md` |
+| Your own storage, queue, database or observer | `references/book/06-bring-your-own-storage/01-postgres.md` to `references/book/06-bring-your-own-storage/05-an-observer.md` |
+| The whole thing in one project, or a term explained | `references/book/07-reference/04-the-finished-project.md`, `references/book/07-reference/03-the-glossary.md` |
 
 ## The model
 
@@ -120,6 +139,7 @@ asyncio.run(main())
   search by default; `discover=False` binds a small server's tools directly.
 - **Sub-agents:** `subagents=[OtherAgent]`, classes on an allow-list. Depth and breadth are limited (3 and 10).
 - **Skills:** `skills=[Skill.from_directory(path)]`, Agent Skills format. The agent reads them when it decides to.
+- **Capabilities are allow-lists:** `tools`, `mcp_servers`, `skills`, `subagents` and `background_agents` are what the developer gave the agent, on purpose.
 - **Check what the model returned in code.** Validators and `check_output` have the last word. The model proposes.
 
 ## Tests and cost
@@ -130,9 +150,9 @@ asyncio.run(main())
 - Real calls cost money. Ask the user before running one, use the smallest model (`gemini-3.5-flash-lite`,
   `claude-haiku-5-5`, `gpt-6-luna`) at the lowest effort, and keep the input small.
 
-## Where to read next
+## Look things up
 
-Read only the reference for the task. Each is a guide from the featherweight repository, with its code examples.
+The guides are the reference for one subject each (the book above is the way to learn). Read only the one for the task.
 
 | The task | Read |
 |---|---|

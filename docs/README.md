@@ -18,7 +18,7 @@ or finding out why it behaves as it does.
 - **I want to build something, step by step.** [The book](book/README.md): a short chapter at a time, one small project that grows from a
   typed agent to a chat and a pipeline on workers. Start with [the map](book/00-start-here/02-the-map.md). The guides and the specs below are the reference.
 - **I want a coding agent to build with it.** [The skill](../skills/featherweight/SKILL.md): install it in Claude Code, or copy
-  `skills/featherweight` into another tool's skills folder. It carries the rules, a working app and the guides.
+  `skills/featherweight` into another tool's skills folder. It carries the rules, a working app, the book and the guides.
 - **I'm new here.** [Getting started](getting-started.md): install it, write an agent, run it.
 - **I want to build an agent.** [Agents](agents.md): define one, run it, read the result, handle failures. Then
   [`examples/launching`](../examples/launching) or [`examples/skills`](../examples/skills) to run something.
