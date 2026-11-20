@@ -51,6 +51,9 @@ input tokens. A failed result has no tokens.
 
 ## Resuming
 
+A takeover of a job ([several workers](submitted-jobs.md#several-workers); designed, not built) uses the same rules, with one difference: the source is the **same job**,
+and only runs of **earlier executions** (`job_execution` below the current one) are looked up, so a run never reuses its own execution's rows.
+
 A job created with `resume_from` (see [jobs and tracing](jobs-and-tracing.md#resuming-a-job)) makes the runner look up a
 run before it runs it. This is replay with memoised agent calls: the caller's code runs again, and only agent runs are
 answered from the log.

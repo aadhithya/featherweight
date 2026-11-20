@@ -88,7 +88,7 @@ not write every abstract method cannot be built.
 |---|---|
 | `connect()`, `close()`, `async with` | Open and close; `connect()` runs the [migrations](#migrations) |
 | `create_job(...)`, `insert_job(...)`, `get_job(job_id)`, `set_job_status(...)` | Create, read and change a job. A change of status writes its [event](submitted-jobs.md#job-events) in the same transaction |
-| `start_job(job_id)`, `cancel_queued_job(job_id)`, `request_job_cancel(job_id)`, `list_cancel_requested(job_ids)` | The compare-and-set steps that take or cancel a job, so that exactly one of a worker and a client wins ([cancelling](submitted-jobs.md#cancelling)) |
+| `start_job(job_id)`, `cancel_queued_job(job_id)`, `fail_queued_job(job_id, error_type)`, `request_job_cancel(job_id)`, `list_cancel_requested(job_ids)` | The compare-and-set steps that take or cancel a job, so that exactly one of a worker and a client wins ([cancelling](submitted-jobs.md#cancelling)) |
 | `list_job_events(job_id, after, limit)`, `poll_job_events(job_ids, after)` | The events of one job, or of many in one query |
 | `renew_job_leases(worker_id, ...)`, `take_over_job(job_id, worker_id)` | A worker's heartbeat (one update for all of its jobs), and taking a job whose lease expired ([several workers](submitted-jobs.md#several-workers); designed, not built). The writes of a running job are conditional on its owner |
 | `create_run(RunStart)`, `mark_run_running(...)`, `finish_run(RunEnd)`, `get_run(...)`, `list_runs(...)` | Runs |
@@ -152,6 +152,7 @@ Types are given as *Postgres / sqlite*. A `CHECK` is in both.
 | `input_hash` | `text` not null, 64 hex | |
 | `output_hash` | `text` null, 64 hex | Set when the run produced one |
 | `reused_from_agent_run_id` | `text` null | For a run answered from an earlier one |
+| `job_execution` | `integer` null | Designed: the execution of the job that made the run ([several workers](submitted-jobs.md#several-workers)). `NULL` without a job |
 | `thread_id` | `text` null | For a streaming run: the conversation the client named |
 | `status` | `text` not null, one of `INIT`, `RUNNING`, `SUCCESS`, `FAILED`, `CANCELLED` | |
 | `error_type`, `error_hash` | `text` null | Set for `FAILED` |
@@ -248,7 +249,7 @@ are kept:
    depth 1.
 3. **The store answers the data question:** `get(ResultKey(old_job, agent_hash, input_hash))`. A runner with no store, for a job that
    resumes another, is a `SetupError`.
-4. **A reused step's result is copied forward** under the new job's key. Each job then holds its own results, deleting an old job never
+4. **A reused step's result is copied forward** under the new job's key (a takeover has no new job, so nothing is copied: [several workers](submitted-jobs.md#several-workers)). Each job then holds its own results, deleting an old job never
    affects a newer one, and a chain of attempts works. The duplication is only the output; the trace is complete and the cost is counted once.
 
 ## Postgres

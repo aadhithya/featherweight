@@ -84,6 +84,8 @@ the version and the two models. The code release is the user's, as the OpenTelem
 
 ## Resuming a job
 
+A resume is the user running a job that **ended** again, as a **new** job. (A job that did not end, because its worker died, is taken over by another worker as the **same** job: [several workers](submitted-jobs.md#several-workers). Both reuse finished steps with the mechanism below.)
+
 A pipeline that failed at step 2 is run again with `resume_from=<failed job>`, if the failed job was created `resumable=True`
 (decided before it ran; otherwise nothing was kept and `create_job` raises). This is replay with memoised agent calls, not
 pausing: the pipeline's own code, loops and decisions run again, and the runner answers an agent run from the old job's

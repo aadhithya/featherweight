@@ -164,8 +164,8 @@ database, the queue and the user's store.
 
 **Shutdown.** `await worker.stop(grace)` takes no new messages, waits the grace period for running jobs, then cancels the rest and
 `nack`s their messages with `requeue=True`: those jobs return to `INIT` (a `queued` event), the interrupted attempts are `CANCELLED`,
-and a worker (this one, later, or another) runs them again from the start. The steps that finished before the interruption are
-not reused ([not supported](#not-supported)).
+and a worker (this one, later, or another) runs them again, as a takeover does ([several workers](#several-workers)): the steps that finished
+before the interruption are reused if the job is `resumable`.
 
 ## Several workers
 
@@ -187,7 +187,11 @@ for ever. This section is the recovery from that, and it is all that it is: we d
   expired (a duplicate delivery of a job that is alive), the worker acknowledges the message and leaves the job alone. A job whose
   message never comes back is not found: the queue's redelivery is the only trigger, and there is no sweeper.
 - **Executions.** `jobs.executions` counts how many times a worker started the job: 1 for the first, and one more for each takeover. (It is
-  not `attempt`, which is the retry of one agent call.) It is on the job's span as `ftw.job.execution`.
+  not `attempt`, which is the retry of one agent call.) Each agent run records the execution that made it (`agent_runs.job_execution`), and the job's span
+  has `ftw.job.execution`.
+- **A takeover reuses the steps that finished,** if the job is `resumable`, with the same mechanism as a resume ([the runner](runner.md#resuming)): the
+  source of the reuse is **this same job, executions before the current one**, and not another job. The results are already under this job's key, so
+  nothing is copied forward. A job that is not resumable kept no results, and a takeover reruns it from the start.
 - **The owner is checked on every write.** The writes of a running job (renewing the lease, the events, the final status) are conditional on
   `worker_id` and `executions` being the worker's own, in the same statement. A worker that was stalled and wakes up after a takeover finds
   that its write changes no row, which is how it learns that it lost the job. There is no token and no timer in it: the database
@@ -203,8 +207,9 @@ for ever. This section is the recovery from that, and it is all that it is: we d
   heartbeats.
 - **Delivery count.** `Delivery.delivery_count` says how many times a message has been delivered. **How many redeliveries are allowed is the
   queue's business**: a broker has its own policy and dead-letter queue. Ours, `SqliteQueue`, allows 3 by default (`max_deliveries`), then marks
-  the message `dead` and fails the job with error type `DeadLettered`. A user's queue that dead-letters a message must end its job itself
-  (the `Database` is public); until it does, the job stays `INIT`.
+  the message `dead` and fails the job with error type `DeadLettered`. A user's queue that dead-letters a message ends its
+  job with **`client.fail(job_id)`**, from its dead-letter handler: a compare-and-set that moves a job that has not started (`INIT`) to `FAILED` with
+  error type `DeadLettered` (a `failed` event), and returns `False` if the job is already final. Until it is called, the job stays `INIT`.
 
 ## Cancelling
 
@@ -278,7 +283,7 @@ stream, no stream of all jobs.
 - **A lease on the queue and one on the job** (designed): the queue's keeps the message, the job's keeps the job exclusive. Heartbeats are
   in-place updates. A lost lease puts the job back to `INIT`, and `FAILED` comes only when the user's policy runs out.
 - **A takeover is the same job with `executions` + 1,** not a new job: the client holds the id, and its events, its cancel and its result
-  are all keyed by it. A resume is a new job; a takeover is not ([not supported](#not-supported) says what a takeover reuses).
+  are all keyed by it. A resume is a new job; a takeover is not, and both reuse finished steps with one mechanism.
 - **The write is checked against the owner,** not against a clock.
 - **Job timeout, default ten minutes.** Redelivery limits are the queue's, except for ours.
 
@@ -287,16 +292,14 @@ stream, no stream of all jobs.
 - **An event channel as an abstract class,** like `Database`: Postgres `LISTEN/NOTIFY`, Redis pub/sub or a cloud broker would remove
   the polling across processes. Pub/sub is vendor-specific and not available everywhere, so we do not write one per vendor now.
   If it is wanted, it is one abstract class behind the same `events()`, with a conformance kit.
-- **A takeover that reuses the steps that finished** (a `job_execution` on each run, and the reuse lookup widened to earlier executions of the
-  same job: the same mechanism as a resume, with the same job as its source). A takeover reruns the job from the start until then.
-- **A worker-level limit on redeliveries,** and a helper for ending the job of a dead-lettered message.
+- **A worker-level limit on redeliveries:** the queue's business, so there is none.
 - **Background agents:** the epic after, built on the job events.
 
 ## Not supported
 
 - **A durable queue we ship** beyond sqlite, and a pub/sub channel.
 - **Automatic retry of a failed job.**
-- **Reusing finished steps on a takeover,** and a sweeper for a job whose message never comes back.
+- **A sweeper** for a job whose message never comes back.
 - **A worker registry, scheduling, priorities, autoscaling,** and a broker of our own.
 - **Fencing the user's stores and the effects of their code:** only our own writes are checked.
 - **Progress with content** in events, and a stream of all jobs.
@@ -315,7 +318,8 @@ No live model call. Fake models, `MemoryQueue`, the dict result store.
 - **Several workers** (designed): `check_queue` with a short lease (a message comes back with a higher count, `extend` keeps it, an acknowledged one
   does not); `SqliteQueue` with `max_deliveries` (dead, and its job `FAILED`); two workers, one killed mid-job: the other takes the job over,
   `executions` is 2 and the events read queued, running, lost, running, succeeded; a duplicate delivery of a live job is skipped; a stalled
-  worker that wakes up loses its job quietly and writes nothing; the heartbeat keeps a long job alive; the timeout fails a hung job (in the worker and in `run_job`).
+  worker that wakes up loses its job quietly and writes nothing; the heartbeat keeps a long job alive; a takeover of a resumable job reuses its finished steps (and one that is not resumable reruns them), and
+  never its own execution's; `client.fail` on an `INIT` job, and on a final one; the timeout fails a hung job (in the worker and in `run_job`).
 - **The client and the worker:** submit, status, wait, result; a failing enqueue; every cancel case, in the same process and from
   another; success, failure, an unknown job, an invalid input, a failing result store, a skipped cancelled job; shutdown with the
   grace period and the requeue; concurrency; resuming through `submit`; and a client in one process with a worker in another.
