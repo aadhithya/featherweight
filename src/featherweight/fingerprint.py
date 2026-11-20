@@ -42,28 +42,36 @@ def agent_declaration(agent: AgentBase, _seen: tuple[type, ...] = ()) -> dict[st
             subagents.append({"cycle": sub.__qualname__})
         else:
             subagents.append(agent_declaration(sub(), seen))
-    return _canonical(
-        {
-            "name": agent.name,
-            "version": agent.version,
-            "description": agent.description,
-            "prompt": agent.prompt,
-            "recursion_limit": agent.recursion_limit,
-            "allow_user_questions": agent.allow_user_questions,
-            "raise_conflicts": agent.raise_conflicts,
-            "model": {"class": type(agent.model).__qualname__, "provider": agent.model.provider}
-            | agent.model.model_dump(mode="json"),  # the class too: two classes with equal fields are not one model
-            "tools": [_tool(t) for t in agent.tools],
-            "subagents": subagents,
-            "skills": [s.model_dump(mode="json", by_alias=True) for s in agent.skills],
-            "mcp_servers": [s.model_dump(mode="json") for s in agent.mcp_servers],
-            "system_prompt": agent.build_system_prompt(),
-            # Class attributes, not fields of the instance, so they must be named here: a changed field, type, description
-            # or default of either model is another agent.
-            "input_schema": type(agent).input_model.model_json_schema(),
-            "output_schema": type(agent).output_model.model_json_schema(),
-        }
-    )
+    declaration: dict[str, Any] = {
+        "name": agent.name,
+        "version": agent.version,
+        "description": agent.description,
+        "prompt": agent.prompt,
+        "recursion_limit": agent.recursion_limit,
+        "allow_user_questions": agent.allow_user_questions,
+        "raise_conflicts": agent.raise_conflicts,
+        "model": {"class": type(agent.model).__qualname__, "provider": agent.model.provider}
+        | agent.model.model_dump(mode="json"),  # the class too: two classes with equal fields are not one model
+        "tools": [_tool(t) for t in agent.tools],
+        "subagents": subagents,
+        "skills": [s.model_dump(mode="json", by_alias=True) for s in agent.skills],
+        "mcp_servers": [s.model_dump(mode="json") for s in agent.mcp_servers],
+        "system_prompt": agent.build_system_prompt(),
+        # Class attributes, not fields of the instance, so they must be named here: a changed field, type, description
+        # or default of either model is another agent.
+        "input_schema": type(agent).input_model.model_json_schema(),
+        "output_schema": type(agent).output_model.model_json_schema(),
+    }
+    if agent.background_agents:  # only when there are some, so that an agent without any keeps the hash it had
+        declaration["background_agents"] = [_background_entry(entry, seen) for entry in agent.background_agents]
+    return _canonical(declaration)
+
+
+def _background_entry(entry: Any, seen: tuple[type, ...]) -> dict[str, Any]:
+    """An agent in `background_agents` as a plain structure; a job class by its declaration hash."""
+    if issubclass(entry, AgentBase):
+        return {"cycle": entry.__qualname__} if entry in seen else agent_declaration(entry(), seen)
+    return {"job": entry.name, "version": entry.version, "job_hash": entry.job_hash()}
 
 
 def agent_hash(agent: AgentBase) -> str:

@@ -1,6 +1,6 @@
 # Spec: background agents
 
-Status: designed, not built. It is tracked in [epic #115](https://github.com/aadhithya/featherweight/issues/115), and each part has its own issue (listed [at the end](#the-work)). When a part is
+Status: being built. The declaration, the tool and the child job ([#116](https://github.com/aadhithya/featherweight/issues/116)) are done; the result, the waiting run, the events, the cancel, the guide and the example are not. It is tracked in [epic #115](https://github.com/aadhithya/featherweight/issues/115), and each part has its own issue (listed [at the end](#the-work)). When a part is
 built, this page says so, and the guide `docs/background-agents.md` shows how to use it.
 
 It builds on [submitted jobs](submitted-jobs.md) (a job is a declared class that runs in your process or on a worker, with events and a

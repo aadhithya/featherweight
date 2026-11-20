@@ -2,7 +2,7 @@
 
 import hashlib
 from enum import StrEnum
-from typing import ClassVar, Generic, TypeVar
+from typing import Any, ClassVar, Generic, TypeVar
 
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -13,6 +13,7 @@ from featherweight.skills import Skill
 
 # The tools the runner adds to an agent, by what it declares. An agent's own tools cannot use these names.
 LAUNCH_TOOL_NAMES = ("launch_agent", "get_agent_schema")
+BACKGROUND_TOOL_NAMES = ("start_background",)
 SKILL_TOOL_NAMES = ("get_skill",)
 DISCOVERY_TOOL_NAMES = ("search_tools", "call_tool")
 
@@ -35,6 +36,23 @@ SUBAGENTS = (
     "Before you launch an agent, call `get_agent_schema` with its name to see the input it expects. Then call "
     "`launch_agent` with its name and that input as a JSON string. The result is the agent's output as JSON, or an "
     "error that says what went wrong; read it, and fix the input or carry on without that agent."
+)
+
+AGENTS_INTRO = "You can hand part of the work to other agents. You may use only these agents:"
+AGENTS_INLINE = "To launch and wait for the result, with `launch_agent`:\n{agents}"
+AGENTS_BACKGROUND = "To start in the background and carry on, with `start_background`:\n{agents}"
+AGENTS_EITHER = "Either way (`launch_agent` to wait for the result, `start_background` to carry on):\n{agents}"
+AGENTS_USAGE = (
+    "Before you use an agent, call `get_agent_schema` with its name to see the input it expects. Then pass that input as a "
+    "JSON string."
+)
+AGENTS_LAUNCH_USAGE = (
+    "`launch_agent` runs the agent and returns its output as JSON, or an error that says what went wrong; read it, and fix "
+    "the input or carry on without that agent."
+)
+AGENTS_BACKGROUND_USAGE = (
+    "`start_background` returns at once with a job id, and the agent works while you do other things; its result is given "
+    "to you in a later message."
 )
 
 
@@ -104,6 +122,10 @@ class AgentBase(BaseModel):
     # The only agents this agent may launch (classes, not names; an agent cannot launch its own class). When this is
     # not empty, the runner gives the agent `launch_agent` and `get_agent_schema`, and the prompt lists them.
     subagents: list[type] = Field(default_factory=list)
+    # Agents (or job classes) this agent may start in the background: the runner gives it `start_background`, which returns at once
+    # with the id of a job of its own. An agent may be in both lists: the model then chooses between `launch_agent` and
+    # `start_background` for it. See docs/specs/background-agents.md.
+    background_agents: list[type] = Field(default_factory=list)
     # Skills this agent can read (see featherweight/skills.py). Their names and descriptions are in the prompt; the
     # runner gives the agent `get_skill` to read the instructions when one applies.
     skills: list[Skill] = Field(default_factory=list)
@@ -129,6 +151,7 @@ class AgentBase(BaseModel):
             names.append(sub().name)  # ty: ignore[missing-argument]  # a subclass supplies the defaults
         if len(set(names)) != len(names):
             raise ValueError(f"subagents of {self.name} have duplicate names: {names}")
+        self._check_background_agents()
         skill_names = [skill.name for skill in self.skills]
         if len(set(skill_names)) != len(skill_names):
             raise ValueError(f"skills of {self.name} have duplicate names: {skill_names}")
@@ -137,11 +160,44 @@ class AgentBase(BaseModel):
             raise ValueError(f"mcp_servers of {self.name} have duplicate names: {server_names}")
         tool_names = self.tool_names
         for tool_name in tool_names:
-            if tool_name in LAUNCH_TOOL_NAMES + SKILL_TOOL_NAMES + DISCOVERY_TOOL_NAMES:
+            if tool_name in LAUNCH_TOOL_NAMES + BACKGROUND_TOOL_NAMES + SKILL_TOOL_NAMES + DISCOVERY_TOOL_NAMES:
                 raise ValueError(f"{self.name} has a tool called {tool_name}, a name the runner uses for its own tool")
         if len(set(tool_names)) != len(tool_names):
             raise ValueError(f"tools of {self.name} have duplicate names: {tool_names}")
         return self
+
+    def _check_background_agents(self) -> None:
+        from featherweight.jobs import Job  # a job class is declared in jobs.py, which imports this module
+
+        names = []
+        for entry in self.background_agents:
+            if not (isinstance(entry, type) and issubclass(entry, AgentBase | Job)):
+                raise ValueError(f"background_agents must be agent or Job classes, got {entry!r}")
+            if issubclass(entry, AgentBase):
+                if entry.streaming:
+                    raise ValueError(
+                        f"{self.name} lists {entry.__name__} in background_agents: a streaming agent streams to a person "
+                        "and cannot be a job"
+                    )
+                if entry is type(self):
+                    raise ValueError(
+                        f"{self.name} lists itself in background_agents: an agent can only start other agents"
+                    )
+                if entry().background_agents:  # ty: ignore[missing-argument]  # a subclass supplies the defaults
+                    raise ValueError(
+                        f"{self.name} lists {entry.__name__} in background_agents, and it has background_agents of its own: "
+                        "a background agent cannot start background agents"
+                    )
+            names.append(entry_name(entry))
+        if len(set(names)) != len(names):
+            raise ValueError(f"background_agents of {self.name} have duplicate names: {names}")
+
+    def background_entry(self, name: str) -> type | None:
+        """The agent or job class called `name` in `background_agents`, or None."""
+        for entry in self.background_agents:
+            if entry_name(entry) == name:
+                return entry
+        return None
 
     def check_output(self, agent_input: AgentInput, output: AgentOutput) -> None:
         """Check the output against the input, for rules the output schema alone cannot express.
@@ -174,6 +230,26 @@ class AgentBase(BaseModel):
                 return agent
         return None
 
+    def _agents_prompt(self, inline: list[type], background: list[type]) -> str:
+        """The agents this one may use, each described once: inline only, background only, or either."""
+        either = [entry for entry in inline if entry in background]
+        inline_only = [entry for entry in inline if entry not in background]
+        background_only = [entry for entry in background if entry not in inline]
+        groups = [AGENTS_INTRO]
+        for template, entries in (
+            (AGENTS_INLINE, inline_only),
+            (AGENTS_BACKGROUND, background_only),
+            (AGENTS_EITHER, either),
+        ):
+            if entries:
+                groups.append(template.format(agents=_listed(entries)))
+        usage = [AGENTS_USAGE]
+        if inline:
+            usage.append(AGENTS_LAUNCH_USAGE)
+        if background:
+            usage.append(AGENTS_BACKGROUND_USAGE)
+        return "\n".join(groups) + "\n" + " ".join(usage)
+
     def _leading_prompt_parts(self) -> list[str]:
         """The prompt and the instructions that come from the two flags. A streaming agent has only its prompt."""
         return [
@@ -182,15 +258,21 @@ class AgentBase(BaseModel):
             CONFLICTS_ALLOWED if self.raise_conflicts else CONFLICTS_FORBIDDEN,
         ]
 
-    def build_system_prompt(self, *, can_launch: bool = True) -> str:
+    def build_system_prompt(self, *, can_launch: bool = True, can_background: bool = True) -> str:
         """The prompt plus the conditional instructions derived from the two flags.
 
         With sub-agents, and unless `can_launch` is False (the runner sets it where the depth limit leaves the agent
         no launch tool), the prompt also lists the agents it may launch, by name and description. Their input
         schemas are not in the prompt: the agent asks for them with `get_agent_schema`.
+
+        With `background_agents` (and unless `can_background` is False) each agent is listed once, in a group: the ones to
+        launch and wait for, the ones to start in the background, and the ones that can be either.
         """
         parts = self._leading_prompt_parts()
-        if self.subagents and can_launch:
+        background = self.background_agents if can_background else []
+        if background:
+            parts.append(self._agents_prompt(self.subagents if can_launch else [], background))
+        elif self.subagents and can_launch:
             listed = "\n".join(f"- {a.name}: {a.description}" for a in (sub() for sub in self.subagents))
             parts.append(SUBAGENTS.format(agents=listed))
         if self.skills:
@@ -201,6 +283,27 @@ class AgentBase(BaseModel):
             listed = "\n".join(f"- {s.name}: {s.description}" if s.description else f"- {s.name}" for s in found)
             parts.append(DISCOVERY.format(servers=listed))
         return "\n\n".join(parts)
+
+
+def entry_name(entry: Any) -> str:
+    """The name of an agent class or a job class."""
+    name = getattr(entry, "name", None)
+    return name if isinstance(name, str) else entry().name  # an agent's name is a field, so it is on an instance
+
+
+def entry_description(entry: Any) -> str:
+    if issubclass(entry, AgentBase):
+        return entry().description
+    doc = (getattr(entry.run, "__doc__", None) or "").strip()
+    return doc.splitlines()[0] if doc else ""
+
+
+def _listed(entries: list[type]) -> str:
+    lines = []
+    for entry in entries:
+        description = entry_description(entry)
+        lines.append(f"- {entry_name(entry)}: {description}" if description else f"- {entry_name(entry)}")
+    return "\n".join(lines)
 
 
 OutT = TypeVar("OutT", bound=AgentOutput)

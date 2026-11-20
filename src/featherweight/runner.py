@@ -7,7 +7,7 @@ import logging
 import os
 import time
 from collections.abc import Callable, Sequence
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from ag_ui.core import (
     BaseEvent,
@@ -24,14 +24,21 @@ from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_core.tools import BaseTool, tool
 from pydantic import ValidationError
 
-from featherweight.context import CURRENT_AGENT_RUN_ID, CURRENT_JOB_EXECUTION, CURRENT_TOOL_CALL_ID, RunContext
-from featherweight.db import AgentRunRow, Database, RunEnd, RunStart, new_id
+from featherweight.context import (
+    CURRENT_AGENT_RUN_ID,
+    CURRENT_JOB_EXECUTION,
+    CURRENT_TOOL_CALL_ID,
+    IN_BACKGROUND_JOB,
+    RunContext,
+)
+from featherweight.db import FINAL, AgentRunRow, Database, RunEnd, RunStart, new_id
 from featherweight.discovery import discovery_tools
 from featherweight.errors import RETRYABLE_4XX, SetupError
 from featherweight.fingerprint import agent_hash, error_fields, input_hash, output_hash, text_hash, tools_hash
 from featherweight.mcp_connections import Lease, MCPConnections
 from featherweight.messages import to_langchain
 from featherweight.models import (
+    BACKGROUND_TOOL_NAMES,
     DISCOVERY_TOOL_NAMES,
     LAUNCH_TOOL_NAMES,
     SKILL_TOOL_NAMES,
@@ -40,6 +47,8 @@ from featherweight.models import (
     AgentOutput,
     AgentResult,
     RunStatus,
+    entry_description,
+    entry_name,
 )
 from featherweight.observers import AttemptEnd, AttemptStart, Entered, Observer, Observers, ReusedRun
 from featherweight.registry import ToolRegistry
@@ -48,6 +57,9 @@ from featherweight.sqlite import SqliteDatabase
 from featherweight.store import RunStore
 from featherweight.stream_events import EventMapper
 from featherweight.streaming import ChatInput, StreamingAgent, StreamingRun
+
+if TYPE_CHECKING:
+    from featherweight.client import JobClient
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +71,8 @@ ENV_MAX_DEPTH = "MAX_AGENT_DEPTH"
 DEFAULT_MAX_DEPTH = 3
 ENV_MAX_LAUNCHES = "MAX_AGENT_LAUNCHES"
 DEFAULT_MAX_LAUNCHES = 10
+# The most children one attempt of one agent may have running in the background at one time.
+DEFAULT_MAX_BACKGROUND = 3
 
 MAX_ERROR_CHARS = 2000
 
@@ -197,6 +211,12 @@ def _job_execution(job_id: str | None) -> int | None:
     return current[1] if current is not None and current[0] == job_id else None
 
 
+def _as_job(entry: Any) -> Any:
+    from featherweight.jobs import as_job  # jobs.py imports this module
+
+    return as_job(entry)
+
+
 class AgentRunner:
     def __init__(
         self,
@@ -208,6 +228,8 @@ class AgentRunner:
         max_concurrent: int | None = None,
         max_depth: int | None = None,
         max_launches: int | None = None,
+        max_background: int | None = None,
+        background: "JobClient | None" = None,
         results: ResultStore | None | Literal["default"] = "default",
         observers: Sequence[Observer] = (),
         observer_timeout: float = 1.0,
@@ -220,6 +242,10 @@ class AgentRunner:
         `max_depth` is the most agents in one chain of launches, the first agent included (A launches B launches C is
         3). Default: `MAX_AGENT_DEPTH`, else 3. At 1 no agent can launch another. `max_launches` is the most launches
         one attempt of one agent may make. Default: `MAX_AGENT_LAUNCHES`, else 10.
+
+        `max_background` is the most children one attempt of one agent may have running in the background at one time (default 3).
+        A child runs in this process, as a job of its own, unless `background` is a `JobClient`: then it is submitted to the
+        queue and a worker runs it (the worker must list the child's job). Agents with `background_agents` need a result store.
 
         `results` is where the outputs that resuming a job reads back are kept (a `ResultStore`), for the jobs created
         `resumable=True`. With a `SqliteDatabase` the default is a sqlite store in the same file; with any other database there is
@@ -234,11 +260,20 @@ class AgentRunner:
             max_concurrent = max_concurrent_from_env()
         elif max_concurrent < 1:
             raise ValueError("max_concurrent must be at least 1")
-        for name, value in (("max_depth", max_depth), ("max_launches", max_launches)):
+        for name, value in (
+            ("max_depth", max_depth),
+            ("max_launches", max_launches),
+            ("max_background", max_background),
+        ):
             if value is not None and value < 1:
                 raise ValueError(f"{name} must be at least 1")
         self.max_depth = max_depth if max_depth is not None else max_depth_from_env()
         self.max_launches = max_launches if max_launches is not None else max_launches_from_env()
+        self.max_background = max_background if max_background is not None else DEFAULT_MAX_BACKGROUND
+        self.background = background
+        self._background_tasks: set[asyncio.Task[Any]] = (
+            set()
+        )  # the children running here: a reference keeps each from being collected
         self.max_concurrent = max_concurrent
         self._slots = asyncio.Semaphore(max_concurrent)
         self.store = store or RunStore()
@@ -305,6 +340,7 @@ class AgentRunner:
             )
         if not isinstance(chat_input, ChatInput):
             raise TypeError(f"{agent_cls.__name__} expects a ChatInput, got {type(chat_input).__name__}")
+        self._check_background_setup(agent_cls())  # ty: ignore[missing-argument]  # a subclass supplies the defaults
         return StreamingRun(new_id(), lambda run, emit: self._stream(agent_cls, chat_input, run, emit, job_id=job_id))
 
     def cancel(self, run_id: str) -> bool:
@@ -334,7 +370,7 @@ class AgentRunner:
         started = time.perf_counter()
         thread_id = chat_input.thread_id or new_id()  # the protocol needs one; the log keeps only a named one
         can_launch = bool(agent.subagents) and 1 < self.max_depth
-        system_prompt = agent.build_system_prompt(can_launch=can_launch)
+        system_prompt = agent.build_system_prompt(can_launch=can_launch, can_background=self._can_background(agent))
         CURRENT_AGENT_RUN_ID.set(run.run_id)  # this task has its own context, so nothing needs undoing
         logger.info(
             "stream_started agent_run_id=%s agent=%s version=%s model=%s reasoning=%s job_id=%s thread_id=%s",
@@ -574,13 +610,34 @@ class AgentRunner:
                             mapper.complete_turn()  # the turn is now a whole message: nothing partial is left of it
 
     @staticmethod
+    def _can_background(agent: AgentBase) -> bool:
+        """Whether `agent` may start background agents here: it declares some, and this is not itself a background job (what
+        a background job runs, inline sub-agents included, cannot start more)."""
+        return bool(agent.background_agents) and not IN_BACKGROUND_JOB.get()
+
+    @staticmethod
     def _runner_tool_names(agent: AgentBase, can_launch: bool) -> list[str]:
         """The names of the tools the runner gives `agent`, by what it declares."""
+        background = AgentRunner._can_background(agent)
         return (
             (list(LAUNCH_TOOL_NAMES) if can_launch else [])
+            + (list(BACKGROUND_TOOL_NAMES) if background else [])
+            + (["get_agent_schema"] if background and not can_launch else [])
             + (list(SKILL_TOOL_NAMES) if agent.skills else [])
             + (list(DISCOVERY_TOOL_NAMES) if agent.has_discovery else [])
         )
+
+    def _check_background_setup(self, agent: AgentBase) -> None:
+        """An agent that can start background agents needs a result store to read their results from: the client's, when the
+        children are submitted to a worker, and the runner's otherwise. A `SetupError` before any model call."""
+        if not self._can_background(agent):
+            return
+        store = self.background.results if self.background is not None else self.results
+        if store is None:
+            raise SetupError(
+                f"{agent.name} can start background agents, which need a result store to read their results from: pass "
+                "`results=` to AgentRunner (or a `JobClient` with one as `background=`)"
+            )
 
     def _add_runner_tools(
         self,
@@ -592,7 +649,11 @@ class AgentRunner:
         registry: ToolRegistry,
     ) -> None:
         for runner_tool in (
-            (self._launch_tools(agent, context, slot, depth) if can_launch else [])
+            (
+                self._launch_tools(agent, context, slot, depth, can_launch)
+                if can_launch or self._can_background(agent)
+                else []
+            )
             + (self._skill_tools(agent) if agent.skills else [])
             + (discovery_tools(registry) if agent.has_discovery else [])
         ):
@@ -639,11 +700,12 @@ class AgentRunner:
         agent = agent_cls()  # ty: ignore[missing-argument]  # a subclass supplies the defaults
         if not isinstance(agent_input, agent.input_model):
             raise TypeError(f"{agent.name} expects {agent.input_model.__name__}, got {type(agent_input).__name__}")
+        self._check_background_setup(agent)
 
         invocation_id = new_id()
         # Only an agent that has depth left to launch is told about its sub-agents, and given the tools.
         can_launch = bool(agent.subagents) and depth < self.max_depth
-        system_prompt = agent.build_system_prompt(can_launch=can_launch)
+        system_prompt = agent.build_system_prompt(can_launch=can_launch, can_background=self._can_background(agent))
         prompt_hash = hashlib.sha256(system_prompt.encode()).hexdigest()
         runner_tool_names = self._runner_tool_names(agent, can_launch)
         message = agent_input.model_dump_json(indent=2)
@@ -1040,31 +1102,52 @@ class AgentRunner:
         log("fan_out_finished agent=%s count=%d failed=%d job_id=%s", name, len(results), failed, job_id)
         return results
 
-    def _launch_tools(self, agent: AgentBase, context: RunContext, slot: _Slot, depth: int) -> list[BaseTool]:
-        """`launch_agent` and `get_agent_schema` for one attempt of `agent`: they know the agents it may launch, and
-        count its launches, so they are built for each attempt.
+    def _launch_tools(
+        self, agent: AgentBase, context: RunContext, slot: _Slot, depth: int, can_launch: bool = True
+    ) -> list[BaseTool]:
+        """`launch_agent`, `start_background` and `get_agent_schema` for one attempt of `agent`: they know the agents it may
+        launch and start, and count its launches, so they are built for each attempt. `launch_agent` is built when the agent
+        may launch (`can_launch`), `start_background` when it may start background agents here.
 
-        Both return text, also for a refusal or a failed child, so that the model can read what went wrong and carry
+        All return text, also for a refusal or a failed child, so that the model can read what went wrong and carry
         on; they never raise into the run.
         """
         launches = 0
+        started: list[
+            str
+        ] = []  # the ids of the background jobs of this attempt that were started and may still be running
+        with_background = self._can_background(agent)
         allowed = ", ".join(sub().name for sub in agent.subagents)
+        usable = ", ".join(
+            dict.fromkeys([*(sub().name for sub in agent.subagents), *(entry_name(e) for e in agent.background_agents)])
+        )
 
         def unknown(name: str) -> str:
             return f"'{name}' is not an agent you can launch. You can launch: {allowed}."
 
         @tool
         async def get_agent_schema(agent_name: str) -> str:
-            """The input an agent you can launch expects (a JSON schema), and the output it returns, as JSON."""
+            """The input an agent you can launch or start in the background expects (a JSON schema), and the output it returns,
+            as JSON."""
             child = agent.subagent_instance(agent_name)
-            if child is None:
+            entry = agent.background_entry(agent_name) if with_background else None
+            if child is None and entry is None:
+                if with_background:
+                    return f"'{agent_name}' is not an agent you can use. You can use: {usable}."
                 return unknown(agent_name)
+            if child is not None:
+                description, input_model, output_model = child.description, child.input_model, child.output_model
+            else:
+                assert entry is not None
+                declared = _as_job(entry)
+                description = entry_description(entry)
+                input_model, output_model = declared.input_model, declared.output_model
             return json.dumps(
                 {
-                    "agent": child.name,
-                    "description": child.description,
-                    "input_schema": child.input_model.model_json_schema(),
-                    "output_schema": child.output_model.model_json_schema(),
+                    "agent": agent_name,
+                    "description": description,
+                    "input_schema": input_model.model_json_schema(),
+                    "output_schema": output_model.model_json_schema(),
                 }
             )
 
@@ -1112,7 +1195,91 @@ class AgentRunner:
                 )
             return json.dumps({"status": "FAILED", "agent": agent_name, "error": result.error})
 
-        return [launch_agent, get_agent_schema]
+        @tool
+        async def start_background(agent_name: str, input_json: str) -> str:
+            """Start an agent you can start in the background, and carry on: this returns at once with the id of its job. Its
+            result is given to you in a later message. `input_json` is its input, as a JSON string that follows its input
+            schema (see `get_agent_schema`)."""
+            entry = agent.background_entry(agent_name)
+            if entry is None:
+                names = ", ".join(entry_name(e) for e in agent.background_agents)
+                return f"'{agent_name}' is not an agent you can start in the background. You can start: {names}."
+            if await self._live_background(started) >= self.max_background:
+                return (
+                    f"You cannot start more agents in the background now: {self.max_background} are still running. "
+                    "Carry on, and try again when one has finished."
+                )
+            declared = _as_job(entry)
+            try:
+                child_input = declared.input_model.model_validate_json(input_json)
+            except ValidationError as exc:
+                return f"The input for '{agent_name}' is not valid: {exc}. Check `get_agent_schema` and try again."
+            try:
+                job_id = await self._start_background(entry, declared, child_input, context)
+            except Exception as exc:  # a refusing queue, a database that fails: the model reads it, the run goes on
+                logger.exception(
+                    "background_start_failed agent=%s parent_agent_run_id=%s", agent_name, context.agent_run_id
+                )
+                return f"'{agent_name}' could not be started ({type(exc).__name__}). Carry on without it."
+            started.append(job_id)
+            return json.dumps({"status": "STARTED", "agent": agent_name, "job_id": job_id})
+
+        tools: list[BaseTool] = [launch_agent] if can_launch else []
+        if with_background:
+            tools.append(start_background)
+        tools.append(get_agent_schema)
+        return tools
+
+    async def _live_background(self, job_ids: list[str]) -> int:
+        """How many of these background jobs are not final. The ones that are final are dropped from the list."""
+        db = self.background.db if self.background is not None else self.db
+        live: list[str] = []
+        for job_id in job_ids:
+            row = await db.get_job(job_id)
+            if row is not None and row.status not in FINAL:
+                live.append(job_id)
+        job_ids[:] = live
+        return len(live)
+
+    async def _start_background(self, entry: Any, declared: Any, child_input: Any, context: RunContext) -> str:
+        """Start the child as a job of its own and return its id: on a worker, through the client, or here, as a task."""
+        if self.background is not None:
+            job_id = await self.background.submit(entry, child_input, parent_agent_run_id=context.agent_run_id)
+            logger.info(
+                "background_started job_id=%s agent=%s placement=worker parent_agent_run_id=%s",
+                job_id,
+                declared.name,
+                context.agent_run_id,
+            )
+            return job_id
+        job_id = await self.db.create_job(
+            declared.name,
+            job_version=declared.version,
+            job_hash=declared.job_hash(),
+            input_hash=input_hash(child_input),
+            parent_agent_run_id=context.agent_run_id,
+        )
+        task = asyncio.create_task(self._run_background(declared, job_id, child_input))
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        logger.info(
+            "background_started job_id=%s agent=%s placement=here parent_agent_run_id=%s",
+            job_id,
+            declared.name,
+            context.agent_run_id,
+        )
+        return job_id
+
+    async def _run_background(self, declared: Any, job_id: str, child_input: Any) -> None:
+        """The task of a child that runs here: the same code as `run_job`. What it raises is logged, and nothing more."""
+        from featherweight.jobs import run_job  # jobs.py imports this module
+
+        try:
+            await run_job(self, declared, child_input, job_id=job_id)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("background_failed job_id=%s", job_id)
 
     @staticmethod
     def _skill_tools(agent: AgentBase) -> list[BaseTool]:
