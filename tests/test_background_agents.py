@@ -8,6 +8,7 @@ import pytest
 from fakes import FakeSettings, Reactive, Scripted, runner_with, structured_reply, tool_reply, use_model
 from langchain_core.messages import SystemMessage, ToolMessage
 
+from featherweight.background import BackgroundChildren
 from featherweight.client import JobClient
 from featherweight.context import IN_BACKGROUND_JOB
 from featherweight.errors import SetupError
@@ -83,7 +84,11 @@ def tool_results(model) -> list[str]:
     seen: list[str] = []
     for messages in model.seen:
         for message in messages:
-            if isinstance(message, ToolMessage) and message.content not in seen:
+            if (
+                isinstance(message, ToolMessage)
+                and message.content not in seen
+                and not str(message.content).startswith("Returning structured response")  # the answer's own receipt
+            ):
                 seen.append(message.content)
     return seen
 
@@ -262,7 +267,7 @@ async def test_get_agent_schema_covers_the_background_agents_too(db):
 
 async def test_start_background_returns_at_once_and_the_child_runs_as_a_job_of_its_own(db, results):
     use_model(Scripted(script=[child_done("found it")]), "child")
-    model = Scripted(script=[start_child(), parent_done()])
+    model = Scripted(script=[start_child(), parent_done(), parent_done()])
     runner = runner_with(db, model, results=results)
 
     result = await runner.run(Parent, PARENT_INPUT)
@@ -283,7 +288,7 @@ async def test_start_background_returns_at_once_and_the_child_runs_as_a_job_of_i
 
 async def test_the_runs_of_a_child_belong_to_its_job_and_not_to_the_parents(db, results):
     use_model(Scripted(script=[child_done()]), "child")
-    model = Scripted(script=[start_child(), parent_done()])
+    model = Scripted(script=[start_child(), parent_done(), parent_done()])
     runner = runner_with(db, model, results=results)
 
     result = await runner.run(Parent, PARENT_INPUT)
@@ -322,7 +327,7 @@ async def test_an_input_that_does_not_fit_is_refused_in_words_and_starts_nothing
 async def test_a_start_over_the_limit_is_refused_and_does_not_count(db, results):
     slow = Reactive(respond=lambda text, n: child_done(), delay_s=0.3)
     use_model(slow, "child")
-    model = Scripted(script=[start_child("t1"), start_child("t2"), parent_done()])
+    model = Scripted(script=[start_child("t1"), start_child("t2"), parent_done(), parent_done()])
     runner = runner_with(db, model, results=results, max_background=1)
 
     await runner.run(Parent, PARENT_INPUT)
@@ -330,10 +335,11 @@ async def test_a_start_over_the_limit_is_refused_and_does_not_count(db, results)
     first, second = tool_results(model)
     assert json.loads(first)["status"] == "STARTED"
     assert "cannot start more agents in the background" in second and "1 are still running" in second
-    assert len(runner._background_tasks) == 1  # the refused start made no job
+    assert len([r for r in await db.list_runs() if r.agent_name == "child"]) == 1  # the refused start made no job
     await finished(runner)
-    live = [json.loads(first)["job_id"]]
-    assert await runner._live_background(live) == 0 and live == []  # a finished child does not count, and is dropped
+    children = BackgroundChildren(db, results)
+    children.add(json.loads(first)["job_id"])
+    assert await children.live() == 0  # a finished child does not count
 
 
 async def test_a_job_class_can_be_started_in_the_background(db, results):
@@ -422,7 +428,7 @@ async def test_what_a_background_job_runs_cannot_start_background_agents(db):
 
 async def run_here(db, results):
     use_model(Scripted(script=[child_done("same")]), "child")
-    model = Scripted(script=[start_child(), parent_done()])
+    model = Scripted(script=[start_child(), parent_done(), parent_done()])
     runner = runner_with(db, model, results=results)
     await runner.run(Parent, PARENT_INPUT)
     await finished(runner)
@@ -436,7 +442,7 @@ async def run_on_a_worker(db, results, queue):
     worker = JobWorker(db, queue, worker_runner, jobs=[Child], results=results, receive_timeout=0.05)
     running = asyncio.create_task(worker.run())
     try:
-        model = Scripted(script=[start_child(), parent_done()])
+        model = Scripted(script=[start_child(), parent_done(), parent_done()])
         runner = runner_with(db, model, results=results, background=client)
         await runner.run(Parent, PARENT_INPUT)
         job_id = json.loads(tool_results(model)[0])["job_id"]
@@ -479,7 +485,7 @@ async def test_a_worker_that_does_not_know_the_child_fails_its_job(db):
     worker = JobWorker(db, queue, AgentRunner(db, results=results), jobs=[], results=results, receive_timeout=0.05)
     running = asyncio.create_task(worker.run())
     try:
-        model = Scripted(script=[start_child(), parent_done()])
+        model = Scripted(script=[start_child(), parent_done(), parent_done()])
         runner = runner_with(db, model, results=results, background=client)
         await runner.run(Parent, PARENT_INPUT)
         job_id = json.loads(tool_results(model)[0])["job_id"]

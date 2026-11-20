@@ -21,10 +21,12 @@ from ag_ui.core import (
     TokenUsage,
 )
 from langchain.agents import create_agent
-from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
+from langchain.agents.middleware import AgentMiddleware
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langchain_core.tools import BaseTool, tool
 from pydantic import ValidationError
 
+from featherweight.background import BackgroundChildren, BackgroundResults, background_result_message
 from featherweight.context import (
     CURRENT_AGENT_RUN_ID,
     CURRENT_JOB_EXECUTION,
@@ -32,7 +34,7 @@ from featherweight.context import (
     IN_BACKGROUND_JOB,
     RunContext,
 )
-from featherweight.db import FINAL, AgentRunRow, Database, RunEnd, RunStart, new_id
+from featherweight.db import AgentRunRow, Database, RunEnd, RunStart, new_id
 from featherweight.discovery import discovery_tools
 from featherweight.errors import RETRYABLE_4XX, SetupError
 from featherweight.fingerprint import agent_hash, error_fields, input_hash, output_hash, text_hash, tools_hash
@@ -609,8 +611,18 @@ class AgentRunner:
             model = agent.model.build()
         except Exception as exc:
             raise ModelSetupError(str(exc)) from exc
-        self._add_runner_tools(agent, context, slot, 1, can_launch, registry)
-        lc_agent = create_agent(model, tools=registry.tools, system_prompt=system_prompt, context_schema=RunContext)
+        children = self._new_children(agent)
+        middleware: list[AgentMiddleware[Any, Any, Any]] = [BackgroundResults(children, slot)] if children else []
+        self._add_runner_tools(agent, context, slot, 1, can_launch, registry, children)
+        lc_agent = create_agent(
+            model,
+            tools=registry.tools,
+            system_prompt=system_prompt,
+            context_schema=RunContext,
+            # A chat turn does not wait for its children: it gets the results of those that end while it runs, and the application
+            # starts the next turn with the others (`background_message`).
+            middleware=middleware,
+        )
         async for mode, data in lc_agent.astream(
             {"messages": to_langchain(chat_input.messages)},
             config={
@@ -627,7 +639,7 @@ class AgentRunner:
             else:  # "updates": what a finished node returned; the messages are what the application will keep
                 for update in data.values() if isinstance(data, dict) else []:
                     for message in (update or {}).get("messages", []):
-                        if isinstance(message, AIMessage | ToolMessage):
+                        if isinstance(message, AIMessage | ToolMessage | HumanMessage):  # a human one: a child's result
                             new_messages.append(message)
                         if isinstance(message, AIMessage):
                             mapper.complete_turn()  # the turn is now a whole message: nothing partial is left of it
@@ -670,10 +682,11 @@ class AgentRunner:
         depth: int,
         can_launch: bool,
         registry: ToolRegistry,
+        children: BackgroundChildren | None = None,
     ) -> None:
         for runner_tool in (
             (
-                self._launch_tools(agent, context, slot, depth, can_launch)
+                self._launch_tools(agent, context, slot, depth, can_launch, children)
                 if can_launch or self._can_background(agent)
                 else []
             )
@@ -1128,7 +1141,13 @@ class AgentRunner:
         return results
 
     def _launch_tools(
-        self, agent: AgentBase, context: RunContext, slot: _Slot, depth: int, can_launch: bool = True
+        self,
+        agent: AgentBase,
+        context: RunContext,
+        slot: _Slot,
+        depth: int,
+        can_launch: bool = True,
+        children: BackgroundChildren | None = None,
     ) -> list[BaseTool]:
         """`launch_agent`, `start_background` and `get_agent_schema` for one attempt of `agent`: they know the agents it may
         launch and start, and count its launches, so they are built for each attempt. `launch_agent` is built when the agent
@@ -1138,9 +1157,9 @@ class AgentRunner:
         on; they never raise into the run.
         """
         launches = 0
-        started: list[
-            str
-        ] = []  # the ids of the background jobs of this attempt that were started and may still be running
+        children = (
+            children if children is not None else self._new_children(agent)
+        )  # the background jobs this attempt started
         with_background = self._can_background(agent)
         allowed = ", ".join(sub().name for sub in agent.subagents)
         usable = ", ".join(
@@ -1229,7 +1248,8 @@ class AgentRunner:
             if entry is None:
                 names = ", ".join(entry_name(e) for e in agent.background_agents)
                 return f"'{agent_name}' is not an agent you can start in the background. You can start: {names}."
-            if await self._live_background(started) >= self.max_background:
+            assert children is not None  # the tool is only built for an agent that can start background agents
+            if await children.live() >= self.max_background:
                 return (
                     f"You cannot start more agents in the background now: {self.max_background} are still running. "
                     "Carry on, and try again when one has finished."
@@ -1246,7 +1266,7 @@ class AgentRunner:
                     "background_start_failed agent=%s parent_agent_run_id=%s", agent_name, context.agent_run_id
                 )
                 return f"'{agent_name}' could not be started ({type(exc).__name__}). Carry on without it."
-            started.append(job_id)
+            children.add(job_id)
             return json.dumps({"status": "STARTED", "agent": agent_name, "job_id": job_id})
 
         tools: list[BaseTool] = [launch_agent] if can_launch else []
@@ -1255,16 +1275,23 @@ class AgentRunner:
         tools.append(get_agent_schema)
         return tools
 
-    async def _live_background(self, job_ids: list[str]) -> int:
-        """How many of these background jobs are not final. The ones that are final are dropped from the list."""
-        db = self.background.db if self.background is not None else self.db
-        live: list[str] = []
-        for job_id in job_ids:
-            row = await db.get_job(job_id)
-            if row is not None and row.status not in FINAL:
-                live.append(job_id)
-        job_ids[:] = live
-        return len(live)
+    def _new_children(self, agent: AgentBase) -> BackgroundChildren | None:
+        """The record of the background children of one attempt of `agent`, if it can start any. They live where the runner starts them:
+        here, or where the `JobClient` that submits them to workers keeps its jobs and results."""
+        if not self._can_background(agent):
+            return None
+        if self.background is not None:
+            return BackgroundChildren(self.background.db, self.background.results)
+        return BackgroundChildren(self.db, self.results)
+
+    async def background_message(self, job_id: str) -> HumanMessage:
+        """The user message that tells a model how a background job ended, for the application to start the next turn of a chat with
+        (`history + message`). It is built from the job's status and the result store, and is what the runner adds to the loop of a parent
+        that is still running (`<background_result job_id=... agent=... status=...>` and the output as JSON). It says what it can:
+        a job that has not ended has its status and no output. `LookupError` for a job that does not exist."""
+        if self.background is not None:
+            return await background_result_message(self.background.db, self.background.results, job_id)
+        return await background_result_message(self.db, self.results, job_id)
 
     async def _start_background(self, entry: Any, declared: Any, child_input: Any, context: RunContext) -> str:
         """Start the child as a job of its own and return its id: on a worker, through the client, or here, as a task."""
@@ -1421,13 +1448,19 @@ class AgentRunner:
         except Exception as exc:
             raise ModelSetupError(str(exc)) from exc
 
-        self._add_runner_tools(agent, context, slot, depth, can_launch, registry)
+        children = self._new_children(agent)
+        middleware: list[AgentMiddleware[Any, Any, Any]] = (
+            [BackgroundResults(children, slot, wait=True)] if children else []
+        )
+        self._add_runner_tools(agent, context, slot, depth, can_launch, registry, children)
         lc_agent = create_agent(
             model,
             tools=registry.tools,  # only the allow-listed tools are ever bound
             system_prompt=system_prompt,
             response_format=agent.output_model,
             context_schema=RunContext,
+            # A run that is not a chat waits for its children: it gets their results, and goes on, until none is left.
+            middleware=middleware,
         )
         token = CURRENT_AGENT_RUN_ID.set(context.agent_run_id)
         try:
