@@ -1,0 +1,5 @@
+Incident report: the nightly batch was late
+
+Severity: low. Service: batch.
+The nightly batch started on 2026-03-02 at 14:05, after a disk filled up, and finished on 2026-03-03 at 09:35. Reports that
+people read at 08:00 were a day old. No data was lost. Follow-up: alert when the disk is 80% full.

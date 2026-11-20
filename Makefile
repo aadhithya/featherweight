@@ -1,4 +1,4 @@
-.PHONY: skill build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching example-resume example-results example-jobs example-takeover example-observability example-chat example-chat-api example-background example-mcp shell
+.PHONY: skill build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching example-resume example-results example-jobs example-takeover example-observability example-chat example-chat-api example-background example-mcp book-build book-chapter book-run book-chat book-shell shell
 
 build:
 	docker compose build
@@ -90,6 +90,22 @@ example-observability:
 # A chat agent that starts a background agent and is woken when it is done (real Claude Haiku calls; needs ANTHROPIC_API_KEY, see examples/background).
 example-background:
 	docker compose run --rm --no-deps featherweight python examples/background/session.py
+
+# The book's code runs in a container of its own (docs/book/code): `make book-build`, then `make book-chapter N=1-2`, `make book-run`, `make book-chat`.
+book-build:
+	$(MAKE) -C docs/book/code build
+
+book-chapter:
+	$(MAKE) -C docs/book/code chapter N=$(N)
+
+book-run:
+	$(MAKE) -C docs/book/code run
+
+book-chat:
+	$(MAKE) -C docs/book/code chat
+
+book-shell:
+	$(MAKE) -C docs/book/code shell
 
 # A chat in the terminal with a streaming agent (real Claude Haiku calls; needs ANTHROPIC_API_KEY in .env, see examples/chat).
 example-chat:

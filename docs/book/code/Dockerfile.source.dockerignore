@@ -1,0 +1,7 @@
+# Only what the install needs: the build context is the root of the repository.
+*
+!pyproject.toml
+!README.md
+!LICENSE
+!src
+**/__pycache__
