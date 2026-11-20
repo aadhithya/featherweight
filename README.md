@@ -72,7 +72,7 @@ if result.status == RunStatus.SUCCESS:
 
 ```
 pip install featherweight
-pip install 'featherweight[anthropic]'    # or mcp, openai, postgres
+pip install 'featherweight[anthropic]'    # or mcp, openai, postgres, otel
 ```
 
 Python 3.12 or later. Import what you use: `from featherweight import AgentBase, AgentRunner`. (`import featherweight as ftw`

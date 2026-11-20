@@ -1,6 +1,6 @@
 # Spec: observers and OpenTelemetry
 
-Status: being built. #92 (the `Observer` class, its records, `testing.check_observer`, and the runner's calls) is done; the job scope and the trace context across the queue (#93) are done; `OTelObserver` (#94) and the guide (#95) are not. It is tracked in [epic #90](https://github.com/aadhithya/featherweight/issues/90), and each part has its own issue. When
+Status: being built. #92 (the `Observer` class, its records, `testing.check_observer`, and the runner's calls), the job scope and the trace context across the queue (#93) and `OTelObserver` (#94, pinned to `semantic-conventions-genai@622b2b6`, which refers to core semantic conventions 1.45.0) are done; the guide (#95) is not. It is tracked in [epic #90](https://github.com/aadhithya/featherweight/issues/90), and each part has its own issue. When
 a part is built, this page says so, and the guide `docs/observability.md` shows how to use it.
 
 It builds on [the persistence spec](persistence.md) (the rule that featherweight keeps metadata only, and that content never
@@ -118,15 +118,22 @@ application.
 | A reused step | `invoke_agent {agent name}`, with `ftw.reused` | internal |
 
 - **Nesting:** a job holds the attempts of its pipeline; an attempt holds its model calls and tool calls; a tool that launches
-  an agent holds that agent's attempt. The parent of an attempt comes from `parent_agent_run_id`, and not only from the
-  current span, because a launched agent runs in another task. Retries are siblings that share `ftw.invocation.id`.
-- **Attributes from the conventions:** `gen_ai.operation.name`, `gen_ai.provider.name`, `gen_ai.agent.name`,
-  `gen_ai.agent.version`, `gen_ai.agent.description`, `gen_ai.request.model`, `gen_ai.response.model`,
-  `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `gen_ai.response.finish_reasons`, `gen_ai.tool.name`,
-  `gen_ai.tool.call.id`, `gen_ai.tool.type`, and `error.type` (the error type, never the text).
+  an agent holds that agent's attempt. The parent of an attempt comes from the tool call that launched it
+  (`parent_tool_call_id`) or else from `parent_agent_run_id`, and not only from the current span, because a launched agent runs
+  in another task. Retries are siblings that share `ftw.invocation.id`.
+- **Attributes from the conventions:** `gen_ai.operation.name` (`invoke_workflow`, `invoke_agent`, `chat`, `execute_tool`),
+  `gen_ai.agent.name` (an agent's name, and a job's name: the conventions call it the name of "the GenAI agent or workflow"),
+  `gen_ai.agent.version`, `gen_ai.agent.description`, `gen_ai.request.model`, `gen_ai.tool.name`, `gen_ai.tool.call.id`,
+  `gen_ai.tool.type` (always `function`), and `error.type` (the error type, never the text). On a model call also
+  `gen_ai.provider.name` (required there, and only there: `gcp.gen_ai` for Google, and `anthropic` and `openai` as they are),
+  `gen_ai.response.model`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` and `gen_ai.response.finish_reasons`. An
+  attempt does not repeat the token counts as `gen_ai.usage.*`, so that a platform that sums them over a trace counts each token
+  once; its totals are `ftw.tokens.*`.
 - **Content, opt-in:** `gen_ai.input.messages`, `gen_ai.output.messages`, `gen_ai.system_instructions`,
-  `gen_ai.tool.definitions`, `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result`, in the JSON structure the conventions
-  give. They are set only when content is on. `OTelObserver(capture_content=...)` decides, and its default follows the
+  `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result`, in the JSON structure the conventions give (a job's or an agent's typed
+  input and output are the text of one user or assistant message, as JSON). Python span attributes cannot hold an object, so they are
+  JSON strings. `gen_ai.tool.definitions` is not emitted: the records do not carry the tool definitions. Content is set only
+  when it is on. `OTelObserver(capture_content=...)` decides, and its default follows the
   conventions' own switch, `OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT`: `NO_CONTENT` (the default) or `SPAN_ONLY` are
   supported; the values that send content as events are not, and are logged and treated as `NO_CONTENT`.
 - **Ours, in the `ftw.` namespace:** `ftw.job.id`, `ftw.job.name`, `ftw.job.version`, `ftw.job.hash`, `ftw.agent.hash`,
@@ -144,10 +151,11 @@ application.
 **Pinned to the conventions.** The GenAI conventions are in the *Development* status and live in their own repository, with
 no release and no schema URL yet, so they will change.
 
-- One constant in the code names the version we follow (the repository and its commit), and `docs/observability.md` has a
-  table from each featherweight version to the convention version it follows.
-- A test checks every attribute name we emit against a list kept with the code, and the list is updated by hand when we move
-  to a newer convention. A change to an attribute name is a breaking change in the changelog.
+- One constant in the code names the version we follow (`GENAI_CONVENTIONS` in `otel.py`: the repository and the commit that was
+  read, now `622b2b6073b15e5ed886c3c12a65a892b9cd5c70` of 2026-11-20, with `CORE_CONVENTIONS`, the core version it refers to),
+  and `docs/observability.md` will have a table from each featherweight version to the convention version it follows.
+- A test checks every attribute name we emit against `ATTRIBUTES`, a list kept with the code, and the list is updated by hand
+  when we move to a newer convention. A change to an attribute name is a breaking change in the changelog.
 - The extra pins `opentelemetry-api` to a range. We use the attribute names as strings, so we do not depend on the package that
   carries the constants.
 

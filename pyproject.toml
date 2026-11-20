@@ -60,6 +60,9 @@ openai = [
 postgres = [
     "psycopg[binary]>=3.2",
 ]
+otel = [
+    "opentelemetry-api>=1.30",
+]
 
 [dependency-groups]
 dev = [
@@ -68,6 +71,8 @@ dev = [
     "langchain-anthropic>=1.7",
     "langchain-mcp-adapters>=0.3.2",
     "langchain-openai>=1.8",
+    "opentelemetry-api>=1.30",
+    "opentelemetry-sdk>=1.30",
     "pre-commit>=4.7.0",
     "psycopg[binary]>=3.2",
     "pytest",
