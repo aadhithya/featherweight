@@ -1,6 +1,6 @@
 # Spec: background agents
 
-Status: being built. The declaration, the tool and the child job ([#116](https://github.com/aadhithya/featherweight/issues/116)), and the events, the cancel and the trace ([#118](https://github.com/aadhithya/featherweight/issues/118)) are done; the result and the waiting run, the guide and the example are not. It is tracked in [epic #115](https://github.com/aadhithya/featherweight/issues/115), and each part has its own issue (listed [at the end](#the-work)). When a part is
+Status: being built. The declaration, the tool and the child job ([#116](https://github.com/aadhithya/featherweight/issues/116)), the result and the run that waits ([#117](https://github.com/aadhithya/featherweight/issues/117)), and the events, the cancel and the trace ([#118](https://github.com/aadhithya/featherweight/issues/118)) are done; the guide and the example are not. It is tracked in [epic #115](https://github.com/aadhithya/featherweight/issues/115), and each part has its own issue (listed [at the end](#the-work)). When a part is
 built, this page says so, and the guide `docs/background-agents.md` shows how to use it.
 
 It builds on [submitted jobs](submitted-jobs.md) (a job is a declared class that runs in your process or on a worker, with events and a
@@ -98,12 +98,20 @@ providers reject an orphan tool result, and a call with no result. So the result
 A failed child has `status="FAILED"` and its `error_type`, and a cancelled one `status="CANCELLED"`; there is no output.
 
 - **While the parent's loop runs,** the runner adds the message of every child that has finished before the parent's next model call, **after**
-  the results of the tool calls of the round (never between a call and its result), once for each child. This is a hook before the model call
-  (LangChain's agent middleware; to be verified against the version in use when it is built).
+  the results of the tool calls of the round (never between a call and its result), once for each child. It is a hook before the model call
+  (LangChain's agent middleware, `before_model`, which runs once the round's tool results are in the state). A message the loop gave is in
+  `new_messages` of a streamed turn, so the application keeps what the model saw.
 - **After a chat turn has ended,** it is the application's: it starts the next turn with the history and the message.
   `await runner.background_message(job_id)` builds the same user message from the job's status and the result store, so that no
-  application writes the format by hand (and it is how the example's session does it). It returns what it can: the job's metadata and, if the
-  job succeeded, the result.
+  application writes the format by hand (and it is how the example's session does it). It returns a LangChain `HumanMessage`, built from what the
+  job's row and the result store hold, and what it can: a job that has not ended says its status and has no output; a job that succeeded
+  and whose result is gone says `output="missing"`; an unknown job is a `LookupError`. The error text of a failed child is never in it,
+  only its type.
+- **A run that is not a chat waits** ([how long a child lives](#how-long-a-child-lives)): the same hook, after the model's reply. When the reply
+  would end the loop (it asks for no tool, or every tool it asked for has its result) while a child that was not given yet is still running, the run
+  waits for the next one to end (handing its concurrency slot back meanwhile, because a child that runs here needs one), adds the messages of
+  those that have ended, and sends the loop back to the model (`jump_to="model"`). It is bounded by `recursion_limit`: a child that ends after the
+  limit is reached fails the run as the limit does. A streamed turn never waits.
 
 ## Events
 
