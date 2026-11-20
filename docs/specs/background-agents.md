@@ -1,6 +1,6 @@
 # Spec: background agents
 
-Status: being built. The declaration, the tool and the child job ([#116](https://github.com/aadhithya/featherweight/issues/116)) are done; the result, the waiting run, the events, the cancel, the guide and the example are not. It is tracked in [epic #115](https://github.com/aadhithya/featherweight/issues/115), and each part has its own issue (listed [at the end](#the-work)). When a part is
+Status: being built. The declaration, the tool and the child job ([#116](https://github.com/aadhithya/featherweight/issues/116)), and the events, the cancel and the trace ([#118](https://github.com/aadhithya/featherweight/issues/118)) are done; the result and the waiting run, the guide and the example are not. It is tracked in [epic #115](https://github.com/aadhithya/featherweight/issues/115), and each part has its own issue (listed [at the end](#the-work)). When a part is
 built, this page says so, and the guide `docs/background-agents.md` shows how to use it.
 
 It builds on [submitted jobs](submitted-jobs.md) (a job is a declared class that runs in your process or on a worker, with events and a
@@ -108,23 +108,28 @@ A failed child has `status="FAILED"` and its `error_type`, and a cancelled one `
 ## Events
 
 - **On the parent's stream** (a streaming agent, while the stream is open), two AG-UI `CUSTOM` events, as the streaming spec reserves
-  ([streaming](streaming.md#the-events)): `background_started` (`job_id`, `agent`) and `background_finished` (`job_id`, `agent`, `status`,
-  `error_type`). They are **metadata only**: the result is not in the event, the application reads it. They travel as any other event, over
-  the adapters, and so over SSE.
+  ([streaming](streaming.md#the-events)): `background_started` (`job_id`, `agent`), sent when the tool starts the child, and
+  `background_finished` (`job_id`, `agent`, `status`, `error_type`), sent when the child's job is final (for a child here and on a worker alike: the
+  runner waits on the job's events). They are **metadata only**: the result is not in the event, the application reads it. They travel as any
+  other event, over the adapters ([streaming](streaming.md#the-adapters) says what each does), and so over SSE. When the stream ends, the
+  runner stops watching: a child that finishes after that is not announced.
 - **After that stream has ended,** the application follows the child through its job events (`client.events(job_id)`, over SSE with
   `sse.encode`), as for any job. There is no new protocol and no new channel.
-- **Observers:** the child's job span is under the tool call's span, and for a child on a worker it joins the trace through the carrier of
-  the `submitted` hook, as any submitted job does ([observability](observability.md)).
+- **Observers:** the child's job span is under the tool call's span ([observability](observability.md)). For a child on a worker the client's
+  `submitted` hook gives the carrier, as for any submitted job; for a child that runs here the runner calls the same hook itself and
+  hands the carrier to the job's scope. In both the hook is told which tool call started the job (`parent_tool_call_id`), so that the carrier
+  is that call's span; the id is for the observers and is stored nowhere.
 
 ## How long a child lives
 
 - **A chat turn (a streaming agent) does not wait.** The turn ends when the model ends it, and its children carry on, in this process or on
-  a worker. The application follows them with the events above. If the user **stops** the response (the cancel of a stream), the
-  children of that run are cancelled with it.
+  a worker. The application follows them with the events above. If the user **stops** the response (`run.cancel()`, `runner.cancel(run_id)`, or a
+  client that disconnects), the children of that run that are still live are cancelled with it. A turn that **fails** is not a stop: its
+  children carry on.
 - **A run that is not a chat waits.** When the model would end its run while it has live children, the run waits for the next one to finish, adds
   its result as above, and the model goes on, within `recursion_limit`; so a pipeline agent can start several children and collect them.
-  Cancelling the run cancels its children.
-- **Cancelling a child** is `cancel` as for any job: the task is cancelled (here), or `cancel_requested` is set (on a worker). A child that
+  Cancelling the run (its task) cancels its live children.
+- **Cancelling a child** is `cancel` as for any job: the task is cancelled (here, and its job ends `CANCELLED`), or `cancel_requested` is set (on a worker). A child that
   fails or is cancelled is a result like any other: the parent is told, and it is up to the model.
 - **A parent that outlives its children's process** (a restart) loses the results that were not stored by the application. A child on a worker
   carries on and its result is in the store.

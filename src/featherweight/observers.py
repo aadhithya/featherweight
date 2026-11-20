@@ -70,6 +70,8 @@ class JobSubmitted(_Record):
     version: str | None = None
     job_hash: str | None = None
     input_hash: str | None = None
+    parent_agent_run_id: str | None = None  # a background agent: the attempt that started it
+    parent_tool_call_id: str | None = None  # ... and the tool call (`start_background`) it started it with
     input: dict[str, Any] | None = None
 
 

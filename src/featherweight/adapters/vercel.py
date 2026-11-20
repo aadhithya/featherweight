@@ -153,7 +153,8 @@ def _sse(part: dict[str, Any]) -> str:
 
 class Translator:
     """Turns the events of one run into the parts of the stream, one event at a time. A part is a dict; `encode` sends them
-    as server-sent events. The events that have no part (state, activity, the opaque value of a thought) are dropped."""
+    as server-sent events. A custom event is a **data part** (`data-<name>`, transient: the client gets it with `onData`, and it is not kept
+    in the message); the events that have no part (state, activity, the opaque value of a thought) are dropped."""
 
     def __init__(self) -> None:
         self._calls: dict[str, tuple[str, list[str]]] = {}  # tool call id -> (name, pieces of its arguments)
@@ -204,6 +205,8 @@ class Translator:
             return [{"type": "finish"}]
         if kind == "RUN_ERROR":
             return [{"type": "error", "errorText": e.message}]
+        if kind == "CUSTOM":  # `background_started` and `background_finished`: a data part, not kept in the messages
+            return [{"type": f"data-{e.name}", "data": e.value, "transient": True}]
         return []
 
 

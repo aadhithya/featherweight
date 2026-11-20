@@ -54,6 +54,7 @@ class JobClient:
         resume_from: str | None = None,
         job_id: str | None = None,
         parent_agent_run_id: str | None = None,
+        parent_tool_call_id: str | None = None,
     ) -> str:
         """Create the job and put it on the queue; returns its id. `job` is a `Job` class, or a plain (non-streaming) agent
         class. The input must be an instance of the job's input model (`TypeError` otherwise).
@@ -62,7 +63,9 @@ class JobClient:
         (the old job must have been `resumable`, or `ValueError` says nothing was kept). If the queue refuses the message, the
         job is marked `FAILED` and the error is raised.
 
-        `parent_agent_run_id` is set by a runner that starts the job as a background agent: the attempt that started it."""
+        `parent_agent_run_id` is set by a runner that starts the job as a background agent: the attempt that started it. It is stored.
+        `parent_tool_call_id` is the tool call that started it: it goes to the observers (so that a trace nests the job under
+        the call) and is stored nowhere."""
         declared = as_job(job)
         if not isinstance(input, declared.input_model):
             raise TypeError(f"{declared.name} expects a {declared.input_model.__name__}, got {type(input).__name__}")
@@ -85,6 +88,8 @@ class JobClient:
                     version=declared.version,
                     job_hash=declared.job_hash(),
                     input_hash=input_hash(input),
+                    parent_agent_run_id=parent_agent_run_id,
+                    parent_tool_call_id=parent_tool_call_id,
                     input=input.model_dump(mode="json") if self._observers.wants_content else None,
                 )
             )

@@ -379,6 +379,7 @@ async def run_job(
     job_id: str | None = None,
     resume_from: str | None = None,
     resumable: bool = False,
+    trace_context: Mapping[str, str] = {},
 ) -> JobOutcome[Any]:
     """Run a job in your process: create it (or use `job_id`), start it, run it with `execute_job` (the code a worker runs it
     with), and return the outcome. `job` is a `Job` class, or a plain (non-streaming) agent class; `input` must be an instance
@@ -395,6 +396,9 @@ async def run_job(
     To run in the background and give the caller the id first: create the job yourself with `db.create_job`, then
     `asyncio.create_task(run_job(runner, job, input, job_id=job_id))`. A job that was cancelled (or started) before it could
     start is not run: the outcome has the status it has and no result.
+
+    `trace_context` is the carrier of the caller's trace (W3C `traceparent`), for a runner that starts a job as a background agent:
+    the job's span then joins that trace. It is empty otherwise.
     """
     declared = as_job(job)
     if not isinstance(input, declared.input_model):
@@ -423,4 +427,4 @@ async def run_job(
         return JobOutcome[Any](job_id=job_id, status=status, error=f"The job is {status.value}, so it did not run")
     started = await db.get_job(job_id)
     owner = JobOwner(worker_id=worker_id, executions=started.executions) if started is not None else None
-    return await execute_job(runner, declared, job_id, input, runner.results, owner=owner)
+    return await execute_job(runner, declared, job_id, input, runner.results, owner=owner, trace_context=trace_context)
