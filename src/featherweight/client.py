@@ -13,11 +13,11 @@ from pydantic import BaseModel
 
 from featherweight.db import Database, JobEvent, JobRow
 from featherweight.events import job_events, wait_for_job
-from featherweight.fingerprint import error_fields, input_hash
+from featherweight.fingerprint import error_fields, input_hash, text_hash
 from featherweight.jobs import Job, as_job
 from featherweight.models import AgentBase, RunStatus
 from featherweight.observers import JobSubmitted, Observer, Observers
-from featherweight.queue import JobMessage, JobQueue
+from featherweight.queue import DEAD_LETTERED, JobMessage, JobQueue
 from featherweight.results import ResultKey, ResultStore, SqliteResultStore
 from featherweight.sqlite import SqliteDatabase
 
@@ -116,6 +116,13 @@ class JobClient:
             return True
         # It was taken by a worker, or is final, or does not exist: ask a running job to stop (False for the others).
         return await self.db.request_job_cancel(job_id)
+
+    async def fail(self, job_id: str, error_type: str = DEAD_LETTERED) -> bool:
+        """End a job that will never run: its message was dead-lettered by a queue that gave up on it. Call it from your dead-letter
+        handler. The job becomes `FAILED` (a `failed` event) with this error type, in one atomic step, **only if it is not running**:
+        it is still `INIT`, or `RUNNING` with an expired lease (its worker was lost). Returns `False` for a job that is running, is
+        already final, or does not exist. The user resumes it, as any failed job."""
+        return await self.db.fail_queued_job(job_id, error_type, text_hash(error_type))
 
     async def result(self, job: type[Job] | type[AgentBase], job_id: str) -> BaseModel | None:
         """The output of a job that succeeded, read from your result store and parsed into the job's output model; `None` while

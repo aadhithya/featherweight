@@ -225,6 +225,44 @@ class PostgresDatabase(Database):
             RunStatus.RUNNING,
         )
 
+    async def take_over_job(self, job_id: str, worker_id: str, lease: float) -> bool:
+        # The expiry is compared with the database's own clock, which also wrote it, so workers on different machines agree.
+        async with self.conn.transaction():
+            cur = await self.conn.execute(
+                "UPDATE jobs SET started_at = %s, completed_at = NULL, error_type = NULL, error_hash = NULL, worker_id = %s, "
+                "lease_expires_at = now() + make_interval(secs => %s), executions = executions + 1 "
+                "WHERE job_id = %s AND status = %s AND lease_expires_at IS NOT NULL AND lease_expires_at < now()",
+                (now(), worker_id, lease, job_id, RunStatus.RUNNING.value),
+            )
+            if cur.rowcount == 0:
+                return False
+            lost = await self._write_event(job_id, "lost", RunStatus.INIT)  # the worker was lost: back in the queue ...
+            running = await self._write_event(job_id, "running", RunStatus.RUNNING)  # ... and taken, at once
+        self._publish(lost)
+        self._publish(running)
+        logger.warning("job_taken_over job_id=%s worker_id=%s", job_id, worker_id)
+        return True
+
+    async def fail_queued_job(self, job_id: str, error_type: str, error_hash: str) -> bool:
+        return await self._take(
+            job_id,
+            "UPDATE jobs SET status = %s, completed_at = %s, error_type = %s, error_hash = %s, lease_expires_at = NULL "
+            "WHERE job_id = %s AND (status = %s OR (status = %s AND lease_expires_at IS NOT NULL AND lease_expires_at < now()))",
+            (
+                RunStatus.FAILED.value,
+                now(),
+                error_type,
+                error_hash,
+                job_id,
+                RunStatus.INIT.value,
+                RunStatus.RUNNING.value,
+            ),
+            "failed",
+            RunStatus.FAILED,
+            error_type,
+            error_hash,
+        )
+
     async def renew_job_leases(self, worker_id: str, jobs: Mapping[str, int], lease: float) -> set[str]:
         if not jobs:
             return set()
@@ -255,14 +293,23 @@ class PostgresDatabase(Database):
             RunStatus.CANCELLED,
         )
 
-    async def _take(self, job_id: str, sql: str, params: tuple[Any, ...], type: EventType, status: RunStatus) -> bool:
+    async def _take(
+        self,
+        job_id: str,
+        sql: str,
+        params: tuple[Any, ...],
+        type: EventType,
+        status: RunStatus,
+        error_type: str | None = None,
+        error_hash: str | None = None,
+    ) -> bool:
         """A compare-and-set on a job: the update has the old status in its `WHERE`, and the event is written in the same
         transaction only if the update changed a row."""
         async with self.conn.transaction():
             cur = await self.conn.execute(sql, params)
             if cur.rowcount == 0:
                 return False
-            event = await self._write_event(job_id, type, status)
+            event = await self._write_event(job_id, type, status, error_type, error_hash)
         self._publish(event)
         logger.info("job_status job_id=%s status=%s", job_id, status.value)
         return True
@@ -308,8 +355,9 @@ class PostgresDatabase(Database):
             """INSERT INTO agent_runs (
                    agent_run_id, invocation_id, attempt, job_id, parent_agent_run_id, depth, agent_name, agent_version,
                    agent_hash, system_prompt_hash, tools_hash, provider, model_name, reasoning, settings, input_hash,
-                   reused_from_agent_run_id, thread_id, status, created_at
-               ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                   reused_from_agent_run_id, job_execution, thread_id, status, created_at
+               ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                         COALESCE(%s, (SELECT executions FROM jobs WHERE job_id = %s)), %s, %s, %s)""",
             (
                 run.agent_run_id,
                 run.invocation_id,
@@ -328,6 +376,8 @@ class PostgresDatabase(Database):
                 jsonb(run.settings),
                 run.input_hash,
                 run.reused_from_agent_run_id,
+                run.job_execution,
+                run.job_id,  # no execution given: the job's `executions` now
                 run.thread_id,
                 RunStatus.INIT.value,
                 now(),
@@ -381,11 +431,14 @@ class PostgresDatabase(Database):
         row = await cur.fetchone()
         return AgentRunRow(**row) if row else None
 
-    async def find_reusable_run(self, job_id: str, agent_hash: str, input_hash: str) -> AgentRunRow | None:
+    async def find_reusable_run(
+        self, job_id: str, agent_hash: str, input_hash: str, before_execution: int | None = None
+    ) -> AgentRunRow | None:
+        bound = " AND job_execution < %s" if before_execution is not None else ""
         cur = await self.conn.execute(
-            """SELECT * FROM agent_runs WHERE job_id = %s AND agent_hash = %s AND input_hash = %s
-               AND status = %s AND depth = 1 ORDER BY seq LIMIT 1""",
-            (job_id, agent_hash, input_hash, RunStatus.SUCCESS.value),
+            f"""SELECT * FROM agent_runs WHERE job_id = %s AND agent_hash = %s AND input_hash = %s
+               AND status = %s AND depth = 1{bound} ORDER BY seq LIMIT 1""",
+            (job_id, agent_hash, input_hash, RunStatus.SUCCESS.value, *([before_execution] if bound else [])),
         )
         row = await cur.fetchone()
         return AgentRunRow(**row) if row else None

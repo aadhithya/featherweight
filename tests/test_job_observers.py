@@ -94,6 +94,7 @@ async def test_run_job_wraps_the_whole_job_and_finishes_it(db):
         input_hash=input_hash(In(text="hello")),
         resumable=False,
         resumed_from=None,
+        execution=1,
         trace_context={},
         input=None,
     )

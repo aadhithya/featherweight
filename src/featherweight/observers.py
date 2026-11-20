@@ -44,6 +44,9 @@ class JobStart(_Record):
     input_hash: str | None = None
     resumable: bool = False
     resumed_from: str | None = None
+    execution: int | None = (
+        None  # 1 for the first execution of the job, one more for each takeover; None if there is no owner
+    )
     trace_context: Mapping[str, str] = {}  # the carrier that came with the message, if any
     input: dict[str, Any] | None = None
 

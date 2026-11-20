@@ -58,6 +58,9 @@ class RunStart(_Model):
     settings: dict[str, Any]  # all the model settings
     input_hash: str = Field(pattern=HASH)
     reused_from_agent_run_id: str | None = None
+    job_execution: int | None = (
+        None  # the execution of the job that makes it; None: the job's `executions` when the run is created
+    )
     thread_id: str | None = None  # a streaming run: the conversation the client named
 
 
@@ -117,7 +120,7 @@ class JobLost(Exception):
     queue. Nothing was written. The worker that gets it stops the job and writes nothing more to it."""
 
 
-EventType = Literal["queued", "running", "succeeded", "failed", "cancelled", "cancel_requested"]
+EventType = Literal["queued", "running", "succeeded", "failed", "cancelled", "cancel_requested", "lost"]
 # The event that a new status makes.
 STATUS_EVENT: dict[RunStatus, EventType] = {
     RunStatus.INIT: "queued",
@@ -163,6 +166,7 @@ class AgentRunRow(_Model):
     input_hash: str
     output_hash: str | None
     reused_from_agent_run_id: str | None
+    job_execution: int | None  # the execution of the job that made the run (its `executions` then); None without a job
     thread_id: str | None
     status: RunStatus
     error_type: str | None
@@ -287,6 +291,21 @@ class Database(ABC):
         runs in the process that started it) has no lease to lose."""
 
     @abstractmethod
+    async def take_over_job(self, job_id: str, worker_id: str, lease: float) -> bool:
+        """Take a job whose worker was lost: **only if it is `RUNNING` and its lease has expired**, in one atomic step, and say
+        whether it did. The step writes a `lost` event (the job went back to `INIT`) and then starts the job for `worker_id`
+        (a `running` event, `executions` one higher, a new lease), in one transaction. False means the lease is live (a duplicate
+        delivery, or a slow worker that is still the owner), or the job is final, or another worker won. Where the database has
+        a clock, it is the database's that decides when the lease expired."""
+
+    @abstractmethod
+    async def fail_queued_job(self, job_id: str, error_type: str, error_hash: str) -> bool:
+        """Mark a job `FAILED` (a `failed` event with the error) **only if it is not running**: it is still `INIT`, or it is
+        `RUNNING` with an expired lease (its worker was lost), in one atomic step, and say whether it did. It is for a job whose
+        message will never be delivered again (dead-lettered): `JobClient.fail` calls it. False means the job is running, or is
+        final, or does not exist."""
+
+    @abstractmethod
     async def renew_job_leases(self, worker_id: str, jobs: Mapping[str, int], lease: float) -> set[str]:
         """A worker's heartbeat: in **one in-place update**, move `lease_expires_at` of each job in `jobs` (job id to the
         `executions` the worker holds) `lease` seconds ahead, for those that are still `RUNNING` with this `worker_id` and
@@ -338,8 +357,12 @@ class Database(ABC):
     async def get_run(self, agent_run_id: str) -> AgentRunRow | None: ...
 
     @abstractmethod
-    async def find_reusable_run(self, job_id: str, agent_hash: str, input_hash: str) -> AgentRunRow | None:
-        """The first top-level run (depth 1) of `job_id` that succeeded with this agent and this input, or None."""
+    async def find_reusable_run(
+        self, job_id: str, agent_hash: str, input_hash: str, before_execution: int | None = None
+    ) -> AgentRunRow | None:
+        """The first top-level run (depth 1) of `job_id` that succeeded with this agent and this input, or None. With
+        `before_execution`, only a run of an earlier execution of the job (`job_execution` below it): that is how a takeover
+        looks in its own job without finding the runs of the execution that asks."""
 
     @abstractmethod
     async def list_runs(self, *, job_id: str | None = None, invocation_id: str | None = None) -> list[AgentRunRow]:

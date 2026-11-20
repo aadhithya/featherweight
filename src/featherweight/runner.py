@@ -24,8 +24,8 @@ from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_core.tools import BaseTool, tool
 from pydantic import ValidationError
 
-from featherweight.context import CURRENT_AGENT_RUN_ID, CURRENT_TOOL_CALL_ID, RunContext
-from featherweight.db import Database, RunEnd, RunStart, new_id
+from featherweight.context import CURRENT_AGENT_RUN_ID, CURRENT_JOB_EXECUTION, CURRENT_TOOL_CALL_ID, RunContext
+from featherweight.db import AgentRunRow, Database, RunEnd, RunStart, new_id
 from featherweight.discovery import discovery_tools
 from featherweight.errors import RETRYABLE_4XX, SetupError
 from featherweight.fingerprint import agent_hash, error_fields, input_hash, output_hash, text_hash, tools_hash
@@ -188,6 +188,13 @@ def _close_turn(partial: AIMessage | None, messages: list[BaseMessage], why: str
                         )
                     )
     return out
+
+
+def _job_execution(job_id: str | None) -> int | None:
+    """The execution of the job that this task runs, if it runs `job_id`: set by `execute_job`. None otherwise (the database then uses
+    the job's `executions`, for a run that was not started by a job class)."""
+    current = CURRENT_JOB_EXECUTION.get()
+    return current[1] if current is not None and current[0] == job_id else None
 
 
 class AgentRunner:
@@ -357,6 +364,7 @@ class AgentRunner:
                     invocation_id=new_id(),
                     attempt=1,
                     job_id=job_id,
+                    job_execution=_job_execution(job_id),
                     agent_name=agent.name,
                     agent_version=agent.version,
                     agent_hash=agent_hash(agent),
@@ -683,6 +691,7 @@ class AgentRunner:
                     invocation_id=invocation_id,
                     attempt=attempt,
                     job_id=job_id,
+                    job_execution=_job_execution(job_id),
                     parent_agent_run_id=parent_agent_run_id,
                     depth=depth,
                     agent_name=agent.name,
@@ -879,25 +888,48 @@ class AgentRunner:
         invocation_id: str,
         result_cls: type[AgentResult[Any]],
     ) -> AgentResult[Any] | None:
-        """In a job that resumes another, answer from a run of the old job that succeeded with this agent and input.
+        """Answer from a run that succeeded with this agent and input, in the job it resumes, or in an earlier execution of this
+        same job (a takeover).
 
         The stored output must still validate against the output model and pass `check_output`; if not, the agent runs
-        as usual. The answer is written as a run of its own in this job, with no tokens, and takes no slot."""
+        as usual. The answer is written as a run of its own in this job, with no tokens, and takes no slot.
+
+        There are two sources, with one mechanism. A job that **resumes another** looks in the old job (all of its runs). A job that a
+        worker **took over** (`executions` above 1, and resumable) looks in **itself**, at the runs of earlier executions only, so that a
+        run never reuses its own execution's rows; its results are already under its own key, so nothing is copied forward. A taken-over
+        job that also resumes another looks in itself first."""
         job = await self.db.get_job(job_id)
-        if job is None or job.resumed_from is None:
+        if job is None:
+            return None
+        sources: list[tuple[str, int | None]] = []  # (the job to look in, only the runs before this execution)
+        execution = (
+            _job_execution(job_id) or job.executions
+        )  # the one that asks: not the row's, if this worker lost the job
+        if job.resumable and execution > 1:
+            sources.append((job_id, execution))
+        if job.resumed_from is not None:
+            sources.append((job.resumed_from, None))
+        if not sources:
             return None
         if self.results is None:
-            raise SetupError(
-                f"Job {job_id} resumes {job.resumed_from}, which needs the outputs of its steps, and this runner has no "
-                "result store: pass `results=` to AgentRunner (the default keeps them in the run log's sqlite file)"
-            )
+            if job.resumed_from is not None:
+                raise SetupError(
+                    f"Job {job_id} resumes {job.resumed_from}, which needs the outputs of its steps, and this runner has no "
+                    "result store: pass `results=` to AgentRunner (the default keeps them in the run log's sqlite file)"
+                )
+            return None  # a takeover with no store kept nothing: the job runs again
         this_input_hash = input_hash(agent_input)
-        old = await self.db.find_reusable_run(
-            job.resumed_from, declaration_hash, this_input_hash
-        )  # did the step succeed
+        old: AgentRunRow | None = None
+        source_job = ""
+        for source_job, before in sources:
+            old = await self.db.find_reusable_run(
+                source_job, declaration_hash, this_input_hash, before
+            )  # did the step succeed
+            if old is not None:
+                break
         if old is None:
             return None
-        key = ResultKey(job_id=job.resumed_from, agent_hash=declaration_hash, input_hash=this_input_hash)
+        key = ResultKey(job_id=source_job, agent_hash=declaration_hash, input_hash=this_input_hash)
         stored = await self.results.get(key)  # and what was its output
         if stored is None:
             logger.warning("result_missing reused_from=%s agent=%s: the agent runs", old.agent_run_id, agent.name)
@@ -916,6 +948,7 @@ class AgentRunner:
                 invocation_id=invocation_id,
                 attempt=1,
                 job_id=job_id,
+                job_execution=_job_execution(job_id),
                 agent_name=agent.name,
                 agent_version=agent.version,
                 agent_hash=declaration_hash,
@@ -940,9 +973,10 @@ class AgentRunner:
                 reported_model_name=old.reported_model_name,
             ),
         )
-        await self._keep_result(
-            job_id, declaration_hash, this_input_hash, output
-        )  # a later attempt resumes from this job too
+        if source_job != job_id:  # a takeover found it under this job's own key already
+            await self._keep_result(
+                job_id, declaration_hash, this_input_hash, output
+            )  # a later attempt resumes from this job too
         logger.info("run_reused agent_run_id=%s reused_from=%s agent=%s", agent_run_id, old.agent_run_id, agent.name)
         if self._observers:
             await self._observers.emit(

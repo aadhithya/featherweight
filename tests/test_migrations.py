@@ -100,7 +100,7 @@ async def test_a_database_from_before_migrations_is_refused_and_left_alone(tmp_p
 EXPECTED_RUN_COLUMNS = {
     "seq", "agent_run_id", "invocation_id", "attempt", "job_id", "parent_agent_run_id", "depth", "agent_name",
     "agent_version", "agent_hash", "system_prompt_hash", "tools_hash", "provider", "model_name", "reported_model_name",
-    "reasoning", "settings", "input_hash", "output_hash", "reused_from_agent_run_id", "thread_id", "status", "error_type",
+    "reasoning", "settings", "input_hash", "output_hash", "reused_from_agent_run_id", "job_execution", "thread_id", "status", "error_type",
     "error_hash", "input_tokens", "output_tokens", "latency_ms", "created_at", "started_at", "completed_at",
 }  # fmt: skip
 

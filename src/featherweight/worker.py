@@ -168,6 +168,24 @@ class JobWorker:
             logger.info("worker_skipped job_id=%s status=%s", row.job_id, row.status.value)
             await self.queue.ack(delivery)
             return
+        if (
+            row.job_id in self._tasks
+        ):  # this worker is running it: the message came back while it does. Its heartbeat keeps the job
+            logger.info(
+                "worker_duplicate job_id=%s: this worker is running it", row.job_id
+            )  # (renewing needs only the ownership)
+            await self.queue.ack(delivery)
+            return
+        # A message for a job that is RUNNING came back after its lease ended. If the job's lease has not expired, that is a duplicate
+        # delivery (or a slow owner): leave the job alone. If it has, its worker was lost: take it over, as a new execution.
+        # The database decides, in one step, by its own clock.
+        taken_over = False
+        if row.status is RunStatus.RUNNING:
+            if not await self.db.take_over_job(row.job_id, self.worker_id, self.lease):
+                logger.info("worker_duplicate job_id=%s: another worker has it", row.job_id)
+                await self.queue.ack(delivery)
+                return
+            taken_over = True
         job = self._jobs.get(message.job_name)
         if job is None:
             await self._fail(
@@ -180,9 +198,8 @@ class JobWorker:
             await self._fail(row.job_id, InvalidJobInput(str(exc)), delivery)
             return
         # Take the job in one atomic step: it succeeds only if the job is still queued and nobody asked to cancel it. A client
-        # that cancels at the same moment loses or wins cleanly, and a job is never both cancelled and run. (A real redelivery
-        # of a job that another worker is running is the next epic's.)
-        if not await self.db.start_job(row.job_id, worker_id=self.worker_id, lease=self.lease):
+        # that cancels at the same moment loses or wins cleanly, and a job is never both cancelled and run.
+        if not taken_over and not await self.db.start_job(row.job_id, worker_id=self.worker_id, lease=self.lease):
             current = await self.db.get_job(row.job_id)
             if current is not None and current.status is RunStatus.INIT and current.cancel_requested:
                 await self.db.cancel_queued_job(row.job_id)  # asked to cancel before it started
@@ -194,6 +211,8 @@ class JobWorker:
             await self.queue.ack(delivery)
             return
         owner = JobOwner(worker_id=self.worker_id, executions=started.executions)
+        if taken_over:
+            logger.warning("worker_takeover job_id=%s execution=%d", row.job_id, owner.executions)
         task = asyncio.create_task(self._run_job(delivery, row, job, job_input, owner))
         self._tasks[row.job_id] = task
         self._deliveries[row.job_id] = delivery

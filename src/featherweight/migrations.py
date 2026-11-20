@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from pydantic import BaseModel, ConfigDict
 
 STATUSES = "('INIT', 'RUNNING', 'SUCCESS', 'FAILED', 'CANCELLED')"
-EVENT_TYPES = "('queued', 'running', 'succeeded', 'failed', 'cancelled', 'cancel_requested')"
+EVENT_TYPES = "('queued', 'running', 'succeeded', 'failed', 'cancelled', 'cancel_requested', 'lost')"
 
 
 class Migration(BaseModel):
@@ -63,6 +63,7 @@ CREATE TABLE agent_runs (
     input_hash                TEXT NOT NULL,
     output_hash               TEXT,
     reused_from_agent_run_id  TEXT,
+    job_execution             INTEGER,
     thread_id                 TEXT,
     status                    TEXT NOT NULL CHECK (status IN {STATUSES}),
     error_type                TEXT,
@@ -161,6 +162,7 @@ CREATE TABLE agent_runs (
     input_hash                text NOT NULL,
     output_hash               text,
     reused_from_agent_run_id  text,
+    job_execution             integer,
     thread_id                 text,
     status                    text NOT NULL CHECK (status IN {STATUSES}),
     error_type                text,

@@ -152,6 +152,106 @@ async def _check_taking_a_job(db: Database) -> None:
         assert types == ["queued", "running" if started else "cancelled"], "the winner writes exactly one event"
 
 
+async def _check_takeover(db: Database) -> None:
+    """Taking over a job whose worker was lost, the execution that each run records, and ending a job that will not run."""
+    short = 0.05  # seconds: a lease that is about to end
+
+    # a lease that is alive cannot be taken, and neither can a job that has none
+    job = await db.create_job("takeover", resumable=True)
+    assert await db.take_over_job(job, "w2", 30) is False, "a job that is not running cannot be taken over"
+    assert await db.start_job(job, worker_id="w1", lease=30) is True
+    assert await db.take_over_job(job, "w2", 30) is False, "a job whose lease is alive cannot be taken over"
+    assert await db.take_over_job("no-such-job", "w2", 30) is False
+    unleased = await db.create_job("takeover")
+    assert await db.start_job(unleased) is True
+    await asyncio.sleep(short)
+    assert await db.take_over_job(unleased, "w2", 30) is False, "a job without a lease has none to lose"
+
+    # the runs of the first execution are tagged with it, and a run without a job with nothing
+    await db.create_run(_run(job, "t-1"))
+    await db.finish_run("t-1", RunEnd(status=RunStatus.SUCCESS))
+    stray = await db.create_run(_run(None, "t-stray"))
+    one = await db.get_run("t-1")
+    assert one is not None and one.job_execution == 1, "a run records the execution of its job"
+    loose = await db.get_run(stray)
+    assert loose is not None and loose.job_execution is None, "a run without a job has no execution"
+
+    # a lease that ended: the next worker takes the job, as the next execution
+    lost = await db.create_job("takeover", resumable=True)
+    assert await db.start_job(lost, worker_id="w1", lease=short) is True
+    await db.create_run(_run(lost, "l-1"))
+    await db.finish_run("l-1", RunEnd(status=RunStatus.SUCCESS))
+    await asyncio.sleep(short * 3)
+    assert await db.take_over_job(lost, "w2", 30) is True, "a job whose lease ended is taken over"
+    assert await db.take_over_job(lost, "w3", 30) is False, "and only once: the new lease is alive"
+    row = await db.get_job(lost)
+    assert row is not None and row.status is RunStatus.RUNNING and row.worker_id == "w2" and row.executions == 2
+    assert row.lease_expires_at is not None and row.completed_at is None
+    events = await db.list_job_events(lost)
+    assert [(e.type, e.status) for e in events] == [
+        ("queued", RunStatus.INIT),
+        ("running", RunStatus.RUNNING),
+        ("lost", RunStatus.INIT),
+        ("running", RunStatus.RUNNING),
+    ], "a takeover writes `lost` and then `running`, in one transaction"
+    assert await db.owns_job(lost, JobOwner(worker_id="w2", executions=2)) is True
+    try:
+        await db.set_job_status(lost, RunStatus.SUCCESS, owner=JobOwner(worker_id="w1", executions=1))
+    except JobLost:
+        pass
+    else:
+        raise AssertionError("the worker that lost the job must not be able to write to it")
+    await db.create_run(_run(lost, "l-2"))
+    again = await db.get_run("l-2")
+    assert again is not None and again.job_execution == 2, "a run of the new execution records it"
+    await db.create_run(_run(lost, "l-late", job_execution=1))  # a worker that has not noticed that it lost the job
+    late = await db.get_run("l-late")
+    assert late is not None and late.job_execution == 1, (
+        "a run records the execution it is given, and not the job's current one"
+    )
+
+    # a takeover looks in its own job, at earlier executions only
+    reusable = _hash("agent")
+    first = await db.find_reusable_run(lost, reusable, _hash("input"))
+    assert first is not None and first.agent_run_id == "l-1"
+    assert (await db.find_reusable_run(lost, reusable, _hash("input"), 2)) is not None, "execution 1 is before 2"
+    assert await db.find_reusable_run(lost, reusable, _hash("input"), 1) is None, "and nothing is before execution 1"
+    await db.finish_run("l-2", RunEnd(status=RunStatus.SUCCESS))
+    again = await db.find_reusable_run(lost, reusable, _hash("input"), 2)
+    assert again is not None and again.agent_run_id == "l-1", "the run of the current execution is never found"
+
+    # ending a job that will not run
+    queued = await db.create_job("fail")
+    assert await db.fail_queued_job(queued, "DeadLettered", _hash("DeadLettered")) is True
+    row = await db.get_job(queued)
+    assert (
+        row is not None
+        and row.status is RunStatus.FAILED
+        and (row.error_type, row.error_hash)
+        == (
+            "DeadLettered",
+            _hash("DeadLettered"),
+        )
+    )
+    events = await db.list_job_events(queued)
+    assert (events[-1].type, events[-1].status, events[-1].error_type) == ("failed", RunStatus.FAILED, "DeadLettered")
+    assert await db.fail_queued_job(queued, "DeadLettered", _hash("DeadLettered")) is False, (
+        "a final job stays as it is"
+    )
+    assert await db.fail_queued_job("no-such-job", "DeadLettered", _hash("DeadLettered")) is False
+    live = await db.create_job("fail")
+    assert await db.start_job(live, worker_id="w1", lease=30) is True
+    assert await db.fail_queued_job(live, "DeadLettered", _hash("DeadLettered")) is False, "a running job is not failed"
+    orphan = await db.create_job("fail")
+    assert await db.start_job(orphan, worker_id="w1", lease=short) is True
+    await asyncio.sleep(short * 3)
+    assert await db.fail_queued_job(orphan, "DeadLettered", _hash("DeadLettered")) is True, (
+        "a lost worker's job is failed"
+    )
+    row = await db.get_job(orphan)
+    assert row is not None and row.status is RunStatus.FAILED and row.lease_expires_at is None
+
+
 async def _check_job_lease(db: Database) -> None:
     """The owner of a running job, its lease, and the writes that are conditional on being the owner."""
     job = await db.create_job("lease")
@@ -448,6 +548,8 @@ async def check_database(make_db: Callable[[], Database]) -> None:
         await _check_taking_a_job(db)
 
         await _check_job_lease(db)
+
+        await _check_takeover(db)
 
 
 class MemoryQueue(JobQueue):
