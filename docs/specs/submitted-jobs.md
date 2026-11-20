@@ -28,8 +28,8 @@ data). It changes [jobs and tracing](jobs-and-tracing.md) (the job columns, the 
 A job is a declared class that runs in your process (`run_job`) or on a worker, by the same code. It should be something a client can
 **submit**, from anywhere, that a **separate worker** picks up and runs, with the client able to follow it, cancel it, and read
 its result. The client and the worker are independent: **the queue and the database are their only connection**, so they can live
-in different processes, or on different machines. This spec is for **one worker**. Several workers (leases, a dead worker,
-workers that compete for one queue) are built since, and background agents have [their own spec](background-agents.md).
+in different processes, or on different machines. It covers the queue, the client and the worker, and **several workers** on one queue
+(leases, a dead worker: [several workers](#several-workers)). Background agents have [their own spec](background-agents.md).
 
 ## The principle
 
