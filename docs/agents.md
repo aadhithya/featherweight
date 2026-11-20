@@ -229,12 +229,12 @@ agent can be a job too (`as_job(Shouter)`: its name, its models, and its `agent_
 For a job that is just a function, `@job` builds the class from it, reading the models from the annotations:
 
 ```python
-@job  # or @job(name="shout", version="2")
+@job  # or @job(name="shout", version="2", timeout=120)
 async def shout(ctx: JobContext, input: ShoutInput) -> ShoutOutput: ...
 ```
 
 The name is the function's, the version `"1"` (the version of the job is the version of the pipeline: change it when its
-behaviour changes), and the result is a `Job` class, usable wherever one is (the function is `shout.function`).
+behaviour changes), the timeout 600 seconds (a job that runs longer fails with `JobTimeout`; `timeout=None` for no limit), and the result is a `Job` class, usable wherever one is (the function is `shout.function`).
 
 **The job queue.** What connects a client to a worker is an abstract class, `JobQueue` (`enqueue`, `receive`, `ack`,
 `nack`), whose message carries the job id, the job's name and its input as JSON (or references inside it). `SqliteQueue(db)`

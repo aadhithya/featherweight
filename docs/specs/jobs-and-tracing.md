@@ -73,7 +73,7 @@ job_id = await client.submit(summarise, In(...))  # a worker runs it
 - **Observers.** That one function enters the observers' `job` scope around the pipeline and finishes it with the status and the error
   type, so both report the same ([the runner](runner.md#observers)); a worker also gives it the message's trace context.
 - **Streaming agents** cannot be jobs, as before.
-- **The timeout** (`Job.timeout`, default 600 seconds; designed, not built) applies to both: it is in the shared function ([several workers](submitted-jobs.md#several-workers)).
+- **The timeout** (`Job.timeout`, default 600 seconds) applies to both: it is in the shared function ([several workers](submitted-jobs.md#several-workers)).
 - **Tests:** the same job run both ways gives the same row, hashes, events and result; `:memory:`; `results=None`; resume; a failing and a
   cancelled job.
 

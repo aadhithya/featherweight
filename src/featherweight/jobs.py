@@ -26,6 +26,19 @@ T = TypeVar("T")
 MAX_ERROR_CHARS = 2000
 JOB_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]*$")
 
+DEFAULT_JOB_TIMEOUT = 600.0  # seconds: ten minutes
+
+
+class JobTimeout(TimeoutError):
+    """A job ran for longer than its `timeout`. It is the error type that the job fails with."""
+
+
+def _check_timeout(label: str, timeout: Any) -> None:
+    if timeout is None:
+        return
+    if isinstance(timeout, bool) or not isinstance(timeout, int | float) or not timeout > 0:
+        raise TypeError(f"{label}.timeout must be a positive number of seconds, or None for no limit")
+
 
 class JobContext(BaseModel):
     """What a job gets when it runs: the runner and its own id. `run` and `run_many` run agents **in this job**, so that they
@@ -47,13 +60,18 @@ class Job(ABC):
     """A job, declared as a class, like an agent. Subclass it, set `name`, `version`, `input_model` and `output_model`, and write
     `run`. A job worker is given the classes it can run, and runs one by its name.
 
-    The checks are made when the class is defined: a missing or odd name or version, or a model that is not Pydantic, is an
-    error then, not when a job arrives. A class that has not written `run` cannot be built."""
+    The checks are made when the class is defined: a missing or odd name or version, or a model that is not Pydantic, or a
+    `timeout` that is not a positive number or `None`, is an error then, not when a job arrives. A class that has not written
+    `run` cannot be built.
+
+    `timeout` is how many seconds one execution of the job may run (default 600; `None` for no limit). A job that exceeds it is
+    cancelled and fails with error type `JobTimeout`, in a worker and in `run_job` alike. It is not part of `job_hash`."""
 
     name: ClassVar[str]
     version: ClassVar[str]
     input_model: ClassVar[type[BaseModel]]
     output_model: ClassVar[type[BaseModel]]
+    timeout: ClassVar[float | None] = DEFAULT_JOB_TIMEOUT  # seconds one execution may run; None for no limit
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -70,6 +88,7 @@ class Job(ABC):
             model = getattr(cls, attribute, None)
             if not (isinstance(model, type) and issubclass(model, BaseModel)):
                 raise TypeError(f"{cls.__name__}.{attribute} must be a Pydantic model class")
+        _check_timeout(cls.__name__, cls.timeout)
 
     @classmethod
     def job_hash(cls) -> str:
@@ -81,7 +100,9 @@ class Job(ABC):
         """Do the job: run agents with `ctx.run`, and return an instance of `output_model`."""
 
 
-def _build_job(fn: Callable[..., Awaitable[Any]], name: str | None, version: str) -> type[Job]:
+def _build_job(
+    fn: Callable[..., Awaitable[Any]], name: str | None, version: str, timeout: float | None = DEFAULT_JOB_TIMEOUT
+) -> type[Job]:
     """The `Job` class of a function `async def f(ctx: JobContext, input: In) -> Out`."""
     label = getattr(fn, "__name__", repr(fn))
     if not inspect.iscoroutinefunction(fn):
@@ -109,6 +130,7 @@ def _build_job(fn: Callable[..., Awaitable[Any]], name: str | None, version: str
             "version": version,
             "input_model": input_model,
             "output_model": output_model,
+            "timeout": timeout,
             "run": run,
             "function": staticmethod(fn),
             "__doc__": fn.__doc__,
@@ -120,21 +142,30 @@ def _build_job(fn: Callable[..., Awaitable[Any]], name: str | None, version: str
 @overload
 def job(fn: Callable[..., Awaitable[Any]], /) -> type[Job]: ...
 @overload
-def job(*, name: str | None = None, version: str = "1") -> Callable[[Callable[..., Awaitable[Any]]], type[Job]]: ...
-def job(fn: Callable[..., Awaitable[Any]] | None = None, /, *, name: str | None = None, version: str = "1") -> Any:
+def job(
+    *, name: str | None = None, version: str = "1", timeout: float | None = DEFAULT_JOB_TIMEOUT
+) -> Callable[[Callable[..., Awaitable[Any]]], type[Job]]: ...
+def job(
+    fn: Callable[..., Awaitable[Any]] | None = None,
+    /,
+    *,
+    name: str | None = None,
+    version: str = "1",
+    timeout: float | None = DEFAULT_JOB_TIMEOUT,
+) -> Any:
     """Make a `Job` class from an async function: `async def summarise(ctx: JobContext, input: In) -> Out`. The name is the
     function's (or `name=`), the version `"1"` (or `version=`), and the input and output models are the annotations of `input` and
-    the return value. The function becomes the class, usable wherever a `Job` is; the function itself is `Summarise.function`.
+    the return value. `timeout=` is the seconds one execution may run (default 600, `None` for no limit). The function becomes the class, usable wherever a `Job` is; the function itself is `Summarise.function`.
 
         @job
         async def summarise(ctx: JobContext, input: SummariseInput) -> SummariseOutput: ...
 
-        @job(name="summarise", version="2")
+        @job(name="summarise", version="2", timeout=120)
         async def summarise(ctx, input: SummariseInput) -> SummariseOutput: ...
     """
     if fn is not None:
-        return _build_job(fn, name, version)
-    return lambda function: _build_job(function, name, version)
+        return _build_job(fn, name, version, timeout)
+    return lambda function: _build_job(function, name, version, timeout)
 
 
 class AgentRunFailed(RuntimeError):
@@ -246,6 +277,19 @@ async def execute_job(
     return outcome
 
 
+async def _run_limited(job: type[Job], ctx: JobContext, job_input: BaseModel) -> Any:
+    """`job.run`, for at most `job.timeout` seconds. Past that the work is cancelled (an agent run in it ends `CANCELLED`, as for a
+    cancel) and `JobTimeout` is raised, which makes the job `FAILED`. Only the limit's own expiry is a timeout: a `TimeoutError`
+    that the job raises itself, and a cancellation from outside (the user's, a shutdown), are not."""
+    try:
+        async with asyncio.timeout(job.timeout) as limit:
+            return await job().run(ctx, job_input)
+    except TimeoutError as exc:
+        if limit.expired():
+            raise JobTimeout(f"{job.name} ran for more than {job.timeout:g} seconds") from exc
+        raise
+
+
 async def _execute(
     runner: AgentRunner,
     job: type[Job],
@@ -257,7 +301,7 @@ async def _execute(
     """The run itself, and the type of the error if it failed."""
     logger.info("job_started job_id=%s job=%s", job_id, job.name)
     try:
-        output = await job().run(JobContext(runner=runner, job_id=job_id), job_input)
+        output = await _run_limited(job, JobContext(runner=runner, job_id=job_id), job_input)
         if not isinstance(output, job.output_model):
             raise InvalidJobOutput(f"{job.name} returned {type(output).__name__}, not {job.output_model.__name__}")
         if results is not None:  # the output is the job's product: if it cannot be kept, the job fails
