@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/aadhithya/featherweight/main/docs/assets/banner.png" alt="featherweight [ftw.]: a tiny, opinionated harness for declarative, typed agents" width="720">
+</p>
+
 # featherweight [ftw.]
 
 [![PyPI](https://img.shields.io/pypi/v/featherweight)](https://pypi.org/project/featherweight/)
