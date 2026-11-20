@@ -183,6 +183,23 @@ is needed for the real model. A missing key is a setup error: the run fails at o
 `agent_launch` (parent, child, depth and launch count), `skill_read`, and the `mcp_*` lines. All are plain
 `key=value` text through `logging`.
 
+## Observers
+
+**Designed, not built** ([#92](https://github.com/aadhithya/featherweight/issues/92)). What an observer is, and what it receives, is in
+[observers and OpenTelemetry](observability.md). What the runner does:
+
+- **Where they are set.** `AgentRunner(db, observers=[...])`. A worker runs its jobs with its runner, so a job run by `run_job` and a job
+  run by a worker call the same observers, and nothing is reported twice.
+- **When it calls them.** Around the job, around each attempt (after the row is created, until it is finished), when a step is reused
+  ([resuming](#resuming)), and for each model call and tool call of an attempt. A streaming run does the same for its start and end, its model
+  calls and its tool calls, and not for each token.
+- **Model calls and tool calls.** An attempt is one `lc_agent.ainvoke(...)`, so they happen inside LangChain's agent loop. A callback handler
+  added to the config of each attempt (and of a streamed run) turns LangChain's callbacks into the observers' events, with real timings. It does
+  nothing when there are no observers.
+- **Inline, and harmless.** Every call is awaited, with a timeout (a second by default); an observer that raises or is slow is logged and ignored,
+  so it never changes or fails a run.
+- **Content is built only when asked.** The runner builds the content fields of a record only if an observer says it wants content.
+
 ## Decisions
 
 - **The runner does not choose the model.** The agent's `model` settings are the only way to pick one, and the runner calls

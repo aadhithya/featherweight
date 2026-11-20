@@ -13,8 +13,7 @@ Status: implemented. This is the design for [issue #1](https://github.com/aadhit
 - [Logging](#logging)
 - [Not in this version](#not-in-this-version)
 - [Tests](#tests)
-- [Docs to write](#docs-to-write)
-- [Open points](#open-points)
+- [Decisions](#decisions)
 
 ## Goal and scope
 
@@ -221,14 +220,8 @@ A real stdio fake server (FastMCP, about 0.3s to start) with a scripted fake cha
   one over it is cut with the note, and several text blocks are counted together.
 - One e2e test against the real model and the fake server, and, if Node is available, one against a small real server.
 
-## Docs to write
+## Decisions
 
-`docs/mcp.md` (declaring, lifecycle, failures, what the model sees, caveats), a row in the field table of
-[agents.md](../agents.md), a bullet in the README, and the Gemini schema caveats from the findings above.
-
-## Open points
-
-Decided:
 - The runner's context manager is **optional**: a server starts when a run needs it and stops when the last run using it
   ends, unless the runner is inside `async with`. (First decided the other way, that an MCP agent on a runner that was not
   open raises. That made the rule depend on the whole tree of launched agents, and it was dropped.)
@@ -238,4 +231,3 @@ Decided:
 - Images and embedded files pass through; resource links become text (see the check above).
 - Text results are capped, per server, at `max_result_chars` (default 20,000).
 
-Nothing is open.

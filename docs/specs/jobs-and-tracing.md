@@ -9,6 +9,7 @@ Jobs can also be submitted to a queue and run by a separate worker: see the [sub
 
 - [Goal](#goal)
 - [Jobs](#jobs)
+- [Running a job class](#running-a-job-class)
 - [The run log](#the-run-log)
 - [Statuses](#statuses)
 - [Logging](#logging)
@@ -24,7 +25,9 @@ failed pipeline can be diagnosed from its rows, and replayed against them, witho
 
 ## Jobs
 
-A job is one run of a pipeline. `run_job(db, name, pipeline, job_id=None)`:
+A job is one run of a pipeline. It is declared as a `Job` class ([submitted jobs](submitted-jobs.md#the-job)), and it runs either in your
+process or on a worker. Today `run_job(db, name, pipeline, job_id=None)` runs a function you hold, in your process (it changes: see
+[running a job class](#running-a-job-class)):
 
 1. creates the job (or uses `job_id`, which must exist) and marks it `RUNNING`;
 2. awaits `pipeline(job_id)`;
@@ -41,6 +44,41 @@ A job is one run of a pipeline. `run_job(db, name, pipeline, job_id=None)`:
   `asyncio.create_task(run_job(db, name, pipeline, job_id=job_id))`.
 - `set_job_status` keeps `error` only for `FAILED`, and sets `completed_at` only for `SUCCESS` and `FAILED`. A job that
   does not exist raises `LookupError`.
+
+## Running a job class
+
+**Designed, not built** ([#91](https://github.com/aadhithya/featherweight/issues/91)). Today a job is two things: a function that you
+pass to `run_job`, and a `Job` class that you submit. It becomes one: a job is a declared class, and it runs in your process or on a worker.
+
+```python
+@job
+async def summarise(ctx: JobContext, input: In) -> Out: ...
+
+
+outcome = await run_job(runner, summarise, In(...))  # you run it, in your process
+job_id = await client.submit(summarise, In(...))  # a worker runs it
+```
+
+- **`run_job(runner, job, input, *, job_id=None, resume_from=None, resumable=False)`** runs a `Job` class (or an agent class, as
+  `submit` does) and returns a `JobOutcome` with the typed output. A plain function is no longer accepted: `@job` makes a job from a function in
+  three lines, and the input and output become typed. It takes the runner because a job's `run` gets a `JobContext` that holds it, and the runner
+  holds the database.
+- **Parity.** The only difference between running a job in your process and on a worker is **who runs it, and where**. One function, used by
+  `run_job` and by the [worker](submitted-jobs.md#the-worker), starts the job (`start_job`), runs it, writes the result, sets the final status and
+  writes the events. So both write the same job row, hashes and events (`events()` cannot tell them apart); write the result to the runner's
+  result store **if there is one**, and keep nothing if `results=None` (`run_job` still returns the output); resume the same way; and fail
+  the same way: a job that raises is a `FAILED` outcome, a cancelled task is `CANCELLED`.
+- **What stays different:** a submitted job's input is JSON, because it crosses a queue; in your process it is the model as you built it. A
+  submitted job is cancelled through the database (`client.cancel`), and one in your process by cancelling its task.
+- **No file, no service:** `SqliteDatabase(":memory:")` ([persistence](persistence.md#the-database)) runs it all in memory.
+- **Streaming agents** cannot be jobs, as before.
+- **Tests:** the same job run both ways gives the same row, hashes, events and result; `:memory:`; `results=None`; resume; a failing and a
+  cancelled job.
+
+**A job has a version,** as an agent has: `Job.version`, set by hand when the pipeline's behaviour changes (`@job` takes `version=`, default
+`"1"`). It is stored on the job (`jobs.job_version`) and the job's trace carries it. **A pipeline's code is not hashed:** arbitrary Python
+cannot be fingerprinted in a way that means anything (closures, imports, everything they call). `job_hash` covers the declaration: the name,
+the version and the two models. The code release is the user's, as the OpenTelemetry resource attribute `service.version`.
 
 ## Resuming a job
 
@@ -64,46 +102,24 @@ The limits:
 
 ## The run log
 
-The orchestration, and no data. `Database` is an abstract class (see the [persistence spec](persistence.md)), and
-`SqliteDatabase` (a file, `FTW_DB_PATH`, default `featherweight.db`) implements it for local development. Records go in
-(`RunStart`, `RunEnd`) and rows come out (`JobRow`, `AgentRunRow`) as frozen Pydantic models, so the same constraints hold
-for every implementation; timestamps are timezone-aware `datetime`s. The tables are made by numbered migrations, applied
-when the database connects and recorded in `schema_migrations`; a database from before migrations is refused (`SetupError`).
-There is **no input, output, message or error text in any of them**. Foreign keys are on.
+The orchestration, and no data. `Database` is an abstract class (see the [persistence spec](persistence.md#the-database)), and `SqliteDatabase`
+(a file, `FTW_DB_PATH`, default `featherweight.db`) implements it for local development. Records go in (`RunStart`, `RunEnd`) and rows come out
+(`JobRow`, `AgentRunRow`) as frozen Pydantic models, so the same constraints hold for every implementation; timestamps are timezone-aware
+`datetime`s. The tables are made by numbered migrations ([persistence](persistence.md#migrations)); a database from before migrations is refused
+(`SetupError`). There is **no input, output, message or error text in any table**, except the queue's message until it is acknowledged. The
+columns of every table, their types and constraints are in [the schema](persistence.md#the-schema). What they record:
 
-**`jobs`**: `job_id`, `name`, `status`, `job_hash` and `input_hash` (a submitted job: see [submitted jobs](submitted-jobs.md); `NULL` for a job made by `run_job`), `cancel_requested`, `started_at`, `resumable` (the job keeps the outputs of its steps, so that it can be resumed),
-`resumed_from` (the job this one resumes; `NULL` otherwise), `error_type`, `error_hash`, `created_at`, `completed_at`.
+- **`jobs`:** one row per job. A job made without a job class has no `job_hash` and no `input_hash`.
+- **`job_events`:** one row for every change of a job's status, written in the same transaction as the change.
+- **`agent_runs`:** one row **per attempt**, so a retry is visible and a failed attempt keeps its error. `invocation_id` is shared by the
+  attempts of one `run()` call. `agent_hash` covers the whole agent declaration, input and output schemas included ([agents](agents.md)).
+  `system_prompt_hash` and `tools_hash` say what changed between two runs. `input_hash` and `output_hash` are of the canonical JSON (a streaming
+  run: of the `ChatInput` and of its text). A failed attempt records the class of the exception and the hash of its message: the text can quote
+  data, so it is in the logs and the result, never the log.
 
-**`job_events`**: one row for every change of a job's status, written in the same transaction as the change: `seq` (monotonic,
-across all jobs), `job_id`, `type` (`queued`, `running`, `succeeded`, `failed`, `cancelled`, `cancel_requested`), `status` (the
-status the job had after the change), `error_type`, `error_hash` (for `failed`), `at`. Metadata only. Read with
-`list_job_events(job_id, after, limit)`, or for several jobs in one query with `poll_job_events(job_ids, after)`;
-[submitted jobs](submitted-jobs.md#job-events) says how they are streamed.
-
-**`agent_runs`**, one row **per attempt**:
-
-| Column | |
-|---|---|
-| `seq` | Monotonic; rows come back in this order |
-| `agent_run_id` | The attempt |
-| `invocation_id`, `attempt` | Attempts of one `run()` call share an `invocation_id` |
-| `job_id` | The job, or empty. A job id that does not exist is refused by the foreign key |
-| `parent_agent_run_id`, `depth` | For an agent launched by another: the attempt that launched it, and its depth (1 at the top) |
-| `agent_name`, `agent_version` | The agent, readable |
-| `agent_hash` | SHA-256 of the whole agent declaration, input and output schemas included (see [agents](agents.md)) |
-| `system_prompt_hash`, `tools_hash` | SHA-256 of the assembled system prompt, and of the tools bound to the model (names, descriptions, argument schemas, and the runner's tools). They say what changed when `agent_hash` does. Tool names are not kept: they can be client-specific. The `attempt_started` log line lists them |
-| `provider`, `model_name`, `reasoning`, `settings`, `reported_model_name` | What was asked for (the provider, the model, the effort or thinking level, all the settings as JSON), and what the API reported |
-| `input_hash`, `output_hash` | SHA-256 of the input and of the output, as canonical JSON with sorted keys (a streaming run: of the `ChatInput` and of its text). `output_hash` is set when the run produced an output |
-| `reused_from_agent_run_id` | For a run that reused an earlier one: that row. `NULL` otherwise |
-| `thread_id` | For a [streaming](streaming.md) run, the conversation the client named. `NULL` otherwise |
-| `status` | See below |
-| `error_type`, `error_hash` | For a failed attempt: the class name of the exception, and the SHA-256 of its message. The text can quote data, so it is in the logs and the result, never the log |
-| `input_tokens`, `output_tokens`, `latency_ms` | Of the attempt (non-negative) |
-| `created_at`, `started_at`, `completed_at` | Created (waiting for a slot), holds a slot, ended. `completed_at - started_at` is the run; `started_at - created_at` the wait |
-
-A reused or cancelled-while-queued run has no `started_at`. The whole launch tree of a job is one query on
-`parent_agent_run_id` and `depth`. Indexes on the job, the invocation, the parent, and `(job_id, agent_hash, input_hash)`
-(the lookup for reuse) keep the queries cheap.
+`completed_at - started_at` is the run, and `started_at - created_at` the wait for a slot. A reused run, or one cancelled while queued, has no
+`started_at`. The whole launch tree of a job is one query on `parent_agent_run_id` and `depth`, and the indexes on the job, the invocation, the
+parent and `(job_id, agent_hash, input_hash)` (the lookup for reuse) keep the queries cheap.
 
 ## Statuses
 
@@ -129,18 +145,18 @@ Failures log at warning or error.
 
 ## Decisions
 
-- **sqlite, not OpenTelemetry or Langfuse.** To keep it as small as possible: two tables, no collector, no account. A real
-  deployment will want a proper backend. Every attempt passes through one loop in the runner, and every pipeline through
-  `run_job`, so exporting traces is a change in those two places, and the fields a span needs are already recorded.
+- **sqlite for the run log, and OpenTelemetry as an observer.** The log is small: two tables, no collector, no account. A real
+  deployment sends traces to its own backend through an observer ([observers and OpenTelemetry](observability.md)), and the
+  log stays the source of truth.
 - **One row per attempt**, so a retry is visible, and a failed attempt keeps its error.
 - **The prompt is recorded as a hash**, not as text: enough to tell two runs apart, and it keeps secrets and size out of
   the table.
-- **Inputs and outputs are in plaintext.** The log is for diagnosis.
+- **Inputs and outputs are not in the log.** It keeps metadata only ([persistence](persistence.md)); content leaves only through an observer that asks for it.
 - **A failed job is a value** (`JobOutcome`), the same rule as for a failed run.
 
 ## Not supported
 
-- OpenTelemetry or another backend.
+- Exporting traces from the log. That is an observer ([observers and OpenTelemetry](observability.md)), not a table.
 - Rows for tool calls. Skill reads and MCP calls are log lines only.
 - Redaction of inputs and outputs, and retention or cleanup.
 - Several processes writing one database.

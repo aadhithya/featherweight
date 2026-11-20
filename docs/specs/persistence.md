@@ -19,7 +19,6 @@ runner](runner.md) (resuming reads through a result store), [agents](agents.md) 
 - [Resuming a job](#resuming-a-job)
 - [Postgres](#postgres)
 - [Tenants](#tenants)
-- [What changes](#what-changes)
 - [Decisions](#decisions)
 - [Not decided yet](#not-decided-yet)
 - [Not supported](#not-supported)
@@ -88,7 +87,9 @@ not write every abstract method cannot be built.
 | Method | |
 |---|---|
 | `connect()`, `close()`, `async with` | Open and close; `connect()` runs the [migrations](#migrations) |
-| `create_job(...)`, `set_job_status(...)`, `get_job(job_id)` | Jobs |
+| `create_job(...)`, `insert_job(...)`, `get_job(job_id)`, `set_job_status(...)` | Create, read and change a job. A change of status writes its [event](submitted-jobs.md#job-events) in the same transaction |
+| `start_job(job_id)`, `cancel_queued_job(job_id)`, `request_job_cancel(job_id)`, `list_cancel_requested(job_ids)` | The compare-and-set steps that take or cancel a job, so that exactly one of a worker and a client wins ([cancelling](submitted-jobs.md#cancelling)) |
+| `list_job_events(job_id, after, limit)`, `poll_job_events(job_ids, after)` | The events of one job, or of many in one query |
 | `create_run(RunStart)`, `mark_run_running(...)`, `finish_run(RunEnd)`, `get_run(...)`, `list_runs(...)` | Runs |
 | `find_reusable_run(job_id, agent_hash, input_hash)` | The run of a job that succeeded with this agent and input: metadata only |
 
@@ -106,11 +107,14 @@ db = PostgresDatabase("postgresql://...")  # deployed
 runner = AgentRunner(db)
 ```
 
+**In memory.** `SqliteDatabase(":memory:")` keeps everything (the jobs, the events, the run log and the default result store) in
+memory: no file and no service, and it is gone when the database closes. It is the same code and the same migrations. It is for
+trying a job and for tests (designed, not built: [#91](https://github.com/aadhithya/featherweight/issues/91)).
+
 Another database is an implementation of the class. To make that safe, the [schema](#the-schema) is documented (every column, its
 type, nullability and constraint), the rows and records are models, and a **conformance kit** (`featherweight.testing`) runs the
 contract against any implementation. Our two pass it.
 
-Every `SqliteDatabase(path)` in today's docs, examples and tests becomes `SqliteDatabase(path)`.
 
 ## Migrations
 
@@ -162,8 +166,26 @@ Indexes: `job_id`, `invocation_id`, `parent_agent_run_id`, and `(job_id, agent_h
 about the same: the change is in what the table holds. **Audited and kept:** `agent_version` (a hash is not readable),
 `system_prompt_hash` (says *what* changed), `reasoning` and `settings`, `reported_model_name`, `latency_ms`.
 
-**`jobs`:** `job_id` (`text` primary key), `name`, `status` (as above), `resumable` (`boolean` / `integer` not null, default false),
-`resumed_from` (`text` null, foreign key `jobs`), `error_type`, `error_hash`, `created_at`, `completed_at`.
+**`jobs`**, one row per job:
+
+| Column | Type | |
+|---|---|---|
+| `job_id` | `text` primary key | |
+| `name` | `text` not null | |
+| `status` | `text` not null, as for `agent_runs` | See [statuses](jobs-and-tracing.md#statuses) |
+| `resumable` | `boolean` / `integer` not null, default false | Decided when the job is created: it keeps the results of its steps |
+| `resumed_from` | `text` null, foreign key `jobs` | The job this one resumes |
+| `job_hash`, `input_hash` | `text` null | A submitted job: the hash of its declaration and of its input. `NULL` for a job made without a job class |
+| `cancel_requested` | `boolean` / `integer` not null, default false | A running job that was asked to stop |
+| `error_type`, `error_hash` | `text` null | Set for `FAILED` |
+| `created_at`, `started_at`, `completed_at` | `timestamptz` / `text` | `started_at` is cleared when the job goes back to the queue |
+
+**`job_events`**, one row for every change of a job's status, written in the same transaction as the change: `seq` (monotonic, across all
+jobs), `job_id` (foreign key `jobs`), `type` (`queued`, `running`, `succeeded`, `failed`, `cancelled`, `cancel_requested`), `status` (the status
+after the change), `error_type`, `error_hash`, `at`. Index: `(job_id, seq)`. Metadata only; [submitted jobs](submitted-jobs.md#job-events) says how they are read and streamed.
+
+**`job_queue`** (sqlite only: the queue we ship, see [the queue](submitted-jobs.md#the-queue)): `seq`, `job_id`, `job_name`, `input` (JSON: this is the one table that
+holds a job's input, until the message is acknowledged), `state` (`ready` or `claimed`), `enqueued_at`, `claimed_at`.
 
 **`results`** (the sqlite result store only): `job_id`, `agent_hash`, `input_hash` (together the primary key), `output` (`text`, JSON),
 `created_at`. **`schema_migrations`:** `version` (primary key), `name`, `applied_at`.
@@ -212,22 +234,18 @@ agent (reusing launched agents is [parked](https://github.com/aadhithya/featherw
 
 ## Resuming a job
 
-`run_job(..., resume_from=old_job_id)` starts a **new job** that points to the old one: a second attempt at the same pipeline, not a
-job inside a job. As before, determinism of the code between agents is the user's, and only `SUCCESS` rows are reused. What changes
-is where the output comes from:
+Which steps of a failed job are reused, and the checks on them, are the runner's ([resuming](runner.md#resuming)); what a resumed job
+means for a pipeline is the job's ([resuming a job](jobs-and-tracing.md#resuming-a-job)). What is persistence's is where the pieces
+are kept:
 
-1. **The old job must have been resumable.** If it was not, `create_job` raises, before any model call, saying that nothing was
-   kept (a full rerun is a run without `resume_from`).
-2. **The log answers the metadata question:** `find_reusable_run(old_job, agent_hash, input_hash)` is a `SUCCESS` run of the old job
-   at depth 1.
+1. **The old job must have been resumable.** If it was not, `create_job` raises, before any model call, saying that nothing was kept (a
+   full rerun is a run without `resume_from`).
+2. **The log answers the metadata question:** `find_reusable_run(old_job, agent_hash, input_hash)` is a `SUCCESS` run of the old job at
+   depth 1.
 3. **The store answers the data question:** `get(ResultKey(old_job, agent_hash, input_hash))`. A runner with no store, for a job that
    resumes another, is a `SetupError`.
-4. The stored dict is parsed into the **current** output model and `check_output` runs again. If either fails, the agent runs.
-5. **No result means the agent runs.** The log says `SUCCESS` but the store has nothing (it never got it, or lost it): the step runs
-   again, and `result_missing` is logged. A `put` that fails never fails the run that succeeded; that step just cannot be reused.
-6. A reused step is a run of its own in the new job (zero tokens, `reused_from_agent_run_id` set), and **its result is copied forward**
-   under the new job's key. Each job then holds its own results, deleting an old job never affects a newer one, and a chain of
-   attempts works. The duplication is only the output; the trace is complete and the cost is counted once.
+4. **A reused step's result is copied forward** under the new job's key. Each job then holds its own results, deleting an old job never
+   affects a newer one, and a chain of attempts works. The duplication is only the output; the trace is complete and the cost is counted once.
 
 ## Postgres
 
@@ -252,17 +270,6 @@ There is **no tenant column and no tenant label**: the metadata holds nothing of
 who needs to attribute runs to a tenant chooses the job id (`create_job(name, job_id="acme-...")`) or the job name. A result store
 that must route by tenant can do so from the job id of its keys, or be one per tenant.
 
-## What changes
-
-- **API:** `SqliteDatabase(path)` becomes `SqliteDatabase(path)`, and `Database` is the abstract class. `AgentRunner(db,
-  results=...)`. `run_job(..., resumable=...)`, `db.create_job(..., resumable=...)`. `create_run` and `finish_run` take `RunStart` and
-  `RunEnd`. `AgentRunRow` and `JobRow` lose the content and error-text fields and gain the new ones, and timestamps are `datetime`s.
-- **The log:** "Everything is on record" now means the orchestration, and the README says what is not on record.
-- **Resume:** a job that is to be resumed is created `resumable=True`. `examples/resume` and the docs say so.
-- **Databases:** an old `featherweight.db` is refused. Delete it.
-- **Streaming:** the placeholders in `input` and `output` go away.
-- **Hashes:** every `agent_hash` changes when the schemas are added.
-
 ## Decisions
 
 - **Metadata only, for every agent.** The rule is the framework's, not a streaming special case.
@@ -283,8 +290,8 @@ that must route by tenant can do so from the job id of its keys, or be one per t
 
 ## Not decided yet
 
-- **Observers:** a way for the full content of a run (input, output, error text) to leave featherweight without being stored, for
-  debugging and tracing (OpenTelemetry would be one). Discussed later; until then, content is in the logs only where the code logs it.
+- **Observers:** a way for content to leave featherweight without being stored is designed in [observers and
+  OpenTelemetry](observability.md). Until it is built, content is in the logs only where the code logs it.
 
 ## Not supported
 
