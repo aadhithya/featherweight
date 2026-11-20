@@ -1,6 +1,6 @@
 # Spec: submitted jobs
 
-Status: implemented, except [several workers](#several-workers), which is designed and not built. #72 (the `Job` class, `JobContext`, the job columns and `CANCELLED`), #73 (the queue), #74 (job events and SSE), #75 (the client), #76 (the worker, with the compare-and-set steps for taking and cancelling a job), #77 (the `@job` decorator) and #78 (the guide, the example and the skill reference) are done. It is tracked in [epic #71](https://github.com/aadhithya/featherweight/issues/71), and each part has
+Status: implemented, except [several workers](#several-workers), which is designed and not built ([epic #103](https://github.com/aadhithya/featherweight/issues/103)). #72 (the `Job` class, `JobContext`, the job columns and `CANCELLED`), #73 (the queue), #74 (job events and SSE), #75 (the client), #76 (the worker, with the compare-and-set steps for taking and cancelling a job), #77 (the `@job` decorator) and #78 (the guide, the example and the skill reference) are done. It is tracked in [epic #71](https://github.com/aadhithya/featherweight/issues/71), and each part has
 its own issue (listed [at the end](#the-work)). When a part is built, this page says so, and the guide `docs/submitted-jobs.md`
 shows how to use it.
 
@@ -169,7 +169,7 @@ before the interruption are reused if the job is `resumable`.
 
 ## Several workers
 
-**Designed, not built.** Several workers on one queue already work today: a message is claimed by one receiver, `start_job` is a
+**Designed, not built** ([epic #103](https://github.com/aadhithya/featherweight/issues/103), with one issue for each part: [#104](https://github.com/aadhithya/featherweight/issues/104) the queue, [#105](https://github.com/aadhithya/featherweight/issues/105) the job lease and the owner check, [#106](https://github.com/aadhithya/featherweight/issues/106) takeover, [#107](https://github.com/aadhithya/featherweight/issues/107) the timeout, [#108](https://github.com/aadhithya/featherweight/issues/108) the guide). Several workers on one queue already work today: a message is claimed by one receiver, `start_job` is a
 compare-and-set that exactly one worker wins, a cancel is checked by the worker that owns the job, the events have one reader per
 process, and a shutdown requeues. What does not work is a worker that **dies**: its message stays claimed, and its job stays `RUNNING`
 for ever. This section is the recovery from that, and it is all that it is: we do not build a broker, a scheduler or a registry of workers.
@@ -336,3 +336,4 @@ No live model call. Fake models, `MemoryQueue`, the dict result store.
 | [#76](https://github.com/aadhithya/featherweight/issues/76) | `JobWorker` |
 | [#77](https://github.com/aadhithya/featherweight/issues/77) | The `@job` decorator |
 | [#78](https://github.com/aadhithya/featherweight/issues/78) | The guide, an example and the skill reference |
+| [#103](https://github.com/aadhithya/featherweight/issues/103) | The epic for several workers (designed: see [several workers](#several-workers)), with #104 to #108 |
