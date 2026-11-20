@@ -30,52 +30,34 @@ featherweight doesn't replace LangChain. It sits on it.
 So what LangChain already gives you, a pile of integrations and adapters, can plug into agents that are typed, bounded and run on workers.
 We test the providers and tools featherweight ships with. Other LangChain integrations go into the same slots, but we haven't verified them one by one.
 
+## Built for agentic coding
+
+There is a skill. Plug it into your favourite coding agent and it already knows how to build with featherweight: the typed agent, the rules,
+the patterns, and the whole book. You start building in your editor, not in a docs tab.
+
+In Claude Code:
+
+```
+/plugin marketplace add aadhithya/featherweight
+/plugin install featherweight@featherweight
+```
+
+Any other tool that reads Agent Skills: copy [`skills/featherweight`](https://github.com/aadhithya/featherweight/blob/main/skills/featherweight) into its skills folder.
+
 ## What you get
 
 | | |
 |---|---|
-| **Typed, end to end** | What goes in and what comes out is a schema. A bad answer is caught, sent back to the model and retried before your code ever sees it. |
-| **Declared, not assembled** | An agent is a class. A bad declaration fails when it is written, not in production at 3 a.m. |
+| **Typed, declared, enforced** | An agent is a class. What goes in and what comes out is a schema. A bad declaration fails when it is written, a bad answer is caught and retried before your code ever sees it. |
 | **Least privilege** | Everything is an allow-list. A capability an agent has is one the developer gave it, on purpose. |
-| **Failures are values** | A failed run hands you the error and a status. No try/except pyramid. |
-| **Plain Python pipelines** | Order, loops and branching are `if` and `for`. No graph to draw, and no pretending to be a workflow engine. |
-| **Subagents on a leash** | Agents delegate to agents, but only the ones they are allowed to, and only so deep and so wide. |
-| **Background agents** | An agent starts another and goes on. The result comes back when it is ready, as a message, and your app decides what to do with it. |
+| **Plain Python, failures as values** | Order, loops and branching are `if` and `for`: no graph, no workflow engine. A failed run hands you the error and a status, not an exception. |
+| **Agents that delegate** | Subagents on a leash, only the ones allowed, only so deep. Or background agents: one starts another and goes on, and the result comes back when it is ready. |
 | **Resume instead of rerun** | A pipeline that dies halfway picks up where it stopped, without paying for the steps that worked. |
 | **Workers, and a lost worker is fine** | Submit a job from your API, run it on workers, follow it live, cancel it. Lose a worker mid-job and another takes over. |
 | **Streams to your UI** | Chat answers and job status stream over standard protocols (AG-UI, the Vercel AI SDK, SSE), so a browser can listen as is. |
 | **See what it did** | OpenTelemetry traces of jobs, attempts, model calls and tool calls, in the format observability and evaluation platforms already read. Content stays off unless you turn it on. |
 | **Any model, any tool** | Gemini, Gemma, Claude, OpenAI or your own. MCP servers and skills plug in and stay out of the context until needed. |
-| **Your data is yours** | The framework stores metadata and nothing else: status, tokens, timing. Everything else is handed back to you, and how it gets stored is your call. |
-| **Your storage, your call** | Databases, result stores, queues and observers are interfaces. Implement one, run the kit that checks it, done. sqlite and Postgres are there to get you going. |
-
-## An agent, and then a job
-
-```python
-class PeopleExtractor(AgentBase):
-    name: str = "people_extractor"
-    description: str = "Finds the people named in a text"
-    version: str = "0.1.0"
-    prompt: str = "List every person named in the text."
-    input_model: ClassVar[type[AgentInput]] = ExtractInput  # Pydantic in
-    output_model: ClassVar[type[AgentOutput]] = ExtractOutput  # Pydantic out
-
-    def check_output(self, agent_input, output):  # what a schema can't say; raise and the model tries again
-        if missing := [p for p in output.people if p not in agent_input.text]:
-            raise ValueError(f"Not in the text: {missing}")
-
-
-# in your API: an agent is a job, so submit it, and follow it
-job_id = await client.submit(PeopleExtractor, ExtractInput(text=text))
-async for event in client.events(job_id):
-    ...  # queued, running, succeeded
-
-# in a worker, which could be on another machine
-await JobWorker(db, queue, AgentRunner(db), jobs=[PeopleExtractor]).run()
-```
-
-A bad declaration fails when the class is built. A bad answer fails inside the run and is retried. Every attempt lands in a run log.
-The same job runs in your process or on a worker. [The book](https://github.com/aadhithya/featherweight/blob/main/docs/book/README.md) builds all of it, step by step.
+| **Your data, your storage** | The framework stores metadata and nothing else. Databases, result stores, queues and observers are interfaces: implement one, run the kit that checks it. sqlite and Postgres are there to get you going. |
 
 ## Where it stops
 
@@ -98,15 +80,6 @@ pip install 'featherweight[all]'    # or just: mcp, anthropic, openai, postgres,
 ```
 
 Python 3.12 or later. Import what you use: `from featherweight import AgentBase, AgentRunner`. (`import featherweight as ftw` works too, as a joke.)
-
-There is also a skill that teaches a coding agent to build with featherweight. In Claude Code:
-
-```
-/plugin marketplace add aadhithya/featherweight
-/plugin install featherweight@featherweight
-```
-
-Other tools that read Agent Skills: copy [`skills/featherweight`](https://github.com/aadhithya/featherweight/blob/main/skills/featherweight) into their skills folder.
 
 ## Read more
 
