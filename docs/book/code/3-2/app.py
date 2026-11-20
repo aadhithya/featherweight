@@ -21,6 +21,9 @@ class Digest(BaseModel):
 async def summarise_all(ctx: JobContext, input: Reports) -> Digest:
     reports = [Report(text=Path(path).read_text()) for path in input.paths]
     results = await ctx.run_many(IncidentSummariser, reports)
+    failed = [path for path, result in zip(input.paths, results, strict=True) if result.output is None]
+    if failed:  # a digest with gaps would look complete: fail, and say which reports
+        raise RuntimeError(f"Could not summarise: {', '.join(failed)}")
     return Digest(summaries=[r.output for r in results if r.output])
 
 

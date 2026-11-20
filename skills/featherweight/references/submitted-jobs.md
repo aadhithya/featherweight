@@ -119,7 +119,7 @@ await worker.stop(grace=30)
 ## Several workers
 
 Run as many workers as you like on one queue: a message goes to one of them, and one wins the job. (`SqliteQueue` is for one machine; for
-several, use a queue and a database that are shared: [your own queue](#your-own-queue).)
+several, share one database (`PostgresDatabase` ships in the package) and use a queue of your own: [your own queue](#your-own-queue).)
 
 - **A worker that dies.** While a worker runs a job it renews two leases about every 20 seconds (a third of `lease`, 60 seconds by default): the
   job's, in the database, and its message's, in the queue. If the worker dies, the leases run out. The message comes back to another worker,
