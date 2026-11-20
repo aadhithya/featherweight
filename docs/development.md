@@ -16,7 +16,7 @@ Issues and pull requests are welcome.
 | `make example-resume` | Run the example that resumes a failed job |
 | `make example-jobs` | Run the example that submits a job to a worker |
 
-The `PostgresDatabase` tests run when `FTW_TEST_POSTGRES_URL` is set (`make test` starts a Postgres with `docker compose` and sets it).
+The `PostgresDatabase` tests run when `FTW_TEST_POSTGRES_URL` is set (`make test` starts a Postgres with `docker compose` and sets it). Only `make test` starts it: the examples, `make check` and `make e2e` run with `--no-deps`.
 
 ## The repository
 
