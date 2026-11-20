@@ -13,6 +13,7 @@ not supported, tests.
 | [The run log and the persistence boundary](persistence.md) | What featherweight keeps and never keeps, hashes, `Database` and `ResultStore`, migrations, the schema, resumable jobs, Postgres |
 | [Submitted jobs](submitted-jobs.md) | A job as a declared class, `JobQueue`, `JobClient`, `JobWorker`, cancelling, job events and SSE |
 | [Observers and OpenTelemetry](observability.md) | The `Observer` class and what it receives, `OTelObserver` and the GenAI conventions, spans for jobs, attempts, model calls and tool calls, evaluation |
+| [Background agents](background-agents.md) | A job exposed to an agent as a tool, here or on a worker, getting its result back, events, how long a child lives (designed, not built) |
 | [Streaming agents](streaming.md) | `StreamingAgent`, `runner.stream()`, AG-UI events, thoughts, stopping a response, messages, the AG-UI and Vercel adapters |
 | [Skills](skills.md) | The skill model, loading, how an agent reads a skill, the Agent Skills specification |
 | [Tools, the registry and the store](tools-and-store.md) | Tools on an agent, the tool registry, the ready-made tools, the run context, the run store |
@@ -32,6 +33,7 @@ A change goes in the spec of the thing it changes, and not in the spec of the ep
 | [Submitted jobs](submitted-jobs.md) | The `Job` class and `@job`, the queue and its message, the client, the worker, cancelling, job events and SSE |
 | [Persistence](persistence.md) | The metadata-only rule, hashes, the `Database` class, the schema of every table, migrations, the result store, Postgres, tenants |
 | [Observers and OpenTelemetry](observability.md) | The `Observer` class and its records, `OTelObserver`, the GenAI mapping, your own spans, evaluation |
+| [Background agents](background-agents.md) | `background_agents`, `start_background`, where a child runs, the result message, the events, how long a child lives |
 | [Streaming agents](streaming.md) | `StreamingAgent`, `runner.stream()`, the events, the adapters |
 | [Tools and the store](tools-and-store.md), [MCP tools](mcp-tools.md), [tool discovery](tool-discovery.md), [skills](skills.md) | What their names say |
 
