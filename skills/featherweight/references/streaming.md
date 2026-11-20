@@ -19,7 +19,7 @@ Two small examples are in [`examples/chat`](https://github.com/aadhithya/feather
 - [The example](#the-example)
 - [What is logged](#what-is-logged)
 - [How it differs from an agent](#how-it-differs-from-an-agent)
-- [Background work, today](#background-work-today)
+- [Background work](#background-work)
 - [Not supported](#not-supported)
 
 ## A streaming agent
@@ -307,13 +307,12 @@ to it:
 - **`api.py`**, the same agent behind FastAPI: `POST /agui`, `POST /vercel` and `POST /stop/{run_id}`, in about 50 lines.
   The client sends the conversation, so there is no store. `make example-chat-api`.
 
-## Background work, today
+## Background work
 
-A chat agent that hands work to a background agent has to be woken up when the work is done, and `featherweight` keeps no
-conversation to wake. The application does it: start the work as a job (`asyncio.create_task(run_job(runner, job, input))`),
-keep the conversation in your store, and when the job finishes start the next turn with the history and a message that carries
-the result. A launched sub-agent (`subagents`) is different: it blocks the chat turn until it returns. A background agent
-that the chat carries on without is [parked](https://github.com/aadhithya/featherweight/blob/main/docs/specs/streaming.md#not-supported) as an epic of its own, after jobs.
+A chat agent can start another agent and carry on: that is a [background agent](background-agents.md). The turn does not wait for it, the stream
+carries two events (`background_started` and `background_finished`), and when the child is done your application starts the next turn with the
+history and the child's result (`runner.background_message(job_id)`). A launched sub-agent (`subagents`) is different: it blocks the chat turn
+until it returns.
 
 ## Not supported
 
@@ -324,4 +323,4 @@ that the chat carries on without is [parked](https://github.com/aadhithya/feathe
 - **Structured or validated output** from a streaming agent.
 - **Stopping across processes.** `cancel()` works in the process that runs the stream.
 - **A web server or router.** The adapters give you strings, you send them.
-- **Background agents** and jobs across processes: not part of streaming.
+- **Background agents** are [their own feature](background-agents.md), and jobs across processes are [submitted jobs](submitted-jobs.md).

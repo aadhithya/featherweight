@@ -146,6 +146,7 @@ Read only the reference for the task. Each is a guide from the featherweight rep
 | What is kept and what is not, resuming a job (`resumable=True`), a result store of your own, choosing a database | `references/persistence.md` |
 | Submit a job to a queue and run it in a worker: `JobClient`, `JobWorker`, `JobQueue`, cancelling, events and SSE | `references/submitted-jobs.md` |
 | See what jobs and agents do: observers, `OTelObserver` (OpenTelemetry spans for jobs, attempts, model calls and tool calls), content, your own spans, evaluation | `references/observability.md` |
+| An agent that starts another agent and goes on: `background_agents`, `start_background`, the result message, events, a chat in the browser | `references/background-agents.md` |
 | See a whole pipeline of several agents | `references/example-pipeline.md` |
 
 The full specs, which say what each part does and why, are in `docs/specs` of the repository, and runnable examples are in

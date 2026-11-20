@@ -21,7 +21,7 @@ It has opinions. Take them, or fork off.
 | **Declared, not assembled** | An agent is a class. A bad declaration fails when it is written, not in production at 3 a.m. |
 | **Failures are values** | A failed run hands you the error and a status. No try/except pyramid. |
 | **Plain Python pipelines** | Order, loops and branching are `if` and `for`. No graph to draw, and no pretending to be a workflow engine. |
-| **Subagents on a leash** | Agents delegate to agents, but only the ones they are allowed to, and only so deep and so wide. |
+| **Subagents on a leash** | Agents delegate to agents, but only the ones they are allowed to, and only so deep and so wide. Inline, or in the background while the chat goes on. |
 | **Resume instead of rerun** | A pipeline that dies halfway picks up where it stopped, without paying for the steps that worked. |
 | **Run it in the background** | Submit from your API, run on workers, follow it live, cancel it. Lose a worker mid-job and another takes over. The two sides never talk to each other directly. |
 | **Streams to your UI** | Live job status and chat answers stream over standard protocols, so a browser can listen as is. |

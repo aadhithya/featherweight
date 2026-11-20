@@ -23,6 +23,7 @@ GUIDES = [
     "streaming.md",
     "persistence.md",
     "submitted-jobs.md",
+    "background-agents.md",
     "observability.md",
     "example-pipeline.md",
 ]
