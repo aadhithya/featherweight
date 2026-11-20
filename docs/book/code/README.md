@@ -13,7 +13,7 @@ and the agents, their tools and the MCP server all run inside it. Everything her
 
 | | |
 |---|---|
-| **Image** | `python:3.12-slim`, and `pip install 'featherweight[mcp,anthropic]'`. Nothing else. The [`Dockerfile.source`](Dockerfile.source) installs it from this repository's source (it is the default until featherweight is on PyPI), and the [`Dockerfile`](Dockerfile) from PyPI |
+| **Image** | `python:3.12-slim`, and `pip install 'featherweight[mcp,anthropic,otel]' opentelemetry-sdk` (the last two are for chapter 5-4, the traces). Nothing else. The [`Dockerfile.source`](Dockerfile.source) installs it from this repository's source (it is the default until featherweight is on PyPI), and the [`Dockerfile`](Dockerfile) from PyPI |
 | **User** | `reader`, not root |
 | **Mounted** | This folder, at `/code`, so that you can edit a chapter's file and run it again |
 | **Data** | The sqlite file (the run log and the results) is `/data/book.db`, in a Docker volume. It survives between runs, and is not in this folder |
@@ -65,7 +65,7 @@ project/                  the finished project: run.py and chat.py
 
 ```
 python -m venv .venv && . .venv/bin/activate
-pip install 'featherweight[mcp,anthropic]'          # until it is on PyPI: pip install '../../..[mcp,anthropic]' from this folder
+pip install 'featherweight[mcp,anthropic,otel]' opentelemetry-sdk   # until it is on PyPI: pip install '../../..[mcp,anthropic,otel]' from this folder
 export GOOGLE_API_KEY=...                           # or ANTHROPIC_API_KEY
 python 1-2/app.py
 ```

@@ -6,7 +6,7 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-RUN pip install 'featherweight[mcp,anthropic]'
+RUN pip install 'featherweight[mcp,anthropic,otel]' opentelemetry-sdk
 
 # A user of its own, so that nothing runs as root. The data (the sqlite file) lives in /data, and the code you edit in /code.
 RUN useradd --create-home --uid 1000 reader && mkdir /code /data && chown reader /code /data

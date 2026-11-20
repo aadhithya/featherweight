@@ -9,7 +9,7 @@ ENV PYTHONUNBUFFERED=1 \
 
 COPY pyproject.toml README.md LICENSE /src/
 COPY src /src/src
-RUN pip install '/src[mcp,anthropic]'
+RUN pip install '/src[mcp,anthropic,otel]' opentelemetry-sdk
 
 # A user of its own, so that nothing runs as root. The data (the sqlite file) lives in /data, and the code you edit in /code.
 RUN useradd --create-home --uid 1000 reader && mkdir /code /data && chown reader /code /data
