@@ -88,12 +88,12 @@ not write every abstract method cannot be built.
 |---|---|
 | `connect()`, `close()`, `async with` | Open and close; `connect()` runs the [migrations](#migrations) |
 | `create_job(...)`, `insert_job(...)`, `get_job(job_id)`, `set_job_status(...)` | Create, read and change a job. A change of status writes its [event](submitted-jobs.md#job-events) in the same transaction |
-| `start_job(job_id)`, `cancel_queued_job(job_id)`, `fail_queued_job(job_id, error_type)`, `request_job_cancel(job_id)`, `list_cancel_requested(job_ids)` | The compare-and-set steps that take or cancel a job, so that exactly one of a worker and a client wins ([cancelling](submitted-jobs.md#cancelling)) |
+| `start_job(job_id)`, `cancel_queued_job(job_id)`, `fail_queued_job(job_id, error_type, error_hash)`, `request_job_cancel(job_id)`, `list_cancel_requested(job_ids)` | The compare-and-set steps that take or cancel a job, so that exactly one of a worker and a client wins ([cancelling](submitted-jobs.md#cancelling)) |
 | `list_job_events(job_id, after, limit)`, `poll_job_events(job_ids, after)` | The events of one job, or of many in one query |
 | `renew_job_leases(worker_id, jobs, lease)`, `owns_job(job_id, owner)` | A worker's heartbeat (one in-place update for all of its jobs, returning the ones it still owns), and a cheap read of whether it still owns one ([several workers](submitted-jobs.md#several-workers)). `set_job_status(..., owner=)` and the lease renewal are conditional on the owner, in the statement, and raise `JobLost` when it is not |
-| `take_over_job(job_id, worker_id)` | Taking a job whose lease expired (designed, not built: [#106](https://github.com/aadhithya/featherweight/issues/106)) |
+| `take_over_job(job_id, worker_id, lease)` | Taking a job whose lease expired: one transaction, a `lost` event and then a `running` event, `executions` + 1, a new lease; False if the lease is live. Where the database has a clock, it decides ([several workers](submitted-jobs.md#several-workers)) |
 | `create_run(RunStart)`, `mark_run_running(...)`, `finish_run(RunEnd)`, `get_run(...)`, `list_runs(...)` | Runs |
-| `find_reusable_run(job_id, agent_hash, input_hash)` | The run of a job that succeeded with this agent and input: metadata only |
+| `find_reusable_run(job_id, agent_hash, input_hash, before_execution=None)` | The run of a job that succeeded with this agent and input: metadata only. With `before_execution`, only runs of an earlier execution of the job (a takeover looks in its own job) |
 
 **Typed in, typed out.** `create_run` and `finish_run` take frozen Pydantic records (`RunStart`, `RunEnd`), and the methods return
 Pydantic rows (`JobRow`, `AgentRunRow`). Statuses, hash formats and non-negative numbers are checked once, in the model, whichever
@@ -153,7 +153,7 @@ Types are given as *Postgres / sqlite*. A `CHECK` is in both.
 | `input_hash` | `text` not null, 64 hex | |
 | `output_hash` | `text` null, 64 hex | Set when the run produced one |
 | `reused_from_agent_run_id` | `text` null | For a run answered from an earlier one |
-| `job_execution` | `integer` null | Designed: the execution of the job that made the run ([several workers](submitted-jobs.md#several-workers)). `NULL` without a job |
+| `job_execution` | `integer` null | The execution of the job that made the run ([several workers](submitted-jobs.md#several-workers)): given by the task that runs the job, or else the job's `executions` when the run is created. `NULL` without a job |
 | `thread_id` | `text` null | For a streaming run: the conversation the client named |
 | `status` | `text` not null, one of `INIT`, `RUNNING`, `SUCCESS`, `FAILED`, `CANCELLED` | |
 | `error_type`, `error_hash` | `text` null | Set for `FAILED` |
@@ -186,7 +186,7 @@ about the same: the change is in what the table holds. **Audited and kept:** `ag
 | `created_at`, `started_at`, `completed_at` | `timestamptz` / `text` | `started_at` is cleared when the job goes back to the queue |
 
 **`job_events`**, one row for every change of a job's status, written in the same transaction as the change: `seq` (monotonic, across all
-jobs), `job_id` (foreign key `jobs`), `type` (`queued`, `running`, `succeeded`, `failed`, `cancelled`, `cancel_requested`), `status` (the status
+jobs), `job_id` (foreign key `jobs`), `type` (`queued`, `running`, `succeeded`, `failed`, `cancelled`, `cancel_requested`, `lost`), `status` (the status
 after the change), `error_type`, `error_hash`, `at`. Index: `(job_id, seq)`. Metadata only; [submitted jobs](submitted-jobs.md#job-events) says how they are read and streamed.
 
 **`job_queue`** (sqlite only: the queue we ship, see [the queue](submitted-jobs.md#the-queue)): `seq`, `job_id`, `job_name`, `input` (JSON: this is the one table that

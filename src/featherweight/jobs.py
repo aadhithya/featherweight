@@ -14,6 +14,7 @@ from typing import Any, ClassVar, Generic, TypeVar, get_type_hints, overload
 
 from pydantic import BaseModel, ConfigDict
 
+from featherweight.context import CURRENT_JOB_EXECUTION
 from featherweight.db import JobLost, JobOwner, new_id
 from featherweight.fingerprint import agent_hash, error_fields, input_hash, job_hash
 from featherweight.models import AgentBase, AgentInput, AgentResult, RunStatus
@@ -263,6 +264,7 @@ async def execute_job(
                 input_hash=(row.input_hash if row else None) or input_hash(job_input),
                 resumable=row.resumable if row else False,
                 resumed_from=row.resumed_from if row else None,
+                execution=owner.executions if owner is not None else None,
                 trace_context=dict(trace_context),
                 input=job_input.model_dump(mode="json") if observers.wants_content else None,
             ),
@@ -317,7 +319,12 @@ async def _execute(
     """The run itself, and the type of the error if it failed."""
     logger.info("job_started job_id=%s job=%s", job_id, job.name)
     try:
-        output = await _run_limited(job, JobContext(runner=runner, job_id=job_id), job_input)
+        token = CURRENT_JOB_EXECUTION.set((job_id, owner.executions)) if owner is not None else None
+        try:
+            output = await _run_limited(job, JobContext(runner=runner, job_id=job_id), job_input)
+        finally:
+            if token is not None:
+                CURRENT_JOB_EXECUTION.reset(token)
         if not isinstance(output, job.output_model):
             raise InvalidJobOutput(f"{job.name} returned {type(output).__name__}, not {job.output_model.__name__}")
         if results is not None:  # the output is the job's product: if it cannot be kept, the job fails

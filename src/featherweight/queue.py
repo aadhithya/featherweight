@@ -17,9 +17,12 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 from featherweight.db import now
+from featherweight.fingerprint import text_hash
 from featherweight.sqlite import SqliteDatabase
 
 logger = logging.getLogger(__name__)
+
+DEAD_LETTERED = "DeadLettered"  # the error type of a job whose message was dead-lettered
 
 
 class JobMessage(BaseModel):
@@ -121,6 +124,7 @@ class SqliteQueue(JobQueue):
             )
 
     async def _claim(self) -> Delivery | None:
+        dead_jobs: list[str] = []
         async with self.db.transaction() as conn:
             moment = now()
             # A message whose lease ended after its last allowed delivery is dead: it is not delivered, and stays for inspection.
@@ -131,6 +135,7 @@ class SqliteQueue(JobQueue):
                 (_stamp(moment), self.max_deliveries),
             ) as cur:
                 for dead in await cur.fetchall():
+                    dead_jobs.append(dead["job_id"])
                     logger.warning(
                         "queue_message_dead job_id=%s max_deliveries=%d", dead["job_id"], self.max_deliveries
                     )
@@ -143,6 +148,10 @@ class SqliteQueue(JobQueue):
                 (_stamp(moment), _stamp(moment + timedelta(seconds=self.lease)), _stamp(moment)),
             ) as cur:
                 row = await cur.fetchone()
+        for (
+            job_id
+        ) in dead_jobs:  # its job will never run: end it, once the table is free (the database lock is not reentrant)
+            await self.db.fail_queued_job(job_id, DEAD_LETTERED, text_hash(DEAD_LETTERED))
         if row is None:
             return None
         message = JobMessage(

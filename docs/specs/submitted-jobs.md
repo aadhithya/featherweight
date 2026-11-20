@@ -1,6 +1,6 @@
 # Spec: submitted jobs
 
-Status: implemented, except [several workers](#several-workers) ([epic #103](https://github.com/aadhithya/featherweight/issues/103)), which is being built: the queue's lease (#104), the job lease, the heartbeat and the owner check (#105) and the job timeout (#107) are built, and takeover (#106) and the guide (#108) are designed and not built. #72 (the `Job` class, `JobContext`, the job columns and `CANCELLED`), #73 (the queue), #74 (job events and SSE), #75 (the client), #76 (the worker, with the compare-and-set steps for taking and cancelling a job), #77 (the `@job` decorator) and #78 (the guide, the example and the skill reference) are done. It is tracked in [epic #71](https://github.com/aadhithya/featherweight/issues/71), and each part has
+Status: implemented, except the guide for [several workers](#several-workers) ([epic #103](https://github.com/aadhithya/featherweight/issues/103)): the queue's lease (#104), the job lease, the heartbeat and the owner check (#105), takeover (#106) and the job timeout (#107) are built, and the guide (#108) is not. #72 (the `Job` class, `JobContext`, the job columns and `CANCELLED`), #73 (the queue), #74 (job events and SSE), #75 (the client), #76 (the worker, with the compare-and-set steps for taking and cancelling a job), #77 (the `@job` decorator) and #78 (the guide, the example and the skill reference) are done. It is tracked in [epic #71](https://github.com/aadhithya/featherweight/issues/71), and each part has
 its own issue (listed [at the end](#the-work)). When a part is built, this page says so, and the guide `docs/submitted-jobs.md`
 shows how to use it.
 
@@ -170,7 +170,7 @@ before the interruption are reused if the job is `resumable`.
 
 ## Several workers
 
-**Partly built:** the queue's lease, the job lease and the heartbeat with the owner check, and the timeout are; takeover and the guide are not ([epic #103](https://github.com/aadhithya/featherweight/issues/103), with one issue for each part: [#104](https://github.com/aadhithya/featherweight/issues/104) the queue, [#105](https://github.com/aadhithya/featherweight/issues/105) the job lease and the owner check, [#106](https://github.com/aadhithya/featherweight/issues/106) takeover, [#107](https://github.com/aadhithya/featherweight/issues/107) the timeout, [#108](https://github.com/aadhithya/featherweight/issues/108) the guide). Several workers on one queue already work today: a message is claimed by one receiver, `start_job` is a
+**Built, except the guide** ([epic #103](https://github.com/aadhithya/featherweight/issues/103), with one issue for each part: [#104](https://github.com/aadhithya/featherweight/issues/104) the queue, [#105](https://github.com/aadhithya/featherweight/issues/105) the job lease and the owner check, [#106](https://github.com/aadhithya/featherweight/issues/106) takeover, [#107](https://github.com/aadhithya/featherweight/issues/107) the timeout, [#108](https://github.com/aadhithya/featherweight/issues/108) the guide). Several workers on one queue already work today: a message is claimed by one receiver, `start_job` is a
 compare-and-set that exactly one worker wins, a cancel is checked by the worker that owns the job, the events have one reader per
 process, and a shutdown requeues. What does not work is a worker that **dies**: its message stays claimed, and its job stays `RUNNING`
 for ever. This section is the recovery from that, and it is all that it is: we do not build a broker, a scheduler or a registry of workers.
@@ -183,16 +183,18 @@ for ever. This section is the recovery from that, and it is all that it is: we d
 - **The heartbeat** (built, #105). One task per worker renews, every third of the lease (20 seconds; `JobWorker(heartbeat=...)`), the job lease of every job it runs
   (**one `UPDATE`, in place, no new rows**) and the queue lease of each of their messages (`extend`). It proves that the worker is alive,
   and not that a job makes progress: that is the timeout.
-- **Takeover.** A message comes back after its lease ended and reaches a worker. If the job is `RUNNING` and its lease has expired, the
+- **Takeover** (built, [#106](https://github.com/aadhithya/featherweight/issues/106)). A message comes back after its lease ended and reaches a worker. If the job is `RUNNING` and its lease has expired, the
   worker takes it over with one compare-and-set (`Database.take_over_job`): the job goes back to `INIT` (a `lost` event), and at once
   to `RUNNING` with the new owner and `executions` higher by one (a `running` event), in one transaction. If the lease has not
-  expired (a duplicate delivery of a job that is alive), the worker acknowledges the message and leaves the job alone. A job whose
-  message never comes back is not found: the queue's redelivery is the only trigger, and there is no sweeper.
+  expired (a duplicate delivery of a job that is alive), the worker acknowledges the message and leaves the job alone; so it does for a
+  message for a job that **this worker** is running (its heartbeat can still renew a lease that merely expired, because renewing needs only the
+  ownership). A job whose message never comes back is not found: the queue's redelivery is the only trigger, and there is no sweeper.
 - **Executions.** `jobs.executions` counts how many times a worker started the job: 1 for the first, and one more each time it is started again (built,
   #105: a job that a shutdown put back in the queue is started again as execution 2; a takeover, #106, does the same). (It is not `attempt`, which is the
-  retry of one agent call.) Each agent run records the execution that made it (`agent_runs.job_execution`), and the job's span
-  has `ftw.job.execution` (both #106).
-- **A takeover reuses the steps that finished,** if the job is `resumable`, with the same mechanism as a resume ([the runner](runner.md#resuming)): the
+  retry of one agent call.) Each agent run records the execution that made it (`agent_runs.job_execution`, built, #106), and the job's span
+  has `ftw.job.execution`. The execution comes from the task that runs the job (`execute_job` sets it, as it sets who the owner is), and not from the
+  job's row, so that a worker that lost the job and has not noticed yet still records the execution it was.
+- **A takeover reuses the steps that finished** (built, #106), if the job is `resumable`, with the same mechanism as a resume ([the runner](runner.md#resuming)): the
   source of the reuse is **this same job, executions before the current one**, and not another job. The results are already under this job's key, so
   nothing is copied forward. A job that is not resumable kept no results, and a takeover reruns it from the start.
 - **The owner is checked on every write** (built, #105). The writes of a running job (renewing the lease, the final status and its event) are conditional on
@@ -213,8 +215,9 @@ for ever. This section is the recovery from that, and it is all that it is: we d
 - **Delivery count.** `Delivery.delivery_count` says how many times a message has been delivered. **How many redeliveries are allowed is the
   queue's business**: a broker has its own policy and dead-letter queue. Ours, `SqliteQueue`, allows 3 by default (`max_deliveries`), then marks
   the message `dead` and fails the job with error type `DeadLettered`. A user's queue that dead-letters a message ends its
-  job with **`client.fail(job_id)`**, from its dead-letter handler: a compare-and-set that moves a job that has not started (`INIT`) to `FAILED` with
-  error type `DeadLettered` (a `failed` event), and returns `False` if the job is already final. Until it is called, the job stays `INIT`.
+  job with **`client.fail(job_id)`** (built, #106), from its dead-letter handler: a compare-and-set that moves a job that is not running to `FAILED`
+  with error type `DeadLettered` (a `failed` event): one that is still `INIT`, or `RUNNING` with an expired lease (its worker was lost). It returns
+  `False` for a job that runs with a live lease, is final, or does not exist. Until it is called, the job stays as it was. `SqliteQueue` calls it itself.
 
 ## Cancelling
 

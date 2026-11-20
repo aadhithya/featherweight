@@ -51,8 +51,11 @@ input tokens. A failed result has no tokens.
 
 ## Resuming
 
-A takeover of a job ([several workers](submitted-jobs.md#several-workers); designed, not built: [#106](https://github.com/aadhithya/featherweight/issues/106)) uses the same rules, with one difference: the source is the **same job**,
-and only runs of **earlier executions** (`job_execution` below the current one) are looked up, so a run never reuses its own execution's rows.
+A takeover of a job ([several workers](submitted-jobs.md#several-workers)) uses the same rules, with one difference: the source is the **same job**,
+and only runs of **earlier executions** (`job_execution` below the current one) are looked up, so a run never reuses its own execution's rows. The result
+is read under this job's own key, so nothing is copied forward, and only a `resumable` job is looked up. A job that resumes another and was
+taken over looks in itself first, then in the old job. The execution that asks is the one that the task running the job has (not the job row's: a worker
+that lost the job and has not noticed is still the execution it was).
 
 A job created with `resume_from` (see [jobs and tracing](jobs-and-tracing.md#resuming-a-job)) makes the runner look up a
 run before it runs it. This is replay with memoised agent calls: the caller's code runs again, and only agent runs are

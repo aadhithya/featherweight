@@ -265,7 +265,7 @@ never reads our tables, which hold no results: it asks your store, under the job
 is the stream below.
 
 **Following a job: job events and SSE.** Every change of a job's status is an **event** (`queued`, `running`, `succeeded`,
-`failed`, `cancelled`, and `cancel_requested`), and the database writes it **in the same transaction** as the change, whoever
+`failed`, `cancelled`, `cancel_requested`, and `lost`: the job's worker was lost and the job went back to the queue to be taken over), and the database writes it **in the same transaction** as the change, whoever
 makes it (`run_job`, a client, a worker). An event is metadata only (`seq`, `job_id`, `type`, `status`, the error's type and hash,
 `at`). `job_events(db, job_id, after=0)` streams them: the stored ones first, then each as it happens, ending after a final
 one. A stream that starts late replays what it missed, and one that reconnects passes the `seq` of the last event it had.

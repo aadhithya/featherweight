@@ -416,6 +416,7 @@ async def test_a_job_that_a_client_submits_and_a_worker_runs_is_one_trace_across
     job = named(spans, "invoke_workflow shout")[0].attributes
     assert (job["ftw.job.id"], job["ftw.job.version"], job["ftw.job.hash"]) == (job_id, "3", Shout.job_hash())
     assert job["gen_ai.agent.name"] == "shout" and "ftw.resumed_from" not in job
+    assert job["ftw.job.execution"] == 1, "a worker's job is its first execution"
 
 
 async def test_a_job_run_in_your_process_has_the_same_spans_and_your_own_span_nests_in_it(db, telemetry):

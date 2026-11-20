@@ -80,6 +80,7 @@ ATTRIBUTES: frozenset[str] = frozenset(
         "ftw.job.name",
         "ftw.job.version",
         "ftw.job.hash",
+        "ftw.job.execution",
         "ftw.agent.hash",
         "ftw.run.id",
         "ftw.invocation.id",
@@ -222,6 +223,7 @@ class OTelObserver(Observer):
                 ftw__job__name=start.name,
                 ftw__job__version=start.version,
                 ftw__job__hash=start.job_hash,
+                ftw__job__execution=start.execution,
                 ftw__resumed_from=start.resumed_from,
             ),
         )
