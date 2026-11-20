@@ -7,12 +7,11 @@
 
 **An opinionated agent harness. Pydantic is the spec. Everything else follows.**
 
-An agent is a typed class. Its input, output, skills and subagents are declared right there and enforced by Pydantic, not
-by convention, and not by hoping the model behaves. The boilerplate every agent project ends up writing (retries, limits,
-failures, tracing, tools, delegation) is already written. You write the pipeline. That's the part that's yours.
+An agent is a typed class. Its input, output, tools, skills and subagents are declared right there and enforced, not hoped for.
+The boilerplate every agent project ends up writing (retries, limits, failures, tracing, delegation, workers, resume) is already
+written. You write the pipeline. That's the part that's yours.
 
-A malformed agent never reaches the model. A running one has a known input and a known output, because both are typed and
-both are enforced. No guessing.
+A malformed agent never reaches the model. A running one has a known input and a known output. No guessing.
 
 It has opinions. Take them, or fork off.
 
@@ -20,108 +19,83 @@ It has opinions. Take them, or fork off.
 >
 > **Alpha.** The API can still change before 1.0.
 
-## What you get
+## Built on LangChain, on purpose
 
-| | |
-|---|---|
-| **Typed, end to end** | What goes in and what comes out is a schema. A bad answer is caught, sent back to the model and retried before your code ever sees it. |
-| **Declared, not assembled** | An agent is a class. A bad declaration fails when it is written, not in production at 3 a.m. |
-| **Failures are values** | A failed run hands you the error and a status. No try/except pyramid. |
-| **Plain Python pipelines** | Order, loops and branching are `if` and `for`. No graph to draw, and no pretending to be a workflow engine. |
-| **Subagents on a leash** | Agents delegate to agents, but only the ones they are allowed to, and only so deep and so wide. |
-| **Background agents** | An agent starts another and goes on. The result comes back when it is ready, as a message, and your app decides what to do with it. |
-| **Resume instead of rerun** | A pipeline that dies halfway picks up where it stopped, without paying for the steps that worked. |
-| **Workers, and a lost worker is fine** | Submit a job from your API, run it on workers, follow it live, cancel it. Lose a worker mid-job and another takes over. The two sides never talk to each other directly. |
-| **Streams to your UI** | Live job status and chat answers stream over standard protocols, so a browser can listen as is. |
-| **See what it did** | OpenTelemetry traces of jobs, attempts, model calls and tool calls, in the format the observability and evaluation platforms already read. Content stays off unless you turn it on. |
-| **Any model, any tool** | Gemini, Gemma, Claude, OpenAI or your own. MCP servers and skills plug in and stay out of the context until needed. |
-| **Your data is yours** | The framework stores metadata and nothing else: status, tokens, timing. Everything else is handed back to you, and how it gets stored is your call. |
-| **Your storage, your call** | Where and how things are stored is up to you. Implement the interface, and we don't care what is behind it. sqlite and Postgres are there to get you going. |
+featherweight doesn't replace LangChain. It sits on it.
 
-## An agent
+- **Your tools are LangChain tools.** Write one with `@tool`, or take one from the LangChain ecosystem.
+- **MCP goes through LangChain's MCP adapters.** Stdio or HTTP servers, declared on the agent.
+- **Models are LangChain chat models underneath**, behind settings classes that are checked when the agent is built.
 
-The agent is declared, not assembled. A bad declaration fails when the class is built, a bad answer fails inside the run and
-is retried, and every attempt lands in a run log.
+So what LangChain already gives you, a pile of integrations and adapters, can plug into agents that are typed, bounded and run on workers.
+We test the providers and tools featherweight ships with. Other LangChain integrations go into the same slots, but we haven't verified them one by one.
 
-```python
-from typing import ClassVar
+## Built for agentic coding
 
-from featherweight import AgentBase, AgentInput, AgentOutput, AgentRunner, RunStatus
+There is a skill. Plug it into your favourite coding agent and it already knows how to build with featherweight: the typed agent, the rules,
+the patterns, and the whole book. You start building in your editor, not in a docs tab.
 
-
-class ExtractInput(AgentInput):
-    text: str
-
-
-class ExtractOutput(AgentOutput):
-    people: list[str] = []
-
-
-class PeopleExtractor(AgentBase):
-    name: str = "people_extractor"
-    description: str = "Finds the people named in a text"
-    version: str = "0.1.0"
-    prompt: str = "List every person named in the text."
-    input_model: ClassVar[type[AgentInput]] = ExtractInput
-    output_model: ClassVar[type[AgentOutput]] = ExtractOutput
-
-    def check_output(self, agent_input, output):  # what a schema can't say; raise and the model tries again
-        if missing := [p for p in output.people if p not in agent_input.text]:
-            raise ValueError(f"Not in the text: {missing}")
-
-
-result = await AgentRunner(db).run(PeopleExtractor, ExtractInput(text=text), job_id=job_id)
-if result.status == RunStatus.SUCCESS:
-    print(result.output.people)  # validated, checked, and retried until it is right
-```
-
-## Getting started
-
-The quickest way in is [the book](https://github.com/aadhithya/featherweight/blob/main/docs/book/README.md): a tiny incident report
-assistant that grows from a first agent to workers, chapter by chapter, with code that runs in a container.
-
-### Install
-
-```
-pip install featherweight
-pip install 'featherweight[anthropic]'    # or mcp, openai, postgres, otel
-pip install 'featherweight[all]'          # all of them
-```
-
-Python 3.12 or later. Import what you use: `from featherweight import AgentBase, AgentRunner`. (`import featherweight as ftw`
-works too, as a joke.) [Getting started](https://github.com/aadhithya/featherweight/blob/main/docs/getting-started.md) has a first agent and how to run it.
-
-### With a coding agent
-
-There is a skill that teaches a coding agent to build with `featherweight`. In Claude Code:
+In Claude Code:
 
 ```
 /plugin marketplace add aadhithya/featherweight
 /plugin install featherweight@featherweight
 ```
 
-Other tools that read Agent Skills: copy [`skills/featherweight`](https://github.com/aadhithya/featherweight/blob/main/skills/featherweight) into their skills folder.
+OpenAI Codex, Cursor, GitHub Copilot, Gemini CLI and the other tools that read Agent Skills: install it with the [`skills`](https://github.com/vercel-labs/skills) CLI,
+which puts it where each tool looks (it needs Node.js).
 
-## Why does this exist? Pydantic AI and LangGraph are right there.
+```
+npx skills add aadhithya/featherweight                 # asks which tools to install it for
+npx skills add aadhithya/featherweight -a codex        # or name one: codex, cursor, claude-code, ...
+```
 
-They are. Use them. This is built on LangChain and LangGraph anyway.
+Or copy [`skills/featherweight`](https://github.com/aadhithya/featherweight/blob/main/skills/featherweight) into the tool's skills folder yourself. There is also an
+[`AGENTS.md`](https://github.com/aadhithya/featherweight/blob/main/AGENTS.md) at the root, for the tools that read that.
 
-- **Boredom.** Every agent project needs the same retries, limits and MCP wiring. I wrote them once and got on with my day.
-- **Mostly pipelines.** Batches, fan-out and jobs on workers: nobody is watching the tokens. A chat agent streams its answer
-  ([streaming agents](https://github.com/aadhithya/featherweight/blob/main/docs/streaming.md)), but there is no UI, and no stored conversations.
-- **Very opinionated.** Sorry, not sorry. Don't like them? Fork off.
+## What you get
 
-Want durable execution or built-in evals? Pydantic AI. Traces for any OpenTelemetry platform come with featherweight. Want a graph that pauses and resumes? LangGraph.
+| | |
+|---|---|
+| **Typed, declared, enforced** | An agent is a class. What goes in and what comes out is a schema. A bad declaration fails when it is written, a bad answer is caught and retried before your code ever sees it. |
+| **Least privilege** | Everything is an allow-list. A capability an agent has is one the developer gave it, on purpose. |
+| **Plain Python, failures as values** | Order, loops and branching are `if` and `for`: no graph, no workflow engine. A failed run hands you the error and a status, not an exception. |
+| **Agents that delegate** | Subagents on a leash, only the ones allowed, only so deep. Or background agents: one starts another and goes on, and the result comes back when it is ready. |
+| **Resume instead of rerun** | A pipeline that dies halfway picks up where it stopped, without paying for the steps that worked. |
+| **Workers, and a lost worker is fine** | Submit a job from your API, run it on workers, follow it live, cancel it. Lose a worker mid-job and another takes over. |
+| **Streams to your UI** | Chat answers and job status stream over standard protocols (AG-UI, the Vercel AI SDK, SSE), so a browser can listen as is. |
+| **See what it did** | OpenTelemetry traces of jobs, attempts, model calls and tool calls, in the format observability and evaluation platforms already read. Content stays off unless you turn it on. |
+| **Any model, any tool** | Gemini, Gemma, Claude, OpenAI or your own. MCP servers and skills plug in and stay out of the context until needed. |
+| **Your data, your storage** | The framework stores metadata and nothing else. Databases, result stores, queues and observers are interfaces: implement one, run the kit that checks it. sqlite and Postgres are there to get you going. |
 
-## Documentation
+## Where it stops
+
+- Not a workflow engine: no graph, no pause-and-resume UI.
+- No server, no UI, no stored conversations. You bring the API and the frontend; it streams to them.
+- It doesn't run evaluations. It emits traces that make it easy to.
+- Very opinionated. Don't like the opinions? Fork off.
+
+Want durable execution or built-in evals? Pydantic AI. Want a graph that pauses and resumes? LangGraph. Want agents that are typed, bounded,
+on workers and traced, in plain Python? Here.
+
+## Getting started
+
+The quickest way in is [the book](https://github.com/aadhithya/featherweight/blob/main/docs/book/README.md): a tiny incident report
+assistant that grows from a first agent to workers, chapter by chapter, with code that runs in a container.
+
+```
+pip install featherweight
+pip install 'featherweight[all]'    # or just: mcp, anthropic, openai, postgres, otel
+```
+
+Python 3.12 or later. Import what you use: `from featherweight import AgentBase, AgentRunner`. (`import featherweight as ftw` works too, as a joke.)
+
+## Read more
 
 - [**The book**](https://github.com/aadhithya/featherweight/blob/main/docs/book/README.md): build something step by step, from a first agent to workers
-- [**Getting started**](https://github.com/aadhithya/featherweight/blob/main/docs/getting-started.md): install it, write an agent, run it
-- [**Docs**](https://github.com/aadhithya/featherweight/blob/main/docs/README.md): the guides, and where to begin
-- [**Specs**](https://github.com/aadhithya/featherweight/blob/main/docs/specs/README.md): what each part does, and why
-- [**Examples**](https://github.com/aadhithya/featherweight/blob/main/examples/README.md): code you can run
-- [**Changelog**](https://github.com/aadhithya/featherweight/blob/main/CHANGELOG.md): what changed in each release
-- [**Development**](https://github.com/aadhithya/featherweight/blob/main/docs/development.md): the commands, the layout, contributing
+- [**A production stack**](https://github.com/aadhithya/featherweight/blob/main/docs/production-stack.md): what to use where, with Postgres, your queue and your result store
+- [**The guides**](https://github.com/aadhithya/featherweight/blob/main/docs/README.md), [**the specs**](https://github.com/aadhithya/featherweight/blob/main/docs/specs/README.md) (what each part does, and why) and [**the examples**](https://github.com/aadhithya/featherweight/blob/main/examples/README.md)
+- [**Development**](https://github.com/aadhithya/featherweight/blob/main/docs/development.md) and the [**changelog**](https://github.com/aadhithya/featherweight/blob/main/CHANGELOG.md)
 
 ## License
 
