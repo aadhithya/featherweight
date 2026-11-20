@@ -179,6 +179,7 @@ about the same: the change is in what the table holds. **Audited and kept:** `ag
 | `resumed_from` | `text` null, foreign key `jobs` | The job this one resumes |
 | `job_hash`, `input_hash` | `text` null | A submitted job: the hash of its declaration and of its input. `NULL` for a job made without a job class |
 | `cancel_requested` | `boolean` / `integer` not null, default false | A running job that was asked to stop |
+| `parent_agent_run_id` | `text` null | Designed: the attempt that started this job as a [background agent](background-agents.md#the-tool). `NULL` for any other job |
 | `worker_id`, `lease_expires_at` | `text` null, `timestamptz` / `text` null | The worker that runs the job (the last one, once it ended), and when its lease ends (`NULL` while queued, when final, and for a job run in your process). Renewed in place; Postgres uses its own clock |
 | `executions` | `integer` not null, default 0, `>= 0` | How many times a worker started the job; 1 for the first, one more each time it is started again |
 | `error_type`, `error_hash` | `text` null | Set for `FAILED` |

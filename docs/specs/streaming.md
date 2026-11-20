@@ -122,8 +122,8 @@ How LangChain's stream maps to this (to be confirmed while building, see [Findin
 `messages` mode gives the chunks of the model's output (text, reasoning and tool call chunks, as content blocks), and the
 `updates` mode gives what a tool node returned.
 
-Events with no source here (state, activity, custom, sub-agent events) are not produced. The custom event is reserved for the
-[background agents epic](#not-supported).
+Events with no source here (state, activity, custom, sub-agent events) are not produced. The custom event is used for two
+events of [background agents](background-agents.md#events), `background_started` and `background_finished` (designed).
 
 ## The model's thoughts
 
@@ -273,8 +273,8 @@ A third format is a third adapter: the events are the contract.
 
 ## Not supported
 
-- **Background agents** (a sub-agent that runs while the chat goes on, and wakes the next turn when done). Parked as its own
-  epic, after jobs. The application can do it today with a job and by starting the next turn itself; the guide shows how.
+- **Background agents** (a sub-agent that runs while the chat goes on): [their own spec](background-agents.md). The application can do it today
+  with a job and by starting the next turn itself; the guide shows how.
 - **Cancelling across processes**, and queued or multi-process jobs: the jobs epic.
 - **Streaming sub-agents:** a launched sub-agent is a tool call.
 - **Client-side tools** (AG-UI's `tools`), shared state, activity, interrupts and resume: ignored.
