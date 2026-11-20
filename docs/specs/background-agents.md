@@ -50,17 +50,19 @@ class Researcher(AgentBase):
 ```
 
 - Every entry is an agent class (not a streaming one) or a `Job` class, as `submit` takes; none is the agent's own class; the names are
-  distinct and different from its `subagents`. An agent that is itself in a `background_agents` list may not declare `background_agents`:
-  **a background agent cannot start background agents** (a bound on fan-out).
-- **The model gets one tool,** `start_background(agent_name, input_json)`, and the prompt lists the agents by name and description,
-  as it does for `subagents`. `get_agent_schema(agent_name)` covers them too. `input_json` is a string, for the same reason as in
+  distinct. **An agent may be in both `subagents` and `background_agents`**: then the model chooses, per call, between `launch_agent` (it waits
+  and gets the output) and `start_background` (it goes on). A `Job` class can only be in `background_agents`. An agent that is itself in a
+  `background_agents` list may not declare `background_agents`: **a background agent cannot start background agents** (a bound on fan-out).
+- **The model gets one more tool,** `start_background(agent_name, input_json)`. **The prompt lists each agent once**, by name and description, in
+  three groups: *inline* (only in `subagents`), *background* (only in `background_agents`) and *either* (in both), so that an agent in both lists is
+  not described twice ([agents](agents.md#the-system-prompt)). `get_agent_schema(agent_name)` covers all of them. `input_json` is a string, for the same reason as in
   `launch_agent`.
 - **It returns at once, and as text,** and never raises into the parent's run:
 
 | Case | What comes back |
 |---|---|
 | Started | `{"status": "STARTED", "agent": "...", "job_id": "..."}` |
-| A name that is not on the list | `'x' is not an agent you can start in the background. You can start: ...` |
+| A name that is not in `background_agents` | `'x' is not an agent you can start in the background. You can start: ...` |
 | The input does not fit | `The input for 'x' is not valid: ... Check get_agent_schema and try again.` |
 | The limit of live children is reached | A sentence saying so |
 
@@ -144,6 +146,7 @@ the model call, `AgentRunner(background=)`, `runner.background_message`, cancel 
 ## Decisions
 
 - **A background agent is a job exposed as a tool,** and one concept runs here or on a worker, by configuration.
+- **An agent may be inline, background or both,** by which lists it is in; the model chooses for an agent in both, and the prompt describes each agent once.
 - **The result comes back as a user message,** never as a second tool result, and only where every call of the round has its result.
 - **featherweight wakes nothing:** events, and a helper that builds the message. A self-waking session is an example.
 - **A chat turn does not wait, and a run that is not a chat does.**
@@ -170,7 +173,7 @@ the model call, `AgentRunner(background=)`, `runner.background_message`, cancel 
 
 No live model call. Fake models, `MemoryQueue`, the dict result store.
 
-- **The declaration:** the checks of `background_agents`, a background agent that declares its own refused, the prompt and the tool.
+- **The declaration:** the checks of `background_agents`, a background agent that declares its own refused, an agent in both lists accepted, the prompt (each agent once, in its group) and the tool.
 - **The tool:** every row of the table; a child here and on a worker (`MemoryQueue` and a worker); the same job, row, events and result in both;
   `results=None` refused before the model call; the limit of live children.
 - **The result:** a child that finishes mid-loop is added after the round's tool results and once; a failed and a cancelled child; a model
