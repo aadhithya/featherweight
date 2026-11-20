@@ -104,9 +104,8 @@ for sqlite and for Postgres.
 - **Postgres creates its schema.** The first connect runs `CREATE SCHEMA IF NOT EXISTS` for the schema you named (`featherweight` by default),
   so the database user needs permission to create a schema and tables, at least that once.
 - **An old database is refused.** One from before migrations existed raises `SetupError` ("delete it and run again"): nothing is carried over.
-- **Start one process first.** Migrations take no lock. If several processes connect to a **fresh** Postgres database at the same moment (an API and
-  workers started together), all but one fail at start-up with a `UniqueViolation`, and connect fine when started again. Start one process first, or
-  connect once as a deploy step, and then the rest.
+- **Processes can connect at the same moment.** On Postgres, creating the schema and applying the migrations happen under an advisory lock on the
+  schema, so an API and several workers started together on a fresh database wait for each other: one makes the tables, and the rest find them done.
 
 The rules and the reasons are in the [spec](specs/persistence.md#migrations).
 
