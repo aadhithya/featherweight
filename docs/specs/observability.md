@@ -1,6 +1,6 @@
 # Spec: observers and OpenTelemetry
 
-Status: being built. #92 (the `Observer` class, its records, `testing.check_observer`, and the runner's calls) is done; the job scope (#93), `OTelObserver` (#94) and the guide (#95) are not. It is tracked in [epic #90](https://github.com/aadhithya/featherweight/issues/90), and each part has its own issue. When
+Status: being built. #92 (the `Observer` class, its records, `testing.check_observer`, and the runner's calls) is done; the job scope and the trace context across the queue (#93) are done; `OTelObserver` (#94) and the guide (#95) are not. It is tracked in [epic #90](https://github.com/aadhithya/featherweight/issues/90), and each part has its own issue. When
 a part is built, this page says so, and the guide `docs/observability.md` shows how to use it.
 
 It builds on [the persistence spec](persistence.md) (the rule that featherweight keeps metadata only, and that content never

@@ -9,13 +9,14 @@ import inspect
 import logging
 import re
 from abc import ABC, abstractmethod
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import Any, ClassVar, Generic, TypeVar, get_type_hints, overload
 
 from pydantic import BaseModel, ConfigDict
 
 from featherweight.fingerprint import agent_hash, error_fields, input_hash, job_hash
 from featherweight.models import AgentBase, AgentInput, AgentResult, RunStatus
+from featherweight.observers import Entered, JobEnd, JobStart
 from featherweight.results import ResultKey, ResultStore
 from featherweight.runner import AgentRunner
 
@@ -197,14 +198,63 @@ async def execute_job(
     results: ResultStore | None,
     *,
     on_cancel: Callable[[], Awaitable[None]] | None = None,
+    trace_context: Mapping[str, str] = {},
 ) -> JobOutcome[BaseModel]:
     """Run a job that has been started (its row is `RUNNING`), keep its result and set its final status. This is the one function
     that runs a job, for `run_job` (in your process) and for the job worker, so that the two cannot differ: the same row, hashes,
-    events and result.
+    events, result, and the same calls to the runner's observers.
 
     A job that raises is a `FAILED` outcome, not an exception (the error type and hash go to the run log, the text to the log and
     the outcome). A cancelled task sets `CANCELLED` (or runs `on_cancel`, which the worker uses to put a job back on the queue)
-    and re-raises the cancellation."""
+    and re-raises the cancellation.
+
+    The observers' `job` scope wraps the whole run, so that an observer can make its span the current one while the pipeline
+    runs. `trace_context` is the carrier that came with the message (a worker), and is empty for `run_job`."""
+    observers = runner._observers
+    scope: Entered | None = None
+    if observers:
+        row = await runner.db.get_job(job_id)
+        scope = await observers.enter(
+            "job",
+            JobStart(
+                job_id=job_id,
+                name=job.name,
+                version=job.version,
+                job_hash=(row.job_hash if row else None) or job.job_hash(),
+                input_hash=(row.input_hash if row else None) or input_hash(job_input),
+                resumable=row.resumable if row else False,
+                resumed_from=row.resumed_from if row else None,
+                trace_context=dict(trace_context),
+                input=job_input.model_dump(mode="json") if observers.wants_content else None,
+            ),
+        )
+    try:
+        outcome, error_type = await _execute(runner, job, job_id, job_input, results, on_cancel)
+    except asyncio.CancelledError:
+        if scope is not None:
+            await scope.leave(JobEnd(status=RunStatus.CANCELLED))
+        raise
+    if scope is not None:
+        await scope.leave(
+            JobEnd(
+                status=outcome.status,
+                error_type=error_type,
+                output=outcome.result.model_dump(mode="json") if observers.wants_content and outcome.result else None,
+                error=outcome.error if observers.wants_content else None,
+            )
+        )
+    return outcome
+
+
+async def _execute(
+    runner: AgentRunner,
+    job: type[Job],
+    job_id: str,
+    job_input: BaseModel,
+    results: ResultStore | None,
+    on_cancel: Callable[[], Awaitable[None]] | None,
+) -> tuple[JobOutcome[BaseModel], str | None]:
+    """The run itself, and the type of the error if it failed."""
     logger.info("job_started job_id=%s job=%s", job_id, job.name)
     try:
         output = await job().run(JobContext(runner=runner, job_id=job_id), job_input)
@@ -234,10 +284,10 @@ async def execute_job(
         error_type, error_hash = error_fields(exc)  # the text is returned and logged, not kept
         await runner.db.set_job_status(job_id, RunStatus.FAILED, error_type=error_type, error_hash=error_hash)
         logger.error("job_failed job_id=%s job=%s error=%s", job_id, job.name, error, exc_info=exc)
-        return JobOutcome[BaseModel](job_id=job_id, status=RunStatus.FAILED, error=error)
+        return JobOutcome[BaseModel](job_id=job_id, status=RunStatus.FAILED, error=error), error_type
     await runner.db.set_job_status(job_id, RunStatus.SUCCESS)
     logger.info("job_finished job_id=%s job=%s status=SUCCESS", job_id, job.name)
-    return JobOutcome[BaseModel](job_id=job_id, status=RunStatus.SUCCESS, result=output)
+    return JobOutcome[BaseModel](job_id=job_id, status=RunStatus.SUCCESS, result=output), None
 
 
 async def run_job(

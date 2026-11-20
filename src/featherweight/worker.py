@@ -203,7 +203,15 @@ class JobWorker:
                 logger.warning("job_cancelled job_id=%s", job_id)
 
         try:  # the same code as `run_job` runs a job with: the worker only adds the queue
-            await execute_job(self.runner, job, job_id, job_input, self.results, on_cancel=on_cancel)
+            await execute_job(
+                self.runner,
+                job,
+                job_id,
+                job_input,
+                self.results,
+                on_cancel=on_cancel,
+                trace_context=delivery.message.trace_context,
+            )
         except asyncio.CancelledError:
             return  # `on_cancel` has settled the message and the status
         await self.queue.ack(delivery)

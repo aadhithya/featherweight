@@ -103,6 +103,7 @@ CREATE TABLE job_queue (
     job_id       TEXT NOT NULL,
     job_name     TEXT NOT NULL,
     input        TEXT NOT NULL,
+    trace_context TEXT NOT NULL DEFAULT '{{}}',
     state        TEXT NOT NULL CHECK (state IN ('ready', 'claimed')),
     enqueued_at  TEXT NOT NULL,
     claimed_at   TEXT
