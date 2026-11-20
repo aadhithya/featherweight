@@ -28,6 +28,8 @@ flowchart TD
   runs it elsewhere. The same job, the same record, in both places.
 - **Results** go to **a result store that you own**. The framework keeps no data.
 - **Observers** receive what happens, and send it where you want: OpenTelemetry is the one we ship.
+- **What ships, and what is yours.** Model providers: `Gemini`, `Gemma`, `Claude`, `OpenAI`. Databases: sqlite and Postgres. Result stores and queues: sqlite. Observers: OpenTelemetry.
+  MCP servers: stdio and HTTP. Chat protocols: AG-UI and the Vercel AI SDK. For databases, result stores, queues, observers and providers, yours is a class you write: [Part 6](../06-bring-your-own-storage/01-postgres.md).
 
 ## I want to...
 

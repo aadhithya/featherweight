@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from featherweight import AgentRunner, JobContext, SqliteDatabase, job, run_job
 
 
-@job
+@job  # a class made from this function: a name, a version, a typed input and output
 async def summarise(ctx: JobContext, input: Report) -> Summary:
     result = await ctx.run(IncidentSummariser, input)  # an agent run, inside the job
     if result.output is None:
@@ -25,7 +25,7 @@ class Digest(BaseModel):
     summaries: list[Summary]
 
 
-@job
+@job  # a class made from this function: a name, a version, a typed input and output
 async def summarise_all(ctx: JobContext, input: Reports) -> Digest:
     reports = [Report(text=Path(path).read_text()) for path in input.paths]
     results = await ctx.run_many(IncidentSummariser, reports)  # all at once, in order

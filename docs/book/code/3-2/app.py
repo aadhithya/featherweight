@@ -17,7 +17,7 @@ class Digest(BaseModel):
     summaries: list[Summary]
 
 
-@job
+@job  # a class made from this function: a name, a version, a typed input and output
 async def summarise_all(ctx: JobContext, input: Reports) -> Digest:
     reports = [Report(text=Path(path).read_text()) for path in input.paths]
     results = await ctx.run_many(IncidentSummariser, reports)

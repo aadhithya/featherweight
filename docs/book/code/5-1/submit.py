@@ -11,7 +11,7 @@ from featherweight import JobClient, SqliteDatabase, SqliteQueue, default_db_pat
 async def main() -> None:
     paths = sorted(str(p) for p in Path("reports").glob("*.txt"))
     async with SqliteDatabase(default_db_path()) as db:
-        client = JobClient(db, SqliteQueue(db))
+        client = JobClient(db, SqliteQueue(db))  # the client only writes to the queue and the database
         job_id = await client.submit(summarise_all, Reports(paths=paths))
         async for event in client.events(job_id):
             print(event.type)

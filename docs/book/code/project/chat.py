@@ -42,6 +42,7 @@ class Session:
             await self.run_turn(message)
 
     async def run_turn(self, message: BaseMessage) -> None:
+        # the conversation is yours: the whole history goes in at each turn
         run = self.runner.stream(IncidentAssistant, ChatInput.from_langchain([*self.history, message]))
         async for event in run:
             if isinstance(event, TextMessageContentEvent):

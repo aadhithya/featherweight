@@ -15,19 +15,10 @@ from pathlib import Path
 
 from incident import IncidentSummariser, Report, Summary
 
-from featherweight import (
-    AgentRunner,
-    JobClient,
-    JobContext,
-    SqliteDatabase,
-    SqliteQueue,
-    SqliteResultStore,
-    job,
-    run_job,
-)
+from featherweight import AgentRunner, JobContext, ResultKey, SqliteDatabase, SqliteResultStore, job, run_job
 
 
-@job
+@job  # a class made from this function: a name, a version, a typed input and output
 async def summarise(ctx: JobContext, input: Report) -> Summary:
     result = await ctx.run(IncidentSummariser, input)
     if result.output is None:
@@ -42,9 +33,11 @@ async def main() -> None:
         outcome = await run_job(AgentRunner(db, results=store), summarise, report)
         print("returned:", outcome.result.title if outcome.result else outcome.error)
 
-        client = JobClient(db, SqliteQueue(db), store)  # how a client, in another process, reads it (Part 5)
-        stored = await client.result(summarise, outcome.job_id)
-        print("in the store:", stored)
+        row = await db.get_job(outcome.job_id)
+        assert row and row.job_hash and row.input_hash  # a job class has both hashes
+        # the key of a stored result: the job's id, the job's hash (the field is called agent_hash) and the input's hash
+        key = ResultKey(job_id=outcome.job_id, agent_hash=row.job_hash, input_hash=row.input_hash)
+        print("in the store:", await store.get(key))  # what a later reader finds: Part 5's client does this for you
 
         outcome = await run_job(AgentRunner(db, results=None), summarise, report)  # no store: nothing is kept
         print("results=None, still returned:", outcome.result is not None)
@@ -58,7 +51,7 @@ Run it: `make book-chapter N=3-3`
 
 ```
 returned: Checkout was down
-in the store: title='Checkout was down' severity='high' ...
+in the store: {'open_questions': [], 'title': 'Checkout was down', 'severity': 'high', ...}
 results=None, still returned: True
 ```
 
@@ -67,8 +60,8 @@ results=None, still returned: True
 - **`run_job` returns the output**, and also writes it to the runner's result store, if the runner has one. The store is a `results=` argument.
 - **`SqliteResultStore`** is for local work: it keeps results in the same sqlite file as the run log. In a deployment the store is yours: a bucket, a table,
   a database for each customer. Part 6 writes one.
-- **A client reads the result back** with `JobClient.result(job, job_id)`, which parses what the store holds into the job's output model. Part 5 uses it
-  from another process.
+- **A later reader gets it from the store, by key:** the job's id, the job's hash and the input's hash. In [Part 5](../05-in-production/01-submit-and-a-worker.md) a
+  client does this for you and parses it into the job's output model.
 - **`results=None` keeps nothing.** The outcome still has the output, but it is gone when the program ends, and there is nothing for a later job to
   [resume](04-resume.md) from.
 

@@ -25,7 +25,7 @@ class ReportFile(BaseModel):
     path: str
 
 
-@job
+@job  # a class made from this function: a name, a version, a typed input and output
 async def summarise_file(ctx: JobContext, input: ReportFile) -> Summary:
     with trace.get_tracer("incident_app").start_as_current_span("read the report"):  # your span, under the job's
         report = Report(text=Path(input.path).read_text())

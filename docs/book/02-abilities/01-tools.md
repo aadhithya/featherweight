@@ -8,6 +8,8 @@ Give the agent a tool it can call.
 
 This part adds abilities to the assistant from Part 1. Parts 2, 3 and 4 do not depend on each other: you can read this one without the others.
 
+Every ability in this part is an allow-list: the agent has what its declaration names and nothing else, and each one is a step you take on purpose (see [the philosophy](../00-start-here/03-philosophy.md)).
+
 <!-- code: code/2-1/app.py -->
 ```python
 """Chapter 2-1: a tool. The summariser works out how long the incident lasted."""
@@ -38,12 +40,13 @@ def minutes_between(start: str, end: str) -> str:
     return str(int((datetime.fromisoformat(end) - datetime.fromisoformat(start)).total_seconds() // 60))
 
 
-class Report(AgentInput):
+class Report(AgentInput):  # what goes in: a typed model, checked before the model is called
     text: str
 
 
 class Summary(AgentOutput):  # also carries `open_questions: list[str]`
-    title: str = ""
+    title: str = ""  # every field has a default: a model that does not know is not forced to invent
+    # only these values, or None when the report does not say
     severity: Literal["low", "medium", "high"] | None = None
     service: str | None = None
     impact: str = ""
@@ -52,17 +55,18 @@ class Summary(AgentOutput):  # also carries `open_questions: list[str]`
 
 
 class IncidentSummariser(AgentBase):
-    name: str = "incident_summariser"
+    name: str = "incident_summariser"  # how the run log and the traces name the agent
     description: str = "Turns an incident report into a short, structured summary"
-    version: str = "2"
+    version: str = "2"  # change it when the prompt or the behaviour changes: runs are told apart by it
     prompt: str = (
         "Summarise the incident report. Use only what the report says. "
         "If the severity or the service is not stated, leave it out and ask in open_questions. "
         "If the report gives a start and an end time, use minutes_between for duration_minutes."
     )
+    # the model is a setting of the agent
     model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
-    tools: list[BaseTool] = [minutes_between]
-    input_model: ClassVar[type[AgentInput]] = Report
+    tools: list[BaseTool] = [minutes_between]  # an allow-list: only these tools are bound to the model
+    input_model: ClassVar[type[AgentInput]] = Report  # the contract is set on the class: the same for every run
     output_model: ClassVar[type[AgentOutput]] = Summary
 
     def check_output(self, agent_input, output):  # a rule the schema cannot say: raise to reject the attempt
@@ -73,7 +77,8 @@ class IncidentSummariser(AgentBase):
 async def main(path: str = "reports/04-batch-delay.txt") -> None:
     report = Report(text=Path(path).read_text())
     async with SqliteDatabase(default_db_path()) as db:
-        job_id = await db.create_job("incident-report")
+        job_id = await db.create_job("incident-report")  # a job id groups the runs of one piece of work
+        # the class, not an instance: the runner builds the agent
         result = await AgentRunner(db).run(IncidentSummariser, report, job_id=job_id)
     print(result.status.value, result.model_name, result.output or result.error)
 
@@ -90,8 +95,8 @@ SUCCESS gemini-3.5-flash-lite open_questions=[] title='Nightly batch was late' s
 
 **What to notice**
 
-- **A tool is a plain function** with langchain's `@tool`. The model reads its name, its docstring and its argument names, so write them for the model.
-- **`tools` on the agent is the list the model is given.** The runner checks it before the model sees it, together with any tools the runner adds.
+- **A tool is a plain function** with LangChain's `@tool`: featherweight is built on LangChain, so its tools are LangChain tools. The model reads its name, its docstring and its argument names, so write them for the model.
+- **`tools` is an allow-list, and a guardrail.** Only the tools the agent declares are bound to the model, so nothing else is reachable. The runner checks the list before the model sees it, together with any tools the runner adds.
 - **The tool does the subtraction, not the model.** The report says 14:05 on 2 March and 09:35 on 3 March: 1170 minutes. `duration_minutes` is a new field of `Summary`, so the answer is typed like the rest.
 - **Ready-made tools** (`calculate`, `current_datetime`, `days_between`, `add_to_date`) are in `featherweight.tools`: see [the tools guide](../../agents.md#tools).
 

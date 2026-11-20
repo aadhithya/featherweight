@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 from featherweight import AgentRunner, JobContext, SqliteDatabase, job, run_job
 
-RANK = {"high": 0, "medium": 1, "low": 2, None: 3}
+RANK = {"high": 0, "medium": 1, "low": 2, None: 3}  # most severe first; no severity last
 
 
 class Reports(BaseModel):
@@ -30,7 +30,7 @@ class Digest(BaseModel):
     summaries: list[Summary]
 
 
-@job
+@job  # a class made from this function: a name, a version, a typed input and output
 async def summarise_all(ctx: JobContext, input: Reports) -> Digest:
     reports = [Report(text=Path(path).read_text()) for path in input.paths]
     results = await ctx.run_many(IncidentSummariser, reports)
@@ -51,9 +51,11 @@ async def main() -> None:
     paths = sorted(str(p) for p in Path("reports").glob("*.txt"))
     async with SqliteDatabase(":memory:") as db:
         runner = AgentRunner(db)
+        # resumable: keep the results of the steps, so that a later job can resume from this one
         first = await run_job(runner, summarise_all, Reports(paths=paths, crash=True), resumable=True)
         print("first:", first.status.value, first.error)
         await show(db, "first run", first.job_id)
+        # a new job: the steps that finished are not run again
         second = await run_job(runner, summarise_all, Reports(paths=paths), resume_from=first.job_id)
         print("second:", second.status.value)
         await show(db, "second run", second.job_id)
