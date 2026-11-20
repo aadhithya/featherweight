@@ -166,6 +166,7 @@ The guides are the reference for one subject each (the book above is the way to 
 | What is kept and what is not, resuming a job (`resumable=True`), a result store of your own, choosing a database | `references/persistence.md` |
 | Submit a job to a queue and run it in a worker: `JobClient`, `JobWorker`, `JobQueue`, cancelling, events and SSE | `references/submitted-jobs.md` |
 | See what jobs and agents do: observers, `OTelObserver` (OpenTelemetry spans for jobs, attempts, model calls and tool calls), content, your own spans, evaluation | `references/observability.md` |
+| Deploy it: what to use where (Postgres, your own queue and result store). A suggestion only: follow the user's own stack | `references/production-stack.md` |
 | An agent that starts another agent and goes on: `background_agents`, `start_background`, the result message, events, a chat in the browser | `references/background-agents.md` |
 | See a whole pipeline of several agents | `references/example-pipeline.md` |
 

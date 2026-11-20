@@ -27,6 +27,7 @@ GUIDES = [
     "persistence.md",
     "submitted-jobs.md",
     "background-agents.md",
+    "production-stack.md",
     "observability.md",
     "example-pipeline.md",
 ]
