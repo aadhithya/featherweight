@@ -285,9 +285,9 @@ async def test_a_job_cancelled_in_the_instant_before_the_worker_takes_it_is_not_
     job_id = await submit(db, queue, Slow)
     real = db.start_job
 
-    async def a_client_gets_in_first(job_id):
+    async def a_client_gets_in_first(job_id, **owner):
         assert await db.cancel_queued_job(job_id) is True  # the client's cancel lands just before the worker's take
-        return await real(job_id)  # which then finds the job is not queued any more
+        return await real(job_id, **owner)  # which then finds the job is not queued any more
 
     monkeypatch.setattr(db, "start_job", a_client_gets_in_first)
     async with Running(make(db, queue, [Slow])):

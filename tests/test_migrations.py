@@ -113,7 +113,7 @@ async def test_the_tables_have_exactly_the_documented_columns_and_none_of_them_i
     jobs = set(columns(tmp_path / "f.db", "jobs"))
     assert jobs == {
         "job_id", "name", "status", "resumable", "resumed_from", "job_version", "job_hash", "input_hash", "cancel_requested",
-        "error_type", "error_hash", "created_at", "started_at", "completed_at",
+        "worker_id", "lease_expires_at", "executions", "error_type", "error_hash", "created_at", "started_at", "completed_at",
     }  # fmt: skip
     for table_columns in (runs, jobs):
         assert not {"input", "output", "tool_names", "error", "messages"} & table_columns

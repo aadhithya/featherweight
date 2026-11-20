@@ -51,7 +51,7 @@ input tokens. A failed result has no tokens.
 
 ## Resuming
 
-A takeover of a job ([several workers](submitted-jobs.md#several-workers); designed, not built) uses the same rules, with one difference: the source is the **same job**,
+A takeover of a job ([several workers](submitted-jobs.md#several-workers); designed, not built: [#106](https://github.com/aadhithya/featherweight/issues/106)) uses the same rules, with one difference: the source is the **same job**,
 and only runs of **earlier executions** (`job_execution` below the current one) are looked up, so a run never reuses its own execution's rows.
 
 A job created with `resume_from` (see [jobs and tracing](jobs-and-tracing.md#resuming-a-job)) makes the runner look up a

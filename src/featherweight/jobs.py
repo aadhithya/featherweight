@@ -14,6 +14,7 @@ from typing import Any, ClassVar, Generic, TypeVar, get_type_hints, overload
 
 from pydantic import BaseModel, ConfigDict
 
+from featherweight.db import JobLost, JobOwner, new_id
 from featherweight.fingerprint import agent_hash, error_fields, input_hash, job_hash
 from featherweight.models import AgentBase, AgentInput, AgentResult, RunStatus
 from featherweight.observers import Entered, JobEnd, JobStart
@@ -230,6 +231,8 @@ async def execute_job(
     *,
     on_cancel: Callable[[], Awaitable[None]] | None = None,
     trace_context: Mapping[str, str] = {},
+    owner: JobOwner | None = None,
+    lost: Callable[[], bool] | None = None,
 ) -> JobOutcome[BaseModel]:
     """Run a job that has been started (its row is `RUNNING`), keep its result and set its final status. This is the one function
     that runs a job, for `run_job` (in your process) and for the job worker, so that the two cannot differ: the same row, hashes,
@@ -240,7 +243,12 @@ async def execute_job(
     and re-raises the cancellation.
 
     The observers' `job` scope wraps the whole run, so that an observer can make its span the current one while the pipeline
-    runs. `trace_context` is the carrier that came with the message (a worker), and is empty for `run_job`."""
+    runs. `trace_context` is the carrier that came with the message (a worker), and is empty for `run_job`.
+
+    `owner` (who started the job) makes every write to the job conditional on it still being the owner, in the statement itself.
+    A write that finds the job taken from it raises `JobLost` and writes nothing: this function lets it through (the observers'
+    scope ends with error type `JobLost`, for tracing only) and the caller drops the job. A task that is cancelled because the
+    job was lost (`lost()` says so) writes nothing to the job either."""
     observers = runner._observers
     scope: Entered | None = None
     if observers:
@@ -260,10 +268,17 @@ async def execute_job(
             ),
         )
     try:
-        outcome, error_type = await _execute(runner, job, job_id, job_input, results, on_cancel)
+        outcome, error_type = await _execute(runner, job, job_id, job_input, results, on_cancel, owner)
     except asyncio.CancelledError:
         if scope is not None:
-            await scope.leave(JobEnd(status=RunStatus.CANCELLED))
+            if lost is not None and lost():  # for tracing only: nothing is written to the job
+                await scope.leave(JobEnd(status=RunStatus.FAILED, error_type="JobLost"))
+            else:
+                await scope.leave(JobEnd(status=RunStatus.CANCELLED))
+        raise
+    except JobLost:
+        if scope is not None:
+            await scope.leave(JobEnd(status=RunStatus.FAILED, error_type="JobLost"))
         raise
     if scope is not None:
         await scope.leave(
@@ -297,6 +312,7 @@ async def _execute(
     job_input: BaseModel,
     results: ResultStore | None,
     on_cancel: Callable[[], Awaitable[None]] | None,
+    owner: JobOwner | None,
 ) -> tuple[JobOutcome[BaseModel], str | None]:
     """The run itself, and the type of the error if it failed."""
     logger.info("job_started job_id=%s job=%s", job_id, job.name)
@@ -305,6 +321,10 @@ async def _execute(
         if not isinstance(output, job.output_model):
             raise InvalidJobOutput(f"{job.name} returned {type(output).__name__}, not {job.output_model.__name__}")
         if results is not None:  # the output is the job's product: if it cannot be kept, the job fails
+            if owner is not None and not await runner.db.owns_job(job_id, owner):
+                # Not atomic with the write below (the store is the user's), so a very small window remains: for the same input
+                # the later write wins. Better than writing a result for a job that another worker has taken.
+                raise JobLost(f"Job {job_id} is not owned by {owner} any more")
             row = await runner.db.get_job(job_id)
             if row is not None and row.job_hash and row.job_hash != job.job_hash():
                 logger.warning(
@@ -320,16 +340,20 @@ async def _execute(
         if on_cancel is not None:
             await on_cancel()
         else:
-            await runner.db.set_job_status(job_id, RunStatus.CANCELLED)
+            await runner.db.set_job_status(job_id, RunStatus.CANCELLED, owner=owner)
             logger.warning("job_cancelled job_id=%s job=%s", job_id, job.name)
         raise
+    except JobLost:
+        raise  # not an error of the job: it is not ours any more, and nothing is written to it
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"[:MAX_ERROR_CHARS]
         error_type, error_hash = error_fields(exc)  # the text is returned and logged, not kept
-        await runner.db.set_job_status(job_id, RunStatus.FAILED, error_type=error_type, error_hash=error_hash)
+        await runner.db.set_job_status(
+            job_id, RunStatus.FAILED, error_type=error_type, error_hash=error_hash, owner=owner
+        )
         logger.error("job_failed job_id=%s job=%s error=%s", job_id, job.name, error, exc_info=exc)
         return JobOutcome[BaseModel](job_id=job_id, status=RunStatus.FAILED, error=error), error_type
-    await runner.db.set_job_status(job_id, RunStatus.SUCCESS)
+    await runner.db.set_job_status(job_id, RunStatus.SUCCESS, owner=owner)
     logger.info("job_finished job_id=%s job=%s status=SUCCESS", job_id, job.name)
     return JobOutcome[BaseModel](job_id=job_id, status=RunStatus.SUCCESS, result=output), None
 
@@ -376,9 +400,14 @@ async def run_job(
         job_hash=declared.job_hash(),
         input_hash=input_hash(input),
     )
-    if not await db.start_job(job_id):  # the same compare-and-set step as the worker's
+    # The same compare-and-set step as the worker's. A job run in your process has an owner (this call) and no lease: nothing
+    # renews one, and nobody else takes it over, so there is no lease to lose.
+    worker_id = f"process-{new_id()}"
+    if not await db.start_job(job_id, worker_id=worker_id):
         row = await db.get_job(job_id)
         status = row.status if row is not None else RunStatus.FAILED
         logger.info("job_not_started job_id=%s status=%s", job_id, status.value)
         return JobOutcome[Any](job_id=job_id, status=status, error=f"The job is {status.value}, so it did not run")
-    return await execute_job(runner, declared, job_id, input, runner.results)
+    started = await db.get_job(job_id)
+    owner = JobOwner(worker_id=worker_id, executions=started.executions) if started is not None else None
+    return await execute_job(runner, declared, job_id, input, runner.results, owner=owner)

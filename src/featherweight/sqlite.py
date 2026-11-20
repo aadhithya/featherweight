@@ -4,8 +4,8 @@ import asyncio
 import contextlib
 import json
 import logging
-from collections.abc import AsyncGenerator, Sequence
-from datetime import datetime
+from collections.abc import AsyncGenerator, Mapping, Sequence
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +18,8 @@ from featherweight.db import (
     Database,
     EventType,
     JobEvent,
+    JobLost,
+    JobOwner,
     JobRow,
     RunEnd,
     RunStart,
@@ -173,25 +175,40 @@ class SqliteDatabase(Database):
         return job_id
 
     async def set_job_status(
-        self, job_id: str, status: RunStatus, *, error_type: str | None = None, error_hash: str | None = None
+        self,
+        job_id: str,
+        status: RunStatus,
+        *,
+        error_type: str | None = None,
+        error_hash: str | None = None,
+        owner: JobOwner | None = None,
     ) -> None:
         status = RunStatus(status)
         failed = status is RunStatus.FAILED
         started = ", started_at = ?" if status in (RunStatus.RUNNING, RunStatus.INIT) else ""
+        if status is RunStatus.INIT:
+            started += ", worker_id = NULL, lease_expires_at = NULL"  # back in the queue: nobody owns it
+        elif status in FINAL:
+            started += ", lease_expires_at = NULL"
+        who = " AND worker_id = ? AND executions = ? AND status = ?" if owner is not None else ""
         async with self.transaction():
             cur = await self.conn.execute(
-                f"UPDATE jobs SET status = ?, completed_at = ?, error_type = ?, error_hash = ?{started} WHERE job_id = ?",
+                f"UPDATE jobs SET status = ?, completed_at = ?, error_type = ?, error_hash = ?{started} WHERE job_id = ?{who}",
                 (
                     status.value,
                     now().isoformat() if status in FINAL else None,
                     error_type if failed else None,
                     error_hash if failed else None,
-                    *([now().isoformat() if status is RunStatus.RUNNING else None] if started else []),
+                    *([now().isoformat() if status is RunStatus.RUNNING else None] if "started_at" in started else []),
                     job_id,
+                    *([owner.worker_id, owner.executions, RunStatus.RUNNING.value] if owner is not None else []),
                 ),
             )
             if cur.rowcount == 0:
-                raise LookupError(f"No such job: {job_id}")
+                async with self.conn.execute("SELECT 1 FROM jobs WHERE job_id = ?", (job_id,)) as exists:
+                    if await exists.fetchone() is None:
+                        raise LookupError(f"No such job: {job_id}")
+                raise JobLost(f"Job {job_id} is not owned by {owner} any more")
             event = await self._write_event(
                 job_id, STATUS_EVENT[status], status, error_type if failed else None, error_hash if failed else None
             )
@@ -215,15 +232,39 @@ class SqliteDatabase(Database):
         logger.info("job_cancel_requested job_id=%s", job_id)
         return True
 
-    async def start_job(self, job_id: str) -> bool:
+    async def start_job(self, job_id: str, worker_id: str | None = None, lease: float | None = None) -> bool:
+        started = now()
+        expires = (started + timedelta(seconds=lease)).isoformat() if lease is not None else None
         return await self._take(
             job_id,
-            "UPDATE jobs SET status = ?, started_at = ?, completed_at = NULL, error_type = NULL, error_hash = NULL "
+            "UPDATE jobs SET status = ?, started_at = ?, completed_at = NULL, error_type = NULL, error_hash = NULL, "
+            "worker_id = ?, lease_expires_at = ?, executions = executions + 1 "
             "WHERE job_id = ? AND status = ? AND cancel_requested = 0",
-            (RunStatus.RUNNING.value, now().isoformat(), job_id, RunStatus.INIT.value),
+            (RunStatus.RUNNING.value, started.isoformat(), worker_id, expires, job_id, RunStatus.INIT.value),
             "running",
             RunStatus.RUNNING,
         )
+
+    async def renew_job_leases(self, worker_id: str, jobs: Mapping[str, int], lease: float) -> set[str]:
+        if not jobs:
+            return set()
+        expires = (now() + timedelta(seconds=lease)).isoformat()
+        pairs = ", ".join("(?, ?)" for _ in jobs)
+        held = [value for job_id, executions in jobs.items() for value in (job_id, executions)]
+        async with self.transaction() as conn:
+            cur = await conn.execute(
+                "UPDATE jobs SET lease_expires_at = ? WHERE worker_id = ? AND status = ? "
+                f"AND (job_id, executions) IN (VALUES {pairs}) RETURNING job_id",
+                [expires, worker_id, RunStatus.RUNNING.value, *held],
+            )
+            return {row["job_id"] for row in await cur.fetchall()}
+
+    async def owns_job(self, job_id: str, owner: JobOwner) -> bool:
+        async with self.conn.execute(
+            "SELECT 1 FROM jobs WHERE job_id = ? AND worker_id = ? AND executions = ? AND status = ?",
+            (job_id, owner.worker_id, owner.executions, RunStatus.RUNNING.value),
+        ) as cur:
+            return await cur.fetchone() is not None
 
     async def cancel_queued_job(self, job_id: str) -> bool:
         return await self._take(
@@ -294,7 +335,7 @@ class SqliteDatabase(Database):
         data: dict[str, Any] = dict(row)
         data["resumable"] = bool(data["resumable"])
         data["cancel_requested"] = bool(data["cancel_requested"])
-        for column in ("created_at", "started_at", "completed_at"):
+        for column in ("created_at", "started_at", "completed_at", "lease_expires_at"):
             data[column] = datetime.fromisoformat(data[column]) if data[column] else None
         return JobRow(**data)
 

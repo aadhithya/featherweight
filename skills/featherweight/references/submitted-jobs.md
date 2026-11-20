@@ -110,6 +110,8 @@ await worker.stop(grace=30)
 - It runs only the jobs you list; a message for another name fails that job.
 - It never retries a failed job. If the job was `resumable`, you resume it with a new job ([Persistence](persistence.md)).
 - The result is written to your result store, keyed by the job id, the job hash and the input hash. If it cannot be written, the job fails.
+- While it runs jobs, the worker holds a **lease** on each (`JobWorker(lease=60)`, in seconds) and renews it, and the queue's lease of the message, every third of
+  it (`heartbeat=`). A worker that finds a job taken from it stops that job at once and writes nothing more to it. A job must be safe to run twice.
 - On `stop`, the worker takes no new messages, waits up to `grace` seconds, then cancels what is left, puts those messages back on the queue and
   sets those jobs back to `INIT`, so they run again.
 
