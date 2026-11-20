@@ -66,6 +66,8 @@ async def main(path: str = "reports/01-checkout-outage.txt") -> None:
 
 if __name__ == "__main__":
     asyncio.run(main(*sys.argv[1:2]))
+```
+
 ```python
 model: ModelSettings = Claude(model="claude-haiku-5-5", effort="low")
 ```

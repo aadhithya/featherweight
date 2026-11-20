@@ -81,6 +81,8 @@ if __name__ == "__main__":
     except (KeyboardInterrupt, EOFError):
         pass
 ```
+
+```text
 you> what was the root cause?
 I started the researcher; its note will come.
 [the researcher is done]

@@ -59,6 +59,8 @@ async def main() -> None:
 if __name__ == "__main__":
     asyncio.run(main())
 ```
+
+```text
 SUCCESS open_questions=[] title='Checkout was down' ...
 attempt 1: SUCCESS, gemini-3.5-flash-lite, tokens=312+96, 2210 ms, input_hash=2d368048
 ```

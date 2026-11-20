@@ -95,3 +95,9 @@ def test_a_title_that_differs_from_the_contents_fails(build_book, book):
     page = book / "02-two" / "01-third.md"
     page.write_text(page.read_text().replace("# Third", "# Another title"))
     assert build_book.main(["--check"]) == 1
+
+
+def test_a_page_with_an_unclosed_code_fence_fails(build_book, book, capsys):
+    (book / "02-two" / "01-third.md").write_text("# Third\n\n```text\noutput without a closing fence\n")
+    assert build_book.main(["--check"]) == 1
+    assert "code fence is not closed" in capsys.readouterr().out
