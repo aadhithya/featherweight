@@ -94,13 +94,26 @@ class Session:
         await self.say(await self.runner.background_message(job_id))  # the next turn, with its result
 
 
+async def read_line(prompt: str) -> str:
+    """One line from the terminal, read by the event loop and not by a thread, so that Control-C can leave (a thread stuck in
+    `input()` would keep the process waiting). An empty line, or the end of the input, is an empty string."""
+    loop = asyncio.get_running_loop()
+    line: asyncio.Future[str] = loop.create_future()
+    print(prompt, end="", flush=True)
+    loop.add_reader(sys.stdin, lambda: line.set_result(sys.stdin.readline().strip()))
+    try:
+        return await line
+    finally:
+        loop.remove_reader(sys.stdin)
+
+
 async def main() -> None:
     async with (
         SqliteDatabase(":memory:") as db,
         AgentRunner(db) as runner,
     ):  # in memory: a restart loses what is pending
         session = Session(db, runner)
-        while text := (await asyncio.to_thread(input, "\nyou> ")).strip():
+        while text := await read_line("\nyou> "):
             await session.say(HumanMessage(text))
         for task in session.watching:
             task.cancel()
