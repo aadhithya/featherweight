@@ -15,7 +15,7 @@ OpenAI, `otel` for OpenTelemetry spans (`OTelObserver`). Gemini and Gemma need n
 
 ```
 pip install featherweight
-pip install "featherweight[mcp,anthropic,openai]"   # with all the extras
+pip install "featherweight[all]"   # with all the extras (mcp, anthropic, openai, postgres, otel)
 ```
 
 Gemini is the default model and needs `GOOGLE_API_KEY`. Claude needs `ANTHROPIC_API_KEY` and OpenAI `OPENAI_API_KEY`.

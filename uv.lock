@@ -476,6 +476,13 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+all = [
+    { name = "langchain-anthropic" },
+    { name = "langchain-mcp-adapters" },
+    { name = "langchain-openai" },
+    { name = "opentelemetry-api" },
+    { name = "psycopg", extra = ["binary"] },
+]
 anthropic = [
     { name = "langchain-anthropic" },
 ]
@@ -515,6 +522,7 @@ requires-dist = [
     { name = "ag-ui-protocol", specifier = ">=1.0" },
     { name = "aiosqlite" },
     { name = "fakeredis" },
+    { name = "featherweight", extras = ["mcp", "anthropic", "openai", "postgres", "otel"], marker = "extra == 'all'" },
     { name = "jsonschema" },
     { name = "langchain" },
     { name = "langchain-anthropic", marker = "extra == 'anthropic'", specifier = ">=1.7" },
@@ -527,7 +535,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2" },
     { name = "pyyaml" },
 ]
-provides-extras = ["mcp", "anthropic", "openai", "postgres", "otel"]
+provides-extras = ["mcp", "anthropic", "openai", "postgres", "otel", "all"]
 
 [package.metadata.requires-dev]
 dev = [
