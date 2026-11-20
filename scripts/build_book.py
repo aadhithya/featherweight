@@ -24,6 +24,11 @@ HOME = "README.md"
 
 CHAPTER = re.compile(r"^- \[(?P<title>[^\]]+)\]\((?P<path>[^)\s]+)\)\s*$")
 PART = re.compile(r"^# (?P<title>.+?)\s*$")
+# Which version the docs are for: read from pyproject.toml on main by shields.io, so a release never has to edit the pages.
+VERSION_BADGE = (
+    "[![docs for](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Faadhithya%2Ffeatherweight%2Fmain%2F"
+    "pyproject.toml&query=%24.project.version&label=docs%20for&color=blue)](https://pypi.org/project/featherweight/)"
+)
 CODE = re.compile(r"(?P<head><!-- code: (?P<path>\S+) -->\n+```(?P<lang>\w*)\n)(?P<body>.*?)\n```", re.S)
 NAV_TOP = re.compile(r"<!-- nav:top -->.*?<!-- /nav:top -->\n*", re.S)
 NAV_BOTTOM = re.compile(r"\n*<!-- nav:bottom -->.*?<!-- /nav:bottom -->\n*", re.S)
@@ -54,6 +59,7 @@ def link(frm: str, to: str, anchor: str = "") -> str:
 
 def top(path: str, part: str, title: str) -> str:
     crumbs = f"[Book]({link(path, HOME)}) › [{part}]({link(path, HOME, slug(part))}) › {title}"
+    crumbs += f"  {VERSION_BADGE}"
     return f"<!-- nav:top -->\n{crumbs}\n<!-- /nav:top -->\n\n"
 
 

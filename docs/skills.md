@@ -1,5 +1,7 @@
 # Skills
 
+[![docs for](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Faadhithya%2Ffeatherweight%2Fmain%2Fpyproject.toml&query=%24.project.version&label=docs%20for&color=blue)](https://pypi.org/project/featherweight/)
+
 A skill is a set of instructions that an agent reads when it needs them. featherweight follows the
 [Agent Skills specification](https://agentskills.io/specification): a skill is a directory with a `SKILL.md` and,
 optionally, other files. Defining agents is in [agents.md](agents.md).

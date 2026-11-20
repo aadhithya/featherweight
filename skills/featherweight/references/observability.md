@@ -2,6 +2,8 @@
 
 # Observability
 
+[![docs for](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Faadhithya%2Ffeatherweight%2Fmain%2Fpyproject.toml&query=%24.project.version&label=docs%20for&color=blue)](https://pypi.org/project/featherweight/)
+
 See what your jobs and agents do, in the tool you already use, and run evaluations on the traces you collect. featherweight emits
 the spans. Where they go, and what you do with them, is yours.
 

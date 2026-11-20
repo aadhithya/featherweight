@@ -2,6 +2,8 @@
 
 # Persistence: what is kept, and what is not
 
+[![docs for](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Faadhithya%2Ffeatherweight%2Fmain%2Fpyproject.toml&query=%24.project.version&label=docs%20for&color=blue)](https://pypi.org/project/featherweight/)
+
 featherweight keeps **the state of the orchestration**, and none of **the data** that flowed through it. The run log says what
 ran, in what order, with what outcome, at what cost. It never holds an input, an output, a message or the text of an error. Where
 data has to be kept for a feature (resuming a job), you provide the place.

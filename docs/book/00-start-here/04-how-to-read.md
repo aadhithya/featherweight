@@ -1,5 +1,5 @@
 <!-- nav:top -->
-[Book](../README.md) › [Part 0: Start here](../README.md#part-0-start-here) › How to read this book
+[Book](../README.md) › [Part 0: Start here](../README.md#part-0-start-here) › How to read this book  [![docs for](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Faadhithya%2Ffeatherweight%2Fmain%2Fpyproject.toml&query=%24.project.version&label=docs%20for&color=blue)](https://pypi.org/project/featherweight/)
 <!-- /nav:top -->
 
 # How to read this book

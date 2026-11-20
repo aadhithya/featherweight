@@ -2,6 +2,8 @@
 
 # Agents that launch agents
 
+[![docs for](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Faadhithya%2Ffeatherweight%2Fmain%2Fpyproject.toml&query=%24.project.version&label=docs%20for&color=blue)](https://pypi.org/project/featherweight/)
+
 An agent can hand part of its work to another agent: it launches it, waits, and reads the result. This page says how
 that is declared, what the model sees, what is limited, and how it is traced. Defining agents is in
 [agents.md](agents.md).

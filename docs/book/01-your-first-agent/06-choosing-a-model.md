@@ -1,5 +1,5 @@
 <!-- nav:top -->
-[Book](../README.md) › [Part 1: Your first agent](../README.md#part-1-your-first-agent) › Choosing a model
+[Book](../README.md) › [Part 1: Your first agent](../README.md#part-1-your-first-agent) › Choosing a model  [![docs for](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Faadhithya%2Ffeatherweight%2Fmain%2Fpyproject.toml&query=%24.project.version&label=docs%20for&color=blue)](https://pypi.org/project/featherweight/)
 <!-- /nav:top -->
 
 # Choosing a model
