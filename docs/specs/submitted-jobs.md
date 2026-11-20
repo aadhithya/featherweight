@@ -1,6 +1,6 @@
 # Spec: submitted jobs
 
-Status: implemented, except [several workers](#several-workers), which is designed and not built, apart from the job timeout, which is built ([epic #103](https://github.com/aadhithya/featherweight/issues/103)). #72 (the `Job` class, `JobContext`, the job columns and `CANCELLED`), #73 (the queue), #74 (job events and SSE), #75 (the client), #76 (the worker, with the compare-and-set steps for taking and cancelling a job), #77 (the `@job` decorator) and #78 (the guide, the example and the skill reference) are done. It is tracked in [epic #71](https://github.com/aadhithya/featherweight/issues/71), and each part has
+Status: implemented, except [several workers](#several-workers) ([epic #103](https://github.com/aadhithya/featherweight/issues/103)), which is being built: the job timeout (#107) and the queue's lease (#104) are built, and the rest is designed and not built. #72 (the `Job` class, `JobContext`, the job columns and `CANCELLED`), #73 (the queue), #74 (job events and SSE), #75 (the client), #76 (the worker, with the compare-and-set steps for taking and cancelling a job), #77 (the `@job` decorator) and #78 (the guide, the example and the skill reference) are done. It is tracked in [epic #71](https://github.com/aadhithya/featherweight/issues/71), and each part has
 its own issue (listed [at the end](#the-work)). When a part is built, this page says so, and the guide `docs/submitted-jobs.md`
 shows how to use it.
 
@@ -87,30 +87,30 @@ class JobMessage(BaseModel):            # frozen
 class Delivery(BaseModel):              # frozen
     message: JobMessage
     token: str                          # opaque: the implementation's own
-    delivery_count: int = 1             # how many times this message has been delivered, this one included (designed: see below)
+    delivery_count: int = 1             # how many times this message has been delivered, this one included
 
 class JobQueue(ABC):
     async def enqueue(self, message: JobMessage) -> None
     async def receive(self, timeout: float) -> Delivery | None
     async def ack(self, delivery: Delivery) -> None
     async def nack(self, delivery: Delivery, *, requeue: bool) -> None
-    async def extend(self, delivery: Delivery) -> None   # renew the lease of a received message (designed: see below)
+    async def extend(self, delivery: Delivery) -> None   # renew the lease of a received message
 ```
 
 **The contract:** delivery is at-least-once. A received message is invisible to other receivers until it is acknowledged or
 nacked. `nack(requeue=True)` makes it available again; `nack(requeue=False)` drops it, and a broker may dead-letter it. Messages
 come out in the order they went in where the implementation can. `receive` returns `None` after the timeout. Calls can be
-concurrent. **A lease** (designed, not built: [several workers](#several-workers)): a received message is invisible to other receivers for a limited
+concurrent. **A lease** (built: [#104](https://github.com/aadhithya/featherweight/issues/104)): a received message is invisible to other receivers for a limited
 time, and not for ever. If it is neither acknowledged, nacked nor `extend`ed before the lease ends, it becomes available again,
-with a higher `delivery_count`, so that a worker that died does not hold a message for ever. `extend` renews the lease. These are
-what real brokers already have (SQS's visibility timeout and receive count, a Redis stream's pending list), so an implementation
-over one is thin. Today ours leaves a message claimed for ever, a documented limit until then. `featherweight.testing.check_queue(make_queue)` runs the contract against any queue.
+with a higher `delivery_count`, so that a worker that died does not hold a message for ever. `extend` renews the lease, and a stale delivery (one whose message was delivered again since) changes nothing. These are
+what real brokers already have (SQS's visibility timeout, `ChangeMessageVisibility` and receive count; a Redis stream's pending list), so an implementation
+over one is thin. How many redeliveries are allowed is the queue's business. `featherweight.testing.check_queue(make_queue)` runs the contract against any queue; `make_queue(lease)` makes a fresh queue with that lease in seconds, and the kit uses a short one to see a message come back.
 
 **What we ship:**
 - **`SqliteQueue(db)`**: a `job_queue` table in the run log's sqlite file, for local development, and our only product
-  implementation. A message is claimed atomically, `ack` deletes the row, `nack` requeues or deletes it. With the lease (designed): `SqliteQueue(db, lease=60, max_deliveries=3)`; a message whose lease ends goes back to `ready`, and one that was delivered `max_deliveries` times is marked `dead`, kept in the table for inspection, and its job is failed (`DeadLettered`). The payload is in the table
+  implementation. A message is claimed atomically, `ack` deletes the row, `nack` requeues or deletes it. With the lease: `SqliteQueue(db, lease=60, max_deliveries=3)`; a message whose lease ends is delivered again (`ready` or `claimed` with an expired lease, in the order it went in), and one that was delivered `max_deliveries` times and whose lease ends again is marked `dead`, kept in the table for inspection, and logged (`queue_message_dead`). Failing its job (`DeadLettered`) is part of [#106](https://github.com/aadhithya/featherweight/issues/106), which is not built yet. A delivery's token names its claim (`<seq>:<delivery count>`), so that a stale `ack`, `nack` or `extend` cannot touch a message that was delivered again. A `nack(requeue=True)` is a deliberate return, and does not count against `max_deliveries`. The payload is in the table
   until it is acknowledged, on the same terms as the sqlite result store: sqlite is for local development.
-- **`MemoryQueue`**, in `featherweight.testing`, for tests.
+- **`MemoryQueue(lease=60)`**, in `featherweight.testing`, for tests: the same lease semantics (pass a very short lease in a test), and no limit on redeliveries.
 
 There is no Redis, SQS or Postgres queue: how jobs travel in a deployment is the user's decision, and the abstract class and its
 kit are how they check theirs. Dead-lettering is the user's broker's business.
@@ -282,7 +282,7 @@ stream, no stream of all jobs.
 - **Polling is centralised, not removed:** one reader per process, behind `events()`.
 - **Cancel:** a queued job is marked and skipped; a running job's flag is checked by the worker about every second.
 - **Shutdown:** a grace period, then cancel and requeue.
-- **A lease on the queue and one on the job** (designed): the queue's keeps the message, the job's keeps the job exclusive. Heartbeats are
+- **A lease on the queue (built, #104) and one on the job (designed):** the queue's keeps the message, the job's keeps the job exclusive. Heartbeats are
   in-place updates. A lost lease puts the job back to `INIT`, and `FAILED` comes only when the user's policy runs out.
 - **A takeover is the same job with `executions` + 1,** not a new job: the client holds the id, and its events, its cancel and its result
   are all keyed by it. A resume is a new job; a takeover is not, and both reuse finished steps with one mechanism.
@@ -317,8 +317,8 @@ No live model call. Fake models, `MemoryQueue`, the dict result store.
 - **Events:** every status change makes exactly one event, whoever makes it; a late listener replays; the same-process wake-up; a
   writer and a reader on one file in two processes; one reader serving many streams; the stream ends at a final event; the SSE
   format and `Last-Event-ID`; the `Database` conformance kit on sqlite and Postgres.
-- **Several workers** (designed): `check_queue` with a short lease (a message comes back with a higher count, `extend` keeps it, an acknowledged one
-  does not); `SqliteQueue` with `max_deliveries` (dead, and its job `FAILED`); two workers, one killed mid-job: the other takes the job over,
+- **Several workers:** `check_queue` with a short lease (built, #104: a message comes back with a higher count, `extend` keeps it, an acknowledged one
+  does not, a stale delivery changes nothing); `SqliteQueue` with `max_deliveries` (dead, and its job `FAILED`); two workers, one killed mid-job: the other takes the job over,
   `executions` is 2 and the events read queued, running, lost, running, succeeded; a duplicate delivery of a live job is skipped; a stalled
   worker that wakes up loses its job quietly and writes nothing; the heartbeat keeps a long job alive; a takeover of a resumable job reuses its finished steps (and one that is not resumable reruns them), and
   never its own execution's; `client.fail` on an `INIT` job, and on a final one; the timeout fails a hung job (in the worker and in `run_job`).

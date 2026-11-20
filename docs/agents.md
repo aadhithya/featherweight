@@ -237,11 +237,11 @@ The name is the function's, the version `"1"` (the version of the job is the ver
 behaviour changes), the timeout 600 seconds (a job that runs longer fails with `JobTimeout`; `timeout=None` for no limit), and the result is a `Job` class, usable wherever one is (the function is `shout.function`).
 
 **The job queue.** What connects a client to a worker is an abstract class, `JobQueue` (`enqueue`, `receive`, `ack`,
-`nack`), whose message carries the job id, the job's name and its input as JSON (or references inside it). `SqliteQueue(db)`
+`nack`, `extend`), whose message carries the job id, the job's name and its input as JSON (or references inside it). `SqliteQueue(db)`
 is a table in the run log's sqlite file, for local development, and is the one we ship; for a deployment you write a queue of your
-own (Redis, SQS, a database) and check it: `await testing.check_queue(lambda: MyQueue(...))`. `testing.MemoryQueue` is
-the smallest example, for tests. Delivery is at-least-once; a message whose receiver dies stays claimed in the sqlite queue (leases
-come later).
+own (Redis, SQS, a database) and check it: `await testing.check_queue(lambda lease: MyQueue(...))`. `testing.MemoryQueue` is
+the smallest example, for tests. Delivery is at-least-once, and a received message is leased: one whose receiver dies comes back after its lease
+(60 s by default) with a higher `delivery_count`, and a receiver that is alive keeps it with `extend`.
 
 **Submitting a job.** A client submits a job from any process, and follows it. It never runs the job: it writes the job row and
 puts a message on the queue, and a separate worker runs it.

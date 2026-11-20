@@ -104,9 +104,11 @@ CREATE TABLE job_queue (
     job_name     TEXT NOT NULL,
     input        TEXT NOT NULL,
     trace_context TEXT NOT NULL DEFAULT '{{}}',
-    state        TEXT NOT NULL CHECK (state IN ('ready', 'claimed')),
+    state        TEXT NOT NULL CHECK (state IN ('ready', 'claimed', 'dead')),
     enqueued_at  TEXT NOT NULL,
-    claimed_at   TEXT
+    claimed_at   TEXT,
+    lease_expires_at TEXT,
+    delivery_count INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX idx_job_queue_state ON job_queue(state, seq);
