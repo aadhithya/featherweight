@@ -123,7 +123,7 @@ How LangChain's stream maps to this (to be confirmed while building, see [Findin
 `updates` mode gives what a tool node returned.
 
 Events with no source here (state, activity, custom, sub-agent events) are not produced. The custom event is used for two
-events of [background agents](background-agents.md#events), `background_started` and `background_finished` (designed).
+events of [background agents](background-agents.md#events), `background_started` and `background_finished`.
 
 ## The model's thoughts
 
@@ -246,6 +246,7 @@ because no small official package exists (the one from vercel-labs is a whole ag
 | `RUN_FINISHED` (success) | `finish`, then `[DONE]` |
 | `RUN_FINISHED` (cancelled) | `abort`, then `[DONE]` |
 | `RUN_ERROR` | `error`, then `[DONE]` |
+| `CUSTOM` (`background_started`, `background_finished`) | a data part `data-<name>`, with the event's value as `data`, **transient** (the client gets it with `onData`, and it is not kept in the message) |
 
 The header is `x-vercel-ai-ui-message-stream: v1`. The request is Vercel's list of `UIMessage` (messages made of parts:
 text, reasoning, tool parts with a state), converted to a `ChatInput` with the same rules as AG-UI. State and activity events

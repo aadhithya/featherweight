@@ -389,5 +389,9 @@ class OTelObserver(Observer):
     async def submitted(self, job: JobSubmitted) -> Mapping[str, str] | None:
         """The W3C trace context of the current span, for the message: the worker's job span joins this trace."""
         carrier: dict[str, str] = {}
-        propagate.inject(carrier)
+        entry = self._tools.get(job.parent_tool_call_id) if job.parent_tool_call_id else None
+        if entry is not None:  # a background agent: its job goes under the tool call that started it
+            propagate.inject(carrier, context=trace.set_span_in_context(entry[1]))
+        else:
+            propagate.inject(carrier)
         return carrier or None

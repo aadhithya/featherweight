@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from ag_ui.core import (
     BaseEvent,
+    CustomEvent,
     RunErrorEvent,
     RunFinishedCancelledOutcome,
     RunFinishedEvent,
@@ -50,7 +51,7 @@ from featherweight.models import (
     entry_description,
     entry_name,
 )
-from featherweight.observers import AttemptEnd, AttemptStart, Entered, Observer, Observers, ReusedRun
+from featherweight.observers import AttemptEnd, AttemptStart, Entered, JobSubmitted, Observer, Observers, ReusedRun
 from featherweight.registry import ToolRegistry
 from featherweight.results import ResultKey, ResultStore, SqliteResultStore
 from featherweight.sqlite import SqliteDatabase
@@ -140,6 +141,17 @@ def _usage(messages: list[Any]) -> tuple[int, int, str | None]:
             output_tokens += usage.get("output_tokens", 0)
             reported_model = message.response_metadata.get("model_name") or reported_model
     return input_tokens, output_tokens, reported_model
+
+
+class _Child:
+    """A background child that a run started: its job, and its task when it runs here (`None` on a worker)."""
+
+    __slots__ = ("agent", "job_id", "task")
+
+    def __init__(self, job_id: str, agent: str, task: "asyncio.Task[Any] | None") -> None:
+        self.job_id = job_id
+        self.agent = agent
+        self.task = task
 
 
 class _Slot:
@@ -274,6 +286,11 @@ class AgentRunner:
         self._background_tasks: set[asyncio.Task[Any]] = (
             set()
         )  # the children running here: a reference keeps each from being collected
+        self._children: dict[str, list[_Child]] = {}  # parent attempt (or streamed run) id -> the children it started
+        self._emitters: dict[
+            str, Callable[[BaseEvent], None]
+        ] = {}  # a streamed run that is open -> where its events go
+        self._watchers: dict[str, list[asyncio.Task[None]]] = {}  # a streamed run -> its tasks that wait for children
         self.max_concurrent = max_concurrent
         self._slots = asyncio.Semaphore(max_concurrent)
         self.store = store or RunStore()
@@ -415,6 +432,7 @@ class AgentRunner:
                 )
             )
             self._streams[run.run_id] = run
+            self._emitters[run.run_id] = emit  # `start_background` announces its children on this stream
             if self._observers:
                 scope = await self._observers.enter(
                     "attempt",
@@ -462,6 +480,11 @@ class AgentRunner:
                 outcome, failure = "failed", exc
             finally:
                 run._interrupt = None
+            await self._close_background_events(run.run_id)  # nothing is announced after the stream's last event
+            if outcome in ("cancelled", "left"):  # a response that was stopped takes its children with it
+                await self._cancel_children(run.run_id)
+            else:  # a turn that ended on its own leaves them running: the application follows them by their job events
+                self._children.pop(run.run_id, None)
             await self._end_stream(run, turn, emit, outcome, failure, agent, thread_id, started, scope)
             if outcome == "left":
                 raise asyncio.CancelledError
@@ -828,7 +851,8 @@ class AgentRunner:
                     )
                 except asyncio.CancelledError:
                     # The task that awaits this run was cancelled (a streaming agent that was stopped, a caller that
-                    # gave up): the row says so instead of staying RUNNING.
+                    # gave up): the row says so instead of staying RUNNING, and its background children are cancelled.
+                    await self._cancel_children(agent_run_id)
                     await self.db.finish_run(
                         agent_run_id,
                         RunEnd(status=RunStatus.CANCELLED, latency_ms=(time.perf_counter() - attempt_started) * 1000),
@@ -915,6 +939,7 @@ class AgentRunner:
                         model_name=reported_model,
                     )
             finally:
+                self._children.pop(agent_run_id, None)  # whatever it started carries on, unless it was cancelled above
                 if scope is not None:
                     await scope.leave(attempt_end)
                 slot.release()
@@ -1243,43 +1268,123 @@ class AgentRunner:
 
     async def _start_background(self, entry: Any, declared: Any, child_input: Any, context: RunContext) -> str:
         """Start the child as a job of its own and return its id: on a worker, through the client, or here, as a task."""
+        parent = context.agent_run_id
+        tool_call_id = CURRENT_TOOL_CALL_ID.get()  # set by the callback of the tool that is running: for the trace only
+        task: asyncio.Task[Any] | None = None
         if self.background is not None:
-            job_id = await self.background.submit(entry, child_input, parent_agent_run_id=context.agent_run_id)
-            logger.info(
-                "background_started job_id=%s agent=%s placement=worker parent_agent_run_id=%s",
-                job_id,
-                declared.name,
-                context.agent_run_id,
+            job_id = await self.background.submit(
+                entry, child_input, parent_agent_run_id=parent, parent_tool_call_id=tool_call_id
             )
-            return job_id
-        job_id = await self.db.create_job(
-            declared.name,
-            job_version=declared.version,
-            job_hash=declared.job_hash(),
-            input_hash=input_hash(child_input),
-            parent_agent_run_id=context.agent_run_id,
-        )
-        task = asyncio.create_task(self._run_background(declared, job_id, child_input))
-        self._background_tasks.add(task)
-        task.add_done_callback(self._background_tasks.discard)
+            placement = "worker"
+        else:
+            job_id = await self.db.create_job(
+                declared.name,
+                job_version=declared.version,
+                job_hash=declared.job_hash(),
+                input_hash=input_hash(child_input),
+                parent_agent_run_id=parent,
+            )
+            trace_context: dict[str, str] = {}
+            if self._observers:  # the carrier of the tool call's span: nothing about a trace is stored
+                trace_context = await self._observers.submitted(
+                    JobSubmitted(
+                        job_id=job_id,
+                        name=declared.name,
+                        version=declared.version,
+                        job_hash=declared.job_hash(),
+                        input_hash=input_hash(child_input),
+                        parent_agent_run_id=parent,
+                        parent_tool_call_id=tool_call_id,
+                        input=child_input.model_dump(mode="json") if self._observers.wants_content else None,
+                    )
+                )
+            task = asyncio.create_task(self._run_background(declared, job_id, child_input, trace_context))
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
+            placement = "here"
+        self._children.setdefault(parent, []).append(_Child(job_id, declared.name, task))
         logger.info(
-            "background_started job_id=%s agent=%s placement=here parent_agent_run_id=%s",
+            "background_started job_id=%s agent=%s placement=%s parent_agent_run_id=%s",
             job_id,
             declared.name,
-            context.agent_run_id,
+            placement,
+            parent,
         )
+        self._announce_background(parent, job_id, declared.name)
         return job_id
 
-    async def _run_background(self, declared: Any, job_id: str, child_input: Any) -> None:
+    async def _run_background(
+        self, declared: Any, job_id: str, child_input: Any, trace_context: dict[str, str] | None = None
+    ) -> None:
         """The task of a child that runs here: the same code as `run_job`. What it raises is logged, and nothing more."""
         from featherweight.jobs import run_job  # jobs.py imports this module
 
         try:
-            await run_job(self, declared, child_input, job_id=job_id)
+            await run_job(self, declared, child_input, job_id=job_id, trace_context=trace_context or {})
         except asyncio.CancelledError:
             raise
         except Exception:
             logger.exception("background_failed job_id=%s", job_id)
+
+    def _announce_background(self, run_id: str, job_id: str, agent: str) -> None:
+        """On the stream of a chat run that is open: `background_started` now, and `background_finished` when the child's
+        job is final. Metadata only: the application reads the result itself, from its store."""
+        emit = self._emitters.get(run_id)
+        if emit is None:
+            return  # not a streamed run, or its stream has ended
+        emit(CustomEvent(name="background_started", value={"job_id": job_id, "agent": agent}))
+        watcher = asyncio.create_task(self._watch_background(run_id, job_id, agent))
+        self._watchers.setdefault(run_id, []).append(watcher)
+
+    async def _watch_background(self, run_id: str, job_id: str, agent: str) -> None:
+        from featherweight.events import wait_for_job  # events.py imports the database, as this module does
+
+        db = self.background.db if self.background is not None else self.db
+        try:
+            row = await wait_for_job(db, job_id)
+        except Exception:
+            logger.exception("background_watch_failed job_id=%s", job_id)
+            return
+        emit = self._emitters.get(run_id)
+        if emit is not None:  # the stream is still open; after it ended the application follows the job's own events
+            emit(
+                CustomEvent(
+                    name="background_finished",
+                    value={"job_id": job_id, "agent": agent, "status": row.status.value, "error_type": row.error_type},
+                )
+            )
+
+    async def _close_background_events(self, run_id: str) -> None:
+        """The stream of a chat run is ending: no more events, and no more watching. The children carry on."""
+        self._emitters.pop(run_id, None)
+        watchers = self._watchers.pop(run_id, [])
+        for watcher in watchers:
+            watcher.cancel()
+        if watchers:
+            await asyncio.gather(*watchers, return_exceptions=True)
+
+    async def _cancel_children(self, run_id: str) -> None:
+        """Cancel the background children of a run that was stopped or cancelled and that are still live: the task of a child
+        that runs here (its job ends `CANCELLED`), the job of a child on a worker (`cancel_requested`)."""
+        children = self._children.pop(run_id, [])
+        tasks: list[asyncio.Task[Any]] = []
+        for child in children:
+            if child.task is not None:
+                if not child.task.done():
+                    child.task.cancel()
+                    tasks.append(child.task)
+            elif self.background is not None:
+                try:
+                    await self.background.cancel(child.job_id)
+                except Exception:
+                    logger.warning("background_cancel_failed job_id=%s", child.job_id, exc_info=True)
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        for child in children:
+            if child.task is not None:  # cancelled before it ran: the job never started, so it is still queued
+                await self.db.cancel_queued_job(child.job_id)
+        if children:
+            logger.info("background_cancelled parent_agent_run_id=%s children=%d", run_id, len(children))
 
     @staticmethod
     def _skill_tools(agent: AgentBase) -> list[BaseTool]:
