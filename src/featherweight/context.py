@@ -20,3 +20,7 @@ class RunContext:
 # The attempt that is running in this task. Tools that are built once and shared by many attempts (the MCP tools) read
 # it to say, in the log, which attempt called them.
 CURRENT_AGENT_RUN_ID: ContextVar[str | None] = ContextVar("current_agent_run_id", default=None)
+
+# The tool call that is running in this task, while observers listen: the callback of the attempt sets it, so that an agent launched by
+# the tool can say which call launched it. It is `None` when there are no observers.
+CURRENT_TOOL_CALL_ID: ContextVar[str | None] = ContextVar("current_tool_call_id", default=None)

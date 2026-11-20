@@ -1,14 +1,31 @@
 """Helpers for testing code that uses featherweight, and for checking an implementation of one of its abstract classes."""
 
 import asyncio
+import contextlib
 import copy
 import hashlib
-from collections.abc import Awaitable, Callable
+import inspect
+from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping
+from contextlib import AbstractAsyncContextManager
 from datetime import timedelta
 from typing import Any
 
 from featherweight.db import Database, RunEnd, RunStart
 from featherweight.models import RunStatus
+from featherweight.observers import (
+    AttemptEnd,
+    AttemptStart,
+    JobEnd,
+    JobStart,
+    JobSubmitted,
+    ModelCallEnd,
+    ModelCallStart,
+    Observer,
+    ReusedRun,
+    Scope,
+    ToolCallEnd,
+    ToolCallStart,
+)
 from featherweight.queue import Delivery, JobMessage, JobQueue
 from featherweight.results import ResultKey, ResultStore
 
@@ -471,3 +488,129 @@ async def check_queue(make_queue: Callable[[], JobQueue | Awaitable[JobQueue]]) 
     assert sorted(seen) == sorted(f"job-{n}" for n in range(40)), (
         "many concurrent enqueues must each be delivered exactly once"
     )
+
+
+class _RecordingScope(Scope):
+    def __init__(self, observer: "RecordingObserver", kind: str):
+        self._observer = observer
+        self._kind = kind
+
+    async def finish(self, end: JobEnd | AttemptEnd) -> None:
+        self._observer.events.append((f"{self._kind}.finish", end))
+
+
+class RecordingObserver(Observer):
+    """An `Observer` that keeps what it hears, as `(hook, record)` pairs in `events`, for tests. It asks for no content:
+    use `RecordingContentObserver` for one that does."""
+
+    def __init__(self) -> None:
+        self.events: list[tuple[str, Any]] = []
+        self.carrier: dict[str, str] | None = None  # what `submitted` returns
+
+    def names(self) -> list[str]:
+        return [name for name, _ in self.events]
+
+    def records(self, name: str) -> list[Any]:
+        return [record for hook, record in self.events if hook == name]
+
+    @contextlib.asynccontextmanager
+    async def _scope(self, kind: str, start: Any) -> AsyncGenerator[Scope]:
+        self.events.append((f"{kind}.enter", start))
+        yield _RecordingScope(self, kind)
+        self.events.append((f"{kind}.exit", None))
+
+    def job(self, start: JobStart) -> AbstractAsyncContextManager[Scope]:
+        return self._scope("job", start)
+
+    def attempt(self, start: AttemptStart) -> AbstractAsyncContextManager[Scope]:
+        return self._scope("attempt", start)
+
+    async def reused(self, run: ReusedRun) -> None:
+        self.events.append(("reused", run))
+
+    async def model_call_started(self, call: ModelCallStart) -> None:
+        self.events.append(("model_call_started", call))
+
+    async def model_call_finished(self, call: ModelCallEnd) -> None:
+        self.events.append(("model_call_finished", call))
+
+    async def tool_call_started(self, call: ToolCallStart) -> None:
+        self.events.append(("tool_call_started", call))
+
+    async def tool_call_finished(self, call: ToolCallEnd) -> None:
+        self.events.append(("tool_call_finished", call))
+
+    async def submitted(self, job: JobSubmitted) -> Mapping[str, str] | None:
+        self.events.append(("submitted", job))
+        return self.carrier
+
+
+class RecordingContentObserver(RecordingObserver):
+    capture_content = True
+
+
+async def check_observer(make_observer: Callable[[], Observer | Awaitable[Observer]]) -> None:
+    """Run the `Observer` contract against an observer: every hook accepts its record and fails nothing, a scope can be entered,
+    finished and left, `submitted` returns nothing or a mapping of strings, and no hook changes the record it was given. Raises
+    `AssertionError` that says which rule an observer breaks.
+
+        async def test_my_observer():
+            await check_observer(lambda: MyObserver(...))
+    """
+    made = make_observer()
+    observer = await made if inspect.isawaitable(made) else made
+    assert isinstance(observer, Observer), "an observer is a subclass of Observer"
+    assert isinstance(observer.capture_content, bool), "capture_content is True or False"
+
+    job = JobStart(job_id="job-1", name="job", version="1", job_hash=_hash("job"), input_hash=_hash("in"))
+    attempt = AttemptStart(
+        agent_run_id="run-1",
+        invocation_id="inv-1",
+        attempt=1,
+        max_attempts=3,
+        job_id="job-1",
+        agent_name="agent",
+        agent_version="1",
+        agent_hash=_hash("agent"),
+        provider="fake",
+        model="fake-model",
+    )
+    job_end = JobEnd(status=RunStatus.SUCCESS)
+    attempt_end = AttemptEnd(status=RunStatus.SUCCESS, final=True, input_tokens=3, output_tokens=2)
+    events: list[tuple[str, Any]] = [
+        (
+            "reused",
+            ReusedRun(
+                agent_run_id="run-2",
+                invocation_id="inv-1",
+                reused_from_agent_run_id="run-0",
+                agent_name="agent",
+                agent_version="1",
+                agent_hash=_hash("agent"),
+            ),
+        ),
+        (
+            "model_call_started",
+            ModelCallStart(call_id="m-1", agent_run_id="run-1", provider="fake", model="fake-model"),
+        ),
+        ("model_call_finished", ModelCallEnd(call_id="m-1", agent_run_id="run-1", input_tokens=3, output_tokens=2)),
+        ("tool_call_started", ToolCallStart(call_id="t-1", agent_run_id="run-1", tool_name="tool")),
+        ("tool_call_finished", ToolCallEnd(call_id="t-1", agent_run_id="run-1", tool_name="tool")),
+    ]
+    before = [record.model_dump() for record in (job, attempt, job_end, attempt_end, *(r for _, r in events))]
+
+    async with observer.job(job) as scope:
+        assert isinstance(scope, Scope), "job() yields a Scope"
+        async with observer.attempt(attempt) as attempt_scope:
+            assert isinstance(attempt_scope, Scope), "attempt() yields a Scope"
+            for hook, record in events:
+                assert await getattr(observer, hook)(record) is None, f"{hook} returns nothing"
+            await attempt_scope.finish(attempt_end)
+        await scope.finish(job_end)
+    carrier = await observer.submitted(JobSubmitted(job_id="job-1", name="job"))
+    assert carrier is None or all(isinstance(k, str) and isinstance(v, str) for k, v in carrier.items()), (
+        "submitted returns nothing, or a mapping of strings"
+    )
+
+    after = [record.model_dump() for record in (job, attempt, job_end, attempt_end, *(r for _, r in events))]
+    assert before == after, "no hook changes the record it was given"

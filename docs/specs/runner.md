@@ -185,20 +185,23 @@ is needed for the real model. A missing key is a setup error: the run fails at o
 
 ## Observers
 
-**Designed, not built** ([#92](https://github.com/aadhithya/featherweight/issues/92)). What an observer is, and what it receives, is in
+**Built** ([#92](https://github.com/aadhithya/featherweight/issues/92); the job scope is [#93](https://github.com/aadhithya/featherweight/issues/93), not built yet). What an observer is, and what it receives, is in
 [observers and OpenTelemetry](observability.md). What the runner does:
 
-- **Where they are set.** `AgentRunner(db, observers=[...])`. A worker runs its jobs with its runner, so a job run by `run_job` and a job
+- **Where they are set.** `AgentRunner(db, observers=[...], observer_timeout=1.0)`. A worker runs its jobs with its runner, so a job run by `run_job` and a job
   run by a worker call the same observers, and nothing is reported twice.
-- **When it calls them.** Around the job, around each attempt (after the row is created, until it is finished), when a step is reused
-  ([resuming](#resuming)), and for each model call and tool call of an attempt. A streaming run does the same for its start and end, its model
-  calls and its tool calls, and not for each token.
+- **When it calls them.** Around each attempt (from the moment it holds a slot and runs, until its row is finished; a streamed run: from its row to
+  its end), when a step is reused ([resuming](#resuming): an event, not an attempt), and for each model call and tool call of an attempt. A
+  streaming run is one attempt, with its model calls and tool calls, and none per token. Around the job: [#93](https://github.com/aadhithya/featherweight/issues/93).
 - **Model calls and tool calls.** An attempt is one `lc_agent.ainvoke(...)`, so they happen inside LangChain's agent loop. A callback handler
   added to the config of each attempt (and of a streamed run) turns LangChain's callbacks into the observers' events, with real timings. It does
   nothing when there are no observers.
 - **Inline, and harmless.** Every call is awaited, with a timeout (a second by default); an observer that raises or is slow is logged and ignored,
-  so it never changes or fails a run.
-- **Content is built only when asked.** The runner builds the content fields of a record only if an observer says it wants content.
+  so it never changes or fails a run. That includes a hook that raises when it is called, before anything is awaited.
+- **Content is built only when asked.** The runner builds the content fields of a record only if an observer says it wants content, and
+  passes each observer the record without them unless that observer asked.
+- **A launched agent knows its tool call.** The callback sets the id of the tool call that is running (`CURRENT_TOOL_CALL_ID`, a context variable
+  that LangChain copies into the tool's task), and `launch_agent` passes it as the child attempt's `parent_tool_call_id`. Without observers it is `None`.
 
 ## Decisions
 

@@ -50,6 +50,19 @@ _EXPORTS = {
     "default_db_path": "db",
     "run_job": "jobs",
     "JobWorker": "worker",
+    # observers
+    "Observer": "observers",
+    "Scope": "observers",
+    "JobStart": "observers",
+    "JobEnd": "observers",
+    "JobSubmitted": "observers",
+    "AttemptStart": "observers",
+    "AttemptEnd": "observers",
+    "ReusedRun": "observers",
+    "ModelCallStart": "observers",
+    "ModelCallEnd": "observers",
+    "ToolCallStart": "observers",
+    "ToolCallEnd": "observers",
     "JobOutcome": "jobs",
     "Job": "jobs",
     "JobClient": "client",
@@ -147,6 +160,18 @@ if TYPE_CHECKING:  # for editors and type checkers: the same names, imported
     from featherweight.models import AgentOutput as AgentOutput
     from featherweight.models import AgentResult as AgentResult
     from featherweight.models import RunStatus as RunStatus
+    from featherweight.observers import AttemptEnd as AttemptEnd
+    from featherweight.observers import AttemptStart as AttemptStart
+    from featherweight.observers import JobEnd as JobEnd
+    from featherweight.observers import JobStart as JobStart
+    from featherweight.observers import JobSubmitted as JobSubmitted
+    from featherweight.observers import ModelCallEnd as ModelCallEnd
+    from featherweight.observers import ModelCallStart as ModelCallStart
+    from featherweight.observers import Observer as Observer
+    from featherweight.observers import ReusedRun as ReusedRun
+    from featherweight.observers import Scope as Scope
+    from featherweight.observers import ToolCallEnd as ToolCallEnd
+    from featherweight.observers import ToolCallStart as ToolCallStart
     from featherweight.postgres import PostgresDatabase as PostgresDatabase
     from featherweight.queue import Delivery as Delivery
     from featherweight.queue import JobMessage as JobMessage

@@ -1,6 +1,6 @@
 # Spec: observers and OpenTelemetry
 
-Status: designed, not built. It is tracked in [epic #90](https://github.com/aadhithya/featherweight/issues/90), and each part has its own issue. When
+Status: being built. #92 (the `Observer` class, its records, `testing.check_observer`, and the runner's calls) is done; the job scope (#93), `OTelObserver` (#94) and the guide (#95) are not. It is tracked in [epic #90](https://github.com/aadhithya/featherweight/issues/90), and each part has its own issue. When
 a part is built, this page says so, and the guide `docs/observability.md` shows how to use it.
 
 It builds on [the persistence spec](persistence.md) (the rule that featherweight keeps metadata only, and that content never
@@ -92,12 +92,12 @@ results, and error text.
 - **A job** (`JobStart`/`JobEnd`): `job_id`, `name`, `version`, `job_hash`, `input_hash`, `resumable`, `resumed_from`, and the
   trace carrier that came with the message (see [OpenTelemetry](#opentelemetry)); at the end: status, error type.
 - **An attempt**: one per row of `agent_runs`. Agent name, version, description and hash, `invocation_id`, `attempt`,
-  `parent_agent_run_id` (the agent that launched it), `depth`, provider, model; at the end: status, tokens, `final` (the
+  `parent_agent_run_id` (the agent that launched it), `parent_tool_call_id` (the tool call that launched it), `depth`, provider, model, whether it is a streaming run; at the end: status, tokens, `final` (the
   attempt succeeded, or it was the last one allowed), error type.
 - **A reused step** (`ReusedRun`): a step of a resumed job that was answered from the result store, with
   `reused_from_agent_run_id` and the `resumed_from` job. It is not an attempt, and has no model calls.
-- **A model call**: model, request settings, the finish reasons, input and output tokens; with content: the messages.
-- **A tool call**: tool name, call id, type; with content: arguments and result. A tool that launches an agent (the runner's
+- **A model call**: provider, model, the model the API reported, the finish reasons, input and output tokens, duration; with content: the messages.
+- **A tool call**: tool name and call id (the id the model gave it; the OpenTelemetry tool type is always `function`); with content: arguments and result. A tool that launches an agent (the runner's
   launch tools) has the launched agent's attempt as its child.
 
 
