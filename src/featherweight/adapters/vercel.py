@@ -17,13 +17,20 @@ from typing import Any
 
 from ag_ui.core import (
     AssistantMessage,
+    AudioInputContent,
     BaseEvent,
+    DocumentInputContent,
     FunctionCall,
+    ImageInputContent,
+    InputContent,
+    InputContentDataSource,
     Message,
     ReasoningMessage,
+    TextInputContent,
     ToolCall,
     ToolMessage,
     UserMessage,
+    VideoInputContent,
 )
 from pydantic import ValidationError
 
@@ -41,6 +48,7 @@ HEADERS = {
     "x-accel-buffering": "no",
 }
 DONE = "data: [DONE]\n\n"
+_MEDIA: dict[str, Any] = {"image": ImageInputContent, "audio": AudioInputContent, "video": VideoInputContent}
 
 
 # the request: the messages of the client, as UIMessage, to AG-UI messages
@@ -81,8 +89,7 @@ def to_agui_messages(ui_messages: list[dict[str, Any]]) -> list[Message]:
         base = str(ui.get("id") or f"m{index}")
         role = ui.get("role")
         if role == "user":
-            text = "".join(p.get("text", "") for p in ui["parts"] if isinstance(p, dict) and p.get("type") == "text")
-            messages.append(UserMessage(id=base, content=text))
+            messages.append(UserMessage(id=base, content=_user_content(index, ui["parts"])))
         elif role == "assistant":
             messages += _assistant(base, ui["parts"])
         elif role == "system":
@@ -90,6 +97,40 @@ def to_agui_messages(ui_messages: list[dict[str, Any]]) -> list[Message]:
         else:
             raise BadRequest(f"messages[{index}] has the role {role!r}")
     return messages
+
+
+def _user_content(index: int, parts: list[Any]) -> str | list[InputContent]:
+    """A user UIMessage's content: its text as one string, or, when it has `file` parts, the parts in order. A file part must
+    carry its bytes in a `data:` URL; any other URL is refused, as `ChatInput` refuses a `url` source."""
+    if not any(isinstance(p, dict) and p.get("type") == "file" for p in parts):
+        return "".join(p.get("text", "") for p in parts if isinstance(p, dict) and p.get("type") == "text")
+    content: list[InputContent] = []
+    for part in parts:
+        kind = part.get("type") if isinstance(part, dict) else None
+        if kind == "text" and part.get("text"):
+            content.append(TextInputContent(text=part["text"]))
+        elif kind == "file":
+            content.append(_file(index, part))
+    return content
+
+
+def _file(index: int, part: dict[str, Any]) -> InputContent:
+    """One `file` part (`{"type": "file", "mediaType", "url", "filename"?}`) as an AG-UI media part with a `data` source."""
+    url, media = part.get("url"), part.get("mediaType")
+    if not isinstance(url, str) or not url.startswith("data:"):
+        raise BadRequest(f"messages[{index}] has a file that is not a data: URL: send the bytes, not a link")
+    header, comma, payload = url[5:].partition(",")
+    if not comma or not header.endswith(";base64"):
+        raise BadRequest(f"messages[{index}] has a file whose data: URL is not base64")
+    mime = media if isinstance(media, str) and media else header.removesuffix(";base64").split(";")[0]
+    if not mime:
+        raise BadRequest(f"messages[{index}] has a file with no mediaType")
+    source = InputContentDataSource(value=payload, mime_type=mime)
+    kind = mime.split("/")[0]
+    if kind in _MEDIA:
+        return _MEDIA[kind](source=source)
+    metadata = {"filename": part["filename"]} if isinstance(part.get("filename"), str) else None
+    return DocumentInputContent(source=source, metadata=metadata)
 
 
 def _assistant(base: str, parts: list[dict[str, Any]]) -> list[Message]:

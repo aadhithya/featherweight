@@ -258,7 +258,7 @@ def test_text_parts_are_joined_and_other_parts_are_ignored():
         "role": "user",
         "parts": [
             {"type": "text", "text": "one "},
-            {"type": "file", "url": "x", "mediaType": "image/png"},
+            {"type": "source-url", "sourceId": "s", "url": "https://example.com"},
             {"type": "text", "text": "two"},
         ],
     }
