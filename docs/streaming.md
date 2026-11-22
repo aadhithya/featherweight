@@ -132,8 +132,48 @@ Sending the events as binary (protobuf) is not supported.
 - `thread_id` is optional. It names the conversation in the run log. It does not load anything.
 
 The history can hold everything a conversation has: text, an assistant message with tool calls, the tool results (with their
-error), and thoughts with their signature. Text is the only content that is accepted: an image or a file in a message is
-refused when the `ChatInput` is built.
+error), and thoughts with their signature. A user message may also carry [attachments](#attachments).
+
+## Attachments
+
+A user message can carry images, documents (PDFs and the like), audio and video next to its text. `featherweight` is the **transport**: it
+hands them to the model as LangChain content blocks, and the provider decides what it can read.
+
+```python
+from ag_ui.core import DocumentInputContent, InputContentDataSource, TextInputContent, UserMessage
+
+pdf = DocumentInputContent(
+    source=InputContentDataSource(value=base64_of_the_pdf, mime_type="application/pdf"),
+    metadata={"filename": "report.pdf"},  # OpenAI wants a name for an inline file
+)
+chat_input = ChatInput(messages=[UserMessage(id="1", content=[TextInputContent(text="Summarise this."), pdf])])
+```
+
+- **Only inline data.** A part's `source` must be `data`: the bytes, base64-encoded, with a `mime_type`. A `url` source is refused, because
+  `featherweight` fetches nothing: your application downloads the file, checks it as it sees fit, and sends the bytes. A file that you
+  uploaded to a provider's store (a `file_id`) is not an AG-UI source: build the LangChain message yourself.
+- **What you get back.** `ChatInput.from_langchain` and `to_agui` turn the blocks into parts again, so a stored conversation keeps its attachments.
+- **Limits.** Every turn sends the whole conversation again, so the limits count the attachments of **all** the messages. They are set on
+  the agent, and the defaults are 10 attachments and 15 MB of decoded data:
+
+  ```python
+  class Support(StreamingAgent):
+      max_attachments = 20
+      max_bytes = 30 * 1024 * 1024
+  ```
+
+  Over the limit, `runner.stream()` raises a `ValueError` before any run exists. 100 files in one go is a different job: use a [job](submitted-jobs.md).
+- **Errors.** What is wrong with the input is raised (a URL, bad base64, no mime type, over a limit). What the provider says no to (a type the
+  model cannot read, a file that is too big for it) is a failed turn: a `RUN_ERROR` event and a `FAILED` row, not retried.
+- **No checks.** `featherweight` does not know what a model can read. [What the providers accept](attachments-providers.md) is a dated snapshot, and
+  the providers' own pages are the source: read them before you design around a type or a size.
+- **The Vercel AI SDK** sends an attachment as a `file` part with a `data:` URL: it is read. Any other URL is refused with a `BadRequest`. AG-UI needs nothing extra.
+- **Not logged.** The run log, the events and the default observers hold no attachment. An observer that captures content (`capture_content=True`, or
+  OpenTelemetry with content capture on) is given the bytes with the rest of the messages: leave it off, or filter, if attachments are private.
+- **Some providers drop or refuse a type** without telling you in advance (Anthropic raises for audio and video, and OpenAI's Responses API drops audio
+  silently). The [provider page](attachments-providers.md#what-the-langchain-packages-do-with-it) has the table.
+
+Details and decisions: [the attachments spec](specs/attachments.md).
 
 ## Keeping the conversation
 

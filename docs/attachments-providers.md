@@ -86,6 +86,23 @@ Page: [vision](https://docs.ollama.com/capabilities/vision).
 - **PDFs, audio, video, a count of images:** not stated. The usual workaround is to turn each PDF page into an image first.
 - featherweight has no Ollama provider, and `langchain-ollama` was not read.
 
+## What the LangChain packages do with it
+
+featherweight gives the model LangChain content blocks, and these packages turn them into the provider's request. We built the request offline for each
+block type (nothing was sent), with `langchain-anthropic` 1.7.11, `langchain-google-genai` 4.4.2 and `langchain-openai` 1.8.2. This is what they did on
+2026-11-22, and it changes with their versions:
+
+| Block | `langchain-anthropic` | `langchain-openai`, Chat Completions | `langchain-openai`, Responses | `langchain-google-genai` |
+|---|---|---|---|---|
+| image | `image` block, base64 | `image_url` data URL | `input_image` | inline data |
+| PDF | `document` block, base64; no filename | `file` with `file_data`; a placeholder name and a warning without a filename | `input_file` | inline data; no filename |
+| text file | `document` | passes through, though the API takes PDFs only | `input_file` | inline data |
+| audio | **raises** | `input_audio` (format `wav`) | **dropped, with no error** | inline data |
+| video | **raises** | raises | raises | inline data |
+
+"Raises" is a `ValueError` while the request is built. **A silent drop is the worst case**: the model answers from the text alone. Test the type you plan to
+use, with your provider and your model.
+
 ## How we read it
 
 - This page was written from the providers' documentation pages, read on 2026-11-22, plus the source of `langchain-core` 1.8.3,

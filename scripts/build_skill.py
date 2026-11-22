@@ -24,6 +24,7 @@ GUIDES = [
     "mcp.md",
     "skills.md",
     "streaming.md",
+    "attachments-providers.md",
     "persistence.md",
     "submitted-jobs.md",
     "background-agents.md",
