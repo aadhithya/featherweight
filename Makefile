@@ -1,4 +1,4 @@
-.PHONY: skill all-docs build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching example-resume example-results example-jobs example-takeover example-observability example-chat example-chat-api example-background example-mcp book-build book-chapter book-run book-chat book-shell shell
+.PHONY: skill all-docs build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching example-resume example-results example-jobs example-takeover example-observability example-chat example-chat-api example-chat-attach example-background example-mcp book-build book-chapter book-run book-chat book-shell shell
 
 build:
 	docker compose build
@@ -118,6 +118,10 @@ example-chat:
 # The same agent behind FastAPI on http://localhost:8000: AG-UI at /agui, the Vercel AI SDK at /vercel.
 example-chat-api:
 	docker compose run --rm --no-deps -p 8000:8000 featherweight uvicorn --app-dir examples/chat api:app --host 0.0.0.0
+
+# Ask Claude about a file (an image or a PDF; real Claude Haiku call): `make example-chat-attach FILE=photo.png Q="What is in this picture?"`.
+example-chat-attach:
+	docker compose run --rm --no-deps featherweight python examples/chat/attach.py "$(FILE)" "$(Q)"
 
 shell:
 	docker compose exec featherweight bash
