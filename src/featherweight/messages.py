@@ -109,6 +109,29 @@ def _user_content(content: Any, where: str) -> str | list[str | dict[Any, Any]]:
     return [*blocks]
 
 
+def decoded_size(value: str) -> int:
+    """The size in bytes of base64 text once decoded, from its length and its padding: nothing is decoded."""
+    padding = len(value) - len(value.rstrip("="))
+    return max(len(value) * 3 // 4 - min(padding, 2), 0)
+
+
+def count_attachments(messages: Sequence[Message]) -> tuple[int, int]:
+    """The number of media parts (image, document, audio, video) of all the messages, and the decoded size in bytes of
+    their data sources. Every turn sends the whole history, so the attachments of earlier messages count."""
+    count = size = 0
+    for message in messages:
+        content = getattr(message, "content", None)
+        if message.role != "user" or content is None or isinstance(content, str):
+            continue
+        for part in content:
+            if getattr(part, "type", None) in _MEDIA_BLOCKS:
+                count += 1
+                value = getattr(getattr(part, "source", None), "value", None)
+                if isinstance(value, str):
+                    size += decoded_size(value)
+    return count, size
+
+
 def to_langchain(messages: Sequence[Message]) -> list[BaseMessage]:
     """A client's history as LangChain messages.
 
