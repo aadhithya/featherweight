@@ -35,6 +35,7 @@
 - [A streaming agent](04-chat/01-a-streaming-agent.md)
 - [In the browser](04-chat/02-in-the-browser.md)
 - [Stopping and the conversation](04-chat/03-stopping-and-the-conversation.md)
+- [Attaching a file](04-chat/04-attaching-a-file.md)
 
 # Part 5: In production
 

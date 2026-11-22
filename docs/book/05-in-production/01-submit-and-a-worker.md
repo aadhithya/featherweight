@@ -99,5 +99,5 @@ Next: more than one worker, and a worker that dies.
 <!-- nav:bottom -->
 ---
 
-[← Stopping and the conversation](../04-chat/03-stopping-and-the-conversation.md) · [Part 5: In production](../README.md#part-5-in-production) · [Several workers →](02-several-workers.md)
+[← Attaching a file](../04-chat/04-attaching-a-file.md) · [Part 5: In production](../README.md#part-5-in-production) · [Several workers →](02-several-workers.md)
 <!-- /nav:bottom -->

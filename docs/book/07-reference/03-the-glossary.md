@@ -9,6 +9,7 @@ Look up a word.
 | Term | Meaning |
 |---|---|
 | **agent** | A typed class: an input, an output, a prompt and what it may use. [A typed agent](../01-your-first-agent/02-a-typed-agent.md) |
+| **attachment** | A file (an image, a document, audio or video) sent with a chat message, as inline bytes. featherweight passes it on and checks nothing but the limits. [Attaching a file](../04-chat/04-attaching-a-file.md) |
 | **attempt** | One try of one agent call. A failed attempt is retried, up to three. Not an execution. [Failures](../01-your-first-agent/05-failures-and-check-output.md) |
 | **background agent** | An agent that another agent starts and does not wait for. It is a job. [Background agents](../05-in-production/03-background-agents.md) |
 | **check_output** | A method of an agent that rejects an output that a schema cannot, by raising. [Failures](../01-your-first-agent/05-failures-and-check-output.md) |

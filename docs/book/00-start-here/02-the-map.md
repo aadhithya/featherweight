@@ -39,6 +39,7 @@ flowchart TD
 | Give it tools, MCP servers or skills | [Tools](../02-abilities/01-tools.md), [MCP](../02-abilities/02-mcp.md), [Skills](../02-abilities/03-skills.md) |
 | Run it over many inputs, and recover from a failure | [What a job is](../03-jobs-and-pipelines/01-what-a-job-is.md), [Resume](../03-jobs-and-pipelines/04-resume.md) |
 | Build a chat | [A streaming agent](../04-chat/01-a-streaming-agent.md), [In the browser](../04-chat/02-in-the-browser.md) |
+| Attach a file to a chat message | [Attaching a file](../04-chat/04-attaching-a-file.md) |
 | Run it somewhere else, on several workers | [Submit and a worker](../05-in-production/01-submit-and-a-worker.md), [Several workers](../05-in-production/02-several-workers.md) |
 | Let an agent start another and go on | [Background agents](../05-in-production/03-background-agents.md) |
 | See what it did | [What happened](../01-your-first-agent/04-what-happened.md), [Observability](../05-in-production/04-observability.md) |

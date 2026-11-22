@@ -90,54 +90,6 @@ A new release of the payment form sent a field the provider rejects, so every pa
 > **Why events.** A chat has no finished output to check, so the answer is a stream a person reads as it is written. See
 > [streaming agents](../../streaming.md) and [the spec](https://github.com/aadhithya/featherweight/blob/main/docs/specs/streaming.md).
 
-## Attach a file
-
-A message holds text, so attaching a file means putting its text in the message. Reading and attaching files is yours: you decide what a user may upload and how
-it is read, and featherweight keeps no files and does no uploads. Text is the only content a message accepts: an image or a file part is refused when the
-`ChatInput` is built ([the conversation is yours](../../streaming.md#the-conversation-is-yours)).
-
-<!-- code: code/4-1/attach.py -->
-```python
-"""Chapter 4-1, extra: attach a file to the chat. A message holds text, so the file's text goes into the message."""
-
-import asyncio
-from pathlib import Path
-
-from ag_ui.core import TextMessageContentEvent
-from app import IncidentAssistant
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
-
-from featherweight import AgentRunner, ChatInput, SqliteDatabase, default_db_path
-
-
-def attach(question: str, path: str) -> HumanMessage:
-    """A user message that carries a file as extra context. Reading and attaching files is yours: featherweight takes text only."""
-    file = Path(path)
-    return HumanMessage(f'{question}\n\n<attachment name="{file.name}">\n{file.read_text()}\n</attachment>')
-
-
-async def main(report: str = "reports/01-checkout-outage.txt", notes: str = "4-1/runbook.md") -> None:
-    greeting = AIMessage("I have the report. Ask me anything about it.")
-    history: list[BaseMessage] = [HumanMessage(Path(report).read_text()), greeting]
-    question = attach("Does the runbook say what to do about this?", notes)  # the question, with the file attached
-    async with SqliteDatabase(default_db_path()) as db, AgentRunner(db) as runner:
-        async for event in runner.stream(IncidentAssistant, ChatInput.from_langchain([*history, question])):
-            if isinstance(event, TextMessageContentEvent):
-                print(event.delta, end="", flush=True)
-    print()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-Run it with `docker compose run --rm --no-deps book python 4-1/attach.py`, from `docs/book/code`. The file is `4-1/runbook.md`. Something like:
-
-```text
-Yes. Roll back the last release of the payment form, and tell the payments team.
-```
-
-- **The file is labelled** with its name, so the model can tell the report from the attachment.
-- **Binary files and images** are yours to turn into text first (for example by extracting the text of a PDF): featherweight does not convert them.
+To send the assistant a file with a question, see [Attaching a file](04-attaching-a-file.md).
 
 Next: the same agent, for a browser.

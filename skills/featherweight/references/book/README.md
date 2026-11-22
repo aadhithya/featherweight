@@ -48,6 +48,7 @@ New to featherweight? Start with [what it is](00-start-here/01-what-it-is.md). W
 1. [A streaming agent](04-chat/01-a-streaming-agent.md)
 2. [In the browser](04-chat/02-in-the-browser.md)
 3. [Stopping and the conversation](04-chat/03-stopping-and-the-conversation.md)
+4. [Attaching a file](04-chat/04-attaching-a-file.md)
 
 ### Part 5: In production
 

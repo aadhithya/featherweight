@@ -91,10 +91,10 @@ Ask something, press Control-C while it answers, and ask again: the next turn kn
 > **Why you keep it.** The history belongs to your application and its store, so it is not ours to keep. See
 > [keeping the conversation](../../streaming.md#keeping-the-conversation).
 
-Next: Part 5 puts the assistant on workers, with background research and traces.
+Next: send the assistant a file with a question.
 
 <!-- nav:bottom -->
 ---
 
-[← In the browser](02-in-the-browser.md) · [Part 4: Chat](../README.md#part-4-chat) · [Submit and a worker →](../05-in-production/01-submit-and-a-worker.md)
+[← In the browser](02-in-the-browser.md) · [Part 4: Chat](../README.md#part-4-chat) · [Attaching a file →](04-attaching-a-file.md)
 <!-- /nav:bottom -->
