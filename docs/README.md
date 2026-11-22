@@ -54,6 +54,7 @@ or finding out why it behaves as it does.
 | [MCP tools](mcp.md) | Declaring servers, connections, what the model gets, failures, finding tools by search | [MCP tools](specs/mcp-tools.md), [tool discovery](specs/tool-discovery.md) |
 | [Background agents](background-agents.md) | `background_agents`, `start_background`, here or on a worker, the result message, the events, a chat in the browser, how long a child lives | [Background agents](specs/background-agents.md) |
 | [Streaming agents](streaming.md) | `StreamingAgent`, `runner.stream()`, the events, thoughts, the AG-UI and Vercel adapters, stopping a response, keeping the conversation, the example | [Streaming agents](specs/streaming.md) |
+| [What the providers accept as attachments](attachments-providers.md) | A dated snapshot of what Anthropic, Google, OpenAI and Ollama accept: types, how, sizes, counts, with links | [Attachments](specs/attachments.md) |
 | [Getting started](getting-started.md) | Installing it, a first agent, running it, the examples | |
 | [Development](development.md) | The make commands, the layout of the repository, contributing | |
 | [Persistence](persistence.md) | What is kept and what is not, resuming a job, result stores, choosing a database, tenants | [Persistence](specs/persistence.md) |
