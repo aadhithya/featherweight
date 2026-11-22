@@ -351,7 +351,8 @@ class AgentRunner:
         the model writes. A failure is an `RUN_ERROR` event and a FAILED row, not an exception; and nothing is retried.
 
         Programming errors raise, as for `run()`: an agent that is not a streaming agent, an input that is not a
-        `ChatInput`, or a `job_id` that does not exist (raised when the loop starts).
+        `ChatInput`, a conversation with more attachments or bytes than the agent allows, or a `job_id` that does not exist
+        (raised when the loop starts).
         """
         if not (isinstance(agent_cls, type) and issubclass(agent_cls, StreamingAgent)):
             raise TypeError(
@@ -359,6 +360,7 @@ class AgentRunner:
             )
         if not isinstance(chat_input, ChatInput):
             raise TypeError(f"{agent_cls.__name__} expects a ChatInput, got {type(chat_input).__name__}")
+        agent_cls.check_attachments(chat_input)  # before any run or row exists
         self._check_background_setup(agent_cls())  # ty: ignore[missing-argument]  # a subclass supplies the defaults
         return StreamingRun(new_id(), lambda run, emit: self._stream(agent_cls, chat_input, run, emit, job_id=job_id))
 

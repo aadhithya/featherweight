@@ -8,13 +8,13 @@ check and no retry. See docs/streaming.md.
 import asyncio
 import logging
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from ag_ui.core import BaseEvent, Message, RunAgentInput, TokenUsage
 from langchain_core.messages import BaseMessage
 from pydantic import Field, model_validator
 
-from featherweight.messages import to_agui, to_langchain
+from featherweight.messages import count_attachments, to_agui, to_langchain
 from featherweight.models import AgentBase, AgentInput, RunStatus
 
 logger = logging.getLogger(__name__)
@@ -66,6 +66,34 @@ class StreamingAgent(AgentBase):
 
     input_model: ClassVar[type[AgentInput]] = ChatInput
     streaming: ClassVar[bool] = True
+    # What the attachments of a conversation (all its messages, each turn) may come to; the application raises or lowers them
+    # on its agent. `max_bytes` is the decoded size. See docs/specs/attachments.md.
+    max_attachments: ClassVar[int] = 10
+    max_bytes: ClassVar[int] = 15 * 1024 * 1024
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        for attribute in ("max_attachments", "max_bytes"):
+            value = getattr(cls, attribute)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise TypeError(f"{cls.__name__}.{attribute} must be an integer of 0 or more, got {value!r}")
+
+    @classmethod
+    def check_attachments(cls, chat_input: "ChatInput") -> None:
+        """Raises `ValueError` when the conversation has more attachments, or more bytes of them, than this agent allows."""
+        count, size = count_attachments(chat_input.messages)
+        if count > cls.max_attachments:
+            raise ValueError(
+                f"The conversation has {count} attachments, {count - cls.max_attachments} over the {cls.max_attachments} "
+                f"{cls.__name__} allows (all the messages count, not only the last). The application can raise "
+                f"max_attachments on the agent."
+            )
+        if size > cls.max_bytes:
+            raise ValueError(
+                f"The attachments of the conversation are {size} bytes, {size - cls.max_bytes} over the {cls.max_bytes} "
+                f"{cls.__name__} allows (decoded size, all the messages count). The application can raise max_bytes "
+                f"on the agent."
+            )
 
     def _leading_prompt_parts(self) -> list[str]:
         return [self.prompt]
