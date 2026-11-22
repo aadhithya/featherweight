@@ -75,6 +75,10 @@ async def main(path: Path, question: str) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        sys.exit('usage: python examples/chat/attach.py FILE "your question"')
-    asyncio.run(main(Path(sys.argv[1]), sys.argv[2]))
+    usage = 'usage: python examples/chat/attach.py FILE "your question"'
+    if len(sys.argv) != 3 or not sys.argv[1] or not sys.argv[2]:
+        sys.exit(usage)
+    file = Path(sys.argv[1])
+    if not file.is_file():
+        sys.exit(f"{file} is not a file (in Docker, only files inside the project folder are visible).\n{usage}")
+    asyncio.run(main(file, sys.argv[2]))

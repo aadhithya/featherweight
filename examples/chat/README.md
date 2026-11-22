@@ -35,7 +35,7 @@ To stream the model's thoughts too, use `Claude(..., thinking="adaptive", show_t
 make example-chat-attach FILE=photo.png Q="What is in this picture?"
 ```
 
-[`attach.py`](attach.py) sends a question with an image, a PDF, a recording or a video, as inline data: `featherweight` only passes the
+`FILE` must be inside the project folder (in Docker, that is all the container sees). [`attach.py`](attach.py) sends a question with an image, a PDF, a recording or a video, as inline data: `featherweight` only passes the
 file on, and fetches nothing (a URL is refused: you download it and send the bytes). The agent sets its own limit of one file; the defaults are
 10 files and 15 MB. Whether the model can read the type is the provider's to say, and a no comes back as a failed turn, which the example
 prints. See [attachments](../../docs/streaming.md#attachments) and [what the providers accept](../../docs/attachments-providers.md).
