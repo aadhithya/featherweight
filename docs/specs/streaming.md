@@ -249,7 +249,7 @@ because no small official package exists (the one from vercel-labs is a whole ag
 | `CUSTOM` (`background_started`, `background_finished`) | a data part `data-<name>`, with the event's value as `data`, **transient** (the client gets it with `onData`, and it is not kept in the message) |
 
 The header is `x-vercel-ai-ui-message-stream: v1`. The request is Vercel's list of `UIMessage` (messages made of parts:
-text, reasoning, tool parts with a state), converted to a `ChatInput` with the same rules as AG-UI. State and activity events
+text, reasoning, tool parts with a state, and `file` parts, which are [attachments](attachments.md)), converted to a `ChatInput` with the same rules as AG-UI. State and activity events
 have no Vercel part and are dropped. The guide names the protocol version we wrote against and the date we checked.
 
 A third format is a third adapter: the events are the contract.

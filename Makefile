@@ -1,4 +1,4 @@
-.PHONY: skill build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching example-resume example-results example-jobs example-takeover example-observability example-chat example-chat-api example-background example-mcp book-build book-chapter book-run book-chat book-shell shell
+.PHONY: skill all-docs build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching example-resume example-results example-jobs example-takeover example-observability example-chat example-chat-api example-background example-mcp book-build book-chapter book-run book-chat book-shell shell
 
 build:
 	docker compose build
@@ -39,6 +39,10 @@ check:
 # Copy the guides of docs/ into the skill (skills/featherweight/references). The tests fail when they are out of date.
 skill:
 	python3 scripts/build_skill.py
+
+# Put all the documentation in one file, ALL_DOCS.md at the root (git-ignored): the README, docs/ (guides, specs, book) and the examples' READMEs.
+all-docs:
+	python3 scripts/build_all_docs.py
 
 # Install the git hooks (conventional commit messages, ruff, ty, unit tests) in this clone. Run on the host, not in the container.
 hooks:
