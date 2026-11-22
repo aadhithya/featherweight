@@ -57,7 +57,6 @@ from featherweight.observers import AttemptEnd, AttemptStart, Entered, JobSubmit
 from featherweight.registry import ToolRegistry
 from featherweight.results import ResultKey, ResultStore, SqliteResultStore
 from featherweight.sqlite import SqliteDatabase
-from featherweight.store import RunStore
 from featherweight.stream_events import EventMapper
 from featherweight.streaming import ChatInput, StreamingAgent, StreamingRun
 
@@ -238,7 +237,6 @@ class AgentRunner:
         *,
         max_attempts: int = 3,
         retry_delay_s: float = 1.0,
-        store: RunStore | None = None,
         max_concurrent: int | None = None,
         max_depth: int | None = None,
         max_launches: int | None = None,
@@ -248,9 +246,7 @@ class AgentRunner:
         observers: Sequence[Observer] = (),
         observer_timeout: float = 1.0,
     ):
-        """`store` is what the `store_get` / `store_set` tools read and write (default: a new RunStore).
-
-        `max_concurrent` caps how many attempts (model calls) run at once across this runner. Default:
+        """`max_concurrent` caps how many attempts (model calls) run at once across this runner. Default:
         `MAX_CONCURRENT_AGENT_RUNS` from the environment, else 10.
 
         `max_depth` is the most agents in one chain of launches, the first agent included (A launches B launches C is
@@ -295,7 +291,6 @@ class AgentRunner:
         self._watchers: dict[str, list[asyncio.Task[None]]] = {}  # a streamed run -> its tasks that wait for children
         self.max_concurrent = max_concurrent
         self._slots = asyncio.Semaphore(max_concurrent)
-        self.store = store or RunStore()
         self.db = db
         self.results: ResultStore | None = (
             results
@@ -519,7 +514,7 @@ class AgentRunner:
             run.status = RunStatus.RUNNING
             if setup_error is not None:
                 raise setup_error
-            context = RunContext(store=self.store, job_id=job_id, agent_run_id=run.run_id)
+            context = RunContext(job_id=job_id, agent_run_id=run.run_id)
             async for event in self._stream_events(
                 agent, chat_input, system_prompt, context, slot, can_launch, registry, turn.mapper, run._new_messages
             ):
@@ -860,7 +855,7 @@ class AgentRunner:
                 try:
                     if setup_error is not None:
                         raise setup_error
-                    context = RunContext(store=self.store, job_id=job_id, agent_run_id=agent_run_id)
+                    context = RunContext(job_id=job_id, agent_run_id=agent_run_id)
                     output, input_tokens, output_tokens, reported_model = await self._attempt(
                         agent, agent_input, system_prompt, message, context, slot, depth, can_launch, registry
                     )

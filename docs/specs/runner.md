@@ -34,7 +34,7 @@ results = await runner.run_many(AgentClass, inputs, job_id=job_id)
 - `run` takes the **class** and an input that is an instance of its `input_model`.
 - `run_many` runs one agent over many inputs at the same time and returns the results **in input order**. It has no limit
   of its own: the concurrency limit bounds it.
-- `job_id` is optional. Runs of one pipeline share a job. Without one, the runs have no job and no run store.
+- `job_id` is optional. Runs of one pipeline share a job. Without one, the runs have no job.
 - **Runtime failures are values.** `run` returns a `FAILED` result. It does not raise.
 - **Programming errors raise:** an input of the wrong type (`TypeError`), a `job_id` that does not exist.
 - **A streaming agent** is not run with `run`: it raises `TypeError` and names `stream`. `stream(StreamingAgent, ChatInput, job_id=...)`
@@ -77,8 +77,8 @@ answered from the log.
   output and `reused_from_agent_run_id`. It logs `run_reused agent_run_id=... reused_from=...`, calls no model, builds no
   MCP connection and takes no slot. The result has `reused=True`, zero tokens and `attempts=1`.
 - **`run_many`** resumes per input, since each input is one `run` call.
-- **Not covered.** The determinism of the caller's code between agents (the caller's responsibility, not checked), the
-  run store (a reused run does not run, so its `store_set` calls do not happen again), side effects of tools, reuse of
+- **Not covered.** The determinism of the caller's code between agents (the caller's responsibility, not checked), state
+  that a run kept in memory (a reused run does not run, so it is not rebuilt), side effects of tools, reuse of
   sub-agent runs, rows from before `agent_hash`.
 
 ## Attempts and retries
@@ -137,7 +137,7 @@ properties (checked with the real model).
 | The depth or the launch limit is reached | A sentence saying which limit |
 
 **The child is an ordinary run.** It has its own retries, tools, skills, MCP servers and sub-agents, and its own rows in
-the log. It shares the parent's job, so it shares the run store. Its row records `parent_agent_run_id` (the attempt that
+the log. It shares the parent's job. Its row records `parent_agent_run_id` (the attempt that
 launched it) and `depth` (1 for a top-level run). The parent sees only the child's output, as a tool result, which counts
 in the parent's input tokens. A model may launch several agents in one turn, and they run at the same time. A retried
 parent attempt launches its children again, and the earlier children stay in the log under the failed attempt.
@@ -176,7 +176,6 @@ keeps servers up between runs and stops them at the end. A runner with no MCP ag
 |---|---|---|---|
 | `max_attempts` | | 3 | At least 1 |
 | `retry_delay_s` | | 1.0 | |
-| `store` | | a new `RunStore` | What the store tools read and write |
 | `max_concurrent` | `MAX_CONCURRENT_AGENT_RUNS` | 10 | At least 1 |
 | `max_depth` | `MAX_AGENT_DEPTH` | 3 | At least 1 |
 | `max_launches` | `MAX_AGENT_LAUNCHES` | 10 | At least 1 |

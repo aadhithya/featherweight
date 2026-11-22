@@ -7,12 +7,9 @@ from the model, so tools stay plain static objects that can sit in an agent's al
 from contextvars import ContextVar
 from dataclasses import dataclass
 
-from featherweight.store import RunStore
-
 
 @dataclass
 class RunContext:
-    store: RunStore
     job_id: str | None
     agent_run_id: str  # the attempt that is running now
 

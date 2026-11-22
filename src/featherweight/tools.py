@@ -1,18 +1,15 @@
 """Default tools. Import them and put them in an agent's `tools` allow-list.
 
-    store_get / store_set        read and write the run store, scoped to the current job
     calculate                    exact arithmetic, for totals and subtotals
     current_datetime / add_to_date / days_between
                                  date operations (UTC, ISO 8601)
 
-The store tools get the job and store from the run context, never from the model. All tools return
-text and do not raise, so the model can read what went wrong and react.
+All tools return text and do not raise, so the model can read what went wrong and react.
 """
 
 import ast
 import calendar
 import datetime as dt
-import json
 import logging
 import math
 import operator
@@ -20,41 +17,9 @@ import re
 from collections.abc import Callable
 from decimal import Decimal, DivisionByZero, InvalidOperation, Overflow
 
-from langchain.tools import ToolRuntime, tool
-
-from featherweight.context import RunContext
+from langchain.tools import tool
 
 logger = logging.getLogger(__name__)
-
-NO_JOB = "There is no job for this run, so there is no run store to use."
-
-
-@tool
-async def store_get(key: str, runtime: ToolRuntime[RunContext]) -> str:
-    """Read a value saved earlier for this job under `key`, by you or by another agent."""
-    ctx = runtime.context
-    if ctx.job_id is None:
-        return NO_JOB
-    value = await ctx.store.get(ctx.job_id, key)
-    logger.debug("store_get job_id=%s key=%s found=%s", ctx.job_id, key, value is not None)
-    if value is None:
-        return f"Nothing is stored under '{key}'."
-    return value if isinstance(value, str) else json.dumps(value)
-
-
-@tool
-async def store_set(key: str, value: str, runtime: ToolRuntime[RunContext]) -> str:
-    """Save a text value under `key` for this job, so you or other agents can read it later.
-
-    Use JSON text for structured data. Saving again under the same key overwrites it.
-    """
-    ctx = runtime.context
-    if ctx.job_id is None:
-        return NO_JOB
-    await ctx.store.set(ctx.job_id, key, value)
-    logger.debug("store_set job_id=%s key=%s", ctx.job_id, key)
-    return f"Saved '{key}'."
-
 
 # calculate
 

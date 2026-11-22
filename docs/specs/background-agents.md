@@ -68,7 +68,7 @@ class Researcher(AgentBase):
 
 - **The child is a job** with its own id. Its row records `parent_agent_run_id`, the attempt that started it (metadata only), so that the
   tree of a trace is one query. Its agent runs are those of an ordinary job: its own retries, tools and sub-agents. It does not share the
-  parent's job and its run store.
+  parent's job.
 
 ## Where it runs
 

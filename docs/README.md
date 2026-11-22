@@ -78,7 +78,7 @@ runner ──────────── runs agents: attempts, retries, conc
   │   │
   │   └── jobs and tracing ── what is recorded, and how
   │
-  ├── tools and store ──── the tools of an attempt, the registry, the run store
+  ├── tools ───────────── the tools of an attempt, the registry
   │       │
   │       ├── MCP tools ───────── servers, connections, failures
   │       │       └── tool discovery ── finding MCP tools by search

@@ -17,7 +17,7 @@ not supported, tests.
 | [Streaming agents](streaming.md) | `StreamingAgent`, `runner.stream()`, AG-UI events, thoughts, stopping a response, messages, the AG-UI and Vercel adapters |
 | [Attachments](attachments.md) | Images, documents, audio and video in a chat message: what a client can send, what the model gets, limits, failures |
 | [Skills](skills.md) | The skill model, loading, how an agent reads a skill, the Agent Skills specification |
-| [Tools, the registry and the store](tools-and-store.md) | Tools on an agent, the tool registry, the ready-made tools, the run context, the run store |
+| [Tools and the registry](tools-and-store.md) | Tools on an agent, the tool registry, the ready-made tools, the run context |
 | [Tool discovery](tool-discovery.md) | Finding MCP tools by keyword: `discover`, `search_tools`, `call_tool`, matching |
 | [MCP tools](mcp-tools.md) | MCP servers: declaring, connections, failures, what the model gets |
 
@@ -37,6 +37,6 @@ A change goes in the spec of the thing it changes, and not in the spec of the ep
 | [Background agents](background-agents.md) | `background_agents`, `start_background`, where a child runs, the result message, the events, how long a child lives |
 | [Streaming agents](streaming.md) | `StreamingAgent`, `runner.stream()`, the events, the adapters |
 | [Attachments](attachments.md) | The parts a user message may carry, how they reach the model, the limits on them |
-| [Tools and the store](tools-and-store.md), [MCP tools](mcp-tools.md), [tool discovery](tool-discovery.md), [skills](skills.md) | What their names say |
+| [Tools and the registry](tools-and-store.md), [MCP tools](mcp-tools.md), [tool discovery](tool-discovery.md), [skills](skills.md) | What their names say |
 
 A spec says what it owns, and links to the spec that owns the rest.

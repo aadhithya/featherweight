@@ -13,7 +13,6 @@ from featherweight.fingerprint import input_hash, tools_hash
 from featherweight.model_settings import ModelSettings
 from featherweight.models import AgentBase, AgentInput, AgentOutput, RunStatus
 from featherweight.runner import _Slot
-from featherweight.store import RunStore
 
 
 class ChildInput(AgentInput):
@@ -280,7 +279,7 @@ async def test_a_depth_of_one_turns_launching_off(db):
 
 async def test_the_launch_tool_refuses_at_the_depth_limit_even_if_it_is_called(db):
     runner = runner_with(db, Scripted(script=[]), max_depth=2)
-    context = RunContext(store=RunStore(), job_id=None, agent_run_id="a")
+    context = RunContext(job_id=None, agent_run_id="a")
 
     launch, _ = runner._launch_tools(Mid(), context, _Slot(asyncio.Semaphore(1)), depth=2)
     text = await launch.ainvoke({"agent_name": "leaf", "input_json": '{"topic": "x"}'})

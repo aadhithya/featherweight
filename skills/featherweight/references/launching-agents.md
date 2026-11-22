@@ -81,8 +81,7 @@ run.
 
 - **The child is an ordinary run.** It has its own retries, its own tools, its own rows in the log, and its own
   `skills` and `subagents`.
-- **The child shares the job**, so it shares the run store. State passed with `store_set` and `store_get` is visible to
-  both.
+- **The child shares the job**, so its runs are in the same job's log, and a resume looks at them with the parent's.
 - **The result is the child's output only.** The parent reads it as a tool result, so it counts in the parent's input
   tokens on its next model call. The child's own tokens are in its own rows.
 - **A model may launch several agents in one turn.** They run at the same time.
