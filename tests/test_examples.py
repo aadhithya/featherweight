@@ -388,3 +388,49 @@ async def test_the_background_example_wakes_the_chat_with_the_result_when_the_re
     assert any("<background_result" in str(m.content) and "Kettles boil water." in str(m.content) for m in woken)
     out = capsys.readouterr().out
     assert "On it, I am researching." in out and "The note says: kettles boil water." in out
+
+
+async def test_the_attach_example_sends_the_file_as_inline_data_and_prints_the_answer(
+    db, monkeypatch, capsys, tmp_path
+):
+    import base64
+
+    from fakes import FakeSettings, Streams, runner_with
+
+    monkeypatch.syspath_prepend(str(EXAMPLES / "chat"))
+    attach = __import__("attach")
+
+    class Fake(attach.Reader):
+        model: ModelSettings = FakeSettings()
+
+    monkeypatch.setattr(attach, "Reader", Fake)
+    model = Streams(turns=[["A tiny ", "picture."]])
+    runner_with(db, model)
+    monkeypatch.setenv("FTW_DB_PATH", str(db.path))
+    picture = tmp_path / "cat.png"
+    picture.write_bytes(b"\x89PNG fake")
+
+    await attach.main(picture, "What is this?")
+
+    assert "A tiny picture." in capsys.readouterr().out
+    [human] = [m for m in model.seen[0] if m.type == "human"]
+    assert human.content == [
+        {"type": "text", "text": "What is this?"},
+        {"type": "image", "base64": base64.b64encode(b"\x89PNG fake").decode(), "mime_type": "image/png"},
+    ]
+    assert Fake.max_attachments == 1
+
+
+def test_the_attach_example_sends_a_pdf_as_a_document_with_its_filename(monkeypatch, tmp_path):
+    monkeypatch.syspath_prepend(str(EXAMPLES / "chat"))
+    attach = __import__("attach")
+    pdf = tmp_path / "report.pdf"
+    pdf.write_bytes(b"%PDF-1.7")
+
+    part = attach.attachment(pdf)
+
+    assert (part.type, part.source.mime_type, part.metadata) == (
+        "document",
+        "application/pdf",
+        {"filename": "report.pdf"},
+    )

@@ -10,7 +10,7 @@ which use `claude-haiku-5-5` and need `ANTHROPIC_API_KEY` (so do `chat` and `bac
 | [`mcp`](mcp) | An agent that uses the tools of an MCP server (GitHub's, read-only), with an allow-list and a token read by name | `make example-mcp` |
 | [`resume`](resume) | Resuming a job: a pipeline that crashes halfway, and a second run with `resume_from` that reuses the first half | `make example-resume` |
 | [`background`](background) | A chat agent that starts a background agent and goes on talking, and a small session that wakes it when the work is done | `make example-background` |
-| [`chat`](chat) | A streaming chat agent: a chat in the terminal (about 30 lines), and the same agent behind FastAPI for AG-UI and the Vercel AI SDK | `make example-chat`, `make example-chat-api` |
+| [`chat`](chat) | A streaming chat agent: a chat in the terminal (about 30 lines), the same agent behind FastAPI for AG-UI and the Vercel AI SDK, and a question about an attached file | `make example-chat`, `make example-chat-api`, `make example-chat-attach` |
 | [`observability`](observability) | A job traced with OpenTelemetry, with a span of your own inside it (no model, no key) | `make example-observability` |
 | [`jobs`](jobs) | Submitting a job to a queue and running a worker for it, following it with events and SSE, and a worker that dies mid-job (no model, no key) | `make example-jobs`, `make example-takeover` |
 | [`results`](results) | Writing a result store for resuming a job, and checking it with the conformance kit (no model, no key) | `make example-results` |
