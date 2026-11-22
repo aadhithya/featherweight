@@ -434,3 +434,18 @@ def test_the_attach_example_sends_a_pdf_as_a_document_with_its_filename(monkeypa
         "application/pdf",
         {"filename": "report.pdf"},
     )
+
+
+def test_the_attach_example_explains_itself_when_the_file_is_missing_or_the_arguments_are_empty(monkeypatch, tmp_path):
+    import runpy
+
+    for argv in (
+        ["attach.py"],
+        ["attach.py", "", ""],
+        ["attach.py", str(tmp_path), "what?"],
+        ["attach.py", "nope.png", "what?"],
+    ):
+        monkeypatch.setattr("sys.argv", argv)
+        with pytest.raises(SystemExit) as exit_:
+            runpy.run_path(str(EXAMPLES / "chat" / "attach.py"), run_name="__main__")
+        assert "usage: python examples/chat/attach.py" in str(exit_.value)

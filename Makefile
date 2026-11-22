@@ -121,6 +121,7 @@ example-chat-api:
 
 # Ask Claude about a file (an image or a PDF; real Claude Haiku call): `make example-chat-attach FILE=photo.png Q="What is in this picture?"`.
 example-chat-attach:
+	@test -n "$(FILE)" -a -n "$(Q)" || { echo 'usage: make example-chat-attach FILE=path/in/the/project.png Q="your question"'; exit 1; }
 	docker compose run --rm --no-deps featherweight python examples/chat/attach.py "$(FILE)" "$(Q)"
 
 shell:
