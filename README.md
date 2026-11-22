@@ -99,13 +99,20 @@ pip install 'featherweight[all]'    # or just: mcp, anthropic, openai, postgres,
 
 Python 3.12 or later. Import what you use: `from featherweight import AgentBase, AgentRunner`. (`import featherweight as ftw` works too, as a joke.)
 
-## Showcase: fw-concierge
+## Showcase
 
 > ### [fw-concierge](https://github.com/aadhithya/fw-concierge) ✨
 > *A concierge that books a physio appointment, end to end, built on featherweight.*
 >
 > A chat assistant finds an appointment in Munich. A background worker researches providers while you keep chatting.
 > Nothing is booked until you say yes. One command runs the whole thing.
+
+> ### [fw-qna](https://github.com/aadhithya/fw-qna) 💬
+> *A terminal chat that answers questions about featherweight from its own docs, and writes example code.*
+>
+> Ask "how do I run jobs on a worker?" and get an answer with links to the pages it came from. It reads featherweight's skill,
+> searches the docs of the release you pick, and says when code is untested. A quick way to learn the framework, and a demo of
+> streaming agents, tools and skills.
 
 ## Read more
 
