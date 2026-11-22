@@ -1,7 +1,7 @@
 # Spec: tool discovery
 
 Status: implemented. How to use it is in [mcp.md](../mcp.md#finding-tools-by-search). This is the design for [issue #3](https://github.com/aadhithya/featherweight/issues/3). It builds on
-[MCP tools](mcp-tools.md) and [tools, the registry and the store](tools-and-store.md).
+[MCP tools](mcp-tools.md) and [tools and the registry](tools-and-store.md).
 
 - [Goal and scope](#goal-and-scope)
 - [Declaration](#declaration)

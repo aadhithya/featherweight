@@ -31,7 +31,6 @@ classifiers = [
 dependencies = [
     "ag-ui-protocol>=1.0",
     "aiosqlite",
-    "fakeredis",
     "jsonschema",
     "langchain",
     "langchain-google-genai",

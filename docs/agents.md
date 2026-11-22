@@ -94,7 +94,7 @@ async with SqliteDatabase("featherweight.db") as db:
 - `run(agent_cls, agent_input, job_id=None)` runs one agent. Pass the class, not an instance.
 - `run_many(agent_cls, inputs, job_id=None)` runs one agent over many inputs at the same time (fan-out) and returns the
   results in input order. It has no limit of its own: the runner's concurrency limit bounds it.
-- Several agents of one pipeline share a `job_id`. Without one, the run is logged with no job and has no run store.
+- Several agents of one pipeline share a `job_id`. Without one, the run is logged with no job.
 - A `job_id` is **the job that the run belongs to**, not the id of the run. A job is one unit of work with a status (a pipeline
   you run with `run_job`, or one you submit to a worker): it has many agent runs, and each run has its own `agent_run_id`.
 
@@ -104,7 +104,6 @@ async with SqliteDatabase("featherweight.db") as db:
 |---|---|---|
 | `max_attempts` | 3 | Attempts per run |
 | `retry_delay_s` | 1.0 | Wait between attempts, without holding a concurrency slot |
-| `store` | a new `RunStore` | What the store tools read and write |
 | `max_concurrent` | `MAX_CONCURRENT_AGENT_RUNS`, else 10 | Model attempts running at once |
 | `max_depth`, `max_launches` | 3, 10 | See [launching-agents.md](launching-agents.md) |
 
@@ -163,24 +162,18 @@ output with the input. The example pipeline builds its trees from flat lists for
 
 ## Tools
 
-`tools: list[BaseTool] = [my_tool]`. A function decorated with langchain's `@tool` works. A tool that needs the job or
-the run store declares `runtime: ToolRuntime[RunContext]`; langchain fills it in and hides it from the model, so the
+`tools: list[BaseTool] = [my_tool]`. A function decorated with langchain's `@tool` works. A tool that needs the job
+declares `runtime: ToolRuntime[RunContext]`; langchain fills it in and hides it from the model, so the
 model never passes a job id.
 
 Ready-made tools, in `featherweight.tools`:
 
 | Tool | |
 |---|---|
-| `store_get(key)` | Read a value saved for this job, by this agent or another |
-| `store_set(key, value)` | Save a text value for this job (JSON text for structured data) |
 | `calculate(expression)` | Exact decimal arithmetic: `+ - * / // % **` and parentheses. No functions |
 | `current_datetime()` | The current UTC date and time, ISO 8601 |
 | `add_to_date(date, days, weeks, months, years)` | Date arithmetic |
 | `days_between(start, end)` | Whole days between two dates |
-
-The store is `RunStore`: state per job, in memory (`fakeredis`). Any `redis.asyncio` client can be passed to
-`RunStore(client)` instead, which is the whole change to share it between processes. Pipelines use it directly too:
-`await store.set(job_id, "key", value)` and `await store.get(job_id, "key")`.
 
 Agents that can launch agents, and agents with skills, get their extra tools from the runner; they are not in `tools`.
 The tools of MCP servers are added the same way: found with `search_tools` and `call_tool` by default, or bound directly
@@ -427,8 +420,8 @@ What to know:
 - **The code between agents must be deterministic**: no clock, no `random`, no unordered iteration. It is your code, so
   it is your responsibility, and featherweight does not check it. If it takes another path, the agents get other inputs,
   nothing matches, and they run again.
-- **The run store is not used for resumption.** Outputs come from the result store. A reused step does not run, so a
-  `store_set` it made does not happen again. Do not rely on the store for anything a resume needs.
+- **State outside the result store is not kept.** Outputs come from the result store. A reused step does not run, so
+  anything it kept in memory (a counter, a dict) is not rebuilt. Do not rely on it for anything a resume needs.
 - **Side effects are not undone or repeated.** A tool that sent an email in the failed job is not rerun when its agent's
   result is reused. An agent that failed halfway runs whole again.
 - **Rows from before `agent_hash` existed are never reused**, and neither are `FAILED`, `INIT` and `RUNNING` rows.

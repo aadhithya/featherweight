@@ -5,7 +5,7 @@ the agent never sees them. One Generator agent then writes the whole document: i
 blocks with the facts filled in (small grammatical adaptations such as gender are allowed, a fact is never changed),
 writes `generated` blocks in the style of the example, and follows the tree for structure and order. It has the
 calculate and date tools and `check_document`, the only way to hand in the document: the tool checks it in code
-(`check_generated`, no model) and keeps the accepted document in the run store. A document that passes is accepted;
+(`check_generated`, no model) and keeps the accepted document in a dict, by job id. A document that passes is accepted;
 after `MAX_CHECKS` failed checks the last one is accepted with its problems, which are reported. The agent returns only
 its notes: a run that ends without an accepted document fails. Code checks the required inputs before any model call.
 """
@@ -26,13 +26,16 @@ from doclearn.facts import SPAN_RE, find_spans, walk
 from doclearn.models import ElementType, FieldValue, InputField, LearnedNode, LearnedTree
 from doclearn.store import LearnedDocument
 from featherweight import AgentBase, AgentInput, AgentOutput, AgentRunner, Gemini, ModelSettings, RunContext, RunStatus
-from featherweight.tools import NO_JOB, add_to_date, calculate, current_datetime, days_between
+from featherweight.tools import add_to_date, calculate, current_datetime, days_between
 
 logger = logging.getLogger(__name__)
 
 MAX_CHECKS = 3  # failed checks of `check_document` before the agent is told to stop and report the problems
 MIN_SIMILARITY = 0.85  # how close a fixed or slot line must stay to its wording (small adaptations, not rewrites)
-STATE_KEY = "generation"  # in the run store: the compiled tree, the facts and the number of failed checks
+NO_JOB = "There is no job for this run, so there is nothing to check the document against."
+# What the check tool and the pipeline share, by job id, in this process: the compiled tree, the facts, the number of failed checks
+# and the accepted document. The tool cannot return the document (the agent returns only its notes), so the pipeline reads it here.
+GENERATION: dict[str, dict] = {}
 MAX_VERBATIM_CHARS = 80  # longer values are descriptions, which generated blocks paraphrase
 
 PROMPT = """\
@@ -77,21 +80,18 @@ async def check_document(markdown: str, runtime: ToolRuntime[RunContext]) -> str
     ctx = runtime.context
     if ctx.job_id is None:
         return NO_JOB
-    state = await ctx.store.get(ctx.job_id, STATE_KEY)
+    state = GENERATION.get(ctx.job_id)
     if state is None:
         return "There is nothing to check the document against."
     problems = check_generated(LearnedTree.model_validate(state["tree"]), state["facts"], markdown)
     if not problems:
         state.update(document=markdown, problems=[])
-        await ctx.store.set(ctx.job_id, STATE_KEY, state)
         return "OK: the document is delivered. Return your notes."
     state["failed_checks"] += 1
     listed = "\n".join(f"- {p}" for p in problems)
     if state["failed_checks"] >= MAX_CHECKS:
         state.update(document=markdown, problems=problems)
-        await ctx.store.set(ctx.job_id, STATE_KEY, state)
         return f"FAILED after {MAX_CHECKS} checks: the document is delivered as it is. List these problems in `notes`:\n{listed}"
-    await ctx.store.set(ctx.job_id, STATE_KEY, state)
     return f"Problems ({state['failed_checks']} of {MAX_CHECKS} failed checks):\n{listed}"
 
 
@@ -322,17 +322,21 @@ async def generate_document(
     )
 
     job_id = job_id or await runner.db.create_job("generate")  # the check tool keeps its state per job
-    await runner.store.set(
-        job_id,
-        STATE_KEY,
-        {"tree": tree.model_dump(mode="json"), "facts": given, "failed_checks": 0, "document": None, "problems": []},
-    )
+    GENERATION[job_id] = {
+        "tree": tree.model_dump(mode="json"),
+        "facts": given,
+        "failed_checks": 0,
+        "document": None,
+        "problems": [],
+    }
     if progress:
         progress("Writing the document")
-    result = await runner.run(GeneratorAgent, agent_input, job_id=job_id)
+    try:
+        result = await runner.run(GeneratorAgent, agent_input, job_id=job_id)
+    finally:
+        state = GENERATION.pop(job_id, None)  # the state of this job is not kept
     if result.status != RunStatus.SUCCESS:
         raise GenerationError(f"The Generator failed: {result.error}")
-    state = await runner.store.get(job_id, STATE_KEY)
     if state is None or state["document"] is None:
         raise GenerationError(
             "The Generator ended without handing in a document that passed the check (check_document)"

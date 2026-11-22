@@ -77,7 +77,6 @@ _EXPORTS = {
     "Skill": "skills",
     "StdioMCPServer": "mcp",
     "HttpMCPServer": "mcp",
-    "RunStore": "store",
     "ResultStore": "results",
     "ResultKey": "results",
     "SqliteResultStore": "results",
@@ -115,7 +114,6 @@ _MODULES = (
     "runner",
     "skills",
     "sqlite",
-    "store",
     "streaming",
     "testing",
     "tools",
@@ -191,7 +189,6 @@ if TYPE_CHECKING:  # for editors and type checkers: the same names, imported
     from featherweight.runner import AgentRunner as AgentRunner
     from featherweight.skills import Skill as Skill
     from featherweight.sqlite import SqliteDatabase as SqliteDatabase
-    from featherweight.store import RunStore as RunStore
     from featherweight.streaming import ChatInput as ChatInput
     from featherweight.streaming import StreamingAgent as StreamingAgent
     from featherweight.streaming import StreamingRun as StreamingRun

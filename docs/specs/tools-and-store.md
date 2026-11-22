@@ -1,14 +1,13 @@
-# Spec: tools, the tool registry and the run store
+# Spec: tools and the tool registry
 
 Status: implemented. How to use them is in [agents.md](../agents.md#tools). The code is [tools.py](../../src/featherweight/tools.py),
-[registry.py](../../src/featherweight/registry.py), [store.py](../../src/featherweight/store.py) and [context.py](../../src/featherweight/context.py).
+[registry.py](../../src/featherweight/registry.py) and [context.py](../../src/featherweight/context.py). (The file keeps its old name, `tools-and-store.md`, so that links to it still work: there is no store any more.)
 
 - [Goal](#goal)
 - [Tools on an agent](#tools-on-an-agent)
 - [The tool registry](#the-tool-registry)
 - [Ready-made tools](#ready-made-tools)
 - [The run context](#the-run-context)
-- [The run store](#the-run-store)
 - [Decisions](#decisions)
 - [Not supported](#not-supported)
 - [Tests](#tests)
@@ -57,35 +56,19 @@ In `featherweight.tools`. All return text, never raise, and the model can read w
 
 | Tool | |
 |---|---|
-| `store_get(key)` | Read a value saved for this job, by this agent or another. A missing key says so |
-| `store_set(key, value)` | Save a text value for this job (JSON text for structured data). Saving again overwrites |
 | `calculate(expression)` | **Exact** decimal arithmetic: numbers and `+ - * / // % **` with parentheses. At most 200 characters, and an exponent at most 100. Division by zero, an invalid operation, overflow and bad syntax return `Error: ...`. No functions, names or other syntax |
 | `current_datetime()` | The current UTC time, ISO 8601 |
 | `add_to_date(date, days, weeks, months, years)` | `date` is `YYYY-MM-DD` or `today`. Months and years are calendar-aware and clamp to the end of the month (Jan 31 plus 1 month is Feb 28 or 29) |
 | `days_between(start, end)` | Whole days, negative if `end` is before `start` |
 
-The store tools without a job answer `There is no job for this run, so there is no run store to use.`
-
 ## The run context
 
-A tool that needs the job or the store declares `runtime: ToolRuntime[RunContext]`. Langchain fills it in and hides it from
-the model, so the model never passes a job id. `RunContext` has `store`, `job_id` and `agent_run_id` (the attempt that is
+A tool that needs the job declares `runtime: ToolRuntime[RunContext]`. Langchain fills it in and hides it from
+the model, so the model never passes a job id. `RunContext` has `job_id` and `agent_run_id` (the attempt that is
 running).
 
 The shared MCP tools cannot take a `RunContext`, because one tool object serves many attempts. They read
 `CURRENT_AGENT_RUN_ID`, a context variable the runner sets around each attempt, to say in the log which attempt called them.
-
-## The run store
-
-`RunStore` is a thin async JSON store for state shared between the agents of one job.
-
-- Keys are namespaced `job:<job_id>:<key>`. Values are JSON, so any JSON-serialisable value.
-- `set`, `get` (missing is `None`), `delete`, `close`.
-- **In memory by default** (`fakeredis`): transient and per runner, so it is gone when the process ends. Any
-  `redis.asyncio` client can be passed to `RunStore(client)` instead, which is the whole change to share it between
-  processes.
-- Pipelines use it directly (`await store.set(job_id, "key", value)`), as well as agents through the tools.
-- A runner has one store (`AgentRunner(store=...)`), shared by every agent it runs and every agent they launch.
 
 ## Decisions
 
@@ -95,11 +78,13 @@ The shared MCP tools cannot take a `RunContext`, because one tool object serves 
 - **The model never sees the job.** Scope comes from the run context.
 - **A registry per attempt, connections per runner.** What can differ between two agents belongs in the registry; what is
   shared is not.
-- **The store is a Redis client behind a small interface**, so a real Redis is a one-line swap and not a rewrite.
+- **No state is shared between agents.** There was a run store (an in-memory key-value store per job, with two tools); it was removed (issue #12). Agents pass information through
+  their outputs and pipelines through return values, and an application that needs more keeps it in its own store (a dict keyed by job id for state that
+  lives in one process, as the `doclearn` example does).
 
 ## Not supported
 
-- A store that survives the process (without a real Redis), expiry, or per-key permissions.
+- State shared between agents, or kept by the framework between runs.
 - Rows for tool calls in the run log.
 - A per-call timeout or size cap for local tools. MCP tools have both.
 - Policy on a tool, such as "needs approval" or read-only.
@@ -107,7 +92,6 @@ The shared MCP tools cannot take a `RunContext`, because one tool object serves 
 
 ## Tests
 
-[test_tools.py](../../tests/test_tools.py) (the store tools and the run context),
 [test_calc_date_tools.py](../../tests/test_calc_date_tools.py) (`calculate` and the date tools, including errors),
-[test_store.py](../../tests/test_store.py), [test_registry.py](../../tests/test_registry.py) (names, collisions, and the direct and discoverable modes), and
+[test_registry.py](../../tests/test_registry.py) (names, collisions, and the direct and discoverable modes), and
 [test_mcp.py](../../tests/test_mcp.py) (`add_mcp`, reserved names).

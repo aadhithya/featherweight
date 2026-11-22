@@ -102,7 +102,7 @@ The limits:
 - **The code between agents must be deterministic** (no clock, no `random`, no unordered iteration). It is the user's code
   and the user's responsibility; nothing checks it. If it takes another path, the inputs change, nothing matches, and the
   agents run again.
-- **The run store is not used for resumption**; the result store is. A reused step does not run, so its `store_set` does not happen again.
+- **State kept in memory is not used for resumption**; the result store is. A reused step does not run, so what it kept in memory is not rebuilt.
 - **Side effects** of tools in the failed job are not undone or repeated. An agent that failed halfway runs whole.
 - **Rows from before `agent_hash`** existed are never reused. Neither are `FAILED`, `INIT` and `RUNNING` rows.
 - **Depth 1 only.** Sub-agent runs are not looked up. A parent that succeeded is reused whole; one that failed runs again
@@ -169,7 +169,7 @@ Failures log at warning or error.
 - Redaction of inputs and outputs, and retention or cleanup.
 - Several processes writing one database.
 - Resuming from a crash inside the pipeline's code, mid-step. The code runs again; agent runs are answered from the log.
-- Reusing the runs of sub-agents, and a persistent or per-agent store.
+- Reusing the runs of sub-agents.
 
 ## Tests
 
