@@ -61,3 +61,6 @@ runs/
 TRACKER.md
 IDEAS.md
 ALL_DOCS.md
+
+# Git worktrees
+.worktrees/
