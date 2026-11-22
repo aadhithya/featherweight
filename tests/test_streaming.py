@@ -81,11 +81,11 @@ def test_there_must_be_a_message():
         ChatInput(messages=[])
 
 
-def test_content_that_is_not_text_is_refused_when_the_input_is_built():
+def test_an_attachment_that_is_a_url_is_refused_when_the_input_is_built():
     from ag_ui.core import ImagePart, UrlSource
 
     image = ImagePart(source=UrlSource(value="https://example.com/a.png", mime_type="image/png"))
-    with pytest.raises(ValidationError, match="not text"):
+    with pytest.raises(ValidationError, match="not inline data"):
         ChatInput(messages=[UserMessage(id="1", content=[image])])
 
 
