@@ -22,7 +22,7 @@ services:
     environment:
       POSTGRES_PASSWORD: postgres
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${FTW_PG_PORT:-5432}:5432"  # set FTW_PG_PORT when 5432 is taken, or when several checkouts run the tests
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 2s
