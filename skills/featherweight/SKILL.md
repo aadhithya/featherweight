@@ -32,7 +32,7 @@ runs. Paths are under `references/`; the book's home is `references/book/README.
 | What a run recorded | `references/book/01-your-first-agent/04-what-happened.md` |
 | Tools, MCP servers, skills, subagents for an agent | `references/book/02-abilities/01-tools.md`, `references/book/02-abilities/02-mcp.md`, `references/book/02-abilities/03-skills.md`, `references/book/02-abilities/04-sub-agents.md` |
 | A pipeline over many inputs, with resume | `references/book/03-jobs-and-pipelines/01-what-a-job-is.md`, `references/book/03-jobs-and-pipelines/02-status-and-events.md`, `references/book/03-jobs-and-pipelines/03-results-and-the-result-store.md`, `references/book/03-jobs-and-pipelines/04-resume.md` |
-| A chat agent that streams, in a terminal or a browser | `references/book/04-chat/01-a-streaming-agent.md`, `references/book/04-chat/02-in-the-browser.md`, `references/book/04-chat/03-stopping-and-the-conversation.md` |
+| A chat agent that streams, in a terminal or a browser | `references/book/04-chat/01-a-streaming-agent.md`, `references/book/04-chat/02-in-the-browser.md`, `references/book/04-chat/03-stopping-and-the-conversation.md`, `references/book/04-chat/04-attaching-a-file.md` (a file sent with a message) |
 | Jobs on workers, and workers that die | `references/book/05-in-production/01-submit-and-a-worker.md`, `references/book/05-in-production/02-several-workers.md` |
 | An agent that starts another and goes on | `references/book/05-in-production/03-background-agents.md` |
 | Traces, and input for an evaluation platform | `references/book/05-in-production/04-observability.md` |
