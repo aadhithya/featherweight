@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.2.0](https://github.com/aadhithya/featherweight/compare/v0.1.0...v0.2.0) (2026-11-22)
+
+
+### Features
+
+* **examples:** ask about an attached file ([de8f2c8](https://github.com/aadhithya/featherweight/commit/de8f2c80409aa23a921edff19745880017246ef7))
+* **examples:** ask about an attached file ([29f98cc](https://github.com/aadhithya/featherweight/commit/29f98cc5151ea5cbbf7f6b3007737d21a31635f2))
+* **streaming:** attachments in a chat message: converters, and what ChatInput refuses ([6f2e72e](https://github.com/aadhithya/featherweight/commit/6f2e72ef757828f55d168ffe4f10fb64ecae8f7b))
+* **streaming:** attachments in a chat message: converters, and what ChatInput refuses ([939c83c](https://github.com/aadhithya/featherweight/commit/939c83c8ebc6323e48a5042bd323de49cf68df18))
+* **streaming:** limits on the attachments of a conversation ([60e3471](https://github.com/aadhithya/featherweight/commit/60e34717b60830d0ead9e461e4dc418fcd59018f))
+* **streaming:** limits on the attachments of a conversation (max_attachments, max_bytes) ([a720a4b](https://github.com/aadhithya/featherweight/commit/a720a4bd6b563bd72a9b78acce6bb17463b34dd8))
+* **vercel:** attachments in the Vercel adapter, and tests for both adapters ([281df91](https://github.com/aadhithya/featherweight/commit/281df91f0c348084c1076e5a31c2d516b0cea675))
+* **vercel:** file parts of a user message become attachments ([f3cb6ce](https://github.com/aadhithya/featherweight/commit/f3cb6ce6983c8daae5b0f64028d643eed6505746))
+
+
+### Bug Fixes
+
+* **examples:** the attach example explains itself when FILE or Q is missing ([e788c94](https://github.com/aadhithya/featherweight/commit/e788c9488c8b255b1686b590cbb647f26a5fab1c))
+* **examples:** the attach example explains itself when FILE or Q is missing ([6933c6f](https://github.com/aadhithya/featherweight/commit/6933c6f2ab20421048e27e406089ea5347124871))
+
+
+### Documentation
+
+* a banner at the top of the README ([ec7456f](https://github.com/aadhithya/featherweight/commit/ec7456f196fcd749d5ef5d5dd12006484530c689))
+* a banner at the top of the README ([90dfd77](https://github.com/aadhithya/featherweight/commit/90dfd77ab64d00eacc6510289069e2c05b94943f))
+* a showcase of fw-concierge in the README ([#166](https://github.com/aadhithya/featherweight/issues/166)) ([de1e865](https://github.com/aadhithya/featherweight/commit/de1e865f5a3e52946c9aefaff903a49c5679dd40))
+* add fw-qna to the README showcase ([#168](https://github.com/aadhithya/featherweight/issues/168)) ([028ddd9](https://github.com/aadhithya/featherweight/commit/028ddd9131734137443dda78240aa5fbff333706))
+* attachments in a chat: the guide, the provider snapshot, the skill and the release step ([d6146ad](https://github.com/aadhithya/featherweight/commit/d6146adf454dce33b1cca726fdfb204c8a7e487c))
+* attachments in a chat: the guide, the provider snapshot, the skill and the release step ([753f157](https://github.com/aadhithya/featherweight/commit/753f15741553db2c668d329446b3ea287b7b44e2))
+* **book:** attaching a file, a new chapter in Part 4 ([084a205](https://github.com/aadhithya/featherweight/commit/084a205b725e7192a48f0642aa39388b941f88ad))
+* **book:** attaching a file, a new chapter in Part 4 ([af5bb47](https://github.com/aadhithya/featherweight/commit/af5bb47ca729bb360bcb035c66bffc74642c3a3b))
+* keep only the fw-concierge showcase quote in the README ([#167](https://github.com/aadhithya/featherweight/issues/167)) ([cb0593e](https://github.com/aadhithya/featherweight/commit/cb0593e1be24ac76954660f5144321546b42642a))
+* spec for attachments and a provider reference ([5cf2d50](https://github.com/aadhithya/featherweight/commit/5cf2d50c16ca697c6aa051cbddb0e3ed699f0464))
+* spec for attachments and a provider reference ([06f150c](https://github.com/aadhithya/featherweight/commit/06f150cb2818851b90f6e0871e0d92eb6af7e26c))
+
 ## 0.1.0 (2026-11-20)
 
 

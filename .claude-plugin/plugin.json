@@ -1,8 +1,10 @@
 {
   "name": "featherweight",
   "description": "Build background AI agents and pipelines with the featherweight Python framework: typed agents, a runner, sub-agents, MCP tools and skills.",
-  "version": "0.1.0",
-  "author": { "name": "aadhithya" },
+  "version": "0.2.0",
+  "author": {
+    "name": "aadhithya"
+  },
   "homepage": "https://github.com/aadhithya/featherweight",
   "repository": "https://github.com/aadhithya/featherweight",
   "license": "Apache-2.0",
