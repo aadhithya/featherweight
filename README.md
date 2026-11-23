@@ -21,8 +21,6 @@ It has opinions. Take them, or fork off.
 
 And there's a skill, so your coding agent can build with it from the first prompt.
 
-> Designed by a human. Implemented by Claude.
->
 > **Alpha.** The API can still change before 1.0.
 
 ## Built on LangChain, on purpose
