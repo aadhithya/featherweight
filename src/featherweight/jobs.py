@@ -50,12 +50,15 @@ class JobContext(BaseModel):
 
     runner: AgentRunner
     job_id: str
+    identity: Any = (
+        None  # who the job is for (docs/specs/identity.md); every agent run with `run` and `run_many` has it
+    )
 
     async def run(self, agent_cls: type[AgentBase], agent_input: AgentInput) -> AgentResult[Any]:
-        return await self.runner.run(agent_cls, agent_input, job_id=self.job_id)
+        return await self.runner.run(agent_cls, agent_input, job_id=self.job_id, identity=self.identity)
 
     async def run_many(self, agent_cls: type[AgentBase], agent_inputs: Sequence[AgentInput]) -> list[AgentResult[Any]]:
-        return await self.runner.run_many(agent_cls, agent_inputs, job_id=self.job_id)
+        return await self.runner.run_many(agent_cls, agent_inputs, job_id=self.job_id, identity=self.identity)
 
 
 class Job(ABC):
@@ -234,6 +237,7 @@ async def execute_job(
     trace_context: Mapping[str, str] = {},
     owner: JobOwner | None = None,
     lost: Callable[[], bool] | None = None,
+    identity: Any = None,
 ) -> JobOutcome[BaseModel]:
     """Run a job that has been started (its row is `RUNNING`), keep its result and set its final status. This is the one function
     that runs a job, for `run_job` (in your process) and for the job worker, so that the two cannot differ: the same row, hashes,
@@ -273,7 +277,7 @@ async def execute_job(
     try:
         token = IN_BACKGROUND_JOB.set(True) if in_background else None  # what it runs cannot start background agents
         try:
-            outcome, error_type = await _execute(runner, job, job_id, job_input, results, on_cancel, owner)
+            outcome, error_type = await _execute(runner, job, job_id, job_input, results, on_cancel, owner, identity)
         finally:
             if token is not None:
                 IN_BACKGROUND_JOB.reset(token)
@@ -321,13 +325,14 @@ async def _execute(
     results: ResultStore | None,
     on_cancel: Callable[[], Awaitable[None]] | None,
     owner: JobOwner | None,
+    identity: Any = None,
 ) -> tuple[JobOutcome[BaseModel], str | None]:
     """The run itself, and the type of the error if it failed."""
     logger.info("job_started job_id=%s job=%s", job_id, job.name)
     try:
         token = CURRENT_JOB_EXECUTION.set((job_id, owner.executions)) if owner is not None else None
         try:
-            output = await _run_limited(job, JobContext(runner=runner, job_id=job_id), job_input)
+            output = await _run_limited(job, JobContext(runner=runner, job_id=job_id, identity=identity), job_input)
         finally:
             if token is not None:
                 CURRENT_JOB_EXECUTION.reset(token)
@@ -380,6 +385,7 @@ async def run_job(
     resume_from: str | None = None,
     resumable: bool = False,
     trace_context: Mapping[str, str] = {},
+    identity: Any = None,
 ) -> JobOutcome[Any]:
     """Run a job in your process: create it (or use `job_id`), start it, run it with `execute_job` (the code a worker runs it
     with), and return the outcome. `job` is a `Job` class, or a plain (non-streaming) agent class; `input` must be an instance
@@ -399,10 +405,14 @@ async def run_job(
 
     `trace_context` is the carrier of the caller's trace (W3C `traceparent`), for a runner that starts a job as a background agent:
     the job's span then joins that trace. It is empty otherwise.
+
+    `identity` is who the job is for. It is checked against the runner's `identity_type` (a `TypeError` when it is missing, of the
+    wrong type, or given when no type is declared), the job reads it as `ctx.identity`, and every agent it runs has it.
     """
     declared = as_job(job)
     if not isinstance(input, declared.input_model):
         raise TypeError(f"{declared.name} expects a {declared.input_model.__name__}, got {type(input).__name__}")
+    runner.identity.check(identity)
     if job_id is not None and (resume_from is not None or resumable):
         raise ValueError(
             "Use either job_id or resume_from/resumable: create the job with db.create_job(name, resume_from=..., "
@@ -427,4 +437,6 @@ async def run_job(
         return JobOutcome[Any](job_id=job_id, status=status, error=f"The job is {status.value}, so it did not run")
     started = await db.get_job(job_id)
     owner = JobOwner(worker_id=worker_id, executions=started.executions) if started is not None else None
-    return await execute_job(runner, declared, job_id, input, runner.results, owner=owner, trace_context=trace_context)
+    return await execute_job(
+        runner, declared, job_id, input, runner.results, owner=owner, trace_context=trace_context, identity=identity
+    )

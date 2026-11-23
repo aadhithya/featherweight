@@ -6,13 +6,24 @@ from the model, so tools stay plain static objects that can sit in an agent's al
 
 from contextvars import ContextVar
 from dataclasses import dataclass
+from typing import Any, Generic, TypeVar
+
+IdentityT = TypeVar("IdentityT")
 
 
 @dataclass
-class RunContext:
+class RunContext(Generic[IdentityT]):
+    """What a tool can ask for with `runtime: ToolRuntime[RunContext[Teacher]]`: LangChain fills it in and hides it from the model."""
+
     job_id: str | None
     agent_run_id: str  # the attempt that is running now
+    identity: IdentityT | None = None  # who the run is for, if the application gave one (docs/specs/identity.md)
 
+
+# Who the run in this task is for: the identity the application passed to `run`, `run_many`, `stream` or `run_job`. A launched agent and an
+# agent started in the background here inherit it, because they run in tasks made from this one. For code that cannot take `runtime`
+# (the shared MCP tools). It is never logged, hashed or stored.
+CURRENT_IDENTITY: ContextVar[Any] = ContextVar("current_identity", default=None)
 
 # The attempt that is running in this task. Tools that are built once and shared by many attempts (the MCP tools) read
 # it to say, in the log, which attempt called them.

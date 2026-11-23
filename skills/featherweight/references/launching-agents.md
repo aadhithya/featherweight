@@ -71,6 +71,8 @@ declared properties. It was checked with the real model.
 `launch_agent` always returns text, so the model can read what happened and carry on. It never raises into the parent's
 run.
 
+A launched agent runs with the identity of its parent ([who is asking](agents.md#who-is-asking-the-identity-of-a-run)); the model cannot change it.
+
 | Case | What comes back |
 |---|---|
 | The child succeeds | `{"status": "SUCCESS", "agent": "...", "output": {...}}`, the child's output as JSON |

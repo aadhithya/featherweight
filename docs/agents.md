@@ -11,6 +11,7 @@ How to define an agent, run it, and what to expect back. Agents that launch othe
 - [Failures and retries](#failures-and-retries)
 - [Checking the output](#checking-the-output)
 - [Tools](#tools)
+- [Who is asking: the identity of a run](#who-is-asking-the-identity-of-a-run)
 - [Jobs and tracing](#jobs-and-tracing)
 - [Resuming a job](#resuming-a-job)
 - [Configuration](#configuration)
@@ -179,6 +180,49 @@ Ready-made tools, in `featherweight.tools`:
 Agents that can launch agents, and agents with skills, get their extra tools from the runner; they are not in `tools`.
 The tools of MCP servers are added the same way: found with `search_tools` and `call_tool` by default, or bound directly
 with `discover=False` (see [mcp.md](mcp.md)).
+
+## Who is asking: the identity of a run
+
+A tool often has to act for someone: this teacher's mail, this tenant's files. The model must not choose who, so the application tells the run, and the tools read it.
+An identity is a Pydantic model you define. You declare its type once, and pass a value with `identity=`:
+
+```python
+from langchain.tools import ToolRuntime, tool
+from pydantic import BaseModel
+
+from featherweight import AgentRunner, RunContext
+
+
+class Teacher(BaseModel):
+    user_id: str
+    tenant: str
+
+
+@tool
+async def send_email(to: str, body: str, runtime: ToolRuntime[RunContext[Teacher]]) -> str:
+    """Send an email as the signed-in teacher."""
+    who = runtime.context.identity  # the model never sees this parameter, and cannot set it
+    if who is None or not await may_send_email(
+        who.user_id
+    ):  # your check: featherweight carries the identity, you decide
+        return "Not allowed."
+    ...
+
+
+runner = AgentRunner(db, identity_type=Teacher)
+result = await runner.run(Mailer, MailerInput(...), identity=Teacher(user_id="u1", tenant="uni"))
+```
+
+- **A declared type makes `identity=` required** (a `TypeError` when it is missing or of another type), so that one code path that forgets it cannot run a tool as nobody.
+  `identity_type=Teacher | None` allows runs without one. With no type declared, passing an identity is a `TypeError`.
+- `run`, `run_many`, `stream` and `run_job` take `identity=`. A job reads it as `ctx.identity`, and every agent it runs with `ctx.run` has it.
+- **A launched agent has its parent's identity,** and so does an agent started in the background in the same process. The model cannot set or change it.
+- Code that cannot take `runtime` (a tool shared by many attempts, such as an MCP tool) reads `CURRENT_IDENTITY` from `featherweight.context`.
+- **It is carried, not used.** It is never shown to the model, never part of the agent's hash, never logged and never stored. Keep it small, and keep secrets out of it:
+  a tool gets a credential from the identity with your own code. Checking what the identity may do is the tool's job.
+- A job that is submitted to a worker does not carry the identity yet ([#196](https://github.com/aadhithya/featherweight/issues/196)).
+
+The [identity spec](specs/identity.md) has the rules and what stays the application's.
 
 ## Jobs and tracing
 
