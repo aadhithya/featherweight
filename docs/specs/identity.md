@@ -71,10 +71,10 @@ result = await runner.run(Summarise, summarise_input, identity=teacher)
 |---|---|---|
 | nothing | fine: no identity | `TypeError`: the framework could not rebuild it on a worker |
 | `Teacher` | `TypeError` | checked: it must be a `Teacher` |
-| `Teacher \| None` | fine: no identity | checked: it must be a `Teacher` |
+| `Teacher` or `None` (a union) | fine: no identity | checked: it must be a `Teacher` |
 
 - **A missing identity is a programming error and raises**, like an input of the wrong type, and before anything runs. The case it prevents: one code path of
-  an application forgets `identity=`, and a tool runs as nobody. Declaring `Teacher | None` is how an application says that some runs (a nightly job) have none.
+  an application forgets `identity=`, and a tool runs as nobody. A union of the type and `None` (`identity_type=Teacher | None`) is how an application says that some runs (a nightly job) have none.
 - `run_many` gives every input the same identity. `run_job` and `submit` give it to the job: every agent the job runs with `ctx.run` has it.
 - **The runner and the worker declare the same type.** The worker rebuilds the identity from the message with its type. **The client's declaration is
   optional:** with it, `submit` checks the identity before it creates a job (`TypeError`); without it, `submit` accepts any Pydantic model and serialises it, and

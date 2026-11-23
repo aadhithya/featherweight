@@ -149,7 +149,9 @@ output = await client.result(Summarise, job_id)  # read from YOUR result store
 | `wait(job_id, timeout=None)` | The `JobRow` once the job is final (`SUCCESS`, `FAILED` or `CANCELLED`); `TimeoutError` otherwise. A convenience for scripts and tests: a web handler should return the job id, not wait |
 
 **`identity=`** is the identity of the run ([identity](identity.md#declaring-and-passing-it)). With `identity_type` the client checks it before it creates a job, and puts it in the message; the worker
-rebuilds it. **Resuming** is `submit(job, input, resume_from=failed_job_id)`: a new job points to the old one, and the worker's runner reuses the
+rebuilds it.
+
+**Resuming** is `submit(job, input, resume_from=failed_job_id)`: a new job points to the old one, and the worker's runner reuses the
 finished steps exactly as `run_job(..., resume_from=...)` does. Nothing resumes a failed job by itself.
 
 ## The worker
