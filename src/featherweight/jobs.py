@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict
 from featherweight.context import CURRENT_JOB_EXECUTION, IN_BACKGROUND_JOB
 from featherweight.db import JobLost, JobOwner, new_id
 from featherweight.fingerprint import agent_hash, error_fields, input_hash, job_hash
-from featherweight.models import AgentBase, AgentInput, AgentResult, RunStatus
+from featherweight.models import AgentBase, AgentInput, AgentResult, Status
 from featherweight.observers import Entered, JobEnd, JobStart
 from featherweight.results import ResultKey, ResultStore
 from featherweight.runner import AgentRunner
@@ -50,9 +50,7 @@ class JobContext(BaseModel):
 
     runner: AgentRunner
     job_id: str
-    identity: Any = (
-        None  # who the job is for (docs/specs/identity.md); every agent run with `run` and `run_many` has it
-    )
+    identity: Any = None  # who the job is for (docs/specs/identity.md); every run with `run` and `run_many` has it
 
     async def run(self, agent_cls: type[AgentBase], agent_input: AgentInput) -> AgentResult[Any]:
         return await self.runner.run(agent_cls, agent_input, job_id=self.job_id, identity=self.identity)
@@ -173,7 +171,7 @@ def job(
     return lambda function: _build_job(function, name, version, timeout)
 
 
-class AgentRunFailed(RuntimeError):
+class RunFailed(RuntimeError):
     """An agent that was run as a job failed (its attempts were used up). The message is the agent's error."""
 
 
@@ -204,8 +202,8 @@ def as_job(job: type[Job] | type[AgentBase]) -> type[Job]:
 
             async def run(self, ctx: JobContext, input: Any) -> Any:
                 result = await ctx.run(job, input)
-                if result.status is not RunStatus.SUCCESS or result.output is None:
-                    raise AgentRunFailed(result.error or "the agent failed")
+                if result.status is not Status.SUCCESS or result.output is None:
+                    raise RunFailed(result.error or "the agent failed")
                 return result.output
 
         AgentJob.__name__ = AgentJob.__qualname__ = f"{job.__name__}Job"
@@ -217,7 +215,7 @@ class JobOutcome(BaseModel, Generic[T]):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     job_id: str
-    status: RunStatus  # SUCCESS or FAILED (CANCELLED or INIT when the job was not started: see `run_job`)
+    status: Status  # SUCCESS or FAILED (CANCELLED or INIT when the job was not started: see `run_job`)
     result: T | None = None  # the job's output model, on SUCCESS
     error: str | None = None  # `ExceptionType: message`, on FAILED
 
@@ -257,7 +255,7 @@ async def execute_job(
     observers = runner._observers
     scope: Entered | None = None
     row = await runner.db.get_job(job_id)
-    in_background = row is not None and row.parent_agent_run_id is not None  # started as a background job
+    in_background = row is not None and row.parent_attempt_id is not None  # started as a background job
     if observers:
         scope = await observers.enter(
             "job",
@@ -284,13 +282,13 @@ async def execute_job(
     except asyncio.CancelledError:
         if scope is not None:
             if lost is not None and lost():  # for tracing only: nothing is written to the job
-                await scope.leave(JobEnd(status=RunStatus.FAILED, error_type="JobLost"))
+                await scope.leave(JobEnd(status=Status.FAILED, error_type="JobLost"))
             else:
-                await scope.leave(JobEnd(status=RunStatus.CANCELLED))
+                await scope.leave(JobEnd(status=Status.CANCELLED))
         raise
     except JobLost:
         if scope is not None:
-            await scope.leave(JobEnd(status=RunStatus.FAILED, error_type="JobLost"))
+            await scope.leave(JobEnd(status=Status.FAILED, error_type="JobLost"))
         raise
     if scope is not None:
         await scope.leave(
@@ -305,7 +303,7 @@ async def execute_job(
 
 
 async def _run_limited(job: type[Job], ctx: JobContext, job_input: BaseModel) -> Any:
-    """`job.run`, for at most `job.timeout` seconds. Past that the work is cancelled (an agent run in it ends `CANCELLED`, as for a
+    """`job.run`, for at most `job.timeout` seconds. Past that the work is cancelled (a run in it ends `CANCELLED`, as for a
     cancel) and `JobTimeout` is raised, which makes the job `FAILED`. Only the limit's own expiry is a timeout: a `TimeoutError`
     that the job raises itself, and a cancellation from outside (the user's, a shutdown), are not."""
     try:
@@ -358,7 +356,7 @@ async def _execute(
         if on_cancel is not None:
             await on_cancel()
         else:
-            await runner.db.set_job_status(job_id, RunStatus.CANCELLED, owner=owner)
+            await runner.db.set_job_status(job_id, Status.CANCELLED, owner=owner)
             logger.warning("job_cancelled job_id=%s job=%s", job_id, job.name)
         raise
     except JobLost:
@@ -366,14 +364,12 @@ async def _execute(
     except Exception as exc:
         error = f"{type(exc).__name__}: {exc}"[:MAX_ERROR_CHARS]
         error_type, error_hash = error_fields(exc)  # the text is returned and logged, not kept
-        await runner.db.set_job_status(
-            job_id, RunStatus.FAILED, error_type=error_type, error_hash=error_hash, owner=owner
-        )
+        await runner.db.set_job_status(job_id, Status.FAILED, error_type=error_type, error_hash=error_hash, owner=owner)
         logger.error("job_failed job_id=%s job=%s error=%s", job_id, job.name, error, exc_info=exc)
-        return JobOutcome[BaseModel](job_id=job_id, status=RunStatus.FAILED, error=error), error_type
-    await runner.db.set_job_status(job_id, RunStatus.SUCCESS, owner=owner)
+        return JobOutcome[BaseModel](job_id=job_id, status=Status.FAILED, error=error), error_type
+    await runner.db.set_job_status(job_id, Status.SUCCESS, owner=owner)
     logger.info("job_finished job_id=%s job=%s status=SUCCESS", job_id, job.name)
-    return JobOutcome[BaseModel](job_id=job_id, status=RunStatus.SUCCESS, result=output), None
+    return JobOutcome[BaseModel](job_id=job_id, status=Status.SUCCESS, result=output), None
 
 
 async def run_job(
@@ -432,7 +428,7 @@ async def run_job(
     worker_id = f"process-{new_id()}"
     if not await db.start_job(job_id, worker_id=worker_id):
         row = await db.get_job(job_id)
-        status = row.status if row is not None else RunStatus.FAILED
+        status = row.status if row is not None else Status.FAILED
         logger.info("job_not_started job_id=%s status=%s", job_id, status.value)
         return JobOutcome[Any](job_id=job_id, status=status, error=f"The job is {status.value}, so it did not run")
     started = await db.get_job(job_id)

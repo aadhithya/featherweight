@@ -64,7 +64,7 @@ e2e:
 	docker compose run --rm --no-deps featherweight pytest -m e2e -s -v $(ARGS)
 
 # Learn, fill the form and generate (real Gemini calls). E.g. `make pipeline ARGS="examples/doclearn/samples/project_proposals --category project_proposals"`;
-# see `make pipeline ARGS=--help`. Run folders go to ./runs.
+# see `make pipeline ARGS=--help`. Output folders go to ./runs.
 pipeline:
 	docker compose run --rm --no-deps featherweight python -m doclearn.cli $(ARGS)
 

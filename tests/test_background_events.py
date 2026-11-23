@@ -19,7 +19,7 @@ from featherweight.adapters import vercel
 from featherweight.client import JobClient
 from featherweight.jobs import JobContext, job
 from featherweight.model_settings import ModelSettings
-from featherweight.models import AgentBase, AgentInput, AgentOutput, RunStatus
+from featherweight.models import AgentBase, AgentInput, AgentOutput, Status
 from featherweight.otel import OTelObserver
 from featherweight.runner import AgentRunner
 from featherweight.streaming import ChatInput, StreamingAgent
@@ -177,12 +177,12 @@ async def test_nothing_is_announced_after_the_stream_ended_and_the_child_carries
     started = customs(events)
     assert [e.name for e in started] == ["background_started"]
     job_id = started[0].value["job_id"]
-    assert (await db.get_job(job_id)).status == RunStatus.RUNNING
+    assert (await db.get_job(job_id)).status == Status.RUNNING
     assert runner._emitters == {} and runner._watchers == {}
 
     GATES["slow"].release.set()
     await children_done(runner)
-    assert (await db.get_job(job_id)).status == RunStatus.SUCCESS
+    assert (await db.get_job(job_id)).status == Status.SUCCESS
     assert [e.name for e in customs(events)] == ["background_started"]  # no `background_finished`: the stream is over
 
 
@@ -198,7 +198,7 @@ async def test_stopping_the_response_cancels_a_child_that_runs_here(db, results)
     await asyncio.wait_for(reader, timeout=10)
 
     row = await db.get_job(job_id)
-    assert row is not None and row.status == RunStatus.CANCELLED
+    assert row is not None and row.status == Status.CANCELLED
     assert [e.type for e in await db.list_job_events(job_id)][-1] == "cancelled"
     assert [e.name for e in customs(events)] == [
         "background_started"
@@ -231,7 +231,7 @@ async def test_stopping_the_response_cancels_a_child_on_a_worker(db, results):
         await worker.stop(grace=1)
         await asyncio.wait_for(running, timeout=5)
 
-    assert row.status == RunStatus.CANCELLED
+    assert row.status == Status.CANCELLED
     assert "cancel_requested" in [e.type for e in await db.list_job_events(job_id)]
 
 
@@ -276,7 +276,7 @@ async def test_cancelling_a_run_that_is_not_a_chat_cancels_its_children(db, resu
     await asyncio.gather(task, return_exceptions=True)
 
     row = await db.get_job(child.job_id)
-    assert row is not None and row.status == RunStatus.CANCELLED
+    assert row is not None and row.status == Status.CANCELLED
     assert runner._children == {}
 
 

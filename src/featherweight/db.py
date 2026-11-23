@@ -16,10 +16,10 @@ from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from featherweight.models import RunStatus
+from featherweight.models import Status
 
 HASH = r"^[0-9a-f]{64}$"  # a SHA-256, in hex
-TERMINAL = (RunStatus.SUCCESS, RunStatus.FAILED, RunStatus.CANCELLED)
+TERMINAL = (Status.SUCCESS, Status.FAILED, Status.CANCELLED)
 
 
 def new_id() -> str:
@@ -38,14 +38,14 @@ class _Model(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
 
-class RunStart(_Model):
+class AttemptRecord(_Model):
     """What is known when an attempt is created. There is no input in it: only its hash."""
 
-    agent_run_id: str
-    invocation_id: str
+    attempt_id: str
+    run_id: str
     attempt: int = Field(ge=1)
     job_id: str | None = None
-    parent_agent_run_id: str | None = None
+    parent_attempt_id: str | None = None
     depth: int = Field(default=1, ge=1)
     agent_name: str
     agent_version: str
@@ -58,17 +58,17 @@ class RunStart(_Model):
     settings: dict[str, Any]  # all the model settings
     input_hash: str = Field(pattern=HASH)
     identity_hash: str | None = Field(default=None, pattern=HASH)  # the hash of the run's identity; None: it had none
-    reused_from_agent_run_id: str | None = None
+    reused_from_attempt_id: str | None = None
     job_execution: int | None = (
         None  # the execution of the job that makes it; None: the job's `executions` when the run is created
     )
     thread_id: str | None = None  # a streaming run: the conversation the client named
 
 
-class RunEnd(_Model):
+class AttemptFinish(_Model):
     """What is known when an attempt ends. There is no output and no error text in it: only hashes and the error's type."""
 
-    status: RunStatus
+    status: Status
     output_hash: str | None = Field(default=None, pattern=HASH)
     error_type: str | None = None
     error_hash: str | None = Field(default=None, pattern=HASH)
@@ -89,10 +89,10 @@ class RunEnd(_Model):
 class JobRow(_Model):
     job_id: str
     name: str
-    status: RunStatus
+    status: Status
     resumable: bool
     resumed_from: str | None
-    parent_agent_run_id: str | None  # a background job: the attempt that started this job; None for any other job
+    parent_attempt_id: str | None  # a background job: the attempt that started this job; None for any other job
     job_version: str | None  # the version of the job class that it runs; None for a job made without one
     job_hash: str | None  # the hash of the job's declaration; None for a job made without a job class
     input_hash: str | None  # a submitted job: the hash of its input
@@ -124,15 +124,15 @@ class JobLost(Exception):
 
 EventType = Literal["queued", "running", "succeeded", "failed", "cancelled", "cancel_requested", "lost"]
 # The event that a new status makes.
-STATUS_EVENT: dict[RunStatus, EventType] = {
-    RunStatus.INIT: "queued",
-    RunStatus.RUNNING: "running",
-    RunStatus.SUCCESS: "succeeded",
-    RunStatus.FAILED: "failed",
-    RunStatus.CANCELLED: "cancelled",
+STATUS_EVENT: dict[Status, EventType] = {
+    Status.INIT: "queued",
+    Status.RUNNING: "running",
+    Status.SUCCESS: "succeeded",
+    Status.FAILED: "failed",
+    Status.CANCELLED: "cancelled",
 }
 FINAL_EVENTS: tuple[EventType, ...] = ("succeeded", "failed", "cancelled")
-FINAL = (RunStatus.SUCCESS, RunStatus.FAILED, RunStatus.CANCELLED)
+FINAL = (Status.SUCCESS, Status.FAILED, Status.CANCELLED)
 
 
 class JobEvent(_Model):
@@ -141,19 +141,19 @@ class JobEvent(_Model):
     seq: int  # monotonic across all jobs
     job_id: str
     type: EventType
-    status: RunStatus
+    status: Status
     error_type: str | None = None
     error_hash: str | None = None
     at: datetime
 
 
-class AgentRunRow(_Model):
+class AttemptRow(_Model):
     seq: int
-    agent_run_id: str
-    invocation_id: str
+    attempt_id: str
+    run_id: str
     attempt: int
     job_id: str | None
-    parent_agent_run_id: str | None
+    parent_attempt_id: str | None
     depth: int
     agent_name: str
     agent_version: str
@@ -168,10 +168,10 @@ class AgentRunRow(_Model):
     input_hash: str
     identity_hash: str | None = None  # the hash of the run's identity; None: it had none
     output_hash: str | None
-    reused_from_agent_run_id: str | None
+    reused_from_attempt_id: str | None
     job_execution: int | None  # the execution of the job that made the run (its `executions` then); None without a job
     thread_id: str | None
-    status: RunStatus
+    status: Status
     error_type: str | None
     error_hash: str | None
     input_tokens: int | None
@@ -222,7 +222,7 @@ class Database(ABC):
         job_version: str | None = None,
         job_hash: str | None = None,
         input_hash: str | None = None,
-        parent_agent_run_id: str | None = None,
+        parent_attempt_id: str | None = None,
     ) -> str:
         """Create a job. `resumable=True` keeps the outputs of its steps (in the runner's result store), so that a later job
         can resume it; it is decided here, before the pipeline runs.
@@ -242,7 +242,7 @@ class Database(ABC):
                 )
             resumable = True
         return await self.insert_job(
-            job_id or new_id(), name, resume_from, resumable, job_version, job_hash, input_hash, parent_agent_run_id
+            job_id or new_id(), name, resume_from, resumable, job_version, job_hash, input_hash, parent_attempt_id
         )
 
     @abstractmethod
@@ -255,7 +255,7 @@ class Database(ABC):
         job_version: str | None,
         job_hash: str | None,
         input_hash: str | None,
-        parent_agent_run_id: str | None = None,
+        parent_attempt_id: str | None = None,
     ) -> str:
         """Write a new job in status `INIT`, and return its id. The rules are checked in `create_job`."""
 
@@ -263,7 +263,7 @@ class Database(ABC):
     async def set_job_status(
         self,
         job_id: str,
-        status: RunStatus,
+        status: Status,
         *,
         error_type: str | None = None,
         error_hash: str | None = None,
@@ -343,38 +343,38 @@ class Database(ABC):
         """The events of any of these jobs after `after`, in order, in one query. It is what the one reader of a process asks
         for, whatever the number of streams that are open."""
 
-    # agent runs
+    # attempts
 
     @abstractmethod
-    async def create_run(self, run: RunStart) -> str:
+    async def create_attempt(self, run: AttemptRecord) -> str:
         """Write an attempt in status `INIT` (waiting for a slot), and return its id. A `job_id` that does not exist is an
         error."""
 
     @abstractmethod
-    async def mark_run_running(self, agent_run_id: str) -> None:
+    async def start_attempt(self, attempt_id: str) -> None:
         """The attempt holds a slot: status `RUNNING`, and `started_at` is now."""
 
     @abstractmethod
-    async def finish_run(self, agent_run_id: str, end: RunEnd) -> None:
+    async def finish_attempt(self, attempt_id: str, end: AttemptFinish) -> None:
         """End the attempt. `LookupError` for a run that does not exist."""
 
     @abstractmethod
-    async def get_run(self, agent_run_id: str) -> AgentRunRow | None: ...
+    async def get_attempt(self, attempt_id: str) -> AttemptRow | None: ...
 
     @abstractmethod
-    async def find_reusable_run(
+    async def find_reusable_attempt(
         self,
         job_id: str,
         agent_hash: str,
         input_hash: str,
         identity_hash: str | None,
         before_execution: int | None = None,
-    ) -> AgentRunRow | None:
+    ) -> AttemptRow | None:
         """The first top-level run (depth 1) of `job_id` that succeeded with this agent, this input and this identity, or None. The
         identity matches by its hash, and `None` (no identity) matches only a run that had none. With
         `before_execution`, only a run of an earlier execution of the job (`job_execution` below it): that is how a takeover
         looks in its own job without finding the runs of the execution that asks."""
 
     @abstractmethod
-    async def list_runs(self, *, job_id: str | None = None, invocation_id: str | None = None) -> list[AgentRunRow]:
-        """Runs in the order they were made, optionally of one job and/or one invocation."""
+    async def list_attempts(self, *, job_id: str | None = None, run_id: str | None = None) -> list[AttemptRow]:
+        """Runs in the order they were made, optionally of one job and/or one run."""

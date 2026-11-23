@@ -29,7 +29,7 @@ from stream_check import assert_valid
 
 from featherweight.fingerprint import input_hash, text_hash, tools_hash
 from featherweight.model_settings import ModelSettings
-from featherweight.models import AgentBase, RunStatus
+from featherweight.models import AgentBase, Status
 from featherweight.streaming import ChatInput, StreamingAgent
 
 
@@ -154,7 +154,7 @@ async def test_a_turn_streams_text_in_order(db):
     assert started.run_id == finished.run_id == run.run_id
     assert started.thread_id == "t-1"
     assert finished.outcome.type == "success"
-    assert (run.status, run.error) == (RunStatus.SUCCESS, None)
+    assert (run.status, run.error) == (Status.SUCCESS, None)
     assert (run.usage.input_tokens, run.usage.output_tokens) == (3, 4)
     assert finished.usage[0].total_tokens == 7
 
@@ -182,7 +182,7 @@ async def test_a_thread_id_is_made_when_the_client_names_none(db):
     run = runner.stream(Chat, ChatInput(messages=[UserMessage(id="1", content="hi")]))
     events = await collect(run)
     assert events[0].thread_id  # the protocol needs one
-    assert (await db.get_run(run.run_id)).thread_id is None  # the log keeps only one the client named
+    assert (await db.get_attempt(run.attempt_id)).thread_id is None  # the log keeps only one the client named
 
 
 async def test_a_run_can_be_looped_over_once(db):
@@ -202,8 +202,8 @@ async def test_the_run_log_has_counts_and_hashes_but_no_messages(db):
     run = runner.stream(Chat, chat_input)
     await collect(run)
 
-    row = await db.get_run(run.run_id)
-    assert row.status is RunStatus.SUCCESS
+    row = await db.get_attempt(run.attempt_id)
+    assert row.status is Status.SUCCESS
     assert row.agent_name == "chat" and row.attempt == 1 and row.depth == 1
     assert not hasattr(row, "input") and not hasattr(row, "output")  # the log has no content to hold
     assert row.thread_id == "t-1"
@@ -211,7 +211,7 @@ async def test_the_run_log_has_counts_and_hashes_but_no_messages(db):
     assert row.output_hash == text_hash("Hello world")  # the hash of what was streamed, not the text
     assert row.agent_hash and row.error_type is None and row.error_hash is None
     assert (row.input_tokens, row.output_tokens) == (3, 4)
-    assert row.latency_ms is not None and row.reused_from_agent_run_id is None
+    assert row.latency_ms is not None and row.reused_from_attempt_id is None
     raw = " ".join(str(v) for v in row.model_dump().values())
     assert "secret" not in raw and "Hello" not in raw  # the words stay with the application
 
@@ -226,7 +226,7 @@ async def test_the_output_hash_follows_the_text(db):
     third = runner_with(db, Streams(turns=[["other"]]))
     run_c = third.stream(Chat, say("x"))
     await collect(run_c)
-    hashes = [(await db.get_run(r.run_id)).output_hash for r in (run_a, run_b, run_c)]
+    hashes = [(await db.get_attempt(r.attempt_id)).output_hash for r in (run_a, run_b, run_c)]
     assert hashes[0] == hashes[1] != hashes[2]
 
 
@@ -239,10 +239,10 @@ async def test_the_row_waits_as_init_and_holds_the_slot_while_it_streams(db):
     await asyncio.sleep(0.01)
     task_b = asyncio.create_task(collect(second))
     await asyncio.sleep(0.02)
-    assert (await db.get_run(first.run_id)).status is RunStatus.RUNNING
-    assert (await db.get_run(second.run_id)).status is RunStatus.INIT  # waiting for the slot
+    assert (await db.get_attempt(first.attempt_id)).status is Status.RUNNING
+    assert (await db.get_attempt(second.attempt_id)).status is Status.INIT  # waiting for the slot
     await asyncio.gather(task_a, task_b)
-    assert (await db.get_run(second.run_id)).status is RunStatus.SUCCESS
+    assert (await db.get_attempt(second.attempt_id)).status is Status.SUCCESS
 
 
 async def test_a_streamed_run_belongs_to_a_job(db):
@@ -250,7 +250,7 @@ async def test_a_streamed_run_belongs_to_a_job(db):
     runner = runner_with(db, Streams(turns=[["ok"]]))
     run = runner.stream(Chat, say("hi"), job_id=job_id)
     await collect(run)
-    assert [r.agent_run_id for r in await db.list_runs(job_id=job_id)] == [run.run_id]
+    assert [r.attempt_id for r in await db.list_attempts(job_id=job_id)] == [run.attempt_id]
 
 
 async def test_an_unknown_job_is_a_mistake_that_raises(db):
@@ -276,15 +276,15 @@ async def test_a_failure_is_an_error_event_and_a_failed_row_and_is_not_retried(d
     ]  # all closed
     assert isinstance(events[-1], RunErrorEvent) and "provider down" in events[-1].message
     assert model.calls == 1  # not retried
-    assert run.status is RunStatus.FAILED and "provider down" in run.error
-    row = await db.get_run(run.run_id)
-    assert row.status is RunStatus.FAILED
+    assert run.status is Status.FAILED and "provider down" in run.error
+    row = await db.get_attempt(run.attempt_id)
+    assert row.status is Status.FAILED
     assert (row.error_type, row.error_hash) == (
         "RuntimeError",
         text_hash("provider down"),
     )  # the type and a hash, no text
     assert row.output_hash is None  # only a run that succeeded has one
-    assert len(await db.list_runs()) == 1
+    assert len(await db.list_attempts()) == 1
 
 
 async def test_a_model_that_cannot_be_built_is_an_error_event(db):
@@ -296,7 +296,7 @@ async def test_a_model_that_cannot_be_built_is_an_error_event(db):
     run = runner.stream(Broken, say("hi"))
     events = await collect(run)
     assert types(events) == ["RUN_STARTED", "RUN_ERROR"]
-    assert (await db.get_run(run.run_id)).status is RunStatus.FAILED
+    assert (await db.get_attempt(run.attempt_id)).status is Status.FAILED
 
 
 async def test_leaving_the_loop_early_stops_the_run_and_frees_the_slot(db):
@@ -307,11 +307,11 @@ async def test_leaving_the_loop_early_stops_the_run_and_frees_the_slot(db):
         if event.type == EventType.TEXT_MESSAGE_CONTENT:
             break
     for _ in range(50):  # the run finishes its cleanup in its own task
-        row = await db.get_run(run.run_id)
-        if row.status in (RunStatus.CANCELLED, RunStatus.FAILED, RunStatus.SUCCESS):
+        row = await db.get_attempt(run.attempt_id)
+        if row.status in (Status.CANCELLED, Status.FAILED, Status.SUCCESS):
             break
         await asyncio.sleep(0.02)
-    assert row.status is RunStatus.CANCELLED
+    assert row.status is Status.CANCELLED
     # the slot is free: another turn runs
     second = runner_with(db, Streams(turns=[["fine"]]), max_concurrent=1)
     assert (await collect(second.stream(Chat, say("again"))))[-1].type == EventType.RUN_FINISHED
@@ -355,7 +355,7 @@ async def test_a_tool_is_called_and_its_answer_reaches_the_model(db):
     assert events[5].content == "sunny in Paris"
     second_call = model.seen[1]
     assert any("sunny in Paris" in str(m.content) for m in second_call)
-    row = await db.get_run(run.run_id)
+    row = await db.get_attempt(run.attempt_id)
     assert row.tools_hash == tools_hash([weather], [])  # the model was given the tool
     assert (row.input_tokens, row.output_tokens) == (6, 8)  # two model calls
 
@@ -409,5 +409,5 @@ async def test_a_launched_agent_is_a_tool_call_and_its_text_is_not_streamed(db):
     assert '"echoed": "hi"' in result.content
     streamed = "".join(e.delta for e in events if isinstance(e, TextMessageContentEvent))
     assert streamed == "Done."  # not the child's words
-    rows = await db.list_runs()
-    assert [r.agent_name for r in rows] == ["chat", "echo"] and rows[1].parent_agent_run_id == rows[0].agent_run_id
+    rows = await db.list_attempts()
+    assert [r.agent_name for r in rows] == ["chat", "echo"] and rows[1].parent_attempt_id == rows[0].attempt_id

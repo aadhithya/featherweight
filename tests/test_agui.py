@@ -13,7 +13,7 @@ from test_streaming import Chat, say
 
 from featherweight.adapters import BadRequest
 from featherweight.adapters.agui import CONTENT_TYPE, HEADERS, encode, parse_request
-from featherweight.models import RunStatus
+from featherweight.models import Status
 
 BODY = {  # the shape of an AG-UI request
     "threadId": "thread-1",
@@ -118,11 +118,11 @@ async def test_stopping_the_reader_stops_the_run_and_frees_the_slot(db):
             break
     await stream.aclose()
     for _ in range(50):
-        row = await db.get_run(run.run_id)
-        if row.status in (RunStatus.CANCELLED, RunStatus.FAILED, RunStatus.SUCCESS):
+        row = await db.get_attempt(run.attempt_id)
+        if row.status in (Status.CANCELLED, Status.FAILED, Status.SUCCESS):
             break
         await asyncio.sleep(0.02)
-    assert row.status is RunStatus.CANCELLED
+    assert row.status is Status.CANCELLED
     second = runner_with(db, Streams(turns=[["fine"]]), max_concurrent=1)
     assert decode([c async for c in encode(second.stream(Chat, say("again")))])[-1].type == EventType.RUN_FINISHED
 

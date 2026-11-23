@@ -6,7 +6,7 @@ import pytest
 from fakes import Echo, EchoInput, Reactive, respond, runner_with
 
 from featherweight.fingerprint import input_hash
-from featherweight.models import RunStatus
+from featherweight.models import Status
 from featherweight.runner import ENV_MAX_CONCURRENT, AgentRunner
 
 
@@ -21,7 +21,7 @@ async def test_never_more_than_the_limit_in_flight_and_everything_completes(db):
     results = await run_many(runner_with(db, model, max_concurrent=3), texts)
 
     assert model.max_in_flight == 3  # reached the limit, never went over it
-    assert all(r.status == RunStatus.SUCCESS for r in results)
+    assert all(r.status == Status.SUCCESS for r in results)
     assert [r.output.echoed for r in results] == texts
 
 
@@ -45,15 +45,15 @@ async def test_a_waiting_attempt_is_INIT_until_it_gets_a_slot(db):
     second = asyncio.create_task(runner.run(Echo, EchoInput(text="ok-2")))
     await asyncio.sleep(0.1)
 
-    rows = await db.list_runs()
+    rows = await db.list_attempts()
     assert [(r.input_hash, r.status) for r in rows] == [
-        (input_hash(EchoInput(text="ok-1")), RunStatus.RUNNING),
-        (input_hash(EchoInput(text="ok-2")), RunStatus.INIT),  # queued, not running
+        (input_hash(EchoInput(text="ok-1")), Status.RUNNING),
+        (input_hash(EchoInput(text="ok-2")), Status.INIT),  # queued, not running
     ]
     assert rows[0].started_at is not None and rows[1].started_at is None  # it has not held a slot yet
 
     results = await asyncio.gather(first, second)
-    assert all(r.status == RunStatus.SUCCESS for r in results)
+    assert all(r.status == Status.SUCCESS for r in results)
     assert model.max_in_flight == 1
 
 
@@ -72,8 +72,8 @@ async def test_a_retry_delay_does_not_hold_a_slot(db):
     other = await go("ok-1")  # must get the only slot right away
 
     assert finished == ["ok-1"]  # done before flaky-1's retry
-    assert other.status == RunStatus.SUCCESS
-    assert (await flaky).status == RunStatus.SUCCESS
+    assert other.status == Status.SUCCESS
+    assert (await flaky).status == Status.SUCCESS
     assert finished == ["ok-1", "flaky-1"]
 
 
@@ -98,14 +98,14 @@ async def test_run_many_returns_failures_as_results_and_handles_the_job_id_and_n
     assert await runner.run_many(Echo, [], job_id=job_id) == []
     results = await runner.run_many(Echo, inputs, job_id=job_id)
 
-    assert [r.status for r in results] == [RunStatus.SUCCESS, RunStatus.FAILED, RunStatus.SUCCESS]
+    assert [r.status for r in results] == [Status.SUCCESS, Status.FAILED, Status.SUCCESS]
     assert results[1].error == "RuntimeError: down fail-1"
     assert results[2].attempts == 2
-    assert len(await db.list_runs(job_id=job_id)) == 1 + 3 + 2  # ok-1, fail-1 x3, flaky-1 x2
+    assert len(await db.list_attempts(job_id=job_id)) == 1 + 3 + 2  # ok-1, fail-1 x3, flaky-1 x2
 
 
 LIMITS = [  # the argument, its environment variable and its default
-    ("max_concurrent", "MAX_CONCURRENT_AGENT_RUNS", 10),
+    ("max_concurrent", "MAX_CONCURRENT_ATTEMPTS", 10),
     ("max_depth", "MAX_AGENT_DEPTH", 3),
     ("max_launches", "MAX_AGENT_LAUNCHES", 10),
 ]

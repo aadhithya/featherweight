@@ -118,8 +118,8 @@ at once, as without discovery.
 
 ## Logging
 
-`tool_search agent_run_id=... keywords=... hits=...` for each search, and
-`tool_call_via_search agent_run_id=... tool=... status=ok|error|invalid` for each call, on top of the `mcp_call` line the
+`tool_search attempt_id=... keywords=... hits=...` for each search, and
+`tool_call_via_search attempt_id=... tool=... status=ok|error|invalid` for each call, on top of the `mcp_call` line the
 wrapper already writes. Keywords are logged. Arguments and results are not.
 
 ## Decisions

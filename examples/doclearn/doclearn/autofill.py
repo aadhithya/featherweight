@@ -16,7 +16,7 @@ from doclearn.assembly import _value_fits
 from doclearn.generation import render_structure
 from doclearn.models import FieldValue, InputField
 from doclearn.store import LearnedDocument
-from featherweight import AgentBase, AgentInput, AgentOutput, AgentRunner, Gemini, ModelSettings, RunStatus
+from featherweight import AgentBase, AgentInput, AgentOutput, AgentRunner, Gemini, ModelSettings, Status
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +121,7 @@ async def fill_form(
                 else f"Inventing the case again (attempt {attempt}): fixing {len(problems)} problems"
             )
         result = await runner.run(FormFillerAgent, attempt_input, job_id=job_id)
-        if result.status != RunStatus.SUCCESS:
+        if result.status != Status.SUCCESS:
             raise AutofillError(f"The Form Filler failed: {result.error}")
         output = result.output
         problems = check_form(schema.fields, output.facts)

@@ -65,7 +65,7 @@ A malformed agent is refused when the class is built, so it never reaches the mo
 ```python
 import asyncio
 
-from featherweight import AgentRunner, RunStatus, SqliteDatabase
+from featherweight import AgentRunner, Status, SqliteDatabase
 
 
 async def main():
@@ -74,7 +74,7 @@ async def main():
         result = await AgentRunner(db).run(
             PeopleExtractor, ExtractInput(text="Anna Berger met Tom Okafor on Monday."), job_id=job_id
         )
-        if result.status == RunStatus.SUCCESS:
+        if result.status == Status.SUCCESS:
             print(result.output.people)
         else:
             print(result.error)  # a failed run is a value, not an exception
@@ -88,7 +88,7 @@ Set `GOOGLE_API_KEY` first. The default model is Gemini, and the [other provider
 
 The run log is a sqlite file here. For a deployment, `PostgresDatabase` ships in the package (`pip install 'featherweight[postgres]'`), and switching is one line: see [persistence](persistence.md).
 
-The `job_id` is the job the run belongs to; each agent run has its own `agent_run_id` ([agents](agents.md#running-an-agent)).
+The `job_id` is the job the run belongs to; each agent run has its own `attempt_id` ([agents](agents.md#running-an-agent)).
 
 ## Where next
 

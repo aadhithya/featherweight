@@ -11,7 +11,7 @@ from featherweight.client import JobClient
 from featherweight.db import Database
 from featherweight.fingerprint import error_fields, input_hash
 from featherweight.jobs import Job, JobContext
-from featherweight.models import RunStatus
+from featherweight.models import Status
 from featherweight.queue import JobMessage, JobQueue, SqliteQueue
 from featherweight.results import ResultKey, SqliteResultStore
 from featherweight.sqlite import SqliteDatabase
@@ -42,13 +42,13 @@ def queue(request, db) -> JobQueue:
     return MemoryQueue() if request.param == "memory" else SqliteQueue(db)
 
 
-async def consume(db: Database, queue: JobQueue, results=None, *, finish: RunStatus = RunStatus.SUCCESS) -> JobMessage:
+async def consume(db: Database, queue: JobQueue, results=None, *, finish: Status = Status.SUCCESS) -> JobMessage:
     """What a worker does, in a few lines: take a message, run the job, keep its result, set the statuses, acknowledge."""
     delivery = await queue.receive(2.0)
     assert delivery is not None, "no message arrived"
     message = delivery.message
-    await db.set_job_status(message.job_id, RunStatus.RUNNING)
-    if finish is RunStatus.SUCCESS:
+    await db.set_job_status(message.job_id, Status.RUNNING)
+    if finish is Status.SUCCESS:
         job = await db.get_job(message.job_id)
         assert job is not None and job.job_hash and job.input_hash
         if results is not None:
@@ -56,9 +56,9 @@ async def consume(db: Database, queue: JobQueue, results=None, *, finish: RunSta
             await results.put(
                 ResultKey(job_id=job.job_id, agent_hash=job.job_hash, input_hash=job.input_hash), output.model_dump()
             )
-        await db.set_job_status(message.job_id, RunStatus.SUCCESS)
+        await db.set_job_status(message.job_id, Status.SUCCESS)
     else:
-        await db.set_job_status(message.job_id, RunStatus.FAILED, error_type="RuntimeError", error_hash="a" * 64)
+        await db.set_job_status(message.job_id, Status.FAILED, error_type="RuntimeError", error_hash="a" * 64)
     await queue.ack(delivery)
     return message
 
@@ -71,7 +71,7 @@ async def test_submit_creates_the_job_and_queues_the_input(db, queue):
     job_id = await client.submit(Shout, In(text="hello"))
 
     row = await client.status(job_id)
-    assert (row.name, row.status, row.resumable, row.resumed_from) == ("shout", RunStatus.INIT, False, None)
+    assert (row.name, row.status, row.resumable, row.resumed_from) == ("shout", Status.INIT, False, None)
     assert (row.job_hash, row.input_hash) == (Shout.job_hash(), input_hash(In(text="hello")))
     delivery = await queue.receive(1.0)
     assert delivery is not None
@@ -103,7 +103,7 @@ async def test_a_queue_that_refuses_the_message_fails_the_job_and_raises(db):
     with pytest.raises(ConnectionError, match="broker down"):
         await JobClient(db, Broken()).submit(Shout, In(text="a"), job_id="j")
     row = await db.get_job("j")
-    assert row is not None and row.status is RunStatus.FAILED
+    assert row is not None and row.status is Status.FAILED
     assert (row.error_type, row.error_hash) == error_fields(ConnectionError("broker down"))
     assert [e.type for e in await db.list_job_events("j")] == ["queued", "failed"]
 
@@ -133,7 +133,7 @@ async def test_a_streaming_agent_cannot_be_submitted(db, queue):
 async def test_resume_from_makes_a_new_job_that_points_to_the_old_one(db, queue):
     client = JobClient(db, queue)
     first = await client.submit(Shout, In(text="a"), resumable=True)
-    await consume(db, queue, finish=RunStatus.FAILED)
+    await consume(db, queue, finish=Status.FAILED)
     second = await client.submit(Shout, In(text="a"), resume_from=first)
     row = await client.status(second)
     assert row.resumed_from == first and row.resumable is True  # a job that resumes another is resumable too
@@ -144,7 +144,7 @@ async def test_resume_from_makes_a_new_job_that_points_to_the_old_one(db, queue)
 async def test_resuming_a_job_that_kept_nothing_is_refused_before_anything_is_queued(db, queue):
     client = JobClient(db, queue)
     first = await client.submit(Shout, In(text="a"))  # not resumable
-    await consume(db, queue, finish=RunStatus.FAILED)
+    await consume(db, queue, finish=Status.FAILED)
     with pytest.raises(ValueError, match="did not keep its results"):
         await client.submit(Shout, In(text="a"), resume_from=first)
     assert await queue.receive(0.05) is None
@@ -167,7 +167,7 @@ async def test_cancelling_a_queued_job_marks_it_and_leaves_the_message_for_the_w
     client = JobClient(db, queue)
     job_id = await client.submit(Shout, In(text="a"))
     assert await client.cancel(job_id) is True
-    assert (await client.status(job_id)).status is RunStatus.CANCELLED
+    assert (await client.status(job_id)).status is Status.CANCELLED
     assert [e.type for e in await db.list_job_events(job_id)] == ["queued", "cancelled"]
     delivery = await queue.receive(1.0)  # the message is still there: the worker acknowledges and skips it
     assert delivery is not None and delivery.message.job_id == job_id
@@ -176,16 +176,16 @@ async def test_cancelling_a_queued_job_marks_it_and_leaves_the_message_for_the_w
 async def test_cancelling_a_running_job_sets_the_flag_and_says_so(db, queue):
     client = JobClient(db, queue)
     job_id = await client.submit(Shout, In(text="a"))
-    await db.set_job_status(job_id, RunStatus.RUNNING)
+    await db.set_job_status(job_id, Status.RUNNING)
     assert await client.cancel(job_id) is True
     row = await client.status(job_id)
-    assert row.status is RunStatus.RUNNING and row.cancel_requested is True  # the worker does the cancelling
+    assert row.status is Status.RUNNING and row.cancel_requested is True  # the worker does the cancelling
     assert [e.type for e in await db.list_job_events(job_id)] == ["queued", "running", "cancel_requested"]
     assert await client.cancel(job_id) is True  # asking twice is fine, and writes no second event
     assert [e.type for e in await db.list_job_events(job_id)].count("cancel_requested") == 1
 
 
-@pytest.mark.parametrize("final", [RunStatus.SUCCESS, RunStatus.FAILED, RunStatus.CANCELLED])
+@pytest.mark.parametrize("final", [Status.SUCCESS, Status.FAILED, Status.CANCELLED])
 async def test_cancelling_a_job_that_is_final_changes_nothing(db, queue, final):
     client = JobClient(db, queue)
     job_id = await client.submit(Shout, In(text="a"))
@@ -211,7 +211,7 @@ async def test_a_job_that_a_worker_takes_while_it_is_being_cancelled_is_asked_to
     monkeypatch.setattr(db, "cancel_queued_job", a_worker_gets_in_first)
     assert await client.cancel(job_id) is True
     row = await client.status(job_id)
-    assert row.status is RunStatus.RUNNING and row.cancel_requested is True  # the worker is asked to stop it
+    assert row.status is Status.RUNNING and row.cancel_requested is True  # the worker is asked to stop it
 
 
 async def test_a_job_cancelled_while_queued_cannot_be_taken_by_a_worker(db, queue):
@@ -219,7 +219,7 @@ async def test_a_job_cancelled_while_queued_cannot_be_taken_by_a_worker(db, queu
     job_id = await client.submit(Shout, In(text="a"))
     assert await client.cancel(job_id) is True
     assert await db.start_job(job_id) is False
-    assert (await client.status(job_id)).status is RunStatus.CANCELLED
+    assert (await client.status(job_id)).status is Status.CANCELLED
 
 
 # result
@@ -238,11 +238,11 @@ async def test_the_result_is_none_when_the_job_failed_or_the_store_has_nothing(d
     results = MemoryResultStore()
     client = JobClient(db, queue, results)
     failed = await client.submit(Shout, In(text="a"))
-    await consume(db, queue, results, finish=RunStatus.FAILED)
+    await consume(db, queue, results, finish=Status.FAILED)
     assert await client.result(Shout, failed) is None
     lost = await client.submit(Shout, In(text="b"))
     await consume(db, queue, None)  # succeeded, but nobody kept the result
-    assert (await client.status(lost)).status is RunStatus.SUCCESS and await client.result(Shout, lost) is None
+    assert (await client.status(lost)).status is Status.SUCCESS and await client.result(Shout, lost) is None
 
 
 async def test_the_result_is_none_without_a_store_and_an_unknown_job_is_an_error(db, queue):
@@ -269,7 +269,7 @@ async def test_an_agent_job_result_is_parsed_into_the_agents_output_model(db):
     row = await db.get_job(job_id)
     assert row is not None and row.job_hash and row.input_hash
     await results.put(ResultKey(job_id=job_id, agent_hash=row.job_hash, input_hash=row.input_hash), {"echoed": "a"})
-    await db.set_job_status(job_id, RunStatus.SUCCESS)
+    await db.set_job_status(job_id, Status.SUCCESS)
     assert await client.result(Echo, job_id) == EchoOutput(echoed="a")
 
 
@@ -282,7 +282,7 @@ async def test_events_and_wait_follow_the_job_through_the_client(db, queue):
     consumer = asyncio.create_task(consume(db, queue, MemoryResultStore()))
     row = await client.wait(job_id, timeout=5)
     await consumer
-    assert row.status is RunStatus.SUCCESS
+    assert row.status is Status.SUCCESS
     assert [e.type async for e in client.events(job_id)] == ["queued", "running", "succeeded"]
     assert [e.type async for e in client.events(job_id, after=1)] == ["running", "succeeded"]  # resumes after a seq
 
@@ -305,7 +305,7 @@ async def test_a_client_and_a_consumer_share_one_sqlite_file_through_two_databas
         consumer = asyncio.create_task(consume(worker_db, SqliteQueue(worker_db), SqliteResultStore(worker_db)))
         row = await client.wait(job_id, timeout=10)  # the events cross over by the one reader of the client's process
         await consumer
-        assert row.status is RunStatus.SUCCESS
+        assert row.status is Status.SUCCESS
         assert await client.result(Shout, job_id) == Out(shouted="ACROSS")
         assert await JobClient(worker_db, SqliteQueue(worker_db)).cancel(job_id) is False
 

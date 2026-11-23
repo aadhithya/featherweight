@@ -27,7 +27,7 @@ from stream_check import assert_valid
 
 from featherweight.messages import to_langchain
 from featherweight.model_settings import ModelSettings
-from featherweight.models import RunStatus
+from featherweight.models import Status
 from featherweight.streaming import ChatInput, StreamingAgent
 
 RAW = b"fake bytes"
@@ -85,9 +85,9 @@ async def test_a_provider_that_rejects_an_attachment_fails_the_turn_without_a_re
     assert events[0].type.value == "RUN_STARTED"
     assert isinstance(events[-1], RunErrorEvent) and "does not accept video input" in events[-1].message
     assert model.calls == 1  # not retried
-    assert run.status is RunStatus.FAILED and "does not accept video input" in run.error
-    row = await db.get_run(run.run_id)
-    assert row.status is RunStatus.FAILED
+    assert run.status is Status.FAILED and "does not accept video input" in run.error
+    row = await db.get_attempt(run.attempt_id)
+    assert row.status is Status.FAILED
     assert row.error_type == "ValueError"
     assert row.output_hash is None
 
@@ -97,7 +97,7 @@ async def test_the_same_model_answers_a_message_without_an_attachment(db):
     runner = runner_with(db, Rejecting(turns=[["fine"]]))
     run = runner.stream(Chat, ChatInput(messages=[UserMessage(id="u1", content="hi")], thread_id="t-1"))
     [event async for event in run]
-    assert run.status is RunStatus.SUCCESS
+    assert run.status is Status.SUCCESS
 
 
 # the request each provider package would build

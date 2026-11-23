@@ -28,14 +28,14 @@ from pydantic import ValidationError
 
 from featherweight.background import BackgroundChildren, BackgroundResults, background_result_message
 from featherweight.context import (
-    CURRENT_AGENT_RUN_ID,
+    CURRENT_ATTEMPT_ID,
     CURRENT_IDENTITY,
     CURRENT_JOB_EXECUTION,
     CURRENT_TOOL_CALL_ID,
     IN_BACKGROUND_JOB,
     RunContext,
 )
-from featherweight.db import AgentRunRow, Database, RunEnd, RunStart, new_id
+from featherweight.db import AttemptFinish, AttemptRecord, AttemptRow, Database, new_id
 from featherweight.discovery import discovery_tools
 from featherweight.errors import RETRYABLE_4XX, SetupError
 from featherweight.fingerprint import (
@@ -59,11 +59,11 @@ from featherweight.models import (
     AgentInput,
     AgentOutput,
     AgentResult,
-    RunStatus,
+    Status,
     entry_description,
     entry_name,
 )
-from featherweight.observers import AttemptEnd, AttemptStart, Entered, JobSubmitted, Observer, Observers, ReusedRun
+from featherweight.observers import AttemptEnd, AttemptStart, Entered, JobSubmitted, Observer, Observers, RunReused
 from featherweight.registry import ToolRegistry
 from featherweight.results import ResultKey, ResultStore, SqliteResultStore
 from featherweight.sqlite import SqliteDatabase
@@ -75,7 +75,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-ENV_MAX_CONCURRENT = "MAX_CONCURRENT_AGENT_RUNS"
+ENV_MAX_CONCURRENT = "MAX_CONCURRENT_ATTEMPTS"
 DEFAULT_MAX_CONCURRENT = 10
 # How far agents may launch agents: the most agents in one chain (A launches B launches C is 3), and the most launches
 # one attempt of one agent may make. A depth of 1 turns launching off.
@@ -84,7 +84,7 @@ DEFAULT_MAX_DEPTH = 3
 ENV_MAX_LAUNCHES = "MAX_AGENT_LAUNCHES"
 DEFAULT_MAX_LAUNCHES = 10
 # The most children one attempt of one agent may have running in the background at one time.
-DEFAULT_MAX_BACKGROUND = 3
+DEFAULT_MAX_BACKGROUND_JOBS = 3
 
 MAX_ERROR_CHARS = 2000
 
@@ -123,7 +123,7 @@ def _positive_int_from_env(name: str, default: int) -> int:
 
 
 def max_concurrent_from_env() -> int:
-    """The concurrency limit from `MAX_CONCURRENT_AGENT_RUNS`, or the default when unset."""
+    """The concurrency limit from `MAX_CONCURRENT_ATTEMPTS`, or the default when unset."""
     return _positive_int_from_env(ENV_MAX_CONCURRENT, DEFAULT_MAX_CONCURRENT)
 
 
@@ -250,7 +250,7 @@ class AgentRunner:
         max_concurrent: int | None = None,
         max_depth: int | None = None,
         max_launches: int | None = None,
-        max_background: int | None = None,
+        max_background_jobs: int | None = None,
         background: "JobClient | None" = None,
         results: ResultStore | None | Literal["default"] = "default",
         observers: Sequence[Observer] = (),
@@ -258,13 +258,13 @@ class AgentRunner:
         identity_type: Any = None,
     ):
         """`max_concurrent` caps how many attempts (model calls) run at once across this runner. Default:
-        `MAX_CONCURRENT_AGENT_RUNS` from the environment, else 10.
+        `MAX_CONCURRENT_ATTEMPTS` from the environment, else 10.
 
         `max_depth` is the most agents in one chain of launches, the first agent included (A launches B launches C is
         3). Default: `MAX_AGENT_DEPTH`, else 3. At 1 no agent can launch another. `max_launches` is the most launches
         one attempt of one agent may make. Default: `MAX_AGENT_LAUNCHES`, else 10.
 
-        `max_background` is the most children one attempt of one agent may have running in the background at one time (default 3).
+        `max_background_jobs` is the most children one attempt of one agent may have running in the background at one time (default 3).
         A child runs in this process, as a job of its own, unless `background` is a `JobClient`: then it is submitted to the
         queue and a worker runs it (the worker must list the child's job). Agents with `background_jobs` need a result store.
 
@@ -288,13 +288,15 @@ class AgentRunner:
         for name, value in (
             ("max_depth", max_depth),
             ("max_launches", max_launches),
-            ("max_background", max_background),
+            ("max_background_jobs", max_background_jobs),
         ):
             if value is not None and value < 1:
                 raise ValueError(f"{name} must be at least 1")
         self.max_depth = max_depth if max_depth is not None else max_depth_from_env()
         self.max_launches = max_launches if max_launches is not None else max_launches_from_env()
-        self.max_background = max_background if max_background is not None else DEFAULT_MAX_BACKGROUND
+        self.max_background_jobs = (
+            max_background_jobs if max_background_jobs is not None else DEFAULT_MAX_BACKGROUND_JOBS
+        )
         self.background = background
         self._background_tasks: set[asyncio.Task[Any]] = (
             set()
@@ -416,11 +418,12 @@ class AgentRunner:
         thread_id = chat_input.thread_id or new_id()  # the protocol needs one; the log keeps only a named one
         can_launch = bool(agent.subagents) and 1 < self.max_depth
         system_prompt = agent.build_system_prompt(can_launch=can_launch, can_background=self._can_background(agent))
-        CURRENT_AGENT_RUN_ID.set(run.run_id)  # this task has its own context, so nothing needs undoing
+        CURRENT_ATTEMPT_ID.set(run.attempt_id)  # this task has its own context, so nothing needs undoing
         CURRENT_IDENTITY.set(identity)  # the tools of this turn, and what it launches, read it
         logger.info(
-            "stream_started agent_run_id=%s agent=%s version=%s model=%s reasoning=%s job_id=%s thread_id=%s",
+            "stream_started run_id=%s attempt_id=%s agent=%s version=%s model=%s reasoning=%s job_id=%s thread_id=%s",
             run.run_id,
+            run.attempt_id,
             agent.name,
             agent.version,
             agent.model.model,
@@ -440,10 +443,10 @@ class AgentRunner:
                     await registry.add_mcp(server, lease)
             except Exception as exc:
                 setup_error = exc
-            await self.db.create_run(
-                RunStart(
-                    agent_run_id=run.run_id,
-                    invocation_id=new_id(),
+            await self.db.create_attempt(
+                AttemptRecord(
+                    attempt_id=run.attempt_id,
+                    run_id=run.run_id,
                     attempt=1,
                     job_id=job_id,
                     job_execution=_job_execution(job_id),
@@ -462,13 +465,13 @@ class AgentRunner:
                 )
             )
             self._streams[run.run_id] = run
-            self._emitters[run.run_id] = emit  # `start_background` announces its children on this stream
+            self._emitters[run.attempt_id] = emit  # `start_background` announces its children on this stream
             if self._observers:
                 scope = await self._observers.enter(
                     "attempt",
                     AttemptStart(
-                        agent_run_id=run.run_id,
-                        invocation_id=run.run_id,
+                        attempt_id=run.attempt_id,
+                        run_id=run.run_id,
                         attempt=1,
                         max_attempts=1,
                         job_id=job_id,
@@ -510,11 +513,11 @@ class AgentRunner:
                 outcome, failure = "failed", exc
             finally:
                 run._interrupt = None
-            await self._close_background_events(run.run_id)  # nothing is announced after the stream's last event
+            await self._close_background_events(run.attempt_id)  # nothing is announced after the stream's last event
             if outcome in ("cancelled", "left"):  # a response that was stopped takes its children with it
-                await self._cancel_children(run.run_id)
+                await self._cancel_children(run.attempt_id)
             else:  # a turn that ended on its own leaves them running: the application follows them by their job events
-                self._children.pop(run.run_id, None)
+                self._children.pop(run.attempt_id, None)
             await self._end_stream(run, turn, emit, outcome, failure, agent, thread_id, started, scope)
             if outcome == "left":
                 raise asyncio.CancelledError
@@ -541,11 +544,13 @@ class AgentRunner:
         slot = _Slot(self._slots)
         try:
             await slot.acquire()  # the row stays INIT while it waits
-            await self.db.mark_run_running(run.run_id)
-            run.status = RunStatus.RUNNING
+            await self.db.start_attempt(run.attempt_id)
+            run.status = Status.RUNNING
             if setup_error is not None:
                 raise setup_error
-            context = RunContext(job_id=job_id, agent_run_id=run.run_id, identity=CURRENT_IDENTITY.get())
+            context = RunContext(
+                job_id=job_id, run_id=run.run_id, attempt_id=run.attempt_id, identity=CURRENT_IDENTITY.get()
+            )
             async for event in self._stream_events(
                 agent, chat_input, system_prompt, context, slot, can_launch, registry, turn.mapper, run._new_messages
             ):
@@ -582,7 +587,7 @@ class AgentRunner:
             output_tokens=mapper.output_tokens,
             total_tokens=mapper.input_tokens + mapper.output_tokens,
         )
-        status = {"success": RunStatus.SUCCESS, "failed": RunStatus.FAILED}.get(outcome, RunStatus.CANCELLED)
+        status = {"success": Status.SUCCESS, "failed": Status.FAILED}.get(outcome, Status.CANCELLED)
         error = _format_error(failure) if failure is not None else None  # the client and the logs get the text
         run.status, run.error, run.usage = status, error, usage
         if outcome != "left":
@@ -594,9 +599,9 @@ class AgentRunner:
                 finished = RunFinishedCancelledOutcome() if outcome == "cancelled" else RunFinishedSuccessOutcome()
                 emit(RunFinishedEvent(thread_id=thread_id, run_id=run.run_id, outcome=finished, usage=[usage]))
         error_type, error_digest = error_fields(failure) if failure is not None else (None, None)
-        await self.db.finish_run(
-            run.run_id,
-            RunEnd(
+        await self.db.finish_attempt(
+            run.attempt_id,
+            AttemptFinish(
                 status=status,
                 output_hash=turn.output_digest.hexdigest() if outcome == "success" else None,
                 error_type=error_type,
@@ -619,7 +624,7 @@ class AgentRunner:
                 )
             )
         log = logger.info if outcome == "success" else logger.warning
-        log("stream_ended agent_run_id=%s outcome=%s error=%s", run.run_id, outcome, error)
+        log("stream_ended run_id=%s attempt_id=%s outcome=%s error=%s", run.run_id, run.attempt_id, outcome, error)
 
     async def _stream_events(
         self,
@@ -655,7 +660,7 @@ class AgentRunner:
             {"messages": to_langchain(chat_input.messages)},
             config={
                 "recursion_limit": agent.recursion_limit,
-                "callbacks": self._observers.callbacks(context.agent_run_id, agent.model.provider, agent.model.model),
+                "callbacks": self._observers.callbacks(context.attempt_id, agent.model.provider, agent.model.model),
             },
             context=context,
             stream_mode=["messages", "updates"],
@@ -729,7 +734,7 @@ class AgentRunner:
         agent_input: AgentInput,
         *,
         job_id: str | None,
-        parent_agent_run_id: str | None = None,
+        parent_attempt_id: str | None = None,
         parent_tool_call_id: str | None = None,
         depth: int = 1,
     ) -> AgentResult[Any]:
@@ -743,7 +748,7 @@ class AgentRunner:
                 agent_input,
                 lease,
                 job_id=job_id,
-                parent_agent_run_id=parent_agent_run_id,
+                parent_attempt_id=parent_attempt_id,
                 parent_tool_call_id=parent_tool_call_id,
                 depth=depth,
             )
@@ -757,7 +762,7 @@ class AgentRunner:
         lease: Lease,
         *,
         job_id: str | None,
-        parent_agent_run_id: str | None,
+        parent_attempt_id: str | None,
         parent_tool_call_id: str | None,
         depth: int,
     ) -> AgentResult[Any]:
@@ -766,7 +771,7 @@ class AgentRunner:
             raise TypeError(f"{agent.name} expects {agent.input_model.__name__}, got {type(agent_input).__name__}")
         self._check_background_setup(agent)
 
-        invocation_id = new_id()
+        run_id = new_id()
         # Only an agent that has depth left to launch is told about its sub-agents, and given the tools.
         can_launch = bool(agent.subagents) and depth < self.max_depth
         system_prompt = agent.build_system_prompt(can_launch=can_launch, can_background=self._can_background(agent))
@@ -777,8 +782,8 @@ class AgentRunner:
         started = time.perf_counter()
 
         logger.info(
-            "invocation_started invocation_id=%s agent=%s version=%s model=%s reasoning=%s job_id=%s max_attempts=%d",
-            invocation_id,
+            "run_started run_id=%s agent=%s version=%s model=%s reasoning=%s job_id=%s max_attempts=%d",
+            run_id,
             agent.name,
             agent.version,
             agent.model.model,
@@ -789,16 +794,16 @@ class AgentRunner:
 
         declaration_hash = agent_hash(agent)
         if depth == 1 and job_id is not None:  # only runs of the pipeline resume; a launched agent is not looked up
-            reused = await self._reuse(agent, agent_input, declaration_hash, job_id, invocation_id, result_cls)
+            reused = await self._reuse(agent, agent_input, declaration_hash, job_id, run_id, result_cls)
             if reused is not None:
                 return reused
 
-        agent_run_id = ""
+        attempt_id = ""
         error = ""
         attempt = 0
         while attempt < self.max_attempts:
             attempt += 1
-            agent_run_id = new_id()
+            attempt_id = new_id()
             # This attempt's tools: the agent's own, and those of its MCP servers as the agent declares them. The
             # servers are started here, before the attempt waits for a slot, so that a slow start holds none. A failure
             # is raised inside the attempt below, so it is logged and counted like any other.
@@ -811,14 +816,14 @@ class AgentRunner:
                     await registry.add_mcp(server, lease)
             except Exception as exc:
                 setup_error = exc
-            await self.db.create_run(
-                RunStart(
-                    agent_run_id=agent_run_id,
-                    invocation_id=invocation_id,
+            await self.db.create_attempt(
+                AttemptRecord(
+                    attempt_id=attempt_id,
+                    run_id=run_id,
                     attempt=attempt,
                     job_id=job_id,
                     job_execution=_job_execution(job_id),
-                    parent_agent_run_id=parent_agent_run_id,
+                    parent_attempt_id=parent_attempt_id,
                     depth=depth,
                     agent_name=agent.name,
                     agent_version=agent.version,
@@ -838,22 +843,22 @@ class AgentRunner:
             # The attempt row stays INIT while it waits for a slot, and is RUNNING only once it holds one.
             queued = self._slots.locked()
             if queued:
-                logger.info("waiting_for_slot agent_run_id=%s limit=%d", agent_run_id, self.max_concurrent)
+                logger.info("waiting_for_slot attempt_id=%s limit=%d", attempt_id, self.max_concurrent)
             wait_started = time.perf_counter()
             slot = _Slot(self._slots)
             await slot.acquire()
             try:
                 if queued:
                     logger.info(
-                        "slot_acquired agent_run_id=%s waited_ms=%.0f",
-                        agent_run_id,
+                        "slot_acquired attempt_id=%s waited_ms=%.0f",
+                        attempt_id,
                         (time.perf_counter() - wait_started) * 1000,
                     )
-                await self.db.mark_run_running(agent_run_id)
+                await self.db.start_attempt(attempt_id)
                 logger.info(
-                    "attempt_started agent_run_id=%s invocation_id=%s attempt=%d/%d tools=%s",
-                    agent_run_id,
-                    invocation_id,
+                    "attempt_started attempt_id=%s run_id=%s attempt=%d/%d tools=%s",
+                    attempt_id,
+                    run_id,
                     attempt,
                     self.max_attempts,
                     ",".join(
@@ -865,12 +870,12 @@ class AgentRunner:
                     scope = await self._observers.enter(
                         "attempt",
                         AttemptStart(
-                            agent_run_id=agent_run_id,
-                            invocation_id=invocation_id,
+                            attempt_id=attempt_id,
+                            run_id=run_id,
                             attempt=attempt,
                             max_attempts=self.max_attempts,
                             job_id=job_id,
-                            parent_agent_run_id=parent_agent_run_id,
+                            parent_attempt_id=parent_attempt_id,
                             parent_tool_call_id=parent_tool_call_id,
                             depth=depth,
                             agent_name=agent.name,
@@ -887,25 +892,29 @@ class AgentRunner:
                 try:
                     if setup_error is not None:
                         raise setup_error
-                    context = RunContext(job_id=job_id, agent_run_id=agent_run_id, identity=CURRENT_IDENTITY.get())
+                    context = RunContext(
+                        job_id=job_id, run_id=run_id, attempt_id=attempt_id, identity=CURRENT_IDENTITY.get()
+                    )
                     output, input_tokens, output_tokens, reported_model = await self._attempt(
                         agent, agent_input, system_prompt, message, context, slot, depth, can_launch, registry
                     )
                 except asyncio.CancelledError:
                     # The task that awaits this run was cancelled (a streaming agent that was stopped, a caller that
                     # gave up): the row says so instead of staying RUNNING, and its background children are cancelled.
-                    await self._cancel_children(agent_run_id)
-                    await self.db.finish_run(
-                        agent_run_id,
-                        RunEnd(status=RunStatus.CANCELLED, latency_ms=(time.perf_counter() - attempt_started) * 1000),
+                    await self._cancel_children(attempt_id)
+                    await self.db.finish_attempt(
+                        attempt_id,
+                        AttemptFinish(
+                            status=Status.CANCELLED, latency_ms=(time.perf_counter() - attempt_started) * 1000
+                        ),
                     )
                     attempt_end = AttemptEnd(
-                        status=RunStatus.CANCELLED,
+                        status=Status.CANCELLED,
                         final=True,
                         latency_ms=(time.perf_counter() - attempt_started) * 1000,
                     )
                     logger.warning(
-                        "attempt_cancelled agent_run_id=%s attempt=%d/%d", agent_run_id, attempt, self.max_attempts
+                        "attempt_cancelled attempt_id=%s attempt=%d/%d", attempt_id, attempt, self.max_attempts
                     )
                     raise
                 except Exception as exc:
@@ -914,35 +923,35 @@ class AgentRunner:
                     error_type, error_digest = error_fields(
                         exc
                     )  # the text goes to the logs and the result, not the run log
-                    await self.db.finish_run(
-                        agent_run_id,
-                        RunEnd(
-                            status=RunStatus.FAILED,
+                    await self.db.finish_attempt(
+                        attempt_id,
+                        AttemptFinish(
+                            status=Status.FAILED,
                             error_type=error_type,
                             error_hash=error_digest,
                             latency_ms=(time.perf_counter() - attempt_started) * 1000,
                         ),
                     )
                     attempt_end = AttemptEnd(
-                        status=RunStatus.FAILED,
+                        status=Status.FAILED,
                         final=non_retryable or attempt >= self.max_attempts,
                         latency_ms=(time.perf_counter() - attempt_started) * 1000,
                         error_type=error_type,
                         error=error if self._observers.wants_content else None,
                     )
                     logger.warning(
-                        "attempt_failed agent_run_id=%s attempt=%d/%d non_retryable=%s error=%s",
-                        agent_run_id,
+                        "attempt_failed attempt_id=%s attempt=%d/%d non_retryable=%s error=%s",
+                        attempt_id,
                         attempt,
                         self.max_attempts,
                         non_retryable,
                         error,
                     )
                 else:
-                    await self.db.finish_run(
-                        agent_run_id,
-                        RunEnd(
-                            status=RunStatus.SUCCESS,
+                    await self.db.finish_attempt(
+                        attempt_id,
+                        AttemptFinish(
+                            status=Status.SUCCESS,
                             output_hash=output_hash(output),
                             input_tokens=input_tokens,
                             output_tokens=output_tokens,
@@ -951,7 +960,7 @@ class AgentRunner:
                         ),
                     )
                     attempt_end = AttemptEnd(
-                        status=RunStatus.SUCCESS,
+                        status=Status.SUCCESS,
                         final=True,
                         input_tokens=input_tokens,
                         output_tokens=output_tokens,
@@ -963,17 +972,18 @@ class AgentRunner:
                         await self._keep_result(job_id, declaration_hash, input_hash(agent_input), output)
                     latency_ms = (time.perf_counter() - started) * 1000
                     logger.info(
-                        "invocation_finished invocation_id=%s status=SUCCESS attempts=%d input_tokens=%d output_tokens=%d latency_ms=%.0f",
-                        invocation_id,
+                        "run_finished run_id=%s status=SUCCESS attempts=%d input_tokens=%d output_tokens=%d latency_ms=%.0f",
+                        run_id,
                         attempt,
                         input_tokens,
                         output_tokens,
                         latency_ms,
                     )
                     return result_cls(
-                        status=RunStatus.SUCCESS,
+                        status=Status.SUCCESS,
                         output=output,
-                        agent_run_id=agent_run_id,
+                        run_id=run_id,
+                        attempt_id=attempt_id,
                         input_tokens=input_tokens,
                         output_tokens=output_tokens,
                         attempts=attempt,
@@ -981,7 +991,7 @@ class AgentRunner:
                         model_name=reported_model,
                     )
             finally:
-                self._children.pop(agent_run_id, None)  # whatever it started carries on, unless it was cancelled above
+                self._children.pop(attempt_id, None)  # whatever it started carries on, unless it was cancelled above
                 if scope is not None:
                     await scope.leave(attempt_end)
                 slot.release()
@@ -989,21 +999,22 @@ class AgentRunner:
             # The slot is released here, so a retry delay never holds one.
             if non_retryable or attempt >= self.max_attempts:
                 break
-            logger.info("retry_waiting invocation_id=%s delay_s=%s", invocation_id, self.retry_delay_s)
+            logger.info("retry_waiting run_id=%s delay_s=%s", run_id, self.retry_delay_s)
             await asyncio.sleep(self.retry_delay_s)
 
         latency_ms = (time.perf_counter() - started) * 1000
         logger.error(
-            "invocation_finished invocation_id=%s status=FAILED attempts=%d latency_ms=%.0f error=%s",
-            invocation_id,
+            "run_finished run_id=%s status=FAILED attempts=%d latency_ms=%.0f error=%s",
+            run_id,
             attempt,
             latency_ms,
             error,
         )
         return result_cls(
-            status=RunStatus.FAILED,
+            status=Status.FAILED,
             error=error,
-            agent_run_id=agent_run_id,
+            run_id=run_id,
+            attempt_id=attempt_id,
             attempts=attempt,
             latency_ms=latency_ms,
         )
@@ -1014,7 +1025,7 @@ class AgentRunner:
         agent_input: AgentInput,
         declaration_hash: str,
         job_id: str,
-        invocation_id: str,
+        run_id: str,
         result_cls: type[AgentResult[Any]],
     ) -> AgentResult[Any] | None:
         """Answer from a run that succeeded with this agent and input, in the job it resumes, or in an earlier execution of this
@@ -1049,10 +1060,10 @@ class AgentRunner:
             return None  # a takeover with no store kept nothing: the job runs again
         this_input_hash = input_hash(agent_input)
         this_identity_hash = identity_hash(CURRENT_IDENTITY.get())
-        old: AgentRunRow | None = None
+        old: AttemptRow | None = None
         source_job = ""
         for source_job, before in sources:
-            old = await self.db.find_reusable_run(
+            old = await self.db.find_reusable_attempt(
                 source_job, declaration_hash, this_input_hash, this_identity_hash, before
             )  # did the step succeed, for the same identity
             if old is not None:
@@ -1062,20 +1073,20 @@ class AgentRunner:
         key = ResultKey(job_id=source_job, agent_hash=declaration_hash, input_hash=this_input_hash)
         stored = await self.results.get(key)  # and what was its output
         if stored is None:
-            logger.warning("result_missing reused_from=%s agent=%s: the agent runs", old.agent_run_id, agent.name)
+            logger.warning("result_missing reused_from=%s agent=%s: the agent runs", old.attempt_id, agent.name)
             return None
         try:
             output = agent.output_model.model_validate(stored)
             agent.check_output(agent_input, output)
         except Exception as exc:
             logger.warning(
-                "run_reuse_rejected reused_from=%s agent=%s reason=%s", old.agent_run_id, agent.name, _format_error(exc)
+                "run_reuse_rejected reused_from=%s agent=%s reason=%s", old.attempt_id, agent.name, _format_error(exc)
             )
             return None
-        agent_run_id = await self.db.create_run(
-            RunStart(
-                agent_run_id=new_id(),
-                invocation_id=invocation_id,
+        attempt_id = await self.db.create_attempt(
+            AttemptRecord(
+                attempt_id=new_id(),
+                run_id=run_id,
                 attempt=1,
                 job_id=job_id,
                 job_execution=_job_execution(job_id),
@@ -1090,13 +1101,13 @@ class AgentRunner:
                 settings=agent.model.model_dump(mode="json"),
                 input_hash=this_input_hash,
                 identity_hash=this_identity_hash,
-                reused_from_agent_run_id=old.agent_run_id,
+                reused_from_attempt_id=old.attempt_id,
             )
         )
-        await self.db.finish_run(
-            agent_run_id,
-            RunEnd(
-                status=RunStatus.SUCCESS,
+        await self.db.finish_attempt(
+            attempt_id,
+            AttemptFinish(
+                status=Status.SUCCESS,
                 output_hash=output_hash(output),
                 input_tokens=0,
                 output_tokens=0,
@@ -1108,14 +1119,14 @@ class AgentRunner:
             await self._keep_result(
                 job_id, declaration_hash, this_input_hash, output
             )  # a later attempt resumes from this job too
-        logger.info("run_reused agent_run_id=%s reused_from=%s agent=%s", agent_run_id, old.agent_run_id, agent.name)
+        logger.info("run_reused attempt_id=%s reused_from=%s agent=%s", attempt_id, old.attempt_id, agent.name)
         if self._observers:
             await self._observers.emit(
                 "reused",
-                ReusedRun(
-                    agent_run_id=agent_run_id,
-                    invocation_id=invocation_id,
-                    reused_from_agent_run_id=old.agent_run_id,
+                RunReused(
+                    attempt_id=attempt_id,
+                    run_id=run_id,
+                    reused_from_attempt_id=old.attempt_id,
                     resumed_from=job.resumed_from,
                     job_id=job_id,
                     agent_name=agent.name,
@@ -1125,9 +1136,10 @@ class AgentRunner:
                 ),
             )
         return result_cls(
-            status=RunStatus.SUCCESS,
+            status=Status.SUCCESS,
             output=output,
-            agent_run_id=agent_run_id,
+            run_id=run_id,
+            attempt_id=attempt_id,
             model_name=old.reported_model_name,
             reused=True,
         )
@@ -1169,7 +1181,7 @@ class AgentRunner:
                 *(self.run(agent_cls, agent_input, job_id=job_id, identity=identity) for agent_input in agent_inputs)
             )
         )
-        failed = sum(result.status == RunStatus.FAILED for result in results)
+        failed = sum(result.status == Status.FAILED for result in results)
         log = logger.warning if failed else logger.info
         log("fan_out_finished agent=%s count=%d failed=%d job_id=%s", name, len(results), failed, job_id)
         return results
@@ -1247,8 +1259,8 @@ class AgentRunner:
                 return f"The input for '{agent_name}' is not valid: {exc}. Check `get_agent_schema` and try again."
             launches += 1
             logger.info(
-                "agent_launch parent_agent_run_id=%s child=%s depth=%d launch=%d/%d job_id=%s",
-                context.agent_run_id,
+                "agent_launch parent_attempt_id=%s child=%s depth=%d launch=%d/%d job_id=%s",
+                context.attempt_id,
                 agent_name,
                 depth + 1,
                 launches,
@@ -1261,13 +1273,13 @@ class AgentRunner:
                     type(child),
                     child_input,
                     job_id=context.job_id,
-                    parent_agent_run_id=context.agent_run_id,
+                    parent_attempt_id=context.attempt_id,
                     parent_tool_call_id=CURRENT_TOOL_CALL_ID.get(),  # set by the observers' callback; None without one
                     depth=depth + 1,
                 )
             finally:
                 await slot.back()
-            if result.status == RunStatus.SUCCESS and result.output is not None:
+            if result.status == Status.SUCCESS and result.output is not None:
                 return json.dumps(
                     {"status": "SUCCESS", "agent": agent_name, "output": result.output.model_dump(mode="json")}
                 )
@@ -1283,9 +1295,9 @@ class AgentRunner:
                 names = ", ".join(entry_name(e) for e in agent.background_jobs)
                 return f"'{agent_name}' is not an agent you can start in the background. You can start: {names}."
             assert children is not None  # the tool is only built for an agent that can start background jobs
-            if await children.live() >= self.max_background:
+            if await children.live() >= self.max_background_jobs:
                 return (
-                    f"You cannot start more agents in the background now: {self.max_background} are still running. "
+                    f"You cannot start more agents in the background now: {self.max_background_jobs} are still running. "
                     "Carry on, and try again when one has finished."
                 )
             declared = _as_job(entry)
@@ -1297,7 +1309,7 @@ class AgentRunner:
                 job_id = await self._start_background(entry, declared, child_input, context)
             except Exception as exc:  # a refusing queue, a database that fails: the model reads it, the run goes on
                 logger.exception(
-                    "background_start_failed agent=%s parent_agent_run_id=%s", agent_name, context.agent_run_id
+                    "background_start_failed agent=%s parent_attempt_id=%s", agent_name, context.attempt_id
                 )
                 return f"'{agent_name}' could not be started ({type(exc).__name__}). Carry on without it."
             children.add(job_id)
@@ -1329,14 +1341,14 @@ class AgentRunner:
 
     async def _start_background(self, entry: Any, declared: Any, child_input: Any, context: RunContext) -> str:
         """Start the child as a job of its own and return its id: on a worker, through the client, or here, as a task."""
-        parent = context.agent_run_id
+        parent = context.attempt_id
         tool_call_id = CURRENT_TOOL_CALL_ID.get()  # set by the callback of the tool that is running: for the trace only
         task: asyncio.Task[Any] | None = None
         if self.background is not None:
             job_id = await self.background.submit(
                 entry,
                 child_input,
-                parent_agent_run_id=parent,
+                parent_attempt_id=parent,
                 parent_tool_call_id=tool_call_id,
                 identity=context.identity,  # the child acts for whom its parent does
             )
@@ -1347,7 +1359,7 @@ class AgentRunner:
                 job_version=declared.version,
                 job_hash=declared.job_hash(),
                 input_hash=input_hash(child_input),
-                parent_agent_run_id=parent,
+                parent_attempt_id=parent,
             )
             trace_context: dict[str, str] = {}
             if self._observers:  # the carrier of the tool call's span: nothing about a trace is stored
@@ -1358,7 +1370,7 @@ class AgentRunner:
                         version=declared.version,
                         job_hash=declared.job_hash(),
                         input_hash=input_hash(child_input),
-                        parent_agent_run_id=parent,
+                        parent_attempt_id=parent,
                         parent_tool_call_id=tool_call_id,
                         input=child_input.model_dump(mode="json") if self._observers.wants_content else None,
                     )
@@ -1369,7 +1381,7 @@ class AgentRunner:
             placement = "here"
         self._children.setdefault(parent, []).append(_Child(job_id, declared.name, task))
         logger.info(
-            "background_started job_id=%s agent=%s placement=%s parent_agent_run_id=%s",
+            "background_started job_id=%s agent=%s placement=%s parent_attempt_id=%s",
             job_id,
             declared.name,
             placement,
@@ -1398,17 +1410,17 @@ class AgentRunner:
         except Exception:
             logger.exception("background_failed job_id=%s", job_id)
 
-    def _announce_background(self, run_id: str, job_id: str, agent: str) -> None:
+    def _announce_background(self, attempt_id: str, job_id: str, agent: str) -> None:
         """On the stream of a chat run that is open: `background_started` now, and `background_finished` when the child's
         job is final. Metadata only: the application reads the result itself, from its store."""
-        emit = self._emitters.get(run_id)
+        emit = self._emitters.get(attempt_id)
         if emit is None:
             return  # not a streamed run, or its stream has ended
         emit(CustomEvent(name="background_started", value={"job_id": job_id, "agent": agent}))
-        watcher = asyncio.create_task(self._watch_background(run_id, job_id, agent))
-        self._watchers.setdefault(run_id, []).append(watcher)
+        watcher = asyncio.create_task(self._watch_background(attempt_id, job_id, agent))
+        self._watchers.setdefault(attempt_id, []).append(watcher)
 
-    async def _watch_background(self, run_id: str, job_id: str, agent: str) -> None:
+    async def _watch_background(self, attempt_id: str, job_id: str, agent: str) -> None:
         from featherweight.events import wait_for_job  # events.py imports the database, as this module does
 
         db = self.background.db if self.background is not None else self.db
@@ -1417,7 +1429,7 @@ class AgentRunner:
         except Exception:
             logger.exception("background_watch_failed job_id=%s", job_id)
             return
-        emit = self._emitters.get(run_id)
+        emit = self._emitters.get(attempt_id)
         if emit is not None:  # the stream is still open; after it ended the application follows the job's own events
             emit(
                 CustomEvent(
@@ -1426,19 +1438,19 @@ class AgentRunner:
                 )
             )
 
-    async def _close_background_events(self, run_id: str) -> None:
+    async def _close_background_events(self, attempt_id: str) -> None:
         """The stream of a chat run is ending: no more events, and no more watching. The children carry on."""
-        self._emitters.pop(run_id, None)
-        watchers = self._watchers.pop(run_id, [])
+        self._emitters.pop(attempt_id, None)
+        watchers = self._watchers.pop(attempt_id, [])
         for watcher in watchers:
             watcher.cancel()
         if watchers:
             await asyncio.gather(*watchers, return_exceptions=True)
 
-    async def _cancel_children(self, run_id: str) -> None:
+    async def _cancel_children(self, attempt_id: str) -> None:
         """Cancel the background children of a run that was stopped or cancelled and that are still live: the task of a child
         that runs here (its job ends `CANCELLED`), the job of a child on a worker (`cancel_requested`)."""
-        children = self._children.pop(run_id, [])
+        children = self._children.pop(attempt_id, [])
         tasks: list[asyncio.Task[Any]] = []
         for child in children:
             if child.task is not None:
@@ -1456,7 +1468,7 @@ class AgentRunner:
             if child.task is not None:  # cancelled before it ran: the job never started, so it is still queued
                 await self.db.cancel_queued_job(child.job_id)
         if children:
-            logger.info("background_cancelled parent_agent_run_id=%s children=%d", run_id, len(children))
+            logger.info("background_cancelled parent_attempt_id=%s children=%d", attempt_id, len(children))
 
     @staticmethod
     def _skill_tools(agent: AgentBase) -> list[BaseTool]:
@@ -1518,20 +1530,18 @@ class AgentRunner:
             # A run that is not a chat waits for its children: it gets their results, and goes on, until none is left.
             middleware=middleware,
         )
-        token = CURRENT_AGENT_RUN_ID.set(context.agent_run_id)
+        token = CURRENT_ATTEMPT_ID.set(context.attempt_id)
         try:
             result = await lc_agent.ainvoke(
                 {"messages": [{"role": "user", "content": message}]},
                 config={
                     "recursion_limit": agent.recursion_limit,
-                    "callbacks": self._observers.callbacks(
-                        context.agent_run_id, agent.model.provider, agent.model.model
-                    ),
+                    "callbacks": self._observers.callbacks(context.attempt_id, agent.model.provider, agent.model.model),
                 },
                 context=context,  # reaches tools through ToolRuntime; the model never sees it
             )
         finally:
-            CURRENT_AGENT_RUN_ID.reset(token)
+            CURRENT_ATTEMPT_ID.reset(token)
 
         structured = result.get("structured_response")
         if structured is None:

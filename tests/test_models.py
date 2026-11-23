@@ -11,7 +11,7 @@ from featherweight.models import (
     CONFLICTS_FORBIDDEN,
     AgentBase,
     AgentResult,
-    RunStatus,
+    Status,
 )
 from featherweight.skills import Skill
 
@@ -62,10 +62,10 @@ def test_system_prompt_hash_tracks_the_assembled_prompt():
     assert Echo(prompt="Something else.").system_prompt_hash != base.system_prompt_hash
 
 
-@pytest.mark.parametrize("status", [RunStatus.INIT, RunStatus.RUNNING])
+@pytest.mark.parametrize("status", [Status.INIT, Status.RUNNING])
 def test_result_rejects_non_terminal_status(status):
     with pytest.raises(ValidationError):
-        AgentResult[EchoOutput](status=status, agent_run_id="run-4")
+        AgentResult[EchoOutput](status=status, run_id="run-4", attempt_id="attempt-4")
 
 
 @pytest.mark.parametrize(

@@ -98,7 +98,7 @@ async with SqliteDatabase("featherweight.db") as db:
   results in input order. It has no limit of its own: the runner's concurrency limit bounds it.
 - Several agents of one pipeline share a `job_id`. Without one, the run is logged with no job.
 - A `job_id` is **the job that the run belongs to**, not the id of the run. A job is one unit of work with a status (a pipeline
-  you run with `run_job`, or one you submit to a worker): it has many agent runs, and each run has its own `agent_run_id`.
+  you run with `run_job`, or one you submit to a worker): it has many agent runs, and each run has its own `attempt_id`.
 
 `AgentRunner(db, ...)` takes these keyword arguments:
 
@@ -106,7 +106,7 @@ async with SqliteDatabase("featherweight.db") as db:
 |---|---|---|
 | `max_attempts` | 3 | Attempts per run |
 | `retry_delay_s` | 1.0 | Wait between attempts, without holding a concurrency slot |
-| `max_concurrent` | `MAX_CONCURRENT_AGENT_RUNS`, else 10 | Model attempts running at once |
+| `max_concurrent` | `MAX_CONCURRENT_ATTEMPTS`, else 10 | Model attempts running at once |
 | `max_depth`, `max_launches` | 3, 10 | See [launching-agents.md](launching-agents.md) |
 
 The runner has no argument for choosing the model: an agent's own `model` settings decide it. To run an agent on a fake in
@@ -121,7 +121,7 @@ a test, give it fake model settings ([testing your agents](models.md#testing-you
 | `status` | `SUCCESS` or `FAILED` |
 | `output` | The validated output model, on success |
 | `error` | The last error, on failure |
-| `agent_run_id` | The id of the last attempt, to look it up in the run log |
+| `attempt_id` | The id of the last attempt, to look it up in the run log |
 | `input_tokens`, `output_tokens` | Summed over the attempt's model calls. Output includes thinking tokens, and the input includes the tool results the model read |
 | `attempts`, `latency_ms` | Attempts made, and total time across them |
 | `model_name` | The model as the API reported it, which can differ from the one requested |
@@ -389,14 +389,14 @@ of `PostgresDatabase` run against it when `FTW_TEST_POSTGRES_URL` is set (`make 
 
 Two tables record everything. `jobs`: id, name, status, whether it is `resumable`, `resumed_from` (the job this one resumes, or
 empty), for a submitted job its `job_hash` and `input_hash`, `cancel_requested`, the error's type and hash, and when it was created,
-started and completed. A job whose task is cancelled is `CANCELLED`. `agent_runs`: one row **per attempt**:
+started and completed. A job whose task is cancelled is `CANCELLED`. `attempts`: one row **per attempt**:
 
 | Column | |
 |---|---|
-| `seq`, `agent_run_id` | The order the rows were made in, and the attempt |
-| `invocation_id`, `attempt` | Attempts of one `run()` call share an `invocation_id` |
+| `seq`, `attempt_id` | The order the rows were made in, and the attempt |
+| `run_id`, `attempt` | Attempts of one `run()` call share an `run_id` |
 | `job_id` | The job |
-| `parent_agent_run_id`, `depth` | For an agent launched by another: the attempt that launched it, and its depth (1 for a top-level run) |
+| `parent_attempt_id`, `depth` | For an agent launched by another: the attempt that launched it, and its depth (1 for a top-level run) |
 | `agent_name`, `agent_version` | The agent, readable |
 | `agent_hash` | The hash of the whole agent: its prompt, version, limits, model settings (and the settings class), tools, sub-agents, skills and MCP servers, and the JSON schemas of its input and output models. Same hash, same agent |
 | `system_prompt_hash`, `tools_hash` | The hash of the assembled system prompt, and of the tools bound to the model. They say *what* changed when `agent_hash` does (a tool's name can be client-specific, so tool names are not kept) |
@@ -405,19 +405,19 @@ started and completed. A job whose task is cancelled is `CANCELLED`. `agent_runs
 | `error_type`, `error_hash` | For a failed attempt: the class of the exception (`ValidationError`, `RateLimitError`) and the hash of its message. Recurring errors group; the text is in the logs and in the `AgentResult` you get back, not in the run log (a message can quote the data) |
 | `input_hash`, `output_hash` | The SHA-256 of the input and of the output, as canonical JSON. A reused or repeated step is recognised by them, with no content kept |
 | `identity_hash` | The SHA-256 of the run's identity as canonical JSON (without its excluded fields), empty when it had none. A resume reuses only a step of the same identity; the identity itself is kept nowhere |
-| `reused_from_agent_run_id` | For a run that reused an earlier one ([resuming a job](#resuming-a-job)): the row it took its output from |
+| `reused_from_attempt_id` | For a run that reused an earlier one ([resuming a job](#resuming-a-job)): the row it took its output from |
 | `thread_id` | For a [streaming](streaming.md) run: the conversation the client named |
 | `input_tokens`, `output_tokens`, `latency_ms` | Of the attempt |
 | `created_at`, `started_at`, `completed_at` | Created (queued for a slot), holds a slot and runs, ended. Times are `datetime`s |
 
 ```
-sqlite3 featherweight.db "select agent_name, attempt, status, depth, error_type from agent_runs where job_id = '<job id>' order by seq"
+sqlite3 featherweight.db "select agent_name, attempt, status, depth, error_type from attempts where job_id = '<job id>' order by seq"
 ```
 
 A failed pipeline can be diagnosed from those rows (which step failed, and with what kind of error), and resumed from them
 ([next section](#resuming-a-job)). To see what went in and out of a step, use the logs, or keep the content yourself.
 
-Log lines go to stdout through `setup_logging()` (`featherweight.log`), such as `attempt_started agent_run_id=... attempt=1/3`.
+Log lines go to stdout through `setup_logging()` (`featherweight.log`), such as `attempt_started attempt_id=... attempt=1/3`.
 
 **Why sqlite, and not OpenTelemetry or Langfuse?** To keep it as small and simple as possible: two tables, no
 collector, no account. A real deployment will want a proper backend, and an observer sends traces to it
@@ -460,7 +460,7 @@ For each run that your pipeline starts in the new job, the runner looks in the o
 
 If there is one, the runner gets its output from the result store, and checks that it still validates against the output model
 and passes `check_output`. If so, it does not call the model and takes no concurrency slot. It writes a `SUCCESS` row of its own in
-the new job, with zero tokens, the kept output and `reused_from_agent_run_id`, copies the result to the new job (so deleting the old job
+the new job, with zero tokens, the kept output and `reused_from_attempt_id`, copies the result to the new job (so deleting the old job
 never affects it), and returns an `AgentResult` with
 `reused=True` and zero tokens. The log says `run_reused ...`. If the output no longer validates, the log says
 `run_reuse_rejected reason=...` and the agent runs as usual. If the store has no result for a step that the log says
@@ -503,7 +503,7 @@ await testing.check_result_store(lambda: MyStore(...))
 | Variable | Default | |
 |---|---|---|
 | `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | | The key of the provider the agent's `model` uses. See [models.md](models.md) |
-| `MAX_CONCURRENT_AGENT_RUNS` | 10 | Model attempts running at once, per runner. A queued attempt shows as `INIT` until it gets a slot |
+| `MAX_CONCURRENT_ATTEMPTS` | 10 | Model attempts running at once, per runner. A queued attempt shows as `INIT` until it gets a slot |
 | `MAX_AGENT_DEPTH` | 3 | Most agents in one chain of launches |
 | `MAX_AGENT_LAUNCHES` | 10 | Most launches per attempt of one agent |
 | `FTW_DB_PATH` | `featherweight.db` | The sqlite file |

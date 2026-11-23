@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import ClassVar
 
 from featherweight.model_settings import Gemini, ModelSettings
-from featherweight.models import AgentBase, AgentInput, AgentOutput, RunStatus
+from featherweight.models import AgentBase, AgentInput, AgentOutput, Status
 from featherweight.runner import AgentRunner
 from featherweight.skills import Skill
 
@@ -44,7 +44,7 @@ class NoteWriter(AgentBase):
 async def test_an_agent_reads_its_skill_and_the_file_it_points_to(db):
     result = await AgentRunner(db).run(NoteWriter, NotesInput(text=MEETING))
 
-    assert result.status == RunStatus.SUCCESS, result.error
+    assert result.status == Status.SUCCESS, result.error
     notes = result.output.notes
     print("\n[notes]", *notes, sep="\n  ")
     print(f"[tokens] in={result.input_tokens} out={result.output_tokens}")

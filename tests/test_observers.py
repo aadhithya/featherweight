@@ -10,7 +10,7 @@ from test_streaming import Chat, say
 from test_subagents import PARENT_INPUT, Parent, child_done, launch_child, parent_done
 
 from featherweight import AgentRunner, Observer
-from featherweight.models import RunStatus
+from featherweight.models import Status
 from featherweight.observers import ModelCallStart, Observers
 from featherweight.testing import RecordingContentObserver, RecordingObserver, check_observer
 
@@ -26,7 +26,7 @@ async def test_an_attempt_is_wrapped_and_finished_in_order(db):
 
     result = await runner_with(db, Scripted(script=[echoed()]), observers=[seen]).run(Echo, ECHO)
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     assert seen.names() == [
         "attempt.enter",
         "model_call_started",
@@ -35,10 +35,10 @@ async def test_an_attempt_is_wrapped_and_finished_in_order(db):
         "attempt.exit",
     ]
     start = seen.records("attempt.enter")[0]
-    (row,) = await db.list_runs()
-    assert (start.agent_run_id, start.invocation_id, start.attempt, start.max_attempts) == (
-        row.agent_run_id,
-        row.invocation_id,
+    (row,) = await db.list_attempts()
+    assert (start.attempt_id, start.run_id, start.attempt, start.max_attempts) == (
+        row.attempt_id,
+        row.run_id,
         1,
         3,
     )
@@ -50,9 +50,9 @@ async def test_an_attempt_is_wrapped_and_finished_in_order(db):
         1,
     )
     end = seen.records("attempt.finish")[0]
-    assert (end.status, end.final, end.input_tokens, end.output_tokens) == (RunStatus.SUCCESS, True, 5, 7)
+    assert (end.status, end.final, end.input_tokens, end.output_tokens) == (Status.SUCCESS, True, 5, 7)
     call = seen.records("model_call_finished")[0]
-    assert (call.agent_run_id, call.input_tokens, call.output_tokens) == (row.agent_run_id, 5, 7)
+    assert (call.attempt_id, call.input_tokens, call.output_tokens) == (row.attempt_id, 5, 7)
     assert call.duration_ms >= 0 and call.response_model == "fake-model"
 
 
@@ -62,12 +62,12 @@ async def test_each_retry_is_an_attempt_and_only_the_last_one_is_final(db):
 
     result = await runner_with(db, Scripted(script=script), observers=[seen], max_attempts=2).run(Echo, ECHO)
 
-    assert result.status == RunStatus.SUCCESS and result.attempts == 2
+    assert result.status == Status.SUCCESS and result.attempts == 2
     first, second = seen.records("attempt.finish")
-    assert (first.status, first.final, first.error_type) == (RunStatus.FAILED, False, "RuntimeError")
-    assert (second.status, second.final) == (RunStatus.SUCCESS, True)
+    assert (first.status, first.final, first.error_type) == (Status.FAILED, False, "RuntimeError")
+    assert (second.status, second.final) == (Status.SUCCESS, True)
     starts = seen.records("attempt.enter")
-    assert [s.attempt for s in starts] == [1, 2] and starts[0].invocation_id == starts[1].invocation_id
+    assert [s.attempt for s in starts] == [1, 2] and starts[0].run_id == starts[1].run_id
     assert seen.names().count("attempt.exit") == 2
 
 
@@ -78,9 +78,9 @@ async def test_the_last_attempt_allowed_is_final_even_when_it_fails(db):
         Echo, ECHO
     )
 
-    assert result.status == RunStatus.FAILED
+    assert result.status == Status.FAILED
     (end,) = seen.records("attempt.finish")
-    assert (end.status, end.final, end.error_type) == (RunStatus.FAILED, True, "RuntimeError")
+    assert (end.status, end.final, end.error_type) == (Status.FAILED, True, "RuntimeError")
     assert end.error is None  # text is content
 
 
@@ -120,9 +120,9 @@ async def test_an_observer_that_raises_or_is_too_slow_changes_nothing(db):
     runner = runner_with(db, Scripted(script=[echoed()]), observers=[Broken(), Slow(), good], observer_timeout=0.05)
     result = await runner.run(Echo, ECHO)
 
-    assert result.status == RunStatus.SUCCESS and result.output is not None and result.output.echoed == "hello"
-    (row,) = await db.list_runs()
-    assert row.status == RunStatus.SUCCESS and row.input_tokens == 5
+    assert result.status == Status.SUCCESS and result.output is not None and result.output.echoed == "hello"
+    (row,) = await db.list_attempts()
+    assert row.status == Status.SUCCESS and row.input_tokens == 5
     assert good.names()[0] == "attempt.enter" and "attempt.exit" in good.names()  # the others did not stop it
 
 
@@ -146,7 +146,7 @@ async def test_nothing_is_built_without_observers(db):
 
     assert not runner._observers and not runner._observers.wants_content
     assert runner._observers.callbacks("run", "fake", "m") == []
-    assert (await runner.run(Echo, ECHO)).status == RunStatus.SUCCESS
+    assert (await runner.run(Echo, ECHO)).status == Status.SUCCESS
 
 
 async def test_a_launched_agent_is_attributed_to_the_tool_call_that_launched_it(db):
@@ -155,12 +155,12 @@ async def test_a_launched_agent_is_attributed_to_the_tool_call_that_launched_it(
 
     result = await runner_with(db, Scripted(script=script), observers=[seen]).run(Parent, PARENT_INPUT)
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     parent, child = seen.records("attempt.enter")
-    assert (parent.depth, child.depth, child.parent_agent_run_id) == (1, 2, parent.agent_run_id)
+    assert (parent.depth, child.depth, child.parent_attempt_id) == (1, 2, parent.attempt_id)
     assert child.parent_tool_call_id == "t-launch" and parent.parent_tool_call_id is None
     (call_start,) = [c for c in seen.records("tool_call_started") if c.tool_name == "launch_agent"]
-    assert call_start.call_id == "t-launch" and call_start.agent_run_id == parent.agent_run_id
+    assert call_start.call_id == "t-launch" and call_start.attempt_id == parent.attempt_id
     assert call_start.arguments is not None and call_start.arguments["agent_name"] == "child"
     (call_end,) = [c for c in seen.records("tool_call_finished") if c.tool_name == "launch_agent"]
     assert call_end.call_id == "t-launch" and "SUCCESS" in str(call_end.result)
@@ -181,12 +181,12 @@ async def test_a_step_that_is_reused_is_an_event_and_not_an_attempt(db):
 
     again = await run_pipeline(db, "p", steps(runner, ["a", "b"]), resume_from=first.job_id)
 
-    assert again.status == RunStatus.SUCCESS and attempts == 2
+    assert again.status == Status.SUCCESS and attempts == 2
     assert seen.names().count("attempt.enter") == 2  # nothing ran again
     reused = seen.records("reused")
     assert len(reused) == 2
-    originals = {r.agent_run_id for r in await db.list_runs(job_id=first.job_id)}
-    assert {r.reused_from_agent_run_id for r in reused} == originals
+    originals = {r.attempt_id for r in await db.list_attempts(job_id=first.job_id)}
+    assert {r.reused_from_attempt_id for r in reused} == originals
     assert {r.resumed_from for r in reused} == {first.job_id} and {r.job_id for r in reused} == {again.job_id}
     assert all(r.output is None for r in reused)  # no content was asked for
 
@@ -206,9 +206,9 @@ async def test_a_streaming_run_is_one_attempt_with_its_model_calls(db):
         "attempt.exit",
     ]
     start, end = seen.records("attempt.enter")[0], seen.records("attempt.finish")[0]
-    (row,) = await db.list_runs()
-    assert start.streaming and start.agent_run_id == row.agent_run_id and start.attempt == 1
-    assert (end.status, end.final, end.input_tokens, end.output_tokens) == (RunStatus.SUCCESS, True, 3, 4)
+    (row,) = await db.list_attempts()
+    assert start.streaming and start.attempt_id == row.attempt_id and start.attempt == 1
+    assert (end.status, end.final, end.input_tokens, end.output_tokens) == (Status.SUCCESS, True, 3, 4)
 
 
 async def test_a_streaming_run_that_fails_still_leaves_its_scope(db):
@@ -218,7 +218,7 @@ async def test_a_streaming_run_that_fails_still_leaves_its_scope(db):
     _ = [event async for event in AgentRunner(db, observers=[seen]).stream(Chat, say("hi"))]
 
     assert seen.names()[0] == "attempt.enter" and seen.names()[-1] == "attempt.exit"
-    assert seen.records("attempt.finish")[0].status == RunStatus.FAILED
+    assert seen.records("attempt.finish")[0].status == Status.FAILED
 
 
 async def test_a_submitted_job_gets_the_carriers_of_every_observer_that_gives_one():
@@ -273,7 +273,7 @@ def test_the_records_are_frozen_and_content_is_dropped_by_strip():
 
     from featherweight.observers import strip_content
 
-    call = ModelCallStart(call_id="c", agent_run_id="r", provider="p", model="m", messages=[{"role": "human"}])
+    call = ModelCallStart(call_id="c", attempt_id="r", provider="p", model="m", messages=[{"role": "human"}])
 
     with pytest.raises(ValidationError):
         call.model_copy().__setattr__("model", "x")  # frozen

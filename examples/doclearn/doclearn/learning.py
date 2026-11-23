@@ -32,7 +32,7 @@ from doclearn.models import (
     UnitDocument,
 )
 from doclearn.reconciler import ReconcilerInput, ReconciliationAgent
-from featherweight import AgentRunner, RunStatus
+from featherweight import AgentRunner, Status
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ async def analyze_documents(
 
     analysis = AnalysisResult()
     for document, result in zip(documents, results, strict=True):
-        if result.status == RunStatus.SUCCESS:
+        if result.status == Status.SUCCESS:
             facts = result.output.to_facts(document.document_id)
             analysis.analyzed.append(AnalyzedDocument(facts=facts, template=result.output.to_template(category)))
             logger.info(
@@ -164,7 +164,7 @@ async def reconcile(
         raise LearningError("No document could be analyzed, so there is nothing to reconcile")
 
     result = await runner.run(ReconciliationAgent, build_reconciler_input(analysis, category), job_id=job_id)
-    if result.status != RunStatus.SUCCESS:
+    if result.status != Status.SUCCESS:
         raise LearningError(f"The Reconciliation Agent failed: {result.error}")
     output = result.output
     if not output.element_types:
@@ -321,9 +321,9 @@ async def align_units(
     results = await runner.run_many(SemanticAlignmentAgent, units, job_id=job_id)
 
     failures = [
-        f"unit {unit.position}: {result.error if result.status != RunStatus.SUCCESS else 'no blocks returned'}"
+        f"unit {unit.position}: {result.error if result.status != Status.SUCCESS else 'no blocks returned'}"
         for unit, result in zip(units, results, strict=True)
-        if result.status != RunStatus.SUCCESS or not result.output.blocks
+        if result.status != Status.SUCCESS or not result.output.blocks
     ]
     if failures:
         raise LearningError("Semantic Alignment failed for " + "; ".join(failures))

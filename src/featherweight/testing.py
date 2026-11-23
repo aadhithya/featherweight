@@ -10,8 +10,8 @@ from contextlib import AbstractAsyncContextManager
 from datetime import timedelta
 from typing import Any
 
-from featherweight.db import Database, JobLost, JobOwner, RunEnd, RunStart
-from featherweight.models import RunStatus
+from featherweight.db import AttemptFinish, AttemptRecord, Database, JobLost, JobOwner
+from featherweight.models import Status
 from featherweight.observers import (
     AttemptEnd,
     AttemptStart,
@@ -21,7 +21,7 @@ from featherweight.observers import (
     ModelCallEnd,
     ModelCallStart,
     Observer,
-    ReusedRun,
+    RunReused,
     Scope,
     ToolCallEnd,
     ToolCallStart,
@@ -102,10 +102,10 @@ async def check_result_store(make_store: Callable[[], ResultStore | Awaitable[Re
     assert results == [{"i": i} for i in range(40)], "concurrent puts and gets must not lose or mix results"
 
 
-def _run(job_id: str | None, agent_run_id: str, **changes: Any) -> RunStart:
+def _run(job_id: str | None, attempt_id: str, **changes: Any) -> AttemptRecord:
     fields: dict[str, Any] = {
-        "agent_run_id": agent_run_id,
-        "invocation_id": f"inv-{agent_run_id}",
+        "attempt_id": attempt_id,
+        "run_id": f"inv-{attempt_id}",
         "attempt": 1,
         "job_id": job_id,
         "agent_name": "echo",
@@ -119,7 +119,7 @@ def _run(job_id: str | None, agent_run_id: str, **changes: Any) -> RunStart:
         "settings": {"model": "fake-model", "nested": {"a": [1, 2]}},
         "input_hash": _hash("input"),
     }
-    return RunStart(**{**fields, **changes})
+    return AttemptRecord(**{**fields, **changes})
 
 
 async def _check_identity_hash(db: Database) -> None:
@@ -127,23 +127,25 @@ async def _check_identity_hash(db: Database) -> None:
     `None` (a run with no identity) matches only a run that had none."""
     job_id = await db.create_job("identity", resumable=True)
     mine, other = _hash("identity: a"), _hash("identity: b")
-    await db.create_run(_run(job_id, "id-none", agent_hash=_hash("who")))
-    await db.create_run(_run(job_id, "id-a", agent_hash=_hash("who"), identity_hash=mine))
+    await db.create_attempt(_run(job_id, "id-none", agent_hash=_hash("who")))
+    await db.create_attempt(_run(job_id, "id-a", agent_hash=_hash("who"), identity_hash=mine))
     for run_id in ("id-none", "id-a"):
-        await db.finish_run(run_id, RunEnd(status=RunStatus.SUCCESS))
-    recorded = await db.get_run("id-a")
+        await db.finish_attempt(run_id, AttemptFinish(status=Status.SUCCESS))
+    recorded = await db.get_attempt("id-a")
     assert recorded is not None and recorded.identity_hash == mine, "a run records the hash of its identity"
-    plain = await db.get_run("id-none")
+    plain = await db.get_attempt("id-none")
     assert plain is not None and plain.identity_hash is None, "and None when it had none"
 
-    found = await db.find_reusable_run(job_id, _hash("who"), _hash("input"), mine)
-    assert found is not None and found.agent_run_id == "id-a", "the same identity is reused"
-    assert await db.find_reusable_run(job_id, _hash("who"), _hash("input"), other) is None, "another identity is not"
-    nothing = await db.find_reusable_run(job_id, _hash("who"), _hash("input"), None)
-    assert nothing is not None and nothing.agent_run_id == "id-none", "no identity matches only a run that had none"
-    await db.create_run(_run(job_id, "id-only-a", agent_hash=_hash("only a"), identity_hash=mine))
-    await db.finish_run("id-only-a", RunEnd(status=RunStatus.SUCCESS))
-    assert await db.find_reusable_run(job_id, _hash("only a"), _hash("input"), None) is None, (
+    found = await db.find_reusable_attempt(job_id, _hash("who"), _hash("input"), mine)
+    assert found is not None and found.attempt_id == "id-a", "the same identity is reused"
+    assert await db.find_reusable_attempt(job_id, _hash("who"), _hash("input"), other) is None, (
+        "another identity is not"
+    )
+    nothing = await db.find_reusable_attempt(job_id, _hash("who"), _hash("input"), None)
+    assert nothing is not None and nothing.attempt_id == "id-none", "no identity matches only a run that had none"
+    await db.create_attempt(_run(job_id, "id-only-a", agent_hash=_hash("only a"), identity_hash=mine))
+    await db.finish_attempt("id-only-a", AttemptFinish(status=Status.SUCCESS))
+    assert await db.find_reusable_attempt(job_id, _hash("only a"), _hash("input"), None) is None, (
         "a run with an identity is not found for none"
     )
 
@@ -153,7 +155,7 @@ async def _check_taking_a_job(db: Database) -> None:
     taken = await db.create_job("take")
     assert await db.start_job(taken) is True, "start_job takes a queued job"
     row = await db.get_job(taken)
-    assert row is not None and row.status is RunStatus.RUNNING and row.started_at is not None
+    assert row is not None and row.status is Status.RUNNING and row.started_at is not None
     assert await db.start_job(taken) is False, "start_job does not take a job twice"
     assert await db.cancel_queued_job(taken) is False, "a job that was taken cannot be cancelled while queued"
     assert [e.type for e in await db.list_job_events(taken)] == ["queued", "running"], "a refused step writes no event"
@@ -163,7 +165,7 @@ async def _check_taking_a_job(db: Database) -> None:
     assert await db.start_job(asked) is False, "start_job does not take a job that was asked to be cancelled"
     assert await db.cancel_queued_job(asked) is True
     cancelled = await db.get_job(asked)
-    assert cancelled is not None and cancelled.status is RunStatus.CANCELLED and cancelled.completed_at is not None
+    assert cancelled is not None and cancelled.status is Status.CANCELLED and cancelled.completed_at is not None
     assert [e.type for e in await db.list_job_events(asked)] == ["queued", "cancel_requested", "cancelled"]
     assert await db.cancel_queued_job(asked) is False and await db.start_job(asked) is False, "a final job stays final"
     assert await db.start_job("no-such-job") is False and await db.cancel_queued_job("no-such-job") is False
@@ -173,7 +175,7 @@ async def _check_taking_a_job(db: Database) -> None:
         started, cancelled_ = await asyncio.gather(db.start_job(racing), db.cancel_queued_job(racing))
         assert started != cancelled_, "start_job and cancel_queued_job must not both win, or both lose"
         row = await db.get_job(racing)
-        assert row is not None and row.status is (RunStatus.RUNNING if started else RunStatus.CANCELLED)
+        assert row is not None and row.status is (Status.RUNNING if started else Status.CANCELLED)
         types = [e.type for e in await db.list_job_events(racing)]
         assert types == ["queued", "running" if started else "cancelled"], "the winner writes exactly one event"
 
@@ -194,59 +196,61 @@ async def _check_takeover(db: Database) -> None:
     assert await db.take_over_job(unleased, "w2", 30) is False, "a job without a lease has none to lose"
 
     # the runs of the first execution are tagged with it, and a run without a job with nothing
-    await db.create_run(_run(job, "t-1"))
-    await db.finish_run("t-1", RunEnd(status=RunStatus.SUCCESS))
-    stray = await db.create_run(_run(None, "t-stray"))
-    one = await db.get_run("t-1")
+    await db.create_attempt(_run(job, "t-1"))
+    await db.finish_attempt("t-1", AttemptFinish(status=Status.SUCCESS))
+    stray = await db.create_attempt(_run(None, "t-stray"))
+    one = await db.get_attempt("t-1")
     assert one is not None and one.job_execution == 1, "a run records the execution of its job"
-    loose = await db.get_run(stray)
+    loose = await db.get_attempt(stray)
     assert loose is not None and loose.job_execution is None, "a run without a job has no execution"
 
     # a lease that ended: the next worker takes the job, as the next execution
     lost = await db.create_job("takeover", resumable=True)
     assert await db.start_job(lost, worker_id="w1", lease=short) is True
-    await db.create_run(_run(lost, "l-1"))
-    await db.finish_run("l-1", RunEnd(status=RunStatus.SUCCESS))
+    await db.create_attempt(_run(lost, "l-1"))
+    await db.finish_attempt("l-1", AttemptFinish(status=Status.SUCCESS))
     await asyncio.sleep(short * 3)
     assert await db.take_over_job(lost, "w2", 30) is True, "a job whose lease ended is taken over"
     assert await db.take_over_job(lost, "w3", 30) is False, "and only once: the new lease is alive"
     row = await db.get_job(lost)
-    assert row is not None and row.status is RunStatus.RUNNING and row.worker_id == "w2" and row.executions == 2
+    assert row is not None and row.status is Status.RUNNING and row.worker_id == "w2" and row.executions == 2
     assert row.lease_expires_at is not None and row.completed_at is None
     events = await db.list_job_events(lost)
     assert [(e.type, e.status) for e in events] == [
-        ("queued", RunStatus.INIT),
-        ("running", RunStatus.RUNNING),
-        ("lost", RunStatus.INIT),
-        ("running", RunStatus.RUNNING),
+        ("queued", Status.INIT),
+        ("running", Status.RUNNING),
+        ("lost", Status.INIT),
+        ("running", Status.RUNNING),
     ], "a takeover writes `lost` and then `running`, in one transaction"
     assert await db.owns_job(lost, JobOwner(worker_id="w2", executions=2)) is True
     try:
-        await db.set_job_status(lost, RunStatus.SUCCESS, owner=JobOwner(worker_id="w1", executions=1))
+        await db.set_job_status(lost, Status.SUCCESS, owner=JobOwner(worker_id="w1", executions=1))
     except JobLost:
         pass
     else:
         raise AssertionError("the worker that lost the job must not be able to write to it")
-    await db.create_run(_run(lost, "l-2"))
-    again = await db.get_run("l-2")
+    await db.create_attempt(_run(lost, "l-2"))
+    again = await db.get_attempt("l-2")
     assert again is not None and again.job_execution == 2, "a run of the new execution records it"
-    await db.create_run(_run(lost, "l-late", job_execution=1))  # a worker that has not noticed that it lost the job
-    late = await db.get_run("l-late")
+    await db.create_attempt(_run(lost, "l-late", job_execution=1))  # a worker that has not noticed that it lost the job
+    late = await db.get_attempt("l-late")
     assert late is not None and late.job_execution == 1, (
         "a run records the execution it is given, and not the job's current one"
     )
 
     # a takeover looks in its own job, at earlier executions only
     reusable = _hash("agent")
-    first = await db.find_reusable_run(lost, reusable, _hash("input"), None)
-    assert first is not None and first.agent_run_id == "l-1"
-    assert (await db.find_reusable_run(lost, reusable, _hash("input"), None, 2)) is not None, "execution 1 is before 2"
-    assert await db.find_reusable_run(lost, reusable, _hash("input"), None, 1) is None, (
+    first = await db.find_reusable_attempt(lost, reusable, _hash("input"), None)
+    assert first is not None and first.attempt_id == "l-1"
+    assert (await db.find_reusable_attempt(lost, reusable, _hash("input"), None, 2)) is not None, (
+        "execution 1 is before 2"
+    )
+    assert await db.find_reusable_attempt(lost, reusable, _hash("input"), None, 1) is None, (
         "and nothing is before execution 1"
     )
-    await db.finish_run("l-2", RunEnd(status=RunStatus.SUCCESS))
-    again = await db.find_reusable_run(lost, reusable, _hash("input"), None, 2)
-    assert again is not None and again.agent_run_id == "l-1", "the run of the current execution is never found"
+    await db.finish_attempt("l-2", AttemptFinish(status=Status.SUCCESS))
+    again = await db.find_reusable_attempt(lost, reusable, _hash("input"), None, 2)
+    assert again is not None and again.attempt_id == "l-1", "the run of the current execution is never found"
 
     # ending a job that will not run
     queued = await db.create_job("fail")
@@ -254,7 +258,7 @@ async def _check_takeover(db: Database) -> None:
     row = await db.get_job(queued)
     assert (
         row is not None
-        and row.status is RunStatus.FAILED
+        and row.status is Status.FAILED
         and (row.error_type, row.error_hash)
         == (
             "DeadLettered",
@@ -262,7 +266,7 @@ async def _check_takeover(db: Database) -> None:
         )
     )
     events = await db.list_job_events(queued)
-    assert (events[-1].type, events[-1].status, events[-1].error_type) == ("failed", RunStatus.FAILED, "DeadLettered")
+    assert (events[-1].type, events[-1].status, events[-1].error_type) == ("failed", Status.FAILED, "DeadLettered")
     assert await db.fail_queued_job(queued, "DeadLettered", _hash("DeadLettered")) is False, (
         "a final job stays as it is"
     )
@@ -277,7 +281,7 @@ async def _check_takeover(db: Database) -> None:
         "a lost worker's job is failed"
     )
     row = await db.get_job(orphan)
-    assert row is not None and row.status is RunStatus.FAILED and row.lease_expires_at is None
+    assert row is not None and row.status is Status.FAILED and row.lease_expires_at is None
 
 
 async def _check_job_lease(db: Database) -> None:
@@ -316,40 +320,38 @@ async def _check_job_lease(db: Database) -> None:
     # a write by someone who is not the owner changes nothing, and writes no event
     for stranger in (JobOwner(worker_id="w2", executions=1), JobOwner(worker_id="w1", executions=2)):
         try:
-            await db.set_job_status(job, RunStatus.SUCCESS, owner=stranger)
+            await db.set_job_status(job, Status.SUCCESS, owner=stranger)
         except JobLost:
             pass
         else:
             raise AssertionError("a status write by a worker that does not own the job must raise JobLost")
     row = await db.get_job(job)
-    assert row is not None and row.status is RunStatus.RUNNING and row.completed_at is None
+    assert row is not None and row.status is Status.RUNNING and row.completed_at is None
     assert [e.type for e in await db.list_job_events(job)] == ["queued", "running"], "a refused write writes no event"
     try:
-        await db.set_job_status("no-such-job", RunStatus.SUCCESS, owner=owner)
+        await db.set_job_status("no-such-job", Status.SUCCESS, owner=owner)
     except LookupError:
         pass
     else:
         raise AssertionError("a status write for a job that does not exist must raise LookupError")
 
     # the owner's write goes through, and a final status ends the lease
-    await db.set_job_status(job, RunStatus.SUCCESS, owner=owner)
+    await db.set_job_status(job, Status.SUCCESS, owner=owner)
     row = await db.get_job(job)
-    assert (
-        row is not None and row.status is RunStatus.SUCCESS and row.lease_expires_at is None and row.worker_id == "w1"
-    )
+    assert row is not None and row.status is Status.SUCCESS and row.lease_expires_at is None and row.worker_id == "w1"
     assert await db.owns_job(job, owner) is False, "a job that ended is nobody's"
     assert await db.renew_job_leases("w1", {job: 1}, 60) == set(), "a job that ended is not renewed"
     try:
-        await db.set_job_status(job, RunStatus.FAILED, owner=owner)
+        await db.set_job_status(job, Status.FAILED, owner=owner)
     except JobLost:
         pass
     else:
         raise AssertionError("a write for a job that already ended must raise JobLost")
 
     # back in the queue: nobody owns it, and the next start is the next execution
-    await db.set_job_status(other, RunStatus.INIT, owner=JobOwner(worker_id="w1", executions=1))
+    await db.set_job_status(other, Status.INIT, owner=JobOwner(worker_id="w1", executions=1))
     row = await db.get_job(other)
-    assert row is not None and row.status is RunStatus.INIT and row.worker_id is None and row.lease_expires_at is None
+    assert row is not None and row.status is Status.INIT and row.worker_id is None and row.lease_expires_at is None
     assert row.executions == 1, "going back to the queue keeps the count"
     assert await db.start_job(other, worker_id="w3") is True
     row = await db.get_job(other)
@@ -362,18 +364,18 @@ async def _check_job_events(db: Database) -> None:
     """The events of a job and the request to cancel it."""
     job = await db.create_job("events", job_hash=_hash("job"), input_hash=_hash("in"))
     seen = await db.list_job_events(job)
-    assert [(e.type, e.status) for e in seen] == [("queued", RunStatus.INIT)], "a new job has one `queued` event"
+    assert [(e.type, e.status) for e in seen] == [("queued", Status.INIT)], "a new job has one `queued` event"
     assert seen[0].job_id == job and seen[0].at.tzinfo is not None and seen[0].error_type is None
 
-    await db.set_job_status(job, RunStatus.RUNNING)
+    await db.set_job_status(job, Status.RUNNING)
     assert await db.list_cancel_requested([job]) == set(), "a job nobody asked to cancel is not listed"
     assert await db.list_cancel_requested([]) == set()
     assert await db.request_job_cancel(job) is True
     assert await db.request_job_cancel(job) is True, "asking again is not an error"
     assert await db.list_cancel_requested([job, "no-such-job"]) == {job}, "a job that was asked to cancel is listed"
     row = await db.get_job(job)
-    assert row is not None and row.cancel_requested is True and row.status is RunStatus.RUNNING
-    await db.set_job_status(job, RunStatus.FAILED, error_type="ValueError", error_hash=_hash("boom"))
+    assert row is not None and row.cancel_requested is True and row.status is Status.RUNNING
+    await db.set_job_status(job, Status.FAILED, error_type="ValueError", error_hash=_hash("boom"))
     events = await db.list_job_events(job)
     assert await db.list_cancel_requested([job]) == set(), "a final job is not listed, whatever its flag"
     assert [e.type for e in events] == ["queued", "running", "cancel_requested", "failed"], (
@@ -381,11 +383,11 @@ async def _check_job_events(db: Database) -> None:
     )
     assert [e.seq for e in events] == sorted({e.seq for e in events}), "seq is increasing"
     assert (events[-1].status, events[-1].error_type, events[-1].error_hash) == (
-        RunStatus.FAILED,
+        Status.FAILED,
         "ValueError",
         _hash("boom"),
     )
-    assert events[2].status is RunStatus.RUNNING, "a cancel request keeps the status the job had"
+    assert events[2].status is Status.RUNNING, "a cancel request keeps the status the job had"
 
     assert await db.request_job_cancel(job) is False, "a final job cannot be asked to cancel"
     assert await db.request_job_cancel("no-such-job") is False
@@ -393,16 +395,16 @@ async def _check_job_events(db: Database) -> None:
 
     # the other statuses make their events, and a job going back to the queue makes a `queued` one
     other = await db.create_job("events")
-    await db.set_job_status(other, RunStatus.RUNNING)
-    await db.set_job_status(other, RunStatus.INIT)
-    await db.set_job_status(other, RunStatus.RUNNING)
-    await db.set_job_status(other, RunStatus.SUCCESS)
+    await db.set_job_status(other, Status.RUNNING)
+    await db.set_job_status(other, Status.INIT)
+    await db.set_job_status(other, Status.RUNNING)
+    await db.set_job_status(other, Status.SUCCESS)
     third = await db.create_job("events")
-    await db.set_job_status(third, RunStatus.CANCELLED)
+    await db.set_job_status(third, Status.CANCELLED)
     assert [e.type for e in await db.list_job_events(other)] == ["queued", "running", "queued", "running", "succeeded"]
     assert [e.type for e in await db.list_job_events(third)] == ["queued", "cancelled"]
     try:
-        await db.set_job_status("no-such-job", RunStatus.RUNNING)
+        await db.set_job_status("no-such-job", Status.RUNNING)
     except LookupError:
         pass
     assert await db.list_job_events("no-such-job") == [], "a refused change writes no event"
@@ -431,23 +433,23 @@ async def check_database(make_db: Callable[[], Database]) -> None:
         assert await db.get_job("no-such-job") is None, "get_job of a job that does not exist must be None"
         job_id = await db.create_job("p")
         job = await db.get_job(job_id)
-        assert job is not None and job.name == "p" and job.status is RunStatus.INIT, "a new job is INIT"
+        assert job is not None and job.name == "p" and job.status is Status.INIT, "a new job is INIT"
         assert job.resumable is False and job.resumed_from is None and job.completed_at is None
         assert job.created_at.tzinfo is not None, "timestamps must be timezone-aware"
         assert await db.create_job("p", job_id="chosen") == "chosen", "create_job must use the id it is given"
 
-        await db.set_job_status(job_id, RunStatus.RUNNING)
+        await db.set_job_status(job_id, Status.RUNNING)
         running = await db.get_job(job_id)
-        assert running is not None and running.status is RunStatus.RUNNING and running.completed_at is None
-        await db.set_job_status(job_id, RunStatus.FAILED, error_type="ValueError", error_hash=_hash("boom"))
+        assert running is not None and running.status is Status.RUNNING and running.completed_at is None
+        await db.set_job_status(job_id, Status.FAILED, error_type="ValueError", error_hash=_hash("boom"))
         failed = await db.get_job(job_id)
-        assert failed is not None and failed.status is RunStatus.FAILED and failed.completed_at is not None
+        assert failed is not None and failed.status is Status.FAILED and failed.completed_at is not None
         assert (failed.error_type, failed.error_hash) == ("ValueError", _hash("boom"))
-        await db.set_job_status(job_id, RunStatus.SUCCESS, error_type="Ignored", error_hash=_hash("x"))
+        await db.set_job_status(job_id, Status.SUCCESS, error_type="Ignored", error_hash=_hash("x"))
         done = await db.get_job(job_id)
         assert done is not None and done.error_type is None, "the error is kept only for FAILED"
         try:
-            await db.set_job_status("no-such-job", RunStatus.RUNNING)
+            await db.set_job_status("no-such-job", Status.RUNNING)
         except LookupError:
             pass
         else:
@@ -459,27 +461,27 @@ async def check_database(make_db: Callable[[], Database]) -> None:
         assert row is not None and (row.job_version, row.job_hash, row.input_hash) == ("2", _hash("job"), _hash("in"))
         assert row.started_at is None and row.cancel_requested is False
         plain = await db.get_job(job_id)
-        child = await db.create_job("bg", parent_agent_run_id="run-parent")
+        child = await db.create_job("bg", parent_attempt_id="run-parent")
         row = await db.get_job(child)
         assert (
             row is not None
-            and row.parent_agent_run_id == "run-parent"
+            and row.parent_attempt_id == "run-parent"
             and plain is not None
-            and plain.parent_agent_run_id is None
+            and plain.parent_attempt_id is None
         )
         assert plain is not None and plain.job_version is None and plain.job_hash is None and plain.input_hash is None
-        await db.set_job_status(hashed, RunStatus.RUNNING)
+        await db.set_job_status(hashed, Status.RUNNING)
         row = await db.get_job(hashed)
         assert row is not None and row.started_at is not None, "RUNNING sets started_at"
-        await db.set_job_status(hashed, RunStatus.INIT)
+        await db.set_job_status(hashed, Status.INIT)
         row = await db.get_job(hashed)
-        assert row is not None and row.started_at is None and row.status is RunStatus.INIT, (
+        assert row is not None and row.started_at is None and row.status is Status.INIT, (
             "back to INIT clears started_at"
         )
-        await db.set_job_status(hashed, RunStatus.RUNNING)
-        await db.set_job_status(hashed, RunStatus.CANCELLED, error_type="Ignored", error_hash=_hash("x"))
+        await db.set_job_status(hashed, Status.RUNNING)
+        await db.set_job_status(hashed, Status.CANCELLED, error_type="Ignored", error_hash=_hash("x"))
         row = await db.get_job(hashed)
-        assert row is not None and row.status is RunStatus.CANCELLED and row.completed_at is not None
+        assert row is not None and row.status is Status.CANCELLED and row.completed_at is not None
         assert row.started_at is not None and row.error_type is None, (
             "CANCELLED is final, keeps started_at, has no error"
         )
@@ -498,11 +500,11 @@ async def check_database(make_db: Callable[[], Database]) -> None:
                 raise AssertionError(f"resuming {bad!r} must raise {error.__name__}")
 
         # runs
-        assert await db.get_run("no-such-run") is None, "get_run of a run that does not exist must be None"
+        assert await db.get_attempt("no-such-run") is None, "get_attempt of a run that does not exist must be None"
         first = _run(keeps, "run-1")
-        assert await db.create_run(first) == "run-1"
-        row = await db.get_run("run-1")
-        assert row is not None and row.status is RunStatus.INIT and row.started_at is None and row.completed_at is None
+        assert await db.create_attempt(first) == "run-1"
+        row = await db.get_attempt("run-1")
+        assert row is not None and row.status is Status.INIT and row.started_at is None and row.completed_at is None
         assert row.settings == first.settings, "settings must come back as the dict that went in"
         assert row.created_at.tzinfo is not None and row.attempt == 1 and row.depth == 1 and row.job_id == keeps
         assert (row.agent_hash, row.system_prompt_hash, row.tools_hash) == (
@@ -510,14 +512,14 @@ async def check_database(make_db: Callable[[], Database]) -> None:
             first.system_prompt_hash,
             first.tools_hash,
         )
-        await db.mark_run_running("run-1")
-        row = await db.get_run("run-1")
-        assert row is not None and row.status is RunStatus.RUNNING and row.started_at is not None
+        await db.start_attempt("run-1")
+        row = await db.get_attempt("run-1")
+        assert row is not None and row.status is Status.RUNNING and row.started_at is not None
         assert row.started_at >= row.created_at - timedelta(seconds=1)
-        await db.finish_run(
+        await db.finish_attempt(
             "run-1",
-            RunEnd(
-                status=RunStatus.SUCCESS,
+            AttemptFinish(
+                status=Status.SUCCESS,
                 output_hash=_hash("out"),
                 input_tokens=5,
                 output_tokens=7,
@@ -525,59 +527,56 @@ async def check_database(make_db: Callable[[], Database]) -> None:
                 reported_model_name="reported",
             ),
         )
-        row = await db.get_run("run-1")
-        assert row is not None and row.status is RunStatus.SUCCESS and row.completed_at is not None
+        row = await db.get_attempt("run-1")
+        assert row is not None and row.status is Status.SUCCESS and row.completed_at is not None
         assert (row.input_tokens, row.output_tokens, row.latency_ms) == (5, 7, 12.5)
         assert (row.output_hash, row.reported_model_name) == (_hash("out"), "reported")
         try:
-            await db.finish_run("no-such-run", RunEnd(status=RunStatus.FAILED))
+            await db.finish_attempt("no-such-run", AttemptFinish(status=Status.FAILED))
         except LookupError:
             pass
         else:
-            raise AssertionError("finish_run of a run that does not exist must raise LookupError")
+            raise AssertionError("finish_attempt of a run that does not exist must raise LookupError")
         try:
-            await db.create_run(_run("no-such-job", "run-x"))
+            await db.create_attempt(_run("no-such-job", "run-x"))
         except Exception:
-            assert await db.get_run("run-x") is None, "a run of a job that does not exist must not be written"
+            assert await db.get_attempt("run-x") is None, "a run of a job that does not exist must not be written"
         else:
-            raise AssertionError("create_run with a job that does not exist must raise")
+            raise AssertionError("create_attempt with a job that does not exist must raise")
 
         # the launch tree, and the order
-        await db.create_run(_run(keeps, "run-2", invocation_id="inv-2", parent_agent_run_id="run-1", depth=2))
-        await db.create_run(_run(keeps, "run-3", invocation_id="inv-2", attempt=2, thread_id="t-1"))
-        await db.create_run(_run(None, "run-4"))
-        await db.finish_run(
-            "run-3", RunEnd(status=RunStatus.FAILED, error_type="RuntimeError", error_hash=_hash("no"), latency_ms=1.0)
+        await db.create_attempt(_run(keeps, "run-2", run_id="inv-2", parent_attempt_id="run-1", depth=2))
+        await db.create_attempt(_run(keeps, "run-3", run_id="inv-2", attempt=2, thread_id="t-1"))
+        await db.create_attempt(_run(None, "run-4"))
+        await db.finish_attempt(
+            "run-3",
+            AttemptFinish(status=Status.FAILED, error_type="RuntimeError", error_hash=_hash("no"), latency_ms=1.0),
         )
-        everything = await db.list_runs()
-        assert [r.agent_run_id for r in everything] == ["run-1", "run-2", "run-3", "run-4"], (
-            "rows come in the order made"
-        )
+        everything = await db.list_attempts()
+        assert [r.attempt_id for r in everything] == ["run-1", "run-2", "run-3", "run-4"], "rows come in the order made"
         assert [r.seq for r in everything] == sorted(r.seq for r in everything)
-        assert [r.agent_run_id for r in await db.list_runs(job_id=keeps)] == ["run-1", "run-2", "run-3"]
-        assert [r.agent_run_id for r in await db.list_runs(invocation_id="inv-2")] == ["run-2", "run-3"]
-        assert [r.agent_run_id for r in await db.list_runs(job_id=keeps, invocation_id="inv-2")] == ["run-2", "run-3"]
-        third = await db.get_run("run-3")
+        assert [r.attempt_id for r in await db.list_attempts(job_id=keeps)] == ["run-1", "run-2", "run-3"]
+        assert [r.attempt_id for r in await db.list_attempts(run_id="inv-2")] == ["run-2", "run-3"]
+        assert [r.attempt_id for r in await db.list_attempts(job_id=keeps, run_id="inv-2")] == ["run-2", "run-3"]
+        third = await db.get_attempt("run-3")
         assert third is not None and (third.error_type, third.error_hash) == ("RuntimeError", _hash("no"))
         assert third.thread_id == "t-1" and third.attempt == 2
-        second = await db.get_run("run-2")
-        assert second is not None and (second.parent_agent_run_id, second.depth) == ("run-1", 2)
+        second = await db.get_attempt("run-2")
+        assert second is not None and (second.parent_attempt_id, second.depth) == ("run-1", 2)
 
         # finding a step to reuse: the first successful top-level run of the job with this agent and this input
-        found = await db.find_reusable_run(keeps, _hash("agent"), _hash("input"), None)
-        assert found is not None and found.agent_run_id == "run-1"
-        assert await db.find_reusable_run(keeps, _hash("other agent"), _hash("input"), None) is None
-        assert await db.find_reusable_run(keeps, _hash("agent"), _hash("other input"), None) is None
-        assert await db.find_reusable_run(job_id, _hash("agent"), _hash("input"), None) is None, (
+        found = await db.find_reusable_attempt(keeps, _hash("agent"), _hash("input"), None)
+        assert found is not None and found.attempt_id == "run-1"
+        assert await db.find_reusable_attempt(keeps, _hash("other agent"), _hash("input"), None) is None
+        assert await db.find_reusable_attempt(keeps, _hash("agent"), _hash("other input"), None) is None
+        assert await db.find_reusable_attempt(job_id, _hash("agent"), _hash("input"), None) is None, (
             "another job's runs do not match"
         )
-        await db.finish_run("run-2", RunEnd(status=RunStatus.SUCCESS))
-        found = await db.find_reusable_run(keeps, _hash("agent"), _hash("input"), None)
-        assert found is not None and found.agent_run_id == "run-1", (
-            "a run launched by an agent (depth 2) is never reused"
-        )
-        await db.create_run(_run(keeps, "run-5", agent_hash=_hash("agent 2")))
-        assert await db.find_reusable_run(keeps, _hash("agent 2"), _hash("input"), None) is None, (
+        await db.finish_attempt("run-2", AttemptFinish(status=Status.SUCCESS))
+        found = await db.find_reusable_attempt(keeps, _hash("agent"), _hash("input"), None)
+        assert found is not None and found.attempt_id == "run-1", "a run launched by an agent (depth 2) is never reused"
+        await db.create_attempt(_run(keeps, "run-5", agent_hash=_hash("agent 2")))
+        assert await db.find_reusable_attempt(keeps, _hash("agent 2"), _hash("input"), None) is None, (
             "only a SUCCESS run matches"
         )
 
@@ -835,7 +834,7 @@ class RecordingObserver(Observer):
     def attempt(self, start: AttemptStart) -> AbstractAsyncContextManager[Scope]:
         return self._scope("attempt", start)
 
-    async def reused(self, run: ReusedRun) -> None:
+    async def reused(self, run: RunReused) -> None:
         self.events.append(("reused", run))
 
     async def model_call_started(self, call: ModelCallStart) -> None:
@@ -874,8 +873,8 @@ async def check_observer(make_observer: Callable[[], Observer | Awaitable[Observ
 
     job = JobStart(job_id="job-1", name="job", version="1", job_hash=_hash("job"), input_hash=_hash("in"))
     attempt = AttemptStart(
-        agent_run_id="run-1",
-        invocation_id="inv-1",
+        attempt_id="run-1",
+        run_id="inv-1",
         attempt=1,
         max_attempts=3,
         job_id="job-1",
@@ -885,15 +884,15 @@ async def check_observer(make_observer: Callable[[], Observer | Awaitable[Observ
         provider="fake",
         model="fake-model",
     )
-    job_end = JobEnd(status=RunStatus.SUCCESS)
-    attempt_end = AttemptEnd(status=RunStatus.SUCCESS, final=True, input_tokens=3, output_tokens=2)
+    job_end = JobEnd(status=Status.SUCCESS)
+    attempt_end = AttemptEnd(status=Status.SUCCESS, final=True, input_tokens=3, output_tokens=2)
     events: list[tuple[str, Any]] = [
         (
             "reused",
-            ReusedRun(
-                agent_run_id="run-2",
-                invocation_id="inv-1",
-                reused_from_agent_run_id="run-0",
+            RunReused(
+                attempt_id="run-2",
+                run_id="inv-1",
+                reused_from_attempt_id="run-0",
                 agent_name="agent",
                 agent_version="1",
                 agent_hash=_hash("agent"),
@@ -901,11 +900,11 @@ async def check_observer(make_observer: Callable[[], Observer | Awaitable[Observ
         ),
         (
             "model_call_started",
-            ModelCallStart(call_id="m-1", agent_run_id="run-1", provider="fake", model="fake-model"),
+            ModelCallStart(call_id="m-1", attempt_id="run-1", provider="fake", model="fake-model"),
         ),
-        ("model_call_finished", ModelCallEnd(call_id="m-1", agent_run_id="run-1", input_tokens=3, output_tokens=2)),
-        ("tool_call_started", ToolCallStart(call_id="t-1", agent_run_id="run-1", tool_name="tool")),
-        ("tool_call_finished", ToolCallEnd(call_id="t-1", agent_run_id="run-1", tool_name="tool")),
+        ("model_call_finished", ModelCallEnd(call_id="m-1", attempt_id="run-1", input_tokens=3, output_tokens=2)),
+        ("tool_call_started", ToolCallStart(call_id="t-1", attempt_id="run-1", tool_name="tool")),
+        ("tool_call_finished", ToolCallEnd(call_id="t-1", attempt_id="run-1", tool_name="tool")),
     ]
     before = [record.model_dump() for record in (job, attempt, job_end, attempt_end, *(r for _, r in events))]
 

@@ -5,7 +5,7 @@ import asyncio
 from fakes import Echo, EchoInput, Reactive, respond, runner_with
 
 from featherweight.fingerprint import input_hash, output_hash
-from featherweight.models import RunStatus
+from featherweight.models import Status
 
 
 async def test_many_concurrent_runs_do_not_interfere(db):
@@ -17,17 +17,17 @@ async def test_many_concurrent_runs_do_not_interfere(db):
     results = await asyncio.gather(*(runner.run(Echo, EchoInput(text=t), job_id=job_id) for t in texts))
 
     assert model.max_in_flight > 1  # the runs really overlapped
-    assert all(r.status == RunStatus.SUCCESS for r in results)
+    assert all(r.status == Status.SUCCESS for r in results)
     assert [r.output.echoed for r in results] == texts  # each result belongs to its own input
-    assert len({r.agent_run_id for r in results}) == 25
+    assert len({r.attempt_id for r in results}) == 25
 
-    rows = await db.list_runs(job_id=job_id)
+    rows = await db.list_attempts(job_id=job_id)
     assert len(rows) == 25
-    assert len({r.invocation_id for r in rows}) == 25
-    by_run = {r.agent_run_id: r for r in results}
+    assert len({r.run_id for r in rows}) == 25
+    by_run = {r.attempt_id: r for r in results}
     for row in rows:
-        assert row.status == RunStatus.SUCCESS
-        result = by_run[row.agent_run_id]
+        assert row.status == Status.SUCCESS
+        result = by_run[row.attempt_id]
         assert row.input_hash == input_hash(EchoInput(text=result.output.echoed))  # no crosstalk between rows
         assert row.output_hash == output_hash(result.output)
         assert row.input_tokens == 5 and row.output_tokens == 7

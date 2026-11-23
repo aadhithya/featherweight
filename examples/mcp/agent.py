@@ -27,8 +27,8 @@ from featherweight import (  # noqa: E402
     Gemini,
     HttpMCPServer,
     ModelSettings,
-    RunStatus,
     SqliteDatabase,
+    Status,
     StdioMCPServer,
     default_db_path,
     setup_logging,
@@ -88,7 +88,7 @@ async def main(questions: list[str]) -> int:
             print(f"\n> {question}")
             job_id = await db.create_job("mcp-demo")
             result = await runner.run(RepoReader, QuestionInput(question=question), job_id=job_id)
-            if result.status == RunStatus.SUCCESS and result.output is not None:
+            if result.status == Status.SUCCESS and result.output is not None:
                 print(f"\n{result.output.answer}")
                 for source in result.output.sources:
                     print(f"  {source}")

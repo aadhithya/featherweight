@@ -13,10 +13,10 @@ import pytest
 from fakes import Echo, EchoInput, Reactive, structured_reply
 from psycopg.sql import SQL, Identifier
 
-from featherweight.db import RunStart
+from featherweight.db import AttemptRecord
 from featherweight.errors import SetupError
 from featherweight.migrations import MIGRATIONS, Migration
-from featherweight.models import RunStatus
+from featherweight.models import Status
 from featherweight.postgres import PostgresDatabase
 from featherweight.runner import AgentRunner
 from featherweight.testing import MemoryResultStore, check_database
@@ -73,13 +73,13 @@ async def test_connect_makes_the_schema_in_its_own_schema_and_records_the_baseli
     }
     assert tables == {
         "jobs",
-        "agent_runs",
+        "attempts",
         "job_events",
         "schema_migrations",
     }  # no results table: we ship no Postgres result store
     public = await query(
         "public",
-        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'agent_runs'",
+        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'attempts'",
     )
     assert public == []  # nothing in the application's own schema
 
@@ -146,14 +146,14 @@ async def test_a_schema_from_before_migrations_is_refused_and_left_alone(schema)
 
     async with await psycopg.AsyncConnection.connect(URL, autocommit=True) as conn:
         await conn.execute(SQL("CREATE SCHEMA {}").format(Identifier(schema)))
-        await conn.execute(SQL("CREATE TABLE {}.agent_runs (agent_run_id text)").format(Identifier(schema)))
+        await conn.execute(SQL("CREATE TABLE {}.attempts (attempt_id text)").format(Identifier(schema)))
     with pytest.raises(SetupError, match="before migrations"):
         await PostgresDatabase(URL, schema=schema).connect()
     tables = {
         r["table_name"]
         for r in await query(schema, "SELECT table_name FROM information_schema.tables WHERE table_schema = %s", schema)
     }
-    assert tables == {"agent_runs"}
+    assert tables == {"attempts"}
 
 
 # native types, and no data
@@ -171,13 +171,13 @@ async def test_the_columns_have_native_types_and_there_is_no_content_column(sche
             schema,
         )
     }
-    assert types[("agent_runs", "created_at")] == "timestamp with time zone"
-    assert types[("agent_runs", "settings")] == "jsonb"
-    assert types[("agent_runs", "seq")] == "bigint"
-    assert types[("agent_runs", "latency_ms")] == "double precision"
+    assert types[("attempts", "created_at")] == "timestamp with time zone"
+    assert types[("attempts", "settings")] == "jsonb"
+    assert types[("attempts", "seq")] == "bigint"
+    assert types[("attempts", "latency_ms")] == "double precision"
     assert types[("jobs", "resumable")] == "boolean"
     assert types[("jobs", "completed_at")] == "timestamp with time zone"
-    run_columns = {column for (table, column) in types if table == "agent_runs"}
+    run_columns = {column for (table, column) in types if table == "attempts"}
     from test_migrations import EXPECTED_RUN_COLUMNS
 
     assert run_columns == EXPECTED_RUN_COLUMNS
@@ -192,10 +192,10 @@ async def test_the_database_itself_refuses_what_the_schema_forbids(schema):
             await db.conn.execute(
                 "INSERT INTO jobs (job_id, name, status, created_at) VALUES ('j', 'p', 'BOGUS', now())"
             )
-        await db.create_run(
-            RunStart(
-                agent_run_id="r",
-                invocation_id="i",
+        await db.create_attempt(
+            AttemptRecord(
+                attempt_id="r",
+                run_id="i",
                 attempt=1,
                 agent_name="a",
                 agent_version="1",
@@ -210,7 +210,7 @@ async def test_the_database_itself_refuses_what_the_schema_forbids(schema):
             )  # fmt: skip
         )
         with pytest.raises(psycopg.errors.CheckViolation):
-            await db.conn.execute("UPDATE agent_runs SET input_tokens = -1")
+            await db.conn.execute("UPDATE attempts SET input_tokens = -1")
 
 
 @needs_postgres
@@ -238,15 +238,15 @@ async def test_a_runner_on_postgres_runs_resumes_and_keeps_no_content(schema):
         assert runner.results is store
         job = await db.create_job("p", resumable=True)
         result = await runner.run(Echo, EchoInput(text="secret question"), job_id=job)
-        assert result.status is RunStatus.SUCCESS
+        assert result.status is Status.SUCCESS
         retry = await db.create_job("p", resume_from=job)
         again = await runner.run(Echo, EchoInput(text="secret question"), job_id=retry)
         assert again.reused and sum(fake.counts.values()) == 1  # the second run called no model
-        (first, second) = await db.list_runs()
-        assert first.output_hash == second.output_hash and second.reused_from_agent_run_id == first.agent_run_id
+        (first, second) = await db.list_attempts()
+        assert first.output_hash == second.output_hash and second.reused_from_attempt_id == first.attempt_id
 
     dump = json.dumps(
-        [await query(schema, f"SELECT * FROM {table}") for table in ("jobs", "agent_runs", "schema_migrations")],
+        [await query(schema, f"SELECT * FROM {table}") for table in ("jobs", "attempts", "schema_migrations")],
         default=str,
     )
     assert "secret question" not in dump

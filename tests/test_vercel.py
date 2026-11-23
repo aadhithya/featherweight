@@ -41,7 +41,7 @@ from featherweight.adapters.vercel import (
 )
 from featherweight.db import Database
 from featherweight.model_settings import ModelSettings
-from featherweight.models import RunStatus
+from featherweight.models import Status
 from featherweight.streaming import StreamingAgent
 
 
@@ -195,7 +195,7 @@ async def test_a_run_is_encoded_as_it_streams(db):
     ]
     assert out[4]["input"] == {"city": "Paris"} and out[5]["output"] == "sunny in Paris"
     assert "".join(p["delta"] for p in out if p["type"] == "text-delta") == "It is sunny."
-    assert [r.thread_id for r in await db.list_runs()] == ["chat-1"]
+    assert [r.thread_id for r in await db.list_attempts()] == ["chat-1"]
 
 
 async def test_a_run_that_fails_ends_with_an_error_part_and_the_end_marker(db):
@@ -213,11 +213,11 @@ async def test_stopping_the_iteration_stops_the_run(db: Database):
             break
     await stream.aclose()  # a web framework does this when the client goes away
     for _ in range(50):
-        row = await db.get_run(run.run_id)
-        if row.status is not RunStatus.RUNNING:
+        row = await db.get_attempt(run.attempt_id)
+        if row.status is not Status.RUNNING:
             break
         await asyncio.sleep(0.02)
-    assert row.status is RunStatus.CANCELLED
+    assert row.status is Status.CANCELLED
     second = runner_with(db, Streams(turns=[["fine"]]), max_concurrent=1)
     assert parts([p async for p in encode(second.stream(Chat, parse_request([user("again")])))])[-1] == {
         "type": "finish"

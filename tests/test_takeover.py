@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from featherweight import JobClient
 from featherweight.fingerprint import input_hash
 from featherweight.jobs import Job, JobContext
-from featherweight.models import RunStatus
+from featherweight.models import Status
 from featherweight.queue import DEAD_LETTERED, JobMessage, SqliteQueue
 from featherweight.testing import MemoryQueue
 from featherweight.worker import JobWorker
@@ -86,7 +86,7 @@ async def until(condition, timeout=5.0):
 
 async def final(db, job_id):
     row = await db.get_job(job_id)
-    return row is not None and row.status is RunStatus.SUCCESS
+    return row is not None and row.status is Status.SUCCESS
 
 
 class Started:
@@ -129,13 +129,13 @@ async def test_a_job_whose_worker_stalled_is_taken_over_by_another_as_its_second
     queue = make_queue(db)
     job_id, (row, events, _) = await lost_and_taken_over(db, queue, model())
 
-    assert row.status is RunStatus.SUCCESS and row.worker_id == "w2" and row.executions == 2
+    assert row.status is Status.SUCCESS and row.worker_id == "w2" and row.executions == 2
     assert [(e.type, e.status) for e in events] == [
-        ("queued", RunStatus.INIT),
-        ("running", RunStatus.RUNNING),
-        ("lost", RunStatus.INIT),
-        ("running", RunStatus.RUNNING),
-        ("succeeded", RunStatus.SUCCESS),
+        ("queued", Status.INIT),
+        ("running", Status.RUNNING),
+        ("lost", Status.INIT),
+        ("running", Status.RUNNING),
+        ("succeeded", Status.SUCCESS),
     ]
 
 
@@ -145,7 +145,7 @@ async def test_the_worker_that_was_lost_writes_nothing_when_it_wakes_up(db):
 
     assert await db.list_job_events(job_id) == events, "nothing was added to the job after the takeover"
     row = await db.get_job(job_id)
-    assert row.status is RunStatus.SUCCESS and row.worker_id == "w2" and row.executions == 2
+    assert row.status is Status.SUCCESS and row.worker_id == "w2" and row.executions == 2
 
 
 async def test_a_takeover_of_a_resumable_job_reuses_the_steps_that_finished(db):
@@ -154,15 +154,15 @@ async def test_a_takeover_of_a_resumable_job_reuses_the_steps_that_finished(db):
     job_id, (_, _, seen) = await lost_and_taken_over(db, queue, fake)
 
     assert seen == {"a": 1, "b": 1, "c": 1}, "the steps that finished did not reach the model again"
-    runs = await db.list_runs(job_id=job_id)
+    runs = await db.list_attempts(job_id=job_id)
     first = [r for r in runs if r.job_execution == 1][:2]
     second = [r for r in runs if r.job_execution == 2]
     assert len(first) == 2 and len(second) == 3
-    assert [r.reused_from_agent_run_id for r in second[:2]] == [r.agent_run_id for r in first], (
+    assert [r.reused_from_attempt_id for r in second[:2]] == [r.attempt_id for r in first], (
         "the reused steps point at the runs of the first execution"
     )
-    assert second[2].reused_from_agent_run_id is None, "the third step ran"
-    assert all(r.reused_from_agent_run_id not in {s.agent_run_id for s in second} for r in second), (
+    assert second[2].reused_from_attempt_id is None, "the third step ran"
+    assert all(r.reused_from_attempt_id not in {s.attempt_id for s in second} for r in second), (
         "no run reuses its own execution's"
     )
     assert [(r.input_tokens, r.output_tokens) for r in second[:2]] == [(0, 0), (0, 0)]
@@ -174,7 +174,7 @@ async def test_a_takeover_of_a_job_that_is_not_resumable_runs_every_step_again(d
     job_id, (_, _, seen) = await lost_and_taken_over(db, queue, fake, resumable=False)
 
     assert seen == {"a": 2, "b": 2, "c": 1}, "a job that kept no results runs from the start"
-    assert all(r.reused_from_agent_run_id is None for r in await db.list_runs(job_id=job_id))
+    assert all(r.reused_from_attempt_id is None for r in await db.list_attempts(job_id=job_id))
 
 
 async def test_a_message_that_comes_back_to_the_worker_that_runs_the_job_is_a_duplicate(db):
@@ -202,7 +202,7 @@ async def test_a_duplicate_delivery_of_a_job_that_is_alive_is_skipped(db):
         async with Started(worker(db, queue, fake, worker_id="w2", lease=30)):
             await asyncio.sleep(0.4)
             row = await db.get_job(job_id)
-            assert row.worker_id == "w1" and row.executions == 1 and row.status is RunStatus.RUNNING
+            assert row.worker_id == "w1" and row.executions == 1 and row.status is Status.RUNNING
             assert [e.type for e in await db.list_job_events(job_id)] == ["queued", "running"]
         assert await queue.receive(0.05) is None, "the duplicate was acknowledged"
         Steps.hold.set()
@@ -218,16 +218,16 @@ async def test_fail_ends_a_job_that_has_not_started_and_leaves_a_final_one(db):
     queued = await db.create_job("p")
     assert await client.fail(queued) is True
     row = await db.get_job(queued)
-    assert row.status is RunStatus.FAILED and row.error_type == DEAD_LETTERED
+    assert row.status is Status.FAILED and row.error_type == DEAD_LETTERED
     events = await db.list_job_events(queued)
     assert [(e.type, e.error_type) for e in events] == [("queued", None), ("failed", DEAD_LETTERED)]
     assert await client.fail(queued) is False, "a job that ended stays as it is"
     assert await client.fail("no-such-job") is False
 
     done = await db.create_job("p")
-    await db.set_job_status(done, RunStatus.SUCCESS)
+    await db.set_job_status(done, Status.SUCCESS)
     assert await client.fail(done) is False
-    assert (await db.get_job(done)).status is RunStatus.SUCCESS
+    assert (await db.get_job(done)).status is Status.SUCCESS
 
     running = await db.create_job("p")
     assert await db.start_job(running, worker_id="w1", lease=30) is True
@@ -244,7 +244,7 @@ async def test_a_message_that_the_sqlite_queue_gave_up_on_fails_its_job(db):
     assert await queue.receive(0.05) is None
 
     row = await db.get_job(job_id)
-    assert row.status is RunStatus.FAILED and row.error_type == DEAD_LETTERED
+    assert row.status is Status.FAILED and row.error_type == DEAD_LETTERED
     assert [e.type for e in await db.list_job_events(job_id)] == ["queued", "failed"]
 
 
@@ -257,4 +257,4 @@ async def test_a_message_that_was_given_up_on_while_its_worker_was_lost_fails_th
     await asyncio.sleep(0.15)
     assert await queue.receive(0.05) is None
     row = await db.get_job(job_id)
-    assert row.status is RunStatus.FAILED and row.error_type == DEAD_LETTERED
+    assert row.status is Status.FAILED and row.error_type == DEAD_LETTERED

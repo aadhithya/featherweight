@@ -25,7 +25,7 @@ from doclearn.assembly import LEADING_NUMBER, conditions_hold
 from doclearn.facts import SPAN_RE, find_spans, walk
 from doclearn.models import ElementType, FieldValue, InputField, LearnedNode, LearnedTree
 from doclearn.store import LearnedDocument
-from featherweight import AgentBase, AgentInput, AgentOutput, AgentRunner, Gemini, ModelSettings, RunContext, RunStatus
+from featherweight import AgentBase, AgentInput, AgentOutput, AgentRunner, Gemini, ModelSettings, RunContext, Status
 from featherweight.tools import add_to_date, calculate, current_datetime, days_between
 
 logger = logging.getLogger(__name__)
@@ -335,7 +335,7 @@ async def generate_document(
         result = await runner.run(GeneratorAgent, agent_input, job_id=job_id)
     finally:
         state = GENERATION.pop(job_id, None)  # the state of this job is not kept
-    if result.status != RunStatus.SUCCESS:
+    if result.status != Status.SUCCESS:
         raise GenerationError(f"The Generator failed: {result.error}")
     if state is None or state["document"] is None:
         raise GenerationError(

@@ -15,7 +15,7 @@ from featherweight.errors import SetupError
 from featherweight.mcp import HttpMCPServer, StdioMCPServer
 from featherweight.mcp_connections import Lease, MCPConnections, connection_config
 from featherweight.mcp_tools import present
-from featherweight.models import RunStatus
+from featherweight.models import Status
 
 # the declaration
 
@@ -167,7 +167,7 @@ async def test_the_tools_of_a_server_are_named_after_it_and_bound_to_the_model(d
     async with runner_with(db, model) as runner:
         result = await runner.run(worker(fake()), INPUT)
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     assert texts(model) == ["5"]
     assert {"fake_add", "fake_pid", "fake_boom"} <= set(model.bound[0])  # what the model was bound to
 
@@ -184,7 +184,7 @@ async def test_a_tool_the_server_does_not_have_fails_the_attempt_without_a_retry
     async with runner_with(db, Scripted(script=[done()])) as runner:
         result = await runner.run(worker(fake(tools=("add", "adds"))), INPUT)
 
-    assert result.status == RunStatus.FAILED and result.attempts == 1
+    assert result.status == Status.FAILED and result.attempts == 1
     assert "adds" in result.error and "It has:" in result.error and "add" in result.error
 
 
@@ -193,10 +193,10 @@ async def test_a_command_that_does_not_exist_fails_at_once(db):
     async with runner_with(db, Scripted(script=[done()])) as runner:
         result = await runner.run(worker(server), INPUT)
 
-    assert result.status == RunStatus.FAILED and result.attempts == 1
+    assert result.status == Status.FAILED and result.attempts == 1
     assert "ghost" in result.error and "could not be started" in result.error
-    (row,) = await db.list_runs()
-    assert row.status == RunStatus.FAILED
+    (row,) = await db.list_attempts()
+    assert row.status == Status.FAILED
 
 
 async def test_a_missing_environment_variable_fails_at_once_and_names_the_variable(db, monkeypatch):
@@ -204,7 +204,7 @@ async def test_a_missing_environment_variable_fails_at_once_and_names_the_variab
     async with runner_with(db, Scripted(script=[done()])) as runner:
         result = await runner.run(worker(fake(env_from=("FAKE_TOKEN",))), INPUT)
 
-    assert result.status == RunStatus.FAILED and result.attempts == 1 and "FAKE_TOKEN" in result.error
+    assert result.status == Status.FAILED and result.attempts == 1 and "FAKE_TOKEN" in result.error
 
 
 async def test_two_tools_with_one_name_fail_the_attempt_without_a_retry(db):
@@ -216,7 +216,7 @@ async def test_two_tools_with_one_name_fail_the_attempt_without_a_retry(db):
     async with runner_with(db, Scripted(script=[done()])) as runner:
         result = await runner.run(worker(fake(), tools=[fake_add]), INPUT)
 
-    assert result.status == RunStatus.FAILED and result.attempts == 1
+    assert result.status == Status.FAILED and result.attempts == 1
     assert "fake_add" in result.error and "local" in result.error and "mcp" in result.error
 
 
@@ -232,7 +232,7 @@ async def test_a_local_tool_and_an_mcp_tool_work_in_one_attempt(db):
     async with runner_with(db, model) as runner:
         result = await runner.run(worker(fake(), tools=[shout]), INPUT)
 
-    assert result.status == RunStatus.SUCCESS and texts(model) == ["HI", "2"]
+    assert result.status == Status.SUCCESS and texts(model) == ["HI", "2"]
 
 
 async def test_a_tool_error_reaches_the_model_as_text_and_the_run_goes_on(db):
@@ -240,7 +240,7 @@ async def test_a_tool_error_reaches_the_model_as_text_and_the_run_goes_on(db):
     async with runner_with(db, model) as runner:
         result = await runner.run(worker(fake()), INPUT)
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     assert "kaboom" in texts(model)[0]
 
 
@@ -256,7 +256,7 @@ async def test_calls_in_one_turn_run_at_the_same_time_on_one_process(db):
         result = await runner.run(worker(fake()), INPUT)
         elapsed = loop.time() - started
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     pids = set(texts(model))
     assert len(pids) == 1  # one process served all four
     assert elapsed < 1.9  # four calls of 0.5s one after another would take 2s and more
@@ -286,13 +286,13 @@ async def test_a_server_that_dies_gives_text_to_the_model_and_the_next_run_gets_
     second = Scripted(script=[tool_reply("fake_pid", {}, "c1"), done()])
     async with runner_with(db, first) as runner:
         result = await runner.run(worker(fake()), INPUT)
-        assert result.status == RunStatus.SUCCESS  # the run was not lost with the server
+        assert result.status == Status.SUCCESS  # the run was not lost with the server
         assert "unavailable" in texts(first)[1]
 
         use_model(second)
         result = await runner.run(worker(fake()), INPUT)
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     assert texts(second)[0] != texts(first)[0]  # another process
 
 
@@ -301,7 +301,7 @@ async def test_a_call_over_the_timeout_gives_text_to_the_model(db):
     async with runner_with(db, model) as runner:
         result = await runner.run(worker(fake(timeout_s=0.5)), INPUT)
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     assert "timed out after 0.5s" in texts(model)[0]
 
 
@@ -328,7 +328,7 @@ async def test_images_and_files_reach_the_model_and_a_link_becomes_text(db):
     async with runner_with(db, model) as runner:
         result = await runner.run(worker(fake()), INPUT)
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     image, document, link, city = shown(model)
     assert image[0]["type"] == "image" and image[0]["mime_type"] == "image/png" and image[0]["base64"]
     assert document[0]["type"] == "file" and document[0]["mime_type"] == "application/pdf"
@@ -372,7 +372,7 @@ async def test_a_server_that_refuses_the_token_fails_at_once_and_names_the_serve
     async with runner_with(db, Scripted(script=[done()])) as runner:
         result = await runner.run(worker(server), INPUT)
 
-    assert result.status == RunStatus.FAILED and result.attempts == 1
+    assert result.status == Status.FAILED and result.attempts == 1
     assert "remote" in result.error and "401" in result.error and "refused" in result.error
     assert seen and seen[0] == "Bearer tok-123"  # the token went out as a bearer token
     assert "tok-123" not in result.error
@@ -386,7 +386,7 @@ async def test_a_server_that_is_busy_is_retried(db, http_server, monkeypatch):
     async with runner_with(db, Scripted(script=[done()])) as runner:
         result = await runner.run(worker(server), INPUT)
 
-    assert result.status == RunStatus.FAILED and result.attempts == 3
+    assert result.status == Status.FAILED and result.attempts == 3
 
 
 async def test_closing_the_runner_stops_the_server_process_and_can_be_done_twice(db):
@@ -419,7 +419,7 @@ async def test_a_sub_agent_uses_the_servers_it_declares_itself(db):
     use_model(child_model, key="child")  # the child declares its own settings, which name this model
     result = await runner.run(Boss, INPUT)  # the runner is not open: the child's server starts and stops by itself
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     assert texts(child_model) == ["9"]
     assert (
         "fake_add" in child_model.bound[0] and "fake_add" not in parent_model.bound[0]
@@ -448,7 +448,7 @@ def pid_run(db, runs=1):
 async def test_without_async_with_the_server_stops_when_the_run_ends_and_each_run_starts_its_own(db):
     runner, model = pid_run(db, runs=2)
     first = await runner.run(worker(fake()), INPUT)
-    assert first.status == RunStatus.SUCCESS
+    assert first.status == Status.SUCCESS
     (pid,) = [int(value) for value in texts(model)]
     await wait_gone(pid)  # stopped with the run
     assert runner._mcp is not None and runner._mcp._entries == {}
@@ -481,7 +481,7 @@ async def test_parallel_runs_share_one_server_and_it_stops_after_the_last(db, ca
     inputs = [EchoInput(text=name) for name in ("a", "b", "c")]
     results = await runner.run_many(worker(fake()), inputs)
 
-    assert [r.status for r in results] == [RunStatus.SUCCESS] * 3
+    assert [r.status for r in results] == [Status.SUCCESS] * 3
     assert caplog.text.count("mcp_open server=fake") == 1 and caplog.text.count("mcp_close server=fake") == 1
     assert runner._mcp is not None and runner._mcp._entries == {}
 
@@ -491,7 +491,7 @@ async def test_a_retry_does_not_start_the_server_again(db, caplog):
     model = Scripted(script=[RuntimeError("model down"), done()])
     result = await runner_with(db, model).run(worker(fake()), INPUT)
 
-    assert result.status == RunStatus.SUCCESS and result.attempts == 2
+    assert result.status == Status.SUCCESS and result.attempts == 2
     assert caplog.text.count("mcp_open server=fake") == 1
 
 
@@ -543,11 +543,11 @@ async def test_each_call_and_each_open_and_close_is_logged(db, caplog):
     model = Scripted(script=[tool_reply("fake_add", {"a": 1, "b": 2}, "c1"), done()])
     async with runner_with(db, model) as runner:
         await runner.run(worker(fake()), INPUT)
-    (row,) = await db.list_runs()
+    (row,) = await db.list_attempts()
 
     log = caplog.text
     assert "mcp_open server=fake transport=stdio" in log and "mcp_close server=fake" in log
-    assert f"mcp_call agent_run_id={row.agent_run_id} server=fake tool=fake_add status=ok" in log
+    assert f"mcp_call attempt_id={row.attempt_id} server=fake tool=fake_add status=ok" in log
 
 
 async def test_a_secret_is_in_no_log_no_row_and_no_error(db, monkeypatch, caplog):
@@ -561,7 +561,7 @@ async def test_a_secret_is_in_no_log_no_row_and_no_error(db, monkeypatch, caplog
         ok = await runner.run(worker(fake(env_from=("FAKE_TOKEN",))), INPUT)
         failed = await runner.run(worker(fake(name="two", env_from=("FAKE_TOKEN", "OTHER_TOKEN"))), INPUT)
 
-    assert ok.status == RunStatus.SUCCESS and texts(model) == [f"set, {len(secret)} characters"]  # the server got it
-    assert failed.status == RunStatus.FAILED and "OTHER_TOKEN" in failed.error
-    everything = caplog.text + repr(await db.list_runs()) + repr(ok) + repr(failed)
+    assert ok.status == Status.SUCCESS and texts(model) == [f"set, {len(secret)} characters"]  # the server got it
+    assert failed.status == Status.FAILED and "OTHER_TOKEN" in failed.error
+    everything = caplog.text + repr(await db.list_attempts()) + repr(ok) + repr(failed)
     assert secret not in everything

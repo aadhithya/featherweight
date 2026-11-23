@@ -16,7 +16,7 @@ from featherweight.db import FINAL, Database, JobLost, JobOwner, JobRow, new_id
 from featherweight.fingerprint import error_fields
 from featherweight.identity import IdentitySpec
 from featherweight.jobs import Job, as_job, execute_job
-from featherweight.models import AgentBase, RunStatus
+from featherweight.models import AgentBase, Status
 from featherweight.queue import Delivery, JobQueue
 from featherweight.results import ResultStore, SqliteResultStore
 from featherweight.runner import AgentRunner
@@ -210,7 +210,7 @@ class JobWorker:
         # delivery (or a slow owner): leave the job alone. If it has, its worker was lost: take it over, as a new execution.
         # The database decides, in one step, by its own clock.
         taken_over = False
-        if row.status is RunStatus.RUNNING:
+        if row.status is Status.RUNNING:
             if not await self.db.take_over_job(row.job_id, self.worker_id, self.lease):
                 logger.info("worker_duplicate job_id=%s: another worker has it", row.job_id)
                 await self.queue.ack(delivery)
@@ -256,7 +256,7 @@ class JobWorker:
         # that cancels at the same moment loses or wins cleanly, and a job is never both cancelled and run.
         if not taken_over and not await self.db.start_job(row.job_id, worker_id=self.worker_id, lease=self.lease):
             current = await self.db.get_job(row.job_id)
-            if current is not None and current.status is RunStatus.INIT and current.cancel_requested:
+            if current is not None and current.status is Status.INIT and current.cancel_requested:
                 await self.db.cancel_queued_job(row.job_id)  # asked to cancel before it started
             logger.info("worker_skipped job_id=%s: it was cancelled, or is not queued any more", row.job_id)
             await self.queue.ack(delivery)
@@ -305,7 +305,7 @@ class JobWorker:
 
     async def _fail(self, job_id: str, exc: BaseException, delivery: Delivery) -> None:
         error_type, error_hash = error_fields(exc)  # the text goes to the log, not the run log
-        await self.db.set_job_status(job_id, RunStatus.FAILED, error_type=error_type, error_hash=error_hash)
+        await self.db.set_job_status(job_id, Status.FAILED, error_type=error_type, error_hash=error_hash)
         logger.error("job_failed job_id=%s error=%s: %s", job_id, error_type, exc)
         await self.queue.ack(delivery)
 
@@ -325,11 +325,11 @@ class JobWorker:
                 return
             try:
                 if job_id in self._requeue:  # a shutdown: back to the queue, to run again
-                    await self.db.set_job_status(job_id, RunStatus.INIT, owner=owner)
+                    await self.db.set_job_status(job_id, Status.INIT, owner=owner)
                     await self.queue.nack(delivery, requeue=True)
                     logger.warning("job_requeued job_id=%s", job_id)
                 else:  # a client asked, or `cancel()` was called
-                    await self.db.set_job_status(job_id, RunStatus.CANCELLED, owner=owner)
+                    await self.db.set_job_status(job_id, Status.CANCELLED, owner=owner)
                     await self.queue.ack(delivery)
                     logger.warning("job_cancelled job_id=%s", job_id)
             except JobLost:

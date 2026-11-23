@@ -175,7 +175,7 @@ def test_a_cycle_between_agents_does_not_loop_forever():
 async def test_the_run_log_records_the_hash_and_leaves_the_prompt_hash_alone(db):
     model = Scripted(script=[structured_reply("EchoOutput", {"echoed": "hi"})])
     await runner_with(db, model).run(Echo, EchoInput(text="hi"))
-    (row,) = await db.list_runs()
+    (row,) = await db.list_attempts()
     assert row.agent_hash == agent_hash(Echo())
     assert row.system_prompt_hash == Echo().system_prompt_hash
     assert row.agent_hash != row.system_prompt_hash

@@ -12,7 +12,7 @@ from test_streaming import Chat, say
 from featherweight.fingerprint import identity_hash, input_hash
 from featherweight.identity import IdentitySpec
 from featherweight.migrations import MIGRATIONS
-from featherweight.models import RunStatus
+from featherweight.models import Status
 from featherweight.sqlite import SqliteDatabase
 
 
@@ -30,7 +30,7 @@ def steps(runner, inputs, identity):
     async def pipeline(job_id):
         for text in inputs:
             result = await runner.run(Echo, EchoInput(text=text), job_id=job_id, identity=identity)
-            if result.status == RunStatus.FAILED:
+            if result.status == Status.FAILED:
                 raise RuntimeError(result.error)
 
     return pipeline
@@ -64,15 +64,15 @@ def test_a_field_that_is_excluded_is_not_in_the_hash_so_that_a_process_and_a_wor
 
 async def test_the_same_identity_resumes_and_reuses_the_steps_that_finished(db):
     failed = await run_as(db, A, model({"b"}))
-    assert failed.status == RunStatus.FAILED
+    assert failed.status == Status.FAILED
 
     healthy = model()
     outcome = await run_as(db, A, healthy, resume_from=failed.job_id)
 
-    assert outcome.status == RunStatus.SUCCESS
+    assert outcome.status == Status.SUCCESS
     assert texts(healthy) == ["b", "c"]  # "a" was reused: it never reached the model
-    new = await db.list_runs(job_id=outcome.job_id)
-    assert new[0].reused_from_agent_run_id is not None
+    new = await db.list_attempts(job_id=outcome.job_id)
+    assert new[0].reused_from_attempt_id is not None
 
 
 async def test_another_identity_reruns_every_step(db):
@@ -81,10 +81,10 @@ async def test_another_identity_reruns_every_step(db):
     healthy = model()
     outcome = await run_as(db, B, healthy, resume_from=failed.job_id)
 
-    assert outcome.status == RunStatus.SUCCESS
+    assert outcome.status == Status.SUCCESS
     assert texts(healthy) == ["a", "b", "c"]  # nothing was reused: the permissions may have changed
-    new = await db.list_runs(job_id=outcome.job_id)
-    assert [r.reused_from_agent_run_id for r in new] == [None, None, None]
+    new = await db.list_attempts(job_id=outcome.job_id)
+    assert [r.reused_from_attempt_id for r in new] == [None, None, None]
     assert {r.identity_hash for r in new} == {identity_hash(B)}
 
 
@@ -97,7 +97,7 @@ async def test_an_identity_and_no_identity_never_match(db, before, after):
     healthy = model()
     outcome = await run_as(db, after, healthy, resume_from=failed.job_id)
 
-    assert outcome.status == RunStatus.SUCCESS and texts(healthy) == ["a", "b", "c"]
+    assert outcome.status == Status.SUCCESS and texts(healthy) == ["a", "b", "c"]
 
 
 async def test_no_identity_then_no_identity_still_reuses(db):
@@ -106,7 +106,7 @@ async def test_no_identity_then_no_identity_still_reuses(db):
     healthy = model()
     outcome = await run_as(db, None, healthy, resume_from=failed.job_id)
 
-    assert outcome.status == RunStatus.SUCCESS and texts(healthy) == ["b", "c"]
+    assert outcome.status == Status.SUCCESS and texts(healthy) == ["b", "c"]
 
 
 async def test_a_value_that_exists_only_in_the_process_does_not_stop_the_reuse(db):
@@ -115,14 +115,14 @@ async def test_a_value_that_exists_only_in_the_process_does_not_stop_the_reuse(d
     healthy = model()
     outcome = await run_as(db, Teacher(user_id="a", token="second"), healthy, resume_from=failed.job_id)
 
-    assert outcome.status == RunStatus.SUCCESS and texts(healthy) == ["b", "c"]
+    assert outcome.status == Status.SUCCESS and texts(healthy) == ["b", "c"]
 
 
 async def test_a_run_records_the_hash_and_not_the_identity(db):
     distinct = Teacher(user_id="u-distinct-789")
     outcome = await run_as(db, distinct, inputs="a")
 
-    (row,) = await db.list_runs(job_id=outcome.job_id)
+    (row,) = await db.list_attempts(job_id=outcome.job_id)
     assert row.identity_hash == identity_hash(distinct)
     assert "u-distinct-789" not in repr(row)  # the identity itself is stored nowhere
 
@@ -133,7 +133,7 @@ async def test_a_streamed_run_records_it_too(db):
     events = [event async for event in runner.stream(Chat, say("hello"), identity=A)]
 
     assert events[-1].type.value == "RUN_FINISHED"
-    (row,) = await db.list_runs()
+    (row,) = await db.list_attempts()
     assert row.identity_hash == identity_hash(A)
 
 
@@ -159,7 +159,7 @@ async def test_a_database_from_before_the_column_is_migrated_and_its_runs_have_n
     conn.close()
 
     async with SqliteDatabase(path) as db:
-        row = await db.get_run("old-run")
+        row = await db.get_attempt("old-run")
         assert row is not None and row.identity_hash is None  # a run from before the column had no identity
         async with db.conn.execute("SELECT version, name FROM schema_migrations ORDER BY version") as cur:
             assert (2, "identity_hash") in [tuple(r) for r in await cur.fetchall()]

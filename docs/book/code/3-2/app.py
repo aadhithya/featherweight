@@ -35,7 +35,7 @@ async def main() -> None:
         assert job_row  # the job is there
         print("job:", job_row.name, job_row.status.value, f"version {job_row.job_version}")
         print("events:", [event.type for event in await db.list_job_events(outcome.job_id)])
-        for run in await db.list_runs(job_id=outcome.job_id):  # one row for each attempt of each agent run
+        for run in await db.list_attempts(job_id=outcome.job_id):  # one row for each attempt of each agent run
             print(
                 f"  {run.agent_name} attempt {run.attempt}: {run.status.value}, tokens={run.input_tokens}+{run.output_tokens}"
             )

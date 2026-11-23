@@ -21,7 +21,7 @@ _EXPORTS = {
     "AgentInput": "models",
     "AgentOutput": "models",
     "AgentResult": "models",
-    "RunStatus": "models",
+    "Status": "models",
     "AgentRunner": "runner",
     # streaming agents
     "StreamingAgent": "streaming",
@@ -40,12 +40,12 @@ _EXPORTS = {
     "Database": "db",
     "SqliteDatabase": "sqlite",
     "PostgresDatabase": "postgres",
-    "RunStart": "db",
-    "RunEnd": "db",
+    "AttemptRecord": "db",
+    "AttemptFinish": "db",
     "JobRow": "db",
     "JobOwner": "db",
     "JobLost": "db",
-    "AgentRunRow": "db",
+    "AttemptRow": "db",
     "JobEvent": "db",
     "job_events": "events",
     "wait_for_job": "events",
@@ -60,7 +60,7 @@ _EXPORTS = {
     "JobSubmitted": "observers",
     "AttemptStart": "observers",
     "AttemptEnd": "observers",
-    "ReusedRun": "observers",
+    "RunReused": "observers",
     "ModelCallStart": "observers",
     "ModelCallEnd": "observers",
     "ToolCallStart": "observers",
@@ -131,14 +131,14 @@ if TYPE_CHECKING:  # for editors and type checkers: the same names, imported
     from featherweight.adapters.errors import BadRequest as BadRequest
     from featherweight.client import JobClient as JobClient
     from featherweight.context import RunContext as RunContext
-    from featherweight.db import AgentRunRow as AgentRunRow
+    from featherweight.db import AttemptFinish as AttemptFinish
+    from featherweight.db import AttemptRecord as AttemptRecord
+    from featherweight.db import AttemptRow as AttemptRow
     from featherweight.db import Database as Database
     from featherweight.db import JobEvent as JobEvent
     from featherweight.db import JobLost as JobLost
     from featherweight.db import JobOwner as JobOwner
     from featherweight.db import JobRow as JobRow
-    from featherweight.db import RunEnd as RunEnd
-    from featherweight.db import RunStart as RunStart
     from featherweight.db import default_db_path as default_db_path
     from featherweight.errors import SetupError as SetupError
     from featherweight.events import job_events as job_events
@@ -165,7 +165,7 @@ if TYPE_CHECKING:  # for editors and type checkers: the same names, imported
     from featherweight.models import AgentInput as AgentInput
     from featherweight.models import AgentOutput as AgentOutput
     from featherweight.models import AgentResult as AgentResult
-    from featherweight.models import RunStatus as RunStatus
+    from featherweight.models import Status as Status
     from featherweight.observers import AttemptEnd as AttemptEnd
     from featherweight.observers import AttemptStart as AttemptStart
     from featherweight.observers import JobEnd as JobEnd
@@ -174,7 +174,7 @@ if TYPE_CHECKING:  # for editors and type checkers: the same names, imported
     from featherweight.observers import ModelCallEnd as ModelCallEnd
     from featherweight.observers import ModelCallStart as ModelCallStart
     from featherweight.observers import Observer as Observer
-    from featherweight.observers import ReusedRun as ReusedRun
+    from featherweight.observers import RunReused as RunReused
     from featherweight.observers import Scope as Scope
     from featherweight.observers import ToolCallEnd as ToolCallEnd
     from featherweight.observers import ToolCallStart as ToolCallStart

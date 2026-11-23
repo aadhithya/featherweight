@@ -66,7 +66,7 @@ class Researcher(AgentBase):
 | The input does not fit | `The input for 'x' is not valid: ... Check get_agent_schema and try again.` |
 | The limit of live children is reached | A sentence saying so |
 
-- **The child is a job** with its own id. Its row records `parent_agent_run_id`, the attempt that started it (metadata only), so that the
+- **The child is a job** with its own id. Its row records `parent_attempt_id`, the attempt that started it (metadata only), so that the
   tree of a trace is one query. Its agent runs are those of an ordinary job: its own retries, tools and sub-agents. It does not share the
   parent's job.
 
@@ -144,7 +144,7 @@ A failed child has `status="FAILED"` and its `error_type`, and a cancelled one `
 
 ## Limits
 
-- **Live children** (`max_background`, default 3): the most children of one attempt of one agent that may be running at one time. A start
+- **Live children** (`max_background_jobs`, default 3): the most children of one attempt of one agent that may be running at one time. A start
   over the limit is refused with a sentence, and does not count. Finished children do not count.
 - **No recursion:** a background job cannot start background jobs ([the tool](#the-tool)), and it is a job of its own, so `max_depth`
   and `max_launches` count within it, as in any job.
@@ -153,7 +153,7 @@ A failed child has `status="FAILED"` and its `error_type`, and a cancelled one `
 ## What changes
 
 Each in the spec that owns it: **agents** (the `background_jobs` field and its checks); **the runner** (the tool, the limits, the hook before
-the model call, `AgentRunner(background=)`, `runner.background_message`, cancel propagation); **persistence** (`jobs.parent_agent_run_id`);
+the model call, `AgentRunner(background=)`, `runner.background_message`, cancel propagation); **persistence** (`jobs.parent_attempt_id`);
 **streaming** (the two `CUSTOM` events); **observability** (the child's span); **submitted jobs** (nothing: a child is a job).
 
 ## Decisions
@@ -181,7 +181,7 @@ the model call, `AgentRunner(background=)`, `runner.background_message`, cancel 
 - **Background jobs that start background jobs.**
 - **A tool for the model to wait, check or poll** a child.
 - **Streaming agents as background jobs** (they stream to a person, as for jobs).
-- **A registry of running children,** or a way to list them: the jobs table has them (`parent_agent_run_id`).
+- **A registry of running children,** or a way to list them: the jobs table has them (`parent_attempt_id`).
 
 ## Tests
 
@@ -200,7 +200,7 @@ No live model call. Fake models, `MemoryQueue`, the dict result store.
 
 Tracked in [epic #115](https://github.com/aadhithya/featherweight/issues/115). One issue and one pull request each, in this order:
 
-1. [#116](https://github.com/aadhithya/featherweight/issues/116) **The child job and the tool:** `background_jobs`, `start_background`, `jobs.parent_agent_run_id`, here and on a worker, the limit.
+1. [#116](https://github.com/aadhithya/featherweight/issues/116) **The child job and the tool:** `background_jobs`, `start_background`, `jobs.parent_attempt_id`, here and on a worker, the limit.
 2. [#117](https://github.com/aadhithya/featherweight/issues/117) **The result:** the hook before the model call, `runner.background_message`, and a run that waits for its children.
 3. [#118](https://github.com/aadhithya/featherweight/issues/118) **Events and cancel:** the two `CUSTOM` events, stopping a response cancels its children, observers.
 4. [#119](https://github.com/aadhithya/featherweight/issues/119) **The guide and the skill.**

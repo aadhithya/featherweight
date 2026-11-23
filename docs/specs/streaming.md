@@ -208,7 +208,7 @@ closed the same way (its text so far, no call without a result, with "the run fa
 
 ## The run log
 
-One `agent_runs` row per turn, as for any run, with these differences. The run log holds no content for any agent (see the
+One `attempts` row per turn, as for any run, with these differences. The run log holds no content for any agent (see the
 [persistence spec](persistence.md)): a streaming run has no placeholders for its input and output, only their hashes.
 
 | | |

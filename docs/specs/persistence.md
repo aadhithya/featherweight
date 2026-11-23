@@ -92,11 +92,11 @@ not write every abstract method cannot be built.
 | `list_job_events(job_id, after, limit)`, `poll_job_events(job_ids, after)` | The events of one job, or of many in one query |
 | `renew_job_leases(worker_id, jobs, lease)`, `owns_job(job_id, owner)` | A worker's heartbeat (one in-place update for all of its jobs, returning the ones it still owns), and a cheap read of whether it still owns one ([several workers](submitted-jobs.md#several-workers)). `set_job_status(..., owner=)` and the lease renewal are conditional on the owner, in the statement, and raise `JobLost` when it is not |
 | `take_over_job(job_id, worker_id, lease)` | Taking a job whose lease expired: one transaction, a `lost` event and then a `running` event, `executions` + 1, a new lease; False if the lease is live. Where the database has a clock, it decides ([several workers](submitted-jobs.md#several-workers)) |
-| `create_run(RunStart)`, `mark_run_running(...)`, `finish_run(RunEnd)`, `get_run(...)`, `list_runs(...)` | Runs |
-| `find_reusable_run(job_id, agent_hash, input_hash, identity_hash, before_execution=None)` | The run of a job that succeeded with this agent, input and identity (an empty `identity_hash` matches only an empty one): metadata only. With `before_execution`, only runs of an earlier execution of the job (a takeover looks in its own job) |
+| `create_attempt(AttemptRecord)`, `start_attempt(...)`, `finish_attempt(AttemptFinish)`, `get_attempt(...)`, `list_attempts(...)` | Runs |
+| `find_reusable_attempt(job_id, agent_hash, input_hash, identity_hash, before_execution=None)` | The run of a job that succeeded with this agent, input and identity (an empty `identity_hash` matches only an empty one): metadata only. With `before_execution`, only runs of an earlier execution of the job (a takeover looks in its own job) |
 
-**Typed in, typed out.** `create_run` and `finish_run` take frozen Pydantic records (`RunStart`, `RunEnd`), and the methods return
-Pydantic rows (`JobRow`, `AgentRunRow`). Statuses, hash formats and non-negative numbers are checked once, in the model, whichever
+**Typed in, typed out.** `create_attempt` and `finish_attempt` take frozen Pydantic records (`AttemptRecord`, `AttemptFinish`), and the methods return
+Pydantic rows (`JobRow`, `AttemptRow`). Statuses, hash formats and non-negative numbers are checked once, in the model, whichever
 database sits behind it; a wrong type from an implementation fails when the row is built. Timestamps are `datetime` objects: each
 implementation converts what its database stores.
 
@@ -123,10 +123,10 @@ contract against any implementation. Our two pass it.
 The schema is made by **hand-rolled, numbered, dialect-aware migrations**: a list of `Migration(version, name, sqlite, postgres)`,
 applied in order by `connect()`, each in a transaction, and recorded in `schema_migrations` (`version`, `name`, `applied_at`). The
 sqlite-only patching of added columns is gone. A later change is a new migration with the SQL of each dialect, and a migration is
-never edited once released. Migration 2, `identity_hash`, adds `agent_runs.identity_hash` (`NULL` for every run from before it).
+never edited once released. Migration 2, `identity_hash`, adds `attempts.identity_hash` (`NULL` for every run from before it).
 
 **The baseline migration** creates the schema of the first release, and is never edited. It carried nothing over from the database that came before
-migrations existed, which was never released: that one is **not read**. A database that has `agent_runs` but no `schema_migrations` raises `SetupError`
+migrations existed, which was never released: that one is **not read**. A database that has `attempts` but no `schema_migrations` raises `SetupError`
 ("this database is from before migrations: delete it and run again").
 
 **Concurrent first connects.** Processes that connect to a fresh database at the same moment (an API and workers started together) must not
@@ -139,16 +139,16 @@ with six processes on one fresh file).
 
 Types are given as *Postgres / sqlite*. A `CHECK` is in both.
 
-**`agent_runs`**, one row per attempt:
+**`attempts`**, one row per attempt:
 
 | Column | Type | |
 |---|---|---|
 | `seq` | `bigint` identity / `integer` autoincrement | Monotonic, for ordering (sqlite's `rowid` has no equal everywhere) |
-| `agent_run_id` | `text` primary key (sqlite: unique, `seq` is the key) | The attempt |
-| `invocation_id` | `text` not null | Attempts of one call share it |
+| `attempt_id` | `text` primary key (sqlite: unique, `seq` is the key) | The attempt |
+| `run_id` | `text` not null | Attempts of one call share it |
 | `attempt` | `integer` not null, `>= 1` | |
 | `job_id` | `text` null, foreign key `jobs` | |
-| `parent_agent_run_id` | `text` null | The launch tree |
+| `parent_attempt_id` | `text` null | The launch tree |
 | `depth` | `integer` not null, `>= 1` | 1 at the top |
 | `agent_name`, `agent_version` | `text` not null | The agent, readable |
 | `agent_hash`, `system_prompt_hash`, `tools_hash` | `text` not null, 64 hex | See [hashes](#hashes) |
@@ -159,7 +159,7 @@ Types are given as *Postgres / sqlite*. A `CHECK` is in both.
 | `input_hash` | `text` not null, 64 hex | |
 | `identity_hash` | `text` null, 64 hex | The hash of the run's identity, `NULL` when it had none ([identity](identity.md#resuming-a-job)); added by a migration |
 | `output_hash` | `text` null, 64 hex | Set when the run produced one |
-| `reused_from_agent_run_id` | `text` null | For a run answered from an earlier one |
+| `reused_from_attempt_id` | `text` null | For a run answered from an earlier one |
 | `job_execution` | `integer` null | The execution of the job that made the run ([several workers](submitted-jobs.md#several-workers)): given by the task that runs the job, or else the job's `executions` when the run is created. `NULL` without a job |
 | `thread_id` | `text` null | For a streaming run: the conversation the client named |
 | `status` | `text` not null, one of `INIT`, `RUNNING`, `SUCCESS`, `FAILED`, `CANCELLED` | |
@@ -168,7 +168,7 @@ Types are given as *Postgres / sqlite*. A `CHECK` is in both.
 | `latency_ms` | `double precision` / `real` null | |
 | `created_at`, `started_at`, `completed_at` | `timestamptz` / `text` (ISO 8601, UTC) | Created (waiting for a slot), holds a slot, ended |
 
-Indexes: `job_id`, `invocation_id`, `parent_agent_run_id`, and `(job_id, agent_hash, input_hash)` for the lookup of a step to reuse.
+Indexes: `job_id`, `run_id`, `parent_attempt_id`, and `(job_id, agent_hash, input_hash)` for the lookup of a step to reuse.
 
 **Gone from today's table:** `input`, `output` (data), `tool_names` (names can be client-specific; `tools_hash` replaces it), and
 `error` (replaced by `error_type` and `error_hash`). **New:** `seq`, `tools_hash`, `started_at`, `error_type`, `error_hash`, and
@@ -182,12 +182,12 @@ about the same: the change is in what the table holds. **Audited and kept:** `ag
 |---|---|---|
 | `job_id` | `text` primary key | |
 | `name` | `text` not null | |
-| `status` | `text` not null, as for `agent_runs` | See [statuses](jobs-and-tracing.md#statuses) |
+| `status` | `text` not null, as for `attempts` | See [statuses](jobs-and-tracing.md#statuses) |
 | `resumable` | `boolean` / `integer` not null, default false | Decided when the job is created: it keeps the results of its steps |
 | `resumed_from` | `text` null, foreign key `jobs` | The job this one resumes |
 | `job_hash`, `input_hash` | `text` null | A submitted job: the hash of its declaration and of its input. `NULL` for a job made without a job class |
 | `cancel_requested` | `boolean` / `integer` not null, default false | A running job that was asked to stop |
-| `parent_agent_run_id` | `text` null | The attempt that started this job as a [background job](background-jobs.md#the-tool). `NULL` for any other job |
+| `parent_attempt_id` | `text` null | The attempt that started this job as a [background job](background-jobs.md#the-tool). `NULL` for any other job |
 | `worker_id`, `lease_expires_at` | `text` null, `timestamptz` / `text` null | The worker that runs the job (the last one, once it ended), and when its lease ends (`NULL` while queued, when final, and for a job run in your process). Renewed in place; Postgres uses its own clock |
 | `executions` | `integer` not null, default 0, `>= 0` | How many times a worker started the job; 1 for the first, one more each time it is started again |
 | `error_type`, `error_hash` | `text` null | Set for `FAILED` |
@@ -254,7 +254,7 @@ are kept:
 
 1. **The old job must have been resumable.** If it was not, `create_job` raises, before any model call, saying that nothing was kept (a
    full rerun is a run without `resume_from`).
-2. **The log answers the metadata question:** `find_reusable_run(old_job, agent_hash, input_hash, identity_hash)` is a `SUCCESS` run of the old job at
+2. **The log answers the metadata question:** `find_reusable_attempt(old_job, agent_hash, input_hash, identity_hash)` is a `SUCCESS` run of the old job at
    depth 1, with the same identity.
 3. **The store answers the data question:** `get(ResultKey(old_job, agent_hash, input_hash))`. A runner with no store, for a job that
    resumes another, is a `SetupError`.

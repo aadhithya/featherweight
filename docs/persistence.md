@@ -90,7 +90,7 @@ runner = AgentRunner(db)
   default result store: pass `results=`. To try it, `docker compose up -d postgres` starts one (`postgresql://postgres:postgres@localhost:5432/postgres`),
   and `make test` runs the tests of `PostgresDatabase` against it.
 
-Rows come back as Pydantic models (`JobRow`, `AgentRunRow`) with timezone-aware `datetime`s, whichever database it is.
+Rows come back as Pydantic models (`JobRow`, `AttemptRow`) with timezone-aware `datetime`s, whichever database it is.
 
 ## Migrations
 
@@ -119,7 +119,7 @@ Implement `Database` (write every abstract method) and run the conformance kit a
 await testing.check_database(lambda: MyDatabase(...))  # an unopened database; the kit opens and closes it
 ```
 
-Records go in as frozen Pydantic models (`RunStart`, `RunEnd`), so statuses, hash formats and non-negative numbers are checked
+Records go in as frozen Pydantic models (`AttemptRecord`, `AttemptFinish`), so statuses, hash formats and non-negative numbers are checked
 once, for every database. The schema (every column, its type and constraint) is in the
 [spec](specs/persistence.md#the-schema), and the migrations are in `featherweight/migrations.py`: a new database adds the SQL of
 its dialect to each.

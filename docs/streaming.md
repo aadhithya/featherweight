@@ -312,7 +312,7 @@ finally:
 
 ## What is logged
 
-One `agent_runs` row per turn, in the same [run log](agents.md#jobs-and-tracing) as any run, which holds **no content** for any
+One `attempts` row per turn, in the same [run log](agents.md#jobs-and-tracing) as any run, which holds **no content** for any
 agent: no messages, no text.
 
 | Column | |

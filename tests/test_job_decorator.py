@@ -57,7 +57,7 @@ async def test_the_class_runs_the_function_with_the_context(db):
     ctx = JobContext(runner=runner, job_id=await db.create_job("shout"))
     assert await shout().run(ctx, In(text="hi")) == Out(shouted="HI")
     assert await shout.function(ctx, In(text="yo")) == Out(shouted="YO")  # the function is still there
-    assert len(await db.list_runs(job_id=ctx.job_id)) == 2
+    assert len(await db.list_attempts(job_id=ctx.job_id)) == 2
 
 
 def test_the_hash_follows_the_declaration():

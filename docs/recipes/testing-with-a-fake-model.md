@@ -16,7 +16,7 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 from pydantic import Field
 
 from app import ExtractInput, PeopleExtractor  # your agent module
-from featherweight import AgentRunner, ModelSettings, RunStatus, SqliteDatabase
+from featherweight import AgentRunner, ModelSettings, Status, SqliteDatabase
 
 
 class FakeSettings(ModelSettings):
@@ -69,23 +69,23 @@ async def run(tmp_path, answers, text="Anna came."):
 
 async def test_success(tmp_path):
     result, _ = await run(tmp_path, {"Anna": [{"people": ["Anna"]}]})
-    assert result.status == RunStatus.SUCCESS and result.output.people == ["Anna"]
+    assert result.status == Status.SUCCESS and result.output.people == ["Anna"]
 
 
 async def test_check_output_rejects_and_the_runner_retries(tmp_path):
     result, _ = await run(tmp_path, {"Anna": [{"people": ["Nobody"]}, {"people": ["Anna"]}]})
-    assert result.status == RunStatus.SUCCESS and result.attempts == 2
+    assert result.status == Status.SUCCESS and result.attempts == 2
 
 
 async def test_a_run_that_keeps_failing_is_returned_as_failed(tmp_path):
     result, _ = await run(tmp_path, {"Anna": [{"people": ["Nobody"]}]})  # the last reply repeats
-    assert result.status == RunStatus.FAILED and result.attempts == 3  # max_attempts
+    assert result.status == Status.FAILED and result.attempts == 3  # max_attempts
     assert "names not in the text" in (result.error or "")
 
 
 async def test_a_reply_that_breaks_the_schema_is_fixed_inside_the_attempt(tmp_path):
     result, fake = await run(tmp_path, {"Anna": [{"people": "not a list"}, {"people": ["Anna"]}]})
-    assert result.status == RunStatus.SUCCESS and result.attempts == 1 and fake.total == 2
+    assert result.status == Status.SUCCESS and result.attempts == 1 and fake.total == 2
 ```
 
 A schema violation (a wrong type, a value outside a `Literal`) is sent back to the model, which gets a second chance in

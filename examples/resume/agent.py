@@ -32,8 +32,8 @@ from featherweight import (  # noqa: E402
     Claude,
     JobContext,
     ModelSettings,
-    RunStatus,
     SqliteDatabase,
+    Status,
     default_db_path,
     job,
     run_job,
@@ -104,19 +104,19 @@ async def release_notes(ctx: JobContext, input: Commits) -> Notes:
     """The job is plain async Python. Everything between the agent calls is deterministic, which is what lets a resumed
     run ask for the same things again, and find them in the log."""
     results = await ctx.run_many(Summariser, [SummaryInput(commit=c) for c in input.commits])
-    summaries = [r.output.summary for r in results if r.status == RunStatus.SUCCESS and r.output and r.output.summary]
+    summaries = [r.output.summary for r in results if r.status == Status.SUCCESS and r.output and r.output.summary]
     if input.crash:
         raise RuntimeError("simulated crash: the process died after the summaries")
     notes = await ctx.run(ReleaseNotes, NotesInput(summaries=summaries))
-    if notes.status != RunStatus.SUCCESS or not notes.output or not notes.output.notes:
+    if notes.status != Status.SUCCESS or not notes.output or not notes.output.notes:
         raise RuntimeError("the notes were not written")
     return Notes(notes=notes.output.notes)
 
 
-def print_runs(rows) -> None:
+def print_attempts(rows) -> None:
     for row in rows:
         tokens = f"{row.input_tokens or 0} in / {row.output_tokens or 0} out"
-        reused = "   reused, no model call" if row.reused_from_agent_run_id else ""
+        reused = "   reused, no model call" if row.reused_from_attempt_id else ""
         print(f"  {row.agent_name:<14} {row.status.value:<8} {tokens}{reused}")
 
 
@@ -134,15 +134,15 @@ async def main() -> int:
         print("first run: the process dies after the summaries")
         first = await run_job(runner, release_notes, Commits(commits=COMMITS, crash=True), resumable=True)
         print(f"  job {first.status.value}: {first.error}")
-        print_runs(await db.list_runs(job_id=first.job_id))
+        print_attempts(await db.list_attempts(job_id=first.job_id))
 
         print("\nsecond run: the same job, with resume_from the first one")
         second = await run_job(runner, release_notes, Commits(commits=COMMITS), resume_from=first.job_id)
         print(f"  job {second.status.value}")
-        print_runs(await db.list_runs(job_id=second.job_id))
+        print_attempts(await db.list_attempts(job_id=second.job_id))
         if second.result:
             print(f"\n{second.result.notes}")
-    return 0 if second.status == RunStatus.SUCCESS else 1
+    return 0 if second.status == Status.SUCCESS else 1
 
 
 if __name__ == "__main__":

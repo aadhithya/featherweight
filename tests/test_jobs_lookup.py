@@ -10,7 +10,7 @@ from test_worker import In, Out, Running, Shout, final, make, submit
 
 from featherweight.fingerprint import input_hash
 from featherweight.jobs import as_job
-from featherweight.models import RunStatus
+from featherweight.models import Status
 from featherweight.queue import JobMessage, SqliteQueue
 from featherweight.results import ResultKey
 from featherweight.testing import MemoryQueue, MemoryResultStore
@@ -70,7 +70,7 @@ async def test_the_lookup_is_not_called_for_a_name_jobs_has(db, queue):
     async with Running(make(db, queue, [Shout], results=MemoryResultStore(), jobs_lookup=lookup)):
         row = await final(db, job_id)
 
-    assert row.status is RunStatus.SUCCESS and lookup.calls == []
+    assert row.status is Status.SUCCESS and lookup.calls == []
     assert ShoutV2.ran is False
 
 
@@ -82,7 +82,7 @@ async def test_a_name_jobs_lacks_is_looked_up_and_the_job_runs_when_jobs_is_empt
     async with Running(make(db, queue, [], results=store, jobs_lookup=lookup)):
         row = await final(db, job_id)
 
-    assert row.status is RunStatus.SUCCESS
+    assert row.status is Status.SUCCESS
     assert lookup.calls == [("shout", Shout.job_hash(), None)]  # the name, the hash recorded at submit, and no identity
     key = ResultKey(job_id=job_id, agent_hash=Shout.job_hash(), input_hash=input_hash(In(text="hello")))
     assert await store.get(key) == {"shouted": "HELLO"}
@@ -95,7 +95,7 @@ async def test_an_agent_class_is_a_job_too(db, queue):
     async with Running(make(db, queue, [], runner=runner, jobs_lookup=Lookup({"echo": Echo}))):
         row = await final(db, job_id)
 
-    assert row.status is RunStatus.SUCCESS
+    assert row.status is Status.SUCCESS
 
 
 async def test_the_identity_the_worker_rebuilt_reaches_the_lookup(db, queue):
@@ -105,7 +105,7 @@ async def test_the_identity_the_worker_rebuilt_reaches_the_lookup(db, queue):
     async with Running(make(db, queue, [], jobs_lookup=lookup, identity_type=Teacher)):
         row = await final(db, job_id)
 
-    assert row.status is RunStatus.SUCCESS
+    assert row.status is Status.SUCCESS
     assert lookup.calls == [("shout", Shout.job_hash(), Teacher(user_id="u-1"))]
 
 
@@ -132,7 +132,7 @@ async def test_a_lookup_that_finds_nothing_is_an_unknown_job_and_the_text_says_a
         async with Running(make(db, queue, [], jobs_lookup=lookup)):
             row = await final(db, job_id)
 
-    assert row.status is RunStatus.FAILED and row.error_type == "UnknownJob"
+    assert row.status is Status.FAILED and row.error_type == "UnknownJob"
     assert "`jobs_lookup` found nothing" in caplog.text
 
 
@@ -143,7 +143,7 @@ async def test_without_a_lookup_an_unknown_job_is_as_it_was(db, queue, caplog):
         async with Running(make(db, queue, [])):
             row = await final(db, job_id)
 
-    assert row.status is RunStatus.FAILED and row.error_type == "UnknownJob"
+    assert row.status is Status.FAILED and row.error_type == "UnknownJob"
     assert "jobs_lookup" not in caplog.text
 
 
@@ -153,7 +153,7 @@ async def test_a_job_with_another_name_than_the_one_asked_for_is_refused_and_not
     async with Running(make(db, queue, [], jobs_lookup=Lookup({"other": Shout}))):  # asked for "other", got "shout"
         row = await final(db, job_id)
 
-    assert row.status is RunStatus.FAILED and row.error_type == "JobLookupError"
+    assert row.status is Status.FAILED and row.error_type == "JobLookupError"
     assert await queue.receive(0.05) is None  # acknowledged: not retried
 
 
@@ -164,7 +164,7 @@ async def test_a_job_that_changed_since_it_was_submitted_is_refused_and_not_run(
     async with Running(make(db, queue, [], jobs_lookup=Lookup({"shout": ShoutV2}))):
         row = await final(db, job_id)
 
-    assert row.status is RunStatus.FAILED and row.error_type == "JobLookupError"
+    assert row.status is Status.FAILED and row.error_type == "JobLookupError"
     assert ShoutV2.ran is False
 
 
@@ -177,8 +177,8 @@ async def test_a_lookup_that_raises_fails_the_job_and_the_worker_goes_on(db, que
             broken_row = await final(db, broken)
             healthy_row = await final(db, healthy)
 
-    assert broken_row.status is RunStatus.FAILED and broken_row.error_type == "JobLookupError"
-    assert healthy_row.status is RunStatus.SUCCESS
+    assert broken_row.status is Status.FAILED and broken_row.error_type == "JobLookupError"
+    assert healthy_row.status is Status.SUCCESS
     assert "ConnectionError" in caplog.text and "db is away" in caplog.text  # the application's own error is in the log
 
 
@@ -188,7 +188,7 @@ async def test_something_that_is_not_a_job_is_refused(db, queue):
     async with Running(make(db, queue, [], jobs_lookup=Lookup({"shout": int}))):
         row = await final(db, job_id)
 
-    assert row.status is RunStatus.FAILED and row.error_type == "JobLookupError"
+    assert row.status is Status.FAILED and row.error_type == "JobLookupError"
 
 
 async def test_a_job_that_was_made_without_a_hash_is_not_checked_against_one(db, queue):
@@ -199,4 +199,4 @@ async def test_a_job_that_was_made_without_a_hash_is_not_checked_against_one(db,
     async with Running(make(db, queue, [], jobs_lookup=lookup)):
         row = await final(db, job_id)
 
-    assert row.status is RunStatus.SUCCESS and lookup.calls == [("shout", None, None)]
+    assert row.status is Status.SUCCESS and lookup.calls == [("shout", None, None)]

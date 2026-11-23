@@ -25,8 +25,8 @@ from featherweight import (  # noqa: E402
     AgentRunner,
     Gemini,
     ModelSettings,
-    RunStatus,
     SqliteDatabase,
+    Status,
     default_db_path,
     setup_logging,
 )
@@ -108,12 +108,12 @@ def print_tree(rows) -> None:
     """The runs of one job, each under the attempt that launched it."""
     children: dict[str | None, list] = {}
     for row in rows:
-        children.setdefault(row.parent_agent_run_id, []).append(row)
+        children.setdefault(row.parent_attempt_id, []).append(row)
 
     def show(row, indent: int) -> None:
         tokens = f"{row.input_tokens or 0} in / {row.output_tokens or 0} out"
         print(f"  {'  ' * indent}{row.agent_name}  attempt {row.attempt}  {row.status.value}  {tokens}")
-        for child in children.get(row.agent_run_id, []):
+        for child in children.get(row.attempt_id, []):
             show(child, indent + 1)
 
     for root in children.get(None, []):
@@ -130,12 +130,12 @@ async def main(requests: list[str]) -> int:
             print(f"\n> {request}")
             job_id = await db.create_job("launching-demo")
             result = await runner.run(Editor, EditorInput(request=request), job_id=job_id)
-            if result.status == RunStatus.SUCCESS and result.output is not None:
+            if result.status == Status.SUCCESS and result.output is not None:
                 print(f"\n{result.output.headline}\n{result.output.summary}\n\nruns of this job:")
             else:
                 failed += 1
                 print(f"\nfailed: {result.error}\n\nruns of this job:")
-            print_tree(await db.list_runs(job_id=job_id))
+            print_tree(await db.list_attempts(job_id=job_id))
     return 1 if failed else 0
 
 

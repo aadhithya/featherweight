@@ -45,7 +45,7 @@ results = await runner.run_many(AgentClass, inputs, job_id=job_id)
 ## The result
 
 `AgentResult[OutT]`: `status` (`SUCCESS` or `FAILED` only), `output` (the validated output model, on success), `error`
-(the last error, on failure), `agent_run_id` (the last attempt), `input_tokens`, `output_tokens` (thinking included),
+(the last error, on failure), `attempt_id` (the last attempt), `input_tokens`, `output_tokens` (thinking included),
 `attempts`, `latency_ms` (across attempts), `model_name` (as the API reported it, which can differ from the one
 requested) and `reused` (see [resuming](#resuming)). Tokens are summed over the model calls of the successful attempt. The tool results the model read are in its
 input tokens. A failed result has no tokens.
@@ -74,8 +74,8 @@ answered from the log.
 - **What is kept.** The output of a depth-1 run that succeeds inside a `resumable` job, put in the store after the row is
   finished. A store that fails does not fail the run (`result_not_kept` is logged). A reused run copies its result to the
   new job.
-- **The reused run.** It writes one `SUCCESS` row in the new job, with a new `agent_run_id`, zero tokens, the stored
-  output and `reused_from_agent_run_id`. It logs `run_reused agent_run_id=... reused_from=...`, calls no model, builds no
+- **The reused run.** It writes one `SUCCESS` row in the new job, with a new `attempt_id`, zero tokens, the stored
+  output and `reused_from_attempt_id`. It logs `run_reused attempt_id=... reused_from=...`, calls no model, builds no
   MCP connection and takes no slot. The result has `reused=True`, zero tokens and `attempts=1`.
 - **`run_many`** resumes per input, since each input is one `run` call.
 - **Not covered.** The determinism of the caller's code between agents (the caller's responsibility, not checked), state
@@ -140,7 +140,7 @@ properties (checked with the real model).
 | The depth or the launch limit is reached | A sentence saying which limit |
 
 **The child is an ordinary run.** It has its own retries, tools, skills, MCP servers and sub-agents, and its own rows in
-the log. It shares the parent's job. Its row records `parent_agent_run_id` (the attempt that
+the log. It shares the parent's job. Its row records `parent_attempt_id` (the attempt that
 launched it) and `depth` (1 for a top-level run). The parent sees only the child's output, as a tool result, which counts
 in the parent's input tokens. A model may launch several agents in one turn, and they run at the same time. A retried
 parent attempt launches its children again, and the earlier children stay in the log under the failed attempt.
@@ -154,7 +154,7 @@ parent attempt launches its children again, and the earlier children stay in the
   validation do not count. It is per attempt, not per job, so with the defaults a tree can reach 1 + 10 + 100 = 111
   agents before retries. This is different from `recursion_limit`, which bounds the steps of one agent's own tool loop.
 
-A launched child blocks its parent. One that does not is a **background job**, which is a job and has [its own spec](background-jobs.md). The runner gives it `start_background` (and settings `max_background` and `background=`); the rules are there.
+A launched child blocks its parent. One that does not is a **background job**, which is a job and has [its own spec](background-jobs.md). The runner gives it `start_background` (and settings `max_background_jobs` and `background=`); the rules are there.
 
 **The slot hand-over.** A parent that waits for its child holds a slot the child needs, and with enough waiting parents
 nothing could finish. So a parent gives up its slot while its launches run and takes one again when the last of them is
@@ -179,7 +179,7 @@ keeps servers up between runs and stops them at the end. A runner with no MCP ag
 |---|---|---|---|
 | `max_attempts` | | 3 | At least 1 |
 | `retry_delay_s` | | 1.0 | |
-| `max_concurrent` | `MAX_CONCURRENT_AGENT_RUNS` | 10 | At least 1 |
+| `max_concurrent` | `MAX_CONCURRENT_ATTEMPTS` | 10 | At least 1 |
 | `max_depth` | `MAX_AGENT_DEPTH` | 3 | At least 1 |
 | `max_launches` | `MAX_AGENT_LAUNCHES` | 10 | At least 1 |
 
@@ -188,7 +188,7 @@ is needed for the real model. A missing key is a setup error: the run fails at o
 
 ## Logging
 
-`invocation_started` and `invocation_finished` (with attempts, tokens and latency), `attempt_started`, `attempt_failed`
+`run_started` and `run_finished` (with attempts, tokens and latency), `attempt_started`, `attempt_failed`
 (with `non_retryable`), `retry_waiting`, `waiting_for_slot` and `slot_acquired`, `fan_out_started` and `fan_out_finished`,
 `agent_launch` (parent, child, depth and launch count), `skill_read`, and the `mcp_*` lines. All are plain
 `key=value` text through `logging`.

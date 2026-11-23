@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from featherweight.fingerprint import agent_hash, tools_hash
 from featherweight.model_settings import ModelSettings
-from featherweight.models import AgentBase, AgentInput, AgentOutput, RunStatus
+from featherweight.models import AgentBase, AgentInput, AgentOutput, Status
 from featherweight.skills import Skill, SkillError
 
 EXAMPLE = Path(__file__).parent.parent / "examples" / "skills" / "meeting-notes"
@@ -247,12 +247,12 @@ async def test_the_prompt_lists_each_skill_by_name_and_description_but_not_its_i
 
     result = await runner_with(db, model).run(SkilledWriter, TaskInput(text="t"))
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     (prompt,) = system_prompts(model)
     assert f"- meeting-notes: {NOTES.description}" in prompt and f"- pdf-processing: {OTHER.description}" in prompt
     assert "get_skill" in prompt
     assert "Keep every note" not in prompt and "Leave out small talk" not in prompt  # the instructions are not in it
-    assert (await db.list_runs())[0].tools_hash == tools_hash([], ["get_skill"])
+    assert (await db.list_attempts())[0].tools_hash == tools_hash([], ["get_skill"])
 
 
 async def test_an_agent_without_skills_has_neither_the_prompt_section_nor_the_tool(db):
@@ -262,7 +262,7 @@ async def test_an_agent_without_skills_has_neither_the_prompt_section_nor_the_to
 
     (prompt,) = system_prompts(model)
     assert "skills" not in prompt.lower() and "get_skill" not in prompt
-    assert (await db.list_runs())[0].tools_hash == tools_hash([], [])
+    assert (await db.list_attempts())[0].tools_hash == tools_hash([], [])
 
 
 async def test_get_skill_returns_the_instructions_then_a_file_on_request(db):
@@ -276,7 +276,7 @@ async def test_get_skill_returns_the_instructions_then_a_file_on_request(db):
 
     result = await runner_with(db, model).run(SkilledWriter, TaskInput(text="t"))
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     instructions, tags = tool_texts(model)
     assert instructions.startswith("# Skill: meeting-notes") and "references/tags.md" in instructions
     assert tags == NOTES.resources["references/tags.md"]
@@ -296,7 +296,7 @@ async def test_get_skill_tells_the_agent_what_is_wrong_and_the_run_carries_on(db
 
     result = await runner_with(db, model).run(SkilledWriter, TaskInput(text="t"))
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     (text,) = tool_texts(model)
     assert expected in text
 
@@ -311,7 +311,7 @@ async def test_an_agent_can_have_skills_and_subagents_and_gets_both_sets_of_tool
 
     (prompt,) = system_prompts(model)
     assert "- writer: Writes notes" in prompt and "- meeting-notes:" in prompt
-    assert (await db.list_runs())[0].tools_hash == tools_hash([], ["launch_agent", "get_agent_schema", "get_skill"])
+    assert (await db.list_attempts())[0].tools_hash == tools_hash([], ["launch_agent", "get_agent_schema", "get_skill"])
 
 
 def test_skills_with_the_same_name_are_refused():
@@ -372,7 +372,7 @@ async def test_get_skill_awaits_aread_so_a_skill_can_read_its_text_from_somewher
 
     result = await runner_with(db, model).run(FromTheBucket, TaskInput(text="t"))
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     assert tool_texts(model) == ["Instructions from the bucket.", "A file from the bucket."]
     assert "Instructions from the bucket." not in "".join(system_prompts(model))  # nothing was fetched for the prompt
 
@@ -397,7 +397,7 @@ async def test_a_read_that_fails_is_text_for_the_agent_and_the_error_goes_to_the
     with caplog.at_level(logging.WARNING, logger="featherweight.runner"):
         result = await runner_with(db, model).run(Broken, TaskInput(text="t"))
 
-    assert result.status == RunStatus.SUCCESS  # the run carries on
+    assert result.status == Status.SUCCESS  # the run carries on
     (text,) = tool_texts(model)
     assert text == "The skill 'broken' could not be read: ConnectionError."
     assert (

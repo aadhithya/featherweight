@@ -19,7 +19,7 @@ from test_subagents import PARENT_INPUT, Parent, child_done, launch_child, paren
 from featherweight import AgentRunner, JobClient, JobWorker, OTelObserver, SqliteQueue, run_job
 from featherweight.events import wait_for_job
 from featherweight.jobs import Job, JobContext
-from featherweight.models import RunStatus
+from featherweight.models import Status
 from featherweight.observers import JobEnd, JobStart, JobSubmitted
 from featherweight.otel import ATTRIBUTES, CAPTURE_CONTENT_ENV, CORE_CONVENTIONS, GENAI_CONVENTIONS
 from featherweight.testing import MemoryResultStore, check_observer
@@ -69,7 +69,7 @@ async def in_a_job(observer, body, **start):
     job = JobStart(job_id="j1", name="pipe", version="2", job_hash="a" * 64, **start)
     async with observer.job(job) as scope:
         result = await body()
-        await scope.finish(JobEnd(status=RunStatus.SUCCESS))
+        await scope.finish(JobEnd(status=Status.SUCCESS))
     return result
 
 
@@ -83,7 +83,7 @@ async def test_a_job_holds_its_attempts_and_a_launched_agent_hangs_under_its_too
 
     result = await in_a_job(observer, lambda: runner.run(Parent, PARENT_INPUT))
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     assert edges(spans_of(telemetry)) == [
         ("chat fake-model", "invoke_agent child"),
         ("chat fake-model", "invoke_agent parent"),
@@ -121,11 +121,11 @@ async def test_the_spans_carry_the_conventions_attributes_and_ours(db, telemetry
         "ftw.job.hash": "a" * 64,
         "ftw.resumed_from": "old",
     }
-    (row,) = await db.list_runs()
+    (row,) = await db.list_attempts()
     agent = dict(named(spans, "invoke_agent echo")[0].attributes)
     assert agent["gen_ai.operation.name"] == "invoke_agent" and agent["gen_ai.agent.name"] == "echo"
     assert agent["gen_ai.agent.version"] and agent["gen_ai.request.model"] == "fake-model"
-    assert (agent["ftw.run.id"], agent["ftw.invocation.id"]) == (row.agent_run_id, row.invocation_id)
+    assert (agent["ftw.attempt.id"], agent["ftw.run.id"]) == (row.attempt_id, row.run_id)
     assert (agent["ftw.attempt"], agent["ftw.attempts"], agent["ftw.attempt.final"]) == (1, 3, True)
     assert (agent["ftw.tokens.input"], agent["ftw.tokens.output"]) == (5, 7)
     assert agent["ftw.agent.hash"] == row.agent_hash and "ftw.job.id" not in agent  # the run had no job id
@@ -170,7 +170,7 @@ async def test_retries_are_siblings_that_share_an_invocation_and_only_the_last_i
     assert [s.parent.span_id for s in attempts] == [
         named(spans_of(telemetry), "invoke_workflow pipe")[0].context.span_id
     ] * 2
-    assert first.attributes["ftw.invocation.id"] == second.attributes["ftw.invocation.id"]
+    assert first.attributes["ftw.run.id"] == second.attributes["ftw.run.id"]
     assert first.attributes["ftw.attempt.final"] is False and second.attributes["ftw.attempt.final"] is True
     assert first.status.status_code == StatusCode.ERROR and first.attributes["error.type"] == "RuntimeError"
     assert second.status.status_code == StatusCode.UNSET and "error.type" not in second.attributes
@@ -184,7 +184,7 @@ async def test_an_error_has_a_type_and_never_its_text(db, telemetry):
 
     result = await runner.run(Echo, ECHO)
 
-    assert result.status == RunStatus.FAILED
+    assert result.status == Status.FAILED
     (attempt,) = named(spans_of(telemetry), "invoke_agent echo")
     assert attempt.attributes["error.type"] == "RuntimeError" and attempt.attributes["ftw.attempt.final"] is True
     assert attempt.status.status_code == StatusCode.ERROR and not attempt.status.description
@@ -204,7 +204,7 @@ async def test_a_rejected_output_is_an_error_on_the_attempt_that_check_output_re
 
     result = await runner.run(Picky, ECHO)
 
-    assert result.status == RunStatus.SUCCESS and result.attempts == 2
+    assert result.status == Status.SUCCESS and result.attempts == 2
     first, second = sorted(named(spans_of(telemetry), "invoke_agent echo"), key=lambda s: s.attributes["ftw.attempt"])
     assert first.attributes["error.type"] == "ValueError" and first.attributes["ftw.attempt.final"] is False
     assert second.attributes["ftw.attempt.final"] is True
@@ -224,8 +224,8 @@ async def test_a_reused_step_is_a_span_with_no_model_call_and_the_ids_to_find_th
 
     spans = spans_of(telemetry)
     assert [s.name for s in spans] == ["invoke_agent echo", "invoke_agent echo"]  # and no chat span
-    originals = {r.agent_run_id for r in await db.list_runs(job_id=first.job_id)}
-    assert {s.attributes["ftw.reused_from_agent_run_id"] for s in spans} == originals
+    originals = {r.attempt_id for r in await db.list_attempts(job_id=first.job_id)}
+    assert {s.attributes["ftw.reused_from_attempt_id"] for s in spans} == originals
     assert all(s.attributes["ftw.reused"] is True and s.attributes["ftw.resumed_from"] == first.job_id for s in spans)
     assert all(s.attributes["ftw.job.id"] == again.job_id for s in spans) and "ftw.attempt" not in spans[0].attributes
 
@@ -317,7 +317,7 @@ async def test_the_trace_context_travels_from_the_submitter_to_the_job(telemetry
     assert carrier is not None and "traceparent" in carrier
 
     async with worker.job(JobStart(job_id="j1", name="pipe", trace_context=carrier)) as scope:
-        await scope.finish(JobEnd(status=RunStatus.SUCCESS))
+        await scope.finish(JobEnd(status=Status.SUCCESS))
 
     (job,) = named(spans_of(telemetry), "invoke_workflow pipe")
     assert job.context.trace_id == request.get_span_context().trace_id
@@ -328,7 +328,7 @@ async def test_a_job_without_a_carrier_starts_its_own_trace_under_the_current_sp
     observer = observer_for(telemetry)
 
     async with observer.job(JobStart(job_id="j1", name="pipe")) as scope:
-        await scope.finish(JobEnd(status=RunStatus.SUCCESS))
+        await scope.finish(JobEnd(status=Status.SUCCESS))
 
     (job,) = spans_of(telemetry)
     assert job.parent is None
@@ -338,7 +338,7 @@ async def test_a_failed_job_is_an_error_with_its_type(telemetry):
     observer = observer_for(telemetry)
 
     async with observer.job(JobStart(job_id="j1", name="pipe")) as scope:
-        await scope.finish(JobEnd(status=RunStatus.FAILED, error_type="ValueError"))
+        await scope.finish(JobEnd(status=Status.FAILED, error_type="ValueError"))
 
     (job,) = spans_of(telemetry)
     assert job.status.status_code == StatusCode.ERROR and job.attributes["error.type"] == "ValueError"
@@ -348,7 +348,7 @@ async def test_a_cancelled_job_is_an_error_of_its_own_kind(telemetry):
     observer = observer_for(telemetry)
 
     async with observer.job(JobStart(job_id="j1", name="pipe")) as scope:
-        await scope.finish(JobEnd(status=RunStatus.CANCELLED))
+        await scope.finish(JobEnd(status=Status.CANCELLED))
 
     (job,) = spans_of(telemetry)
     assert job.status.status_code == StatusCode.ERROR and job.attributes["error.type"] == "CancelledError"
@@ -375,7 +375,7 @@ async def test_with_no_sdk_nothing_is_recorded_and_nothing_fails(db):
 
     result = await in_a_job(observer, lambda: runner.run(Echo, ECHO))
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     assert await observer.submitted(JobSubmitted(job_id="j1", name="pipe")) is None
     assert trace.get_current_span().get_span_context().is_valid is False
 
@@ -404,7 +404,7 @@ async def test_a_job_that_a_client_submits_and_a_worker_runs_is_one_trace_across
         await worker.stop(grace=1)
         await asyncio.wait_for(task, timeout=5)
 
-    assert row.status == RunStatus.SUCCESS
+    assert row.status == Status.SUCCESS
     spans = spans_of(telemetry)
     assert edges(spans) == [
         ("POST /jobs", None),
@@ -437,7 +437,7 @@ async def test_a_job_run_in_your_process_has_the_same_spans_and_your_own_span_ne
 
     outcome = await run_job(runner, Mine, In(text="hello"))
 
-    assert outcome.status == RunStatus.SUCCESS
+    assert outcome.status == Status.SUCCESS
     assert edges(spans_of(telemetry)) == [
         ("chat fake-model", "invoke_agent echo"),
         ("invoke_agent echo", "load documents"),
@@ -455,7 +455,7 @@ async def test_a_job_that_fails_in_a_worker_or_in_your_process_is_an_error_span_
 
     outcome = await run_job(runner, Boom, In(text="x"))
 
-    assert outcome.status == RunStatus.FAILED
+    assert outcome.status == Status.FAILED
     (job,) = named(spans_of(telemetry), "invoke_workflow boom")
     assert job.status.status_code == StatusCode.ERROR and job.attributes["error.type"] == "RuntimeError"
     assert "secret failure" not in json.dumps(dict(job.attributes), default=str)

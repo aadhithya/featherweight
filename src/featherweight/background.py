@@ -25,7 +25,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMe
 
 from featherweight.db import FINAL, Database, JobRow
 from featherweight.events import wait_for_job
-from featherweight.models import RunStatus
+from featherweight.models import Status
 from featherweight.results import ResultKey, ResultStore
 
 if TYPE_CHECKING:
@@ -55,10 +55,10 @@ async def background_result_message(db: Database, results: ResultStore | None, j
     if row is None:
         raise LookupError(f"No such job: {job_id}")
     attributes = {"job_id": job_id, "agent": row.name, "status": row.status.value}
-    if row.status is RunStatus.FAILED and row.error_type:
+    if row.status is Status.FAILED and row.error_type:
         attributes["error_type"] = row.error_type
-    output = await _stored_output(results, row) if row.status is RunStatus.SUCCESS else None
-    if row.status is RunStatus.SUCCESS and output is None:
+    output = await _stored_output(results, row) if row.status is Status.SUCCESS else None
+    if row.status is Status.SUCCESS and output is None:
         attributes["output"] = "missing"
     opening = "<background_result " + " ".join(f'{k}="{html.escape(v, quote=True)}"' for k, v in attributes.items())
     if output is None:

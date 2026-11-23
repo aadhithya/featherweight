@@ -15,21 +15,21 @@ from typing import Any
 from featherweight.db import (
     FINAL,
     STATUS_EVENT,
-    AgentRunRow,
+    AttemptFinish,
+    AttemptRecord,
+    AttemptRow,
     Database,
     EventType,
     JobEvent,
     JobLost,
     JobOwner,
     JobRow,
-    RunEnd,
-    RunStart,
     now,
 )
 from featherweight.errors import SetupError
 from featherweight.migrations import MIGRATIONS
 from featherweight.model_settings import require
-from featherweight.models import RunStatus
+from featherweight.models import Status
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +83,7 @@ class PostgresDatabase(Database):
 
     async def _migrate(self) -> None:
         tables = await self._tables()
-        if "schema_migrations" not in tables and "agent_runs" in tables:
+        if "schema_migrations" not in tables and "attempts" in tables:
             raise SetupError(
                 f"The schema {self.schema!r} is from before migrations (an older version of the run log). Drop it and run "
                 "again: nothing is carried over."
@@ -117,7 +117,7 @@ class PostgresDatabase(Database):
         self,
         job_id: str,
         type: EventType,
-        status: RunStatus,
+        status: Status,
         error_type: str | None = None,
         error_hash: str | None = None,
     ) -> JobEvent:
@@ -142,26 +142,26 @@ class PostgresDatabase(Database):
         job_version: str | None,
         job_hash: str | None,
         input_hash: str | None,
-        parent_agent_run_id: str | None = None,
+        parent_attempt_id: str | None = None,
     ) -> str:
         async with self.conn.transaction():  # the job and its event, or neither
             await self.conn.execute(
                 "INSERT INTO jobs (job_id, name, status, resumable, resumed_from, job_version, job_hash, input_hash, "
-                "parent_agent_run_id, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                "parent_attempt_id, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (
                     job_id,
                     name,
-                    RunStatus.INIT.value,
+                    Status.INIT.value,
                     resumable,
                     resumed_from,
                     job_version,
                     job_hash,
                     input_hash,
-                    parent_agent_run_id,
+                    parent_attempt_id,
                     now(),
                 ),
             )
-            event = await self._write_event(job_id, "queued", RunStatus.INIT)
+            event = await self._write_event(job_id, "queued", Status.INIT)
         self._publish(event)
         logger.info("job_created job_id=%s name=%s resumed_from=%s resumable=%s", job_id, name, resumed_from, resumable)
         return job_id
@@ -169,17 +169,17 @@ class PostgresDatabase(Database):
     async def set_job_status(
         self,
         job_id: str,
-        status: RunStatus,
+        status: Status,
         *,
         error_type: str | None = None,
         error_hash: str | None = None,
         owner: JobOwner | None = None,
     ) -> None:
-        status = RunStatus(status)
-        failed = status is RunStatus.FAILED
-        started = ", started_at = %s" if status in (RunStatus.RUNNING, RunStatus.INIT) else ""
+        status = Status(status)
+        failed = status is Status.FAILED
+        started = ", started_at = %s" if status in (Status.RUNNING, Status.INIT) else ""
         extra = ""
-        if status is RunStatus.INIT:
+        if status is Status.INIT:
             extra = ", worker_id = NULL, lease_expires_at = NULL"  # back in the queue: nobody owns it
         elif status in FINAL:
             extra = ", lease_expires_at = NULL"
@@ -193,9 +193,9 @@ class PostgresDatabase(Database):
                     now() if status in FINAL else None,
                     error_type if failed else None,
                     error_hash if failed else None,
-                    *([now() if status is RunStatus.RUNNING else None] if started else []),
+                    *([now() if status is Status.RUNNING else None] if started else []),
                     job_id,
-                    *([owner.worker_id, owner.executions, RunStatus.RUNNING.value] if owner is not None else []),
+                    *([owner.worker_id, owner.executions, Status.RUNNING.value] if owner is not None else []),
                 ),
             )
             if cur.rowcount == 0:
@@ -216,12 +216,12 @@ class PostgresDatabase(Database):
                 "SELECT status, cancel_requested FROM jobs WHERE job_id = %s FOR UPDATE", (job_id,)
             )
             row = await cur.fetchone()
-            if row is None or RunStatus(row["status"]) in FINAL:
+            if row is None or Status(row["status"]) in FINAL:
                 return False
             if row["cancel_requested"]:
                 return True  # asked already: nothing changes, no second event
             await self.conn.execute("UPDATE jobs SET cancel_requested = true WHERE job_id = %s", (job_id,))
-            event = await self._write_event(job_id, "cancel_requested", RunStatus(row["status"]))
+            event = await self._write_event(job_id, "cancel_requested", Status(row["status"]))
         self._publish(event)
         logger.info("job_cancel_requested job_id=%s", job_id)
         return True
@@ -235,15 +235,15 @@ class PostgresDatabase(Database):
             f"worker_id = %s, lease_expires_at = {expires}, executions = executions + 1 "
             "WHERE job_id = %s AND status = %s AND NOT cancel_requested",
             (
-                RunStatus.RUNNING.value,
+                Status.RUNNING.value,
                 now(),
                 worker_id,
                 *([lease] if lease is not None else []),
                 job_id,
-                RunStatus.INIT.value,
+                Status.INIT.value,
             ),
             "running",
-            RunStatus.RUNNING,
+            Status.RUNNING,
         )
 
     async def take_over_job(self, job_id: str, worker_id: str, lease: float) -> bool:
@@ -253,12 +253,12 @@ class PostgresDatabase(Database):
                 "UPDATE jobs SET started_at = %s, completed_at = NULL, error_type = NULL, error_hash = NULL, worker_id = %s, "
                 "lease_expires_at = now() + make_interval(secs => %s), executions = executions + 1 "
                 "WHERE job_id = %s AND status = %s AND lease_expires_at IS NOT NULL AND lease_expires_at < now()",
-                (now(), worker_id, lease, job_id, RunStatus.RUNNING.value),
+                (now(), worker_id, lease, job_id, Status.RUNNING.value),
             )
             if cur.rowcount == 0:
                 return False
-            lost = await self._write_event(job_id, "lost", RunStatus.INIT)  # the worker was lost: back in the queue ...
-            running = await self._write_event(job_id, "running", RunStatus.RUNNING)  # ... and taken, at once
+            lost = await self._write_event(job_id, "lost", Status.INIT)  # the worker was lost: back in the queue ...
+            running = await self._write_event(job_id, "running", Status.RUNNING)  # ... and taken, at once
         self._publish(lost)
         self._publish(running)
         logger.warning("job_taken_over job_id=%s worker_id=%s", job_id, worker_id)
@@ -270,16 +270,16 @@ class PostgresDatabase(Database):
             "UPDATE jobs SET status = %s, completed_at = %s, error_type = %s, error_hash = %s, lease_expires_at = NULL "
             "WHERE job_id = %s AND (status = %s OR (status = %s AND lease_expires_at IS NOT NULL AND lease_expires_at < now()))",
             (
-                RunStatus.FAILED.value,
+                Status.FAILED.value,
                 now(),
                 error_type,
                 error_hash,
                 job_id,
-                RunStatus.INIT.value,
-                RunStatus.RUNNING.value,
+                Status.INIT.value,
+                Status.RUNNING.value,
             ),
             "failed",
-            RunStatus.FAILED,
+            Status.FAILED,
             error_type,
             error_hash,
         )
@@ -294,14 +294,14 @@ class PostgresDatabase(Database):
                 "UPDATE jobs SET lease_expires_at = now() + make_interval(secs => %s) "
                 "WHERE worker_id = %s AND status = %s "
                 f"AND (job_id, executions) IN (VALUES {pairs}) RETURNING job_id",
-                [lease, worker_id, RunStatus.RUNNING.value, *held],
+                [lease, worker_id, Status.RUNNING.value, *held],
             )
             return {row["job_id"] for row in await cur.fetchall()}
 
     async def owns_job(self, job_id: str, owner: JobOwner) -> bool:
         cur = await self.conn.execute(
             "SELECT 1 FROM jobs WHERE job_id = %s AND worker_id = %s AND executions = %s AND status = %s",
-            (job_id, owner.worker_id, owner.executions, RunStatus.RUNNING.value),
+            (job_id, owner.worker_id, owner.executions, Status.RUNNING.value),
         )
         return await cur.fetchone() is not None
 
@@ -309,9 +309,9 @@ class PostgresDatabase(Database):
         return await self._take(
             job_id,
             "UPDATE jobs SET status = %s, completed_at = %s WHERE job_id = %s AND status = %s",
-            (RunStatus.CANCELLED.value, now(), job_id, RunStatus.INIT.value),
+            (Status.CANCELLED.value, now(), job_id, Status.INIT.value),
             "cancelled",
-            RunStatus.CANCELLED,
+            Status.CANCELLED,
         )
 
     async def _take(
@@ -320,7 +320,7 @@ class PostgresDatabase(Database):
         sql: str,
         params: tuple[Any, ...],
         type: EventType,
-        status: RunStatus,
+        status: Status,
         error_type: str | None = None,
         error_hash: str | None = None,
     ) -> bool:
@@ -368,23 +368,23 @@ class PostgresDatabase(Database):
         )
         return [JobEvent(**row) for row in await cur.fetchall()]
 
-    # agent runs
+    # attempts
 
-    async def create_run(self, run: RunStart) -> str:
+    async def create_attempt(self, run: AttemptRecord) -> str:
         jsonb = require("psycopg.types.json", "postgres").Jsonb
         await self.conn.execute(
-            """INSERT INTO agent_runs (
-                   agent_run_id, invocation_id, attempt, job_id, parent_agent_run_id, depth, agent_name, agent_version,
+            """INSERT INTO attempts (
+                   attempt_id, run_id, attempt, job_id, parent_attempt_id, depth, agent_name, agent_version,
                    agent_hash, system_prompt_hash, tools_hash, provider, model_name, reasoning, settings, input_hash,
-                   identity_hash, reused_from_agent_run_id, job_execution, thread_id, status, created_at
+                   identity_hash, reused_from_attempt_id, job_execution, thread_id, status, created_at
                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                          COALESCE(%s, (SELECT executions FROM jobs WHERE job_id = %s)), %s, %s, %s)""",
             (
-                run.agent_run_id,
-                run.invocation_id,
+                run.attempt_id,
+                run.run_id,
                 run.attempt,
                 run.job_id,
-                run.parent_agent_run_id,
+                run.parent_attempt_id,
                 run.depth,
                 run.agent_name,
                 run.agent_version,
@@ -397,36 +397,36 @@ class PostgresDatabase(Database):
                 jsonb(run.settings),
                 run.input_hash,
                 run.identity_hash,
-                run.reused_from_agent_run_id,
+                run.reused_from_attempt_id,
                 run.job_execution,
                 run.job_id,  # no execution given: the job's `executions` now
                 run.thread_id,
-                RunStatus.INIT.value,
+                Status.INIT.value,
                 now(),
             ),
         )
         logger.info(
-            "run_created agent_run_id=%s invocation_id=%s attempt=%d job_id=%s agent=%s version=%s model=%s "
-            "parent_agent_run_id=%s depth=%d",
-            run.agent_run_id,
-            run.invocation_id,
+            "attempt_created attempt_id=%s run_id=%s attempt=%d job_id=%s agent=%s version=%s model=%s "
+            "parent_attempt_id=%s depth=%d",
+            run.attempt_id,
+            run.run_id,
             run.attempt,
             run.job_id,
             run.agent_name,
             run.agent_version,
             run.model_name,
-            run.parent_agent_run_id,
+            run.parent_attempt_id,
             run.depth,
         )
-        return run.agent_run_id
+        return run.attempt_id
 
-    async def mark_run_running(self, agent_run_id: str) -> None:
-        await self._set_run(agent_run_id, status=RunStatus.RUNNING.value, started_at=now())
-        logger.info("run_running agent_run_id=%s", agent_run_id)
+    async def start_attempt(self, attempt_id: str) -> None:
+        await self._set_run(attempt_id, status=Status.RUNNING.value, started_at=now())
+        logger.info("attempt_running attempt_id=%s", attempt_id)
 
-    async def finish_run(self, agent_run_id: str, end: RunEnd) -> None:
+    async def finish_attempt(self, attempt_id: str, end: AttemptFinish) -> None:
         await self._set_run(
-            agent_run_id,
+            attempt_id,
             status=end.status.value,
             completed_at=now(),
             output_hash=end.output_hash,
@@ -437,10 +437,10 @@ class PostgresDatabase(Database):
             latency_ms=end.latency_ms,
             reported_model_name=end.reported_model_name,
         )
-        log = logger.warning if end.status is RunStatus.FAILED else logger.info
+        log = logger.warning if end.status is Status.FAILED else logger.info
         log(
-            "run_finished agent_run_id=%s status=%s input_tokens=%s output_tokens=%s latency_ms=%s error_type=%s",
-            agent_run_id,
+            "attempt_finished attempt_id=%s status=%s input_tokens=%s output_tokens=%s latency_ms=%s error_type=%s",
+            attempt_id,
             end.status.value,
             end.input_tokens,
             end.output_tokens,
@@ -448,54 +448,54 @@ class PostgresDatabase(Database):
             end.error_type,
         )
 
-    async def get_run(self, agent_run_id: str) -> AgentRunRow | None:
-        cur = await self.conn.execute("SELECT * FROM agent_runs WHERE agent_run_id = %s", (agent_run_id,))
+    async def get_attempt(self, attempt_id: str) -> AttemptRow | None:
+        cur = await self.conn.execute("SELECT * FROM attempts WHERE attempt_id = %s", (attempt_id,))
         row = await cur.fetchone()
-        return AgentRunRow(**row) if row else None
+        return AttemptRow(**row) if row else None
 
-    async def find_reusable_run(
+    async def find_reusable_attempt(
         self,
         job_id: str,
         agent_hash: str,
         input_hash: str,
         identity_hash: str | None,
         before_execution: int | None = None,
-    ) -> AgentRunRow | None:
+    ) -> AttemptRow | None:
         bound = " AND job_execution < %s" if before_execution is not None else ""
         cur = await self.conn.execute(
-            f"""SELECT * FROM agent_runs WHERE job_id = %s AND agent_hash = %s AND input_hash = %s
+            f"""SELECT * FROM attempts WHERE job_id = %s AND agent_hash = %s AND input_hash = %s
                AND identity_hash IS NOT DISTINCT FROM %s AND status = %s AND depth = 1{bound} ORDER BY seq LIMIT 1""",
             (
                 job_id,
                 agent_hash,
                 input_hash,
                 identity_hash,
-                RunStatus.SUCCESS.value,
+                Status.SUCCESS.value,
                 *([before_execution] if bound else []),
             ),
         )
         row = await cur.fetchone()
-        return AgentRunRow(**row) if row else None
+        return AttemptRow(**row) if row else None
 
-    async def list_runs(self, *, job_id: str | None = None, invocation_id: str | None = None) -> list[AgentRunRow]:
+    async def list_attempts(self, *, job_id: str | None = None, run_id: str | None = None) -> list[AttemptRow]:
         where, params = [], []
         if job_id is not None:
             where.append("job_id = %s")
             params.append(job_id)
-        if invocation_id is not None:
-            where.append("invocation_id = %s")
-            params.append(invocation_id)
-        sql = "SELECT * FROM agent_runs"
+        if run_id is not None:
+            where.append("run_id = %s")
+            params.append(run_id)
+        sql = "SELECT * FROM attempts"
         if where:
             sql += " WHERE " + " AND ".join(where)
         sql += " ORDER BY seq"
         cur = await self.conn.execute(sql, params)
-        return [AgentRunRow(**row) for row in await cur.fetchall()]
+        return [AttemptRow(**row) for row in await cur.fetchall()]
 
-    async def _set_run(self, agent_run_id: str, **columns: Any) -> None:
+    async def _set_run(self, attempt_id: str, **columns: Any) -> None:
         assignments = ", ".join(f"{column} = %s" for column in columns)
         cur = await self.conn.execute(
-            f"UPDATE agent_runs SET {assignments} WHERE agent_run_id = %s", (*columns.values(), agent_run_id)
+            f"UPDATE attempts SET {assignments} WHERE attempt_id = %s", (*columns.values(), attempt_id)
         )
         if cur.rowcount == 0:
-            raise LookupError(f"No such run: {agent_run_id}")
+            raise LookupError(f"No such run: {attempt_id}")

@@ -49,7 +49,7 @@ async def main() -> None:
         # the class, not an instance: the runner builds the agent
         result = await AgentRunner(db).run(IncidentSummariser, report, job_id=job_id)
         print(result.status.value, result.output)
-        for row in await db.list_runs(
+        for row in await db.list_attempts(
             job_id=job_id
         ):  # one row for each attempt: metadata, never the report or the summary
             print(

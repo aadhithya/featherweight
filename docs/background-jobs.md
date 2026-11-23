@@ -113,7 +113,7 @@ The type of a data part depends on the version of the SDK (check how it types `o
 
 ## Limits
 
-- **Live children:** `AgentRunner(max_background=3)` is the most children one attempt of one agent may have running. A start over the limit is refused with a sentence.
+- **Live children:** `AgentRunner(max_background_jobs=3)` is the most children one attempt of one agent may have running. A start over the limit is refused with a sentence.
 - A background job is a job of its own, so `max_depth` and `max_launches` count within it.
 
 ## What is not here

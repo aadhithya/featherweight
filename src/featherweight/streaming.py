@@ -14,8 +14,9 @@ from ag_ui.core import BaseEvent, Message, RunAgentInput, TokenUsage
 from langchain_core.messages import BaseMessage
 from pydantic import Field, model_validator
 
+from featherweight.db import new_id
 from featherweight.messages import count_attachments, to_agui, to_langchain
-from featherweight.models import AgentBase, AgentInput, RunStatus
+from featherweight.models import AgentBase, AgentInput, Status
 
 logger = logging.getLogger(__name__)
 
@@ -107,8 +108,9 @@ class StreamingRun:
     `usage` is the tokens of the turn, known when the run ends. `new_messages` is what the turn produced."""
 
     def __init__(self, run_id: str, start: Callable[["StreamingRun", Callable[[BaseEvent], None]], Awaitable[None]]):
-        self.run_id = run_id
-        self.status = RunStatus.INIT
+        self.run_id = run_id  # the run: what the events of the stream carry (AG-UI's `run_id`)
+        self.attempt_id = new_id()  # its one attempt: the row of the run log
+        self.status = Status.INIT
         self.error: str | None = None
         self.usage: TokenUsage | None = None
         self._new_messages: list[BaseMessage] = []

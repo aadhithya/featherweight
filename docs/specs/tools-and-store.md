@@ -64,12 +64,12 @@ In `featherweight.tools`. All return text, never raise, and the model can read w
 ## The run context
 
 A tool that needs the job declares `runtime: ToolRuntime[RunContext]`. Langchain fills it in and hides it from
-the model, so the model never passes a job id. `RunContext` has `job_id`, `agent_run_id` (the attempt that is
+the model, so the model never passes a job id. `RunContext` has `job_id`, `attempt_id` (the attempt that is
 running) and `identity`: who the run is for, if the application gave one. `RunContext` is generic in the identity,
 so a tool declares `ToolRuntime[RunContext[Teacher]]` and reads `runtime.context.identity`. The [identity spec](identity.md#how-tools-read-it) owns it.
 
 The shared MCP tools cannot take a `RunContext`, because one tool object serves many attempts. They read
-`CURRENT_AGENT_RUN_ID`, a context variable the runner sets around each attempt, to say in the log which attempt called them. The identity has one of its own for code that cannot take `runtime`: `CURRENT_IDENTITY`.
+`CURRENT_ATTEMPT_ID`, a context variable the runner sets around each attempt, to say in the log which attempt called them. The identity has one of its own for code that cannot take `runtime`: `CURRENT_IDENTITY`.
 
 ## Decisions
 
