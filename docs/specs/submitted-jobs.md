@@ -30,7 +30,7 @@ A job is a declared class that runs in your process (`run_job`) or on a worker, 
 **submit**, from anywhere, that a **separate worker** picks up and runs, with the client able to follow it, cancel it, and read
 its result. The client and the worker are independent: **the queue and the database are their only connection**, so they can live
 in different processes, or on different machines. It covers the queue, the client and the worker, and **several workers** on one queue
-(leases, a dead worker: [several workers](#several-workers)). Background jobs have [their own spec](background-agents.md).
+(leases, a dead worker: [several workers](#several-workers)). Background jobs have [their own spec](background-jobs.md).
 
 ## The principle
 
@@ -356,7 +356,7 @@ stream, no stream of all jobs.
   the polling across processes. Pub/sub is vendor-specific and not available everywhere, so we do not write one per vendor now.
   If it is wanted, it is one abstract class behind the same `events()`, with a conformance kit.
 - **A worker-level limit on redeliveries:** the queue's business, so there is none.
-- **Background jobs:** [their own spec](background-agents.md), built on jobs and the job events.
+- **Background jobs:** [their own spec](background-jobs.md), built on jobs and the job events.
 
 ## Not supported
 

@@ -349,7 +349,7 @@ to it:
 
 ## Background work
 
-A streaming agent can start another agent and carry on: that is a [background job](background-agents.md). The turn does not wait for it, the stream
+A streaming agent can start another agent and carry on: that is a [background job](background-jobs.md). The turn does not wait for it, the stream
 carries two events (`background_started` and `background_finished`), and when the child is done your application starts the next turn with the
 history and the child's result (`runner.background_message(job_id)`). A launched sub-agent (`subagents`) is different: it blocks the chat turn
 until it returns.
@@ -363,4 +363,4 @@ until it returns.
 - **Structured or validated output** from a streaming agent.
 - **Stopping across processes.** `cancel()` works in the process that runs the stream.
 - **A web server or router.** The adapters give you strings, you send them.
-- **Background jobs** are [their own feature](background-agents.md), and jobs across processes are [submitted jobs](submitted-jobs.md).
+- **Background jobs** are [their own feature](background-jobs.md), and jobs across processes are [submitted jobs](submitted-jobs.md).

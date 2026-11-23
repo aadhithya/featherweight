@@ -10,7 +10,7 @@ call that started it (a provider rejects a tool result with no call), so it come
 While the parent's loop runs, `BackgroundResults` adds the message of each child that has finished before the parent's next model call, once
 for each, after the results of the round's tool calls. A run that is not a chat also *waits*: when its model would end the run while a child is
 still running, it waits for the child, adds its result, and lets the model go on. A chat turn does not wait: the application does it (see
-`AgentRunner.background_message`). See docs/specs/background-agents.md.
+`AgentRunner.background_message`). See docs/specs/background-jobs.md.
 """
 
 import asyncio

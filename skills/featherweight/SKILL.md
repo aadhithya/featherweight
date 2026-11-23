@@ -34,7 +34,7 @@ runs. Paths are under `references/`; the book's home is `references/book/README.
 | A pipeline over many inputs, with resume | `references/book/03-jobs-and-pipelines/01-what-a-job-is.md`, `references/book/03-jobs-and-pipelines/02-status-and-events.md`, `references/book/03-jobs-and-pipelines/03-results-and-the-result-store.md`, `references/book/03-jobs-and-pipelines/04-resume.md` |
 | A streaming agent for chat, in a terminal or a browser | `references/book/04-chat/01-a-streaming-agent.md`, `references/book/04-chat/02-in-the-browser.md`, `references/book/04-chat/03-stopping-and-the-conversation.md`, `references/book/04-chat/04-attaching-a-file.md` (a file sent with a message) |
 | Jobs on workers, and workers that die | `references/book/05-in-production/01-submit-and-a-worker.md`, `references/book/05-in-production/02-several-workers.md` |
-| An agent that starts another and goes on | `references/book/05-in-production/03-background-agents.md` |
+| An agent that starts another and goes on | `references/book/05-in-production/03-background-jobs.md` |
 | Traces, and input for an evaluation platform | `references/book/05-in-production/04-observability.md` |
 | Your own storage, queue, database or observer | `references/book/06-bring-your-own-storage/01-postgres.md` to `references/book/06-bring-your-own-storage/05-an-observer.md` |
 | The whole thing in one project, or a term explained | `references/book/07-reference/04-the-finished-project.md`, `references/book/07-reference/03-the-glossary.md` |
@@ -169,7 +169,7 @@ The guides are the reference for one subject each (the book above is the way to 
 | Submit a job to a queue and run it in a worker: `JobClient`, `JobWorker`, `JobQueue`, cancelling, events and SSE | `references/submitted-jobs.md` |
 | See what jobs and agents do: observers, `OTelObserver` (OpenTelemetry spans for jobs, attempts, model calls and tool calls), content, your own spans, evaluation | `references/observability.md` |
 | Deploy it: what to use where (Postgres, your own queue and result store). A suggestion only: follow the user's own stack | `references/production-stack.md` |
-| An agent that starts another agent and goes on: `background_jobs`, `start_background`, the result message, events, a chat in the browser | `references/background-agents.md` |
+| An agent that starts another agent and goes on: `background_jobs`, `start_background`, the result message, events, a chat in the browser | `references/background-jobs.md` |
 | See a whole pipeline of several agents | `references/example-pipeline.md` |
 
 The full specs, which say what each part does and why, are in `docs/specs` of the repository, and runnable examples are in

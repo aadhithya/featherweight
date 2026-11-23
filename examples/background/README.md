@@ -23,4 +23,4 @@ memory, so **a restart loses a result that has not been delivered yet**. Keep it
 here that is the in-memory database).
 
 The researcher runs in this process. To run it on a worker, give the runner a `JobClient`
-(`AgentRunner(db, background=client)`) and a worker that lists the job: nothing else changes ([the guide](../../docs/background-agents.md) says how).
+(`AgentRunner(db, background=client)`) and a worker that lists the job: nothing else changes ([the guide](../../docs/background-jobs.md) says how).

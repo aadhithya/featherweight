@@ -29,7 +29,7 @@ GUIDES = [
     "attachments-providers.md",
     "persistence.md",
     "submitted-jobs.md",
-    "background-agents.md",
+    "background-jobs.md",
     "production-stack.md",
     "observability.md",
     "example-pipeline.md",

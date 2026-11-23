@@ -114,7 +114,7 @@ nav:
       - launching-agents.md
       - mcp.md
       - skills.md
-      - background-agents.md
+      - background-jobs.md
       - streaming.md
       - submitted-jobs.md
       - persistence.md
@@ -134,7 +134,7 @@ nav:
       - specs/submitted-jobs.md
       - specs/identity.md
       - specs/observability.md
-      - specs/background-agents.md
+      - specs/background-jobs.md
       - specs/streaming.md
       - specs/attachments.md
       - specs/skills.md

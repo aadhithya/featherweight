@@ -82,7 +82,7 @@ The output is something like this: the summaries come from the model.
 |---|---|---|
 | `incident.py` | The summariser, with a tool, an MCP server, a skill and a sub-agent | [Part 1](../01-your-first-agent/02-a-typed-agent.md), [Part 2](../02-abilities/01-tools.md) |
 | `jobs.py` | The pipeline over every report, as a job | [Part 3](../03-jobs-and-pipelines/01-what-a-job-is.md) |
-| `assistant.py`, `chat.py` | The chat, the background researcher and the session that wakes it | [Part 4](../04-chat/01-a-streaming-agent.md), [5-3](../05-in-production/03-background-agents.md) |
+| `assistant.py`, `chat.py` | The chat, the background researcher and the session that wakes it | [Part 4](../04-chat/01-a-streaming-agent.md), [5-3](../05-in-production/03-background-jobs.md) |
 | `run.py` | A client, a queue and two workers | [5-1](../05-in-production/01-submit-and-a-worker.md), [5-2](../05-in-production/02-several-workers.md) |
 | `tracing.py` | The spans, collected in memory | [5-4](../05-in-production/04-observability.md) |
 | `severity-rubric/`, `../services_server.py`, `../reports/` | The skill, the MCP server and the sample reports | [2-2](../02-abilities/02-mcp.md), [2-3](../02-abilities/03-skills.md) |
