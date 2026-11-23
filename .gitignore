@@ -65,5 +65,8 @@ ALL_DOCS.md
 # Git worktrees
 .worktrees/
 
+# The built documentation site (make docs-build)
+/site/
+
 # A local image in the repository root
 /image.jpg

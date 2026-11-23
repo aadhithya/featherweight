@@ -59,3 +59,14 @@ repos:
         language: system
         files: ^(src|tests|examples)/|^pyproject\.toml$|^uv\.lock$
         pass_filenames: false
+
+  # The documentation site (mkdocs.yml) must build, strict: a broken link, a missing page or a bad docstring fails the commit.
+  # In the Docker container, as your user, like `make docs-build`. Needs Docker running and the image built (`make build`).
+  - repo: local
+    hooks:
+      - id: docs-site
+        name: docs site (docker)
+        entry: make docs-build
+        language: system
+        files: ^(docs/|src/featherweight/|scripts/docs_hooks\.py$|scripts/build_book\.py$|mkdocs\.yml$)
+        pass_filenames: false

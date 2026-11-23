@@ -41,7 +41,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/aadhithya/featherweight"
-Documentation = "https://github.com/aadhithya/featherweight/blob/main/docs/README.md"
+Documentation = "https://featherweight.asankar.de/"
 Repository = "https://github.com/aadhithya/featherweight"
 Issues = "https://github.com/aadhithya/featherweight/issues"
 Changelog = "https://github.com/aadhithya/featherweight/blob/main/CHANGELOG.md"
@@ -83,9 +83,16 @@ dev = [
     "ty>=0.0.105",
     "uvicorn>=0.54.0",
 ]
+# The documentation site (mkdocs.yml). Built by `make docs-build`, and published by the release workflow.
+docs = [
+    "mike>=2.1",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.26",
+]
 
 [tool.uv]
 package = false
+default-groups = ["dev", "docs"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "tests", "examples/doclearn"]
@@ -108,7 +115,7 @@ ignore = [
 ]
 
 [tool.ty.environment]
-extra-paths = ["src", "tests", "examples/doclearn", "examples/chat"]
+extra-paths = ["src", "tests", "scripts", "examples/doclearn", "examples/chat"]
 
 # `ty` is strict on the harness (src/) and the small examples. The tests and the doclearn example read `result.output`
 # after checking `result.status`, which `ty` cannot narrow (they are separate fields), and doclearn's agents override

@@ -1,0 +1,68 @@
+name: docs
+
+# Publishes the documentation site (https://featherweight.asankar.de) for one release, as a version of the site on the
+# `gh-pages` branch, with mike. The release workflow calls this after the package is published, so a release publishes its
+# docs by itself. By hand, it publishes the docs of any tag again (Actions, docs, Run workflow, e.g. v0.2.1): use it after a fix
+# to the docs of a release that is already out, or if the publish step failed.
+#
+# The versions are the minor versions: 0.2.1 replaces the pages of 0.2 and moves the alias `latest` to them. Pages that are
+# not a version (the redirect from the root to `latest`, the version list, the CNAME file) are kept by mike. See docs/releasing.md.
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: The release tag to publish the docs of, e.g. v0.2.1
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The release tag to publish the docs of, e.g. v0.2.1
+        type: string
+        required: true
+
+permissions:
+  contents: write # to push the gh-pages branch
+
+concurrency:
+  group: docs
+  cancel-in-progress: false # two publishes must not push to gh-pages at once
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag }}
+      DOMAIN: featherweight.asankar.de
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0 # mike reads and writes the gh-pages branch
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen
+      # The same strict build as the pull request check: a broken link stops the publish before anything is pushed.
+      - run: uv run mkdocs build --strict
+        env:
+          FTW_DOCS_REF: ${{ inputs.tag }}
+      - name: Publish this version
+        env:
+          FTW_DOCS_REF: ${{ inputs.tag }} # the links to the code point at this release, not at main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          version=$(echo "${TAG#v}" | cut -d. -f1,2)
+          uv run mike deploy --push --update-aliases "$version" latest
+          uv run mike set-default --push latest
+      # The custom domain: GitHub reads the CNAME file at the root of the branch. `.nojekyll` keeps GitHub from processing the site.
+      - name: Keep the CNAME file
+        run: |
+          git worktree add ../gh-pages gh-pages
+          cd ../gh-pages
+          echo "$DOMAIN" > CNAME
+          touch .nojekyll
+          git add CNAME .nojekyll
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "chore: keep the CNAME file"
+          git push origin gh-pages
