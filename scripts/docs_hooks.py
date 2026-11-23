@@ -38,7 +38,7 @@ EXTRA_MODULES = ("adapters.agui", "adapters.vercel", "adapters.errors", "sse")
 ALIASES = {"README.md": "documentation.md", "../README.md": "index.md"}
 HOME_FRONT_MATTER = "---\ntitle: An opinionated agent harness\nhide:\n  - navigation\n  - toc\n---\n\n"
 HOME_BUTTONS = (
-    "\n\n[Build your first agent](book/README.md){ .md-button .md-button--primary }\n"
+    "\n\n[Build your first agent](book/README.md){ .md-button }\n"
     "[Read the documentation](documentation.md){ .md-button }\n"
     f"[View on GitHub]({REPO}){{ .md-button }}"
 )

@@ -324,19 +324,6 @@ body,
   color: var(--md-accent-fg-color);
 }
 
-.md-typeset .md-button--primary {
-  background: var(--ftw-accent-fill);
-  border-color: var(--ftw-accent-line);
-  color: var(--ftw-accent-on-fill);
-}
-
-.md-typeset .md-button--primary:hover {
-  background: var(--ftw-accent-fill);
-  border-color: var(--md-accent-fg-color);
-  color: var(--ftw-accent-on-fill);
-  filter: brightness(1.15);
-}
-
 .md-typeset .admonition,
 .md-typeset details {
   border-radius: var(--ftw-radius);
