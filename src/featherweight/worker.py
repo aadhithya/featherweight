@@ -7,7 +7,7 @@ queue and the user's store. A failed job is never retried here (the user resumes
 
 import asyncio
 import logging
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from typing import Any, Literal
 
 from pydantic import BaseModel, ValidationError
@@ -33,9 +33,18 @@ class InvalidJobInput(Exception):
     """The input of a message does not fit the input model of its job."""
 
 
+class JobLookupError(Exception):
+    """`jobs_lookup` raised, returned something that is not a job, returned a job with another name than the one asked for, or returned a
+    job whose hash is not the one recorded when the job was submitted (it changed while the job waited). The job is not run."""
+
+
 class InvalidJobIdentity(Exception):
     """The identity of a message is missing and the worker's `identity_type` requires one, or does not fit that type, or the worker
     declares no type. The job is not run."""
+
+
+# `async def jobs_lookup(name, job_hash, identity) -> Job class | agent class | None`: see `JobWorker`.
+JobsLookup = Callable[[str, "str | None", Any], Awaitable["type[Job] | type[AgentBase] | None"]]
 
 
 class JobWorker:
@@ -52,6 +61,13 @@ class JobWorker:
     `identity_type` is the type of the identity of a run (docs/specs/identity.md): the worker rebuilds the identity of a message with it and
     gives it to the run. A type that does not allow `None` makes a message without an identity fail its job (`InvalidJobIdentity`), and so
     does an identity that does not fit the type, or one when no type is declared. The job is not run, and not retried.
+
+    `jobs_lookup` is a fallback for jobs that are not declared in code (an agent that a platform's user defined, kept in the platform's own
+    storage): `async def jobs_lookup(name, job_hash, identity)` returns the job class (or a plain agent class) for the name, or `None`.
+    `jobs` are tried first; the lookup is called only for a name `jobs` does not have, with the `job_hash` recorded when the job was
+    submitted (None for a job that has none) and the rebuilt identity (None if there is none). The worker checks that what it returns has the
+    name that was asked for and the recorded hash, and caches nothing. `None` is `UnknownJob`; a lookup that raises, a result that is
+    not a job, another name and another hash fail the job with `JobLookupError`. `jobs` may be empty. See docs/specs/submitted-jobs.md.
 
         worker = JobWorker(db, queue, runner, jobs=[Summarise])
         await worker.run()           # until `await worker.stop()` is called, from another task
@@ -72,6 +88,7 @@ class JobWorker:
         heartbeat: float | None = None,
         worker_id: str | None = None,
         identity_type: Any = None,
+        jobs_lookup: JobsLookup | None = None,
     ):
         if concurrency < 1:
             raise ValueError("concurrency must be at least 1")
@@ -92,6 +109,7 @@ class JobWorker:
         self.heartbeat = heartbeat if heartbeat is not None else lease / 3
         self.worker_id = worker_id or f"worker-{new_id()}"
         self._identity = IdentitySpec(identity_type)  # what a message's identity is rebuilt as (docs/specs/identity.md)
+        self._jobs_lookup = jobs_lookup
         self._jobs: dict[str, type[Job]] = {}
         for job in jobs:
             declared = as_job(job)
@@ -198,17 +216,6 @@ class JobWorker:
                 await self.queue.ack(delivery)
                 return
             taken_over = True
-        job = self._jobs.get(message.job_name)
-        if job is None:
-            await self._fail(
-                row.job_id, UnknownJob(f"This worker does not run a job called {message.job_name!r}"), delivery
-            )
-            return
-        try:
-            job_input = job.input_model.model_validate(message.input)
-        except ValidationError as exc:
-            await self._fail(row.job_id, InvalidJobInput(str(exc)), delivery)
-            return
         try:
             identity = self._identity.load(message.identity)
         except (
@@ -226,6 +233,24 @@ class JobWorker:
             return
         except ValueError as exc:
             await self._fail(row.job_id, InvalidJobIdentity(str(exc)), delivery)
+            return
+        job = self._jobs.get(message.job_name)
+        if job is None and self._jobs_lookup is not None:  # a name `jobs` does not have: ask the application
+            try:
+                job = await self._lookup(message.job_name, row.job_hash, identity)
+            except JobLookupError as exc:
+                await self._fail(row.job_id, exc, delivery)
+                return
+        if job is None:
+            note = " (it is not in `jobs`, and `jobs_lookup` found nothing)" if self._jobs_lookup is not None else ""
+            await self._fail(
+                row.job_id, UnknownJob(f"This worker does not run a job called {message.job_name!r}{note}"), delivery
+            )
+            return
+        try:
+            job_input = job.input_model.model_validate(message.input)
+        except ValidationError as exc:
+            await self._fail(row.job_id, InvalidJobInput(str(exc)), delivery)
             return
         # Take the job in one atomic step: it succeeds only if the job is still queued and nobody asked to cancel it. A client
         # that cancels at the same moment loses or wins cleanly, and a job is never both cancelled and run.
@@ -248,6 +273,27 @@ class JobWorker:
         self._deliveries[row.job_id] = delivery
         self._owners[row.job_id] = owner
         task.add_done_callback(lambda _: self._ended(row.job_id))
+
+    async def _lookup(self, name: str, job_hash: str | None, identity: Any) -> "type[Job] | None":
+        """Ask `jobs_lookup` for a job it was given nothing about, and check the answer before anything runs."""
+        assert self._jobs_lookup is not None
+        try:
+            found = await self._jobs_lookup(name, job_hash, identity)
+        except Exception as exc:
+            raise JobLookupError(f"jobs_lookup raised {type(exc).__name__}: {exc}") from exc
+        if found is None:
+            return None
+        try:
+            declared = as_job(found)
+        except TypeError as exc:
+            raise JobLookupError(f"jobs_lookup returned something that is not a job: {exc}") from exc
+        if declared.name != name:
+            raise JobLookupError(f"jobs_lookup was asked for {name!r} and returned a job called {declared.name!r}")
+        if job_hash is not None and declared.job_hash() != job_hash:
+            raise JobLookupError(
+                f"the job {name!r} is not the one that was submitted: its hash is not the one recorded when it was"
+            )
+        return declared
 
     def _ended(self, job_id: str) -> None:
         self._tasks.pop(job_id, None)
