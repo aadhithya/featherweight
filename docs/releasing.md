@@ -87,7 +87,7 @@ the docstrings. It is built with MkDocs Material and mkdocstrings, and each rele
 - **Nothing is published between releases.** The docs on `main` are the docs of the next release.
 - **A fix to the docs of a release already out:** Actions, `docs`, Run workflow, with the tag (`v0.2.1`). It builds from that tag, so
   to fix the pages of `0.2`, the fix must be in the tag you give.
-- **Locally,** in the container: `make docs` serves it at <http://localhost:8000>, and `make docs-build` builds it into `site/` (git-ignored).
+- **Locally,** in the container: `make docs` serves it at <http://localhost:8001> (`make docs DOCS_PORT=9000` for another port), and `make docs-build` builds it into `site/` (git-ignored).
   Both the pull request check and the commit hook run the strict build.
 
 **One-time setup, by the owner:**

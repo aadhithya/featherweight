@@ -16,35 +16,44 @@ exclude_docs: |
 
 theme:
   name: material
+  font: false # no Google Fonts: nothing is fetched from a third party. assets/site.css sets the system fonts
   features:
+    - navigation.instant
     - navigation.tabs
     - navigation.sections
     - navigation.indexes
     - navigation.top
     - navigation.footer
+    - toc.follow
     - search.highlight
     - search.suggest
     - content.code.copy
     - content.action.edit
   palette:
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
-      toggle:
-        icon: material/weather-night
-        name: Dark mode
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
+    # Dark is the default for everyone (no `media` rule, so the OS setting is not followed); the toggle switches to light.
+    # The colours are in assets/site.css.
+    - scheme: slate
       toggle:
         icon: material/weather-sunny
         name: Light mode
+    - scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+
+extra_css:
+  - assets/site.css
 
 extra:
+  generator: false
   version:
     provider: mike
     default: latest
 
 markdown_extensions:
   - admonition
+  - attr_list
+  - md_in_html
   - tables
   - toc:
       permalink: true
@@ -76,9 +85,10 @@ plugins:
 # The book and the API reference are filled in by scripts/docs_hooks.py: the book from docs/book/SUMMARY.md, the reference
 # from the modules of the package. The guides and the specs are listed here.
 nav:
-  - Home: README.md
+  - Home: index.md
   - Book: []
   - Guides:
+      - documentation.md
       - getting-started.md
       - agents.md
       - models.md

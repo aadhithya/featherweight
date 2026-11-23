@@ -8,7 +8,7 @@ Issues and pull requests are welcome.
 | `make test` | Unit tests (the model is mocked, no key needed); or `uv run pytest` |
 | `make check` | Lint and format check (ruff) and types (ty); `make lint`, `make format`, `make typecheck` run one |
 | `make hooks` | Install the git hooks: conventional commit messages, ruff, ty and the unit tests. CI only lints and type checks, so the tests run here, on commit |
-| `make docs` | Serve the documentation site at http://localhost:8000, in the container; `make docs-build` builds it (strict: a broken link fails). The commit hook and the pull request check run the build |
+| `make docs` | Serve the documentation site at http://localhost:8001 (`make docs DOCS_PORT=9000` for another port), in the container; `make docs-build` builds it (strict: a broken link fails). The commit hook and the pull request check run the build |
 | `make e2e` | Tests against the real model (costs money) |
 | `make pipeline ARGS="..."` | Run the example pipeline |
 | `make example-skills` | Run the skills example agent |

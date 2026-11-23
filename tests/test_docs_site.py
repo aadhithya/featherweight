@@ -30,9 +30,9 @@ def test_the_reference_lists_the_modules_of_the_package_and_the_public_names_com
 def test_every_page_of_the_guides_and_the_specs_is_in_the_navigation():
     nav = yaml.safe_load((ROOT / "mkdocs.yml").read_text().replace("!!python", ""))["nav"]
     listed = {path for entry in nav for value in entry.values() if isinstance(value, list) for path in map(str, value)}
-    listed |= {"README.md"}
     pages = {p.relative_to(ROOT / "docs").as_posix() for p in (ROOT / "docs").glob("*.md")}
     pages |= {p.relative_to(ROOT / "docs").as_posix() for p in (ROOT / "docs" / "specs").glob("*.md")}
+    pages = {"documentation.md" if page == "README.md" else page for page in pages}  # the README of docs/ is renamed
     assert pages <= listed, sorted(pages - listed)
 
 

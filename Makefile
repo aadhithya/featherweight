@@ -40,12 +40,13 @@ check:
 skill:
 	python3 scripts/build_skill.py
 
-# The documentation site (mkdocs.yml), in the container, as your user: `make docs` serves it at http://localhost:8000, `make docs-build`
+# The documentation site (mkdocs.yml), in the container, as your user: `make docs` serves it at http://localhost:8001 (`make docs DOCS_PORT=9000` for another port), `make docs-build`
 # builds it into ./site (git-ignored) and fails on a broken link or a docstring problem. The release workflow publishes it.
+DOCS_PORT ?= 8001
 DOCS_RUN = docker compose run --rm --no-deps -u $$(id -u):$$(id -g) -e HOME=/tmp featherweight
 
 docs:
-	docker compose run --rm --no-deps -p 8000:8000 -u $$(id -u):$$(id -g) -e HOME=/tmp featherweight mkdocs serve -a 0.0.0.0:8000
+	docker compose run --rm --no-deps -p $(DOCS_PORT):8000 -u $$(id -u):$$(id -g) -e HOME=/tmp featherweight mkdocs serve -a 0.0.0.0:8000
 
 docs-build:
 	$(DOCS_RUN) mkdocs build --strict
