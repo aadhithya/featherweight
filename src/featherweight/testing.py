@@ -691,6 +691,16 @@ async def check_queue(make_queue: Callable[[float], JobQueue | Awaitable[JobQueu
     assert got is not None and got.message.trace_context == {}, "a message without a trace context has an empty one"
     await queue.ack(got)
 
+    identity = {"user_id": "u-1", "tenant": "é", "roles": ["a", "b"], "nested": {"n": [1, 2]}}
+    await queue.enqueue(JobMessage(job_id="job-i", job_name="shout", input={"n": 1}, identity=identity))
+    got = await queue.receive(1.0)
+    assert got is not None and got.message.identity == identity, "the identity must come back unchanged"
+    await queue.ack(got)
+    await queue.enqueue(message(0))
+    got = await queue.receive(1.0)
+    assert got is not None and got.message.identity is None, "a message without an identity has none"
+    await queue.ack(got)
+
     queue = await fresh()
     for n in range(5):
         await queue.enqueue(message(n))

@@ -8,12 +8,13 @@ queue and the user's store. A failed job is never retried here (the user resumes
 import asyncio
 import logging
 from collections.abc import Sequence
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ValidationError
 
 from featherweight.db import FINAL, Database, JobLost, JobOwner, JobRow, new_id
 from featherweight.fingerprint import error_fields
+from featherweight.identity import IdentitySpec
 from featherweight.jobs import Job, as_job, execute_job
 from featherweight.models import AgentBase, RunStatus
 from featherweight.queue import Delivery, JobQueue
@@ -32,6 +33,11 @@ class InvalidJobInput(Exception):
     """The input of a message does not fit the input model of its job."""
 
 
+class InvalidJobIdentity(Exception):
+    """The identity of a message is missing and the worker's `identity_type` requires one, or does not fit that type, or the worker
+    declares no type. The job is not run."""
+
+
 class JobWorker:
     """`JobWorker(db, queue, runner, jobs, results)`: `jobs` are the `Job` classes (or plain agent classes) it can run, by name.
 
@@ -42,6 +48,10 @@ class JobWorker:
     jobs, the worker renews the lease of each, and `extend`s the queue's lease of its message, every `heartbeat` seconds (a third of
     the lease by default). A worker that lost a job (another one took it over) stops it and writes nothing more to it.
     `worker_id` names the worker in `jobs.worker_id` (a new id by default).
+
+    `identity_type` is the type of the identity of a run (docs/specs/identity.md): the worker rebuilds the identity of a message with it and
+    gives it to the run. A type that does not allow `None` makes a message without an identity fail its job (`InvalidJobIdentity`), and so
+    does an identity that does not fit the type, or one when no type is declared. The job is not run, and not retried.
 
         worker = JobWorker(db, queue, runner, jobs=[Summarise])
         await worker.run()           # until `await worker.stop()` is called, from another task
@@ -61,6 +71,7 @@ class JobWorker:
         lease: float = 60.0,
         heartbeat: float | None = None,
         worker_id: str | None = None,
+        identity_type: Any = None,
     ):
         if concurrency < 1:
             raise ValueError("concurrency must be at least 1")
@@ -80,6 +91,7 @@ class JobWorker:
         self.lease = lease
         self.heartbeat = heartbeat if heartbeat is not None else lease / 3
         self.worker_id = worker_id or f"worker-{new_id()}"
+        self._identity = IdentitySpec(identity_type)  # what a message's identity is rebuilt as (docs/specs/identity.md)
         self._jobs: dict[str, type[Job]] = {}
         for job in jobs:
             declared = as_job(job)
@@ -197,6 +209,24 @@ class JobWorker:
         except ValidationError as exc:
             await self._fail(row.job_id, InvalidJobInput(str(exc)), delivery)
             return
+        try:
+            identity = self._identity.load(message.identity)
+        except (
+            ValidationError
+        ) as exc:  # the text names the fields and the rules, never the values: they are the identity
+            fields = ", ".join(
+                f"{'.'.join(str(part) for part in e['loc']) or 'identity'}: {e['type']}"
+                for e in exc.errors(include_input=False, include_url=False)
+            )
+            await self._fail(
+                row.job_id,
+                InvalidJobIdentity(f"the identity of the message does not fit the declared type ({fields})"),
+                delivery,
+            )
+            return
+        except ValueError as exc:
+            await self._fail(row.job_id, InvalidJobIdentity(str(exc)), delivery)
+            return
         # Take the job in one atomic step: it succeeds only if the job is still queued and nobody asked to cancel it. A client
         # that cancels at the same moment loses or wins cleanly, and a job is never both cancelled and run.
         if not taken_over and not await self.db.start_job(row.job_id, worker_id=self.worker_id, lease=self.lease):
@@ -213,7 +243,7 @@ class JobWorker:
         owner = JobOwner(worker_id=self.worker_id, executions=started.executions)
         if taken_over:
             logger.warning("worker_takeover job_id=%s execution=%d", row.job_id, owner.executions)
-        task = asyncio.create_task(self._run_job(delivery, row, job, job_input, owner))
+        task = asyncio.create_task(self._run_job(delivery, row, job, job_input, owner, identity))
         self._tasks[row.job_id] = task
         self._deliveries[row.job_id] = delivery
         self._owners[row.job_id] = owner
@@ -234,7 +264,13 @@ class JobWorker:
         await self.queue.ack(delivery)
 
     async def _run_job(
-        self, delivery: Delivery, row: JobRow, job: type[Job], job_input: BaseModel, owner: JobOwner
+        self,
+        delivery: Delivery,
+        row: JobRow,
+        job: type[Job],
+        job_input: BaseModel,
+        owner: JobOwner,
+        identity: Any = None,
     ) -> None:
         job_id = row.job_id
 
@@ -264,6 +300,7 @@ class JobWorker:
                 trace_context=delivery.message.trace_context,
                 owner=owner,
                 lost=lambda: job_id in self._lost,
+                identity=identity,
             )
         except asyncio.CancelledError:
             return  # `on_cancel` has settled the message and the status, or the job was lost

@@ -201,6 +201,10 @@ CREATE INDEX idx_job_events_job ON job_events(job_id, seq);
 SQLITE_IDENTITY_HASH = "ALTER TABLE agent_runs ADD COLUMN identity_hash TEXT;"
 POSTGRES_IDENTITY_HASH = "ALTER TABLE agent_runs ADD COLUMN identity_hash text;"
 
+# The identity of the run in a queue message (docs/specs/identity.md). The queue table is sqlite's (we ship no Postgres queue), so Postgres has nothing to do.
+SQLITE_QUEUE_IDENTITY = "ALTER TABLE job_queue ADD COLUMN identity TEXT;"
+POSTGRES_NOTHING = "SELECT 1;"
+
 MIGRATIONS: list[Migration] = [
     Migration(version=1, name="baseline", sql={"sqlite": SQLITE_BASELINE, "postgres": POSTGRES_BASELINE}),
     Migration(
@@ -208,4 +212,5 @@ MIGRATIONS: list[Migration] = [
         name="identity_hash",
         sql={"sqlite": SQLITE_IDENTITY_HASH, "postgres": POSTGRES_IDENTITY_HASH},
     ),
+    Migration(version=3, name="queue_identity", sql={"sqlite": SQLITE_QUEUE_IDENTITY, "postgres": POSTGRES_NOTHING}),
 ]

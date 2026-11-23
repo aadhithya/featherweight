@@ -1334,7 +1334,11 @@ class AgentRunner:
         task: asyncio.Task[Any] | None = None
         if self.background is not None:
             job_id = await self.background.submit(
-                entry, child_input, parent_agent_run_id=parent, parent_tool_call_id=tool_call_id
+                entry,
+                child_input,
+                parent_agent_run_id=parent,
+                parent_tool_call_id=tool_call_id,
+                identity=context.identity,  # the child acts for whom its parent does
             )
             placement = "worker"
         else:
