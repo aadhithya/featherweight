@@ -1,5 +1,6 @@
 """Skills: the model, loading from the specification's format, and an agent reading its skills."""
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import ClassVar
@@ -9,7 +10,7 @@ from fakes import FakeSettings, Scripted, runner_with, structured_reply, tool_re
 from langchain_core.messages import SystemMessage, ToolMessage
 from pydantic import ValidationError
 
-from featherweight.fingerprint import tools_hash
+from featherweight.fingerprint import agent_hash, tools_hash
 from featherweight.model_settings import ModelSettings
 from featherweight.models import AgentBase, AgentInput, AgentOutput, RunStatus
 from featherweight.skills import Skill, SkillError
@@ -321,3 +322,85 @@ def test_skills_with_the_same_name_are_refused():
 def test_the_prompt_hash_changes_with_the_skills():
     assert Writer().system_prompt_hash != SkilledWriter().system_prompt_hash
     assert SkilledWriter().system_prompt_hash != Writer(skills=[NOTES]).system_prompt_hash
+
+
+# a skill whose text is somewhere else
+
+BUCKET: dict[str, str] = {}
+
+
+class BucketSkill(Skill):
+    """A skill that reads its text from a fake object store, when it is asked for."""
+
+    etag: str = ""
+
+    async def aread(self, resource: str = "") -> str:
+        await asyncio.sleep(0)  # a real client would await the network here
+        return BUCKET[f"{self.name}/{resource or 'SKILL.md'}"]
+
+
+class BrokenSkill(Skill):
+    async def aread(self, resource: str = "") -> str:
+        raise ConnectionError("s3://private-bucket/key is not reachable")
+
+
+def bucket_skill(etag: str = "1") -> BucketSkill:
+    return BucketSkill(name="from-the-bucket", description="Kept in the bucket.", etag=etag)
+
+
+async def test_aread_is_read_by_default():
+    assert await NOTES.aread() == NOTES.read()
+    assert await NOTES.aread("references/tags.md") == NOTES.read("references/tags.md")
+    assert await NOTES.aread("references/missing.md") == NOTES.read("references/missing.md")
+
+
+async def test_get_skill_awaits_aread_so_a_skill_can_read_its_text_from_somewhere_else(db):
+    BUCKET.clear()
+    BUCKET["from-the-bucket/SKILL.md"] = "Instructions from the bucket."
+    BUCKET["from-the-bucket/references/a.md"] = "A file from the bucket."
+
+    class FromTheBucket(Writer):
+        skills: list[Skill] = [bucket_skill()]
+
+    model = Scripted(
+        script=[
+            tool_reply("get_skill", {"name": "from-the-bucket"}, "t1"),
+            tool_reply("get_skill", {"name": "from-the-bucket", "resource": "references/a.md"}, "t2"),
+            done(),
+        ]
+    )
+
+    result = await runner_with(db, model).run(FromTheBucket, TaskInput(text="t"))
+
+    assert result.status == RunStatus.SUCCESS
+    assert tool_texts(model) == ["Instructions from the bucket.", "A file from the bucket."]
+    assert "Instructions from the bucket." not in "".join(system_prompts(model))  # nothing was fetched for the prompt
+
+
+def test_the_hash_of_an_agent_changes_with_a_field_of_its_fetched_skill():
+    class First(Writer):
+        skills: list[Skill] = [bucket_skill("1")]
+
+    class Second(Writer):
+        skills: list[Skill] = [bucket_skill("2")]
+
+    assert agent_hash(First()) == agent_hash(First())
+    assert agent_hash(First()) != agent_hash(Second())  # the etag is how an edit in the store reaches the hash
+
+
+async def test_a_read_that_fails_is_text_for_the_agent_and_the_error_goes_to_the_log(db, caplog):
+    class Broken(Writer):
+        skills: list[Skill] = [BrokenSkill(name="broken", description="Never reachable.")]
+
+    model = Scripted(script=[tool_reply("get_skill", {"name": "broken"}, "t"), done()])
+
+    with caplog.at_level(logging.WARNING, logger="featherweight.runner"):
+        result = await runner_with(db, model).run(Broken, TaskInput(text="t"))
+
+    assert result.status == RunStatus.SUCCESS  # the run carries on
+    (text,) = tool_texts(model)
+    assert text == "The skill 'broken' could not be read: ConnectionError."
+    assert (
+        "private-bucket" not in text
+    )  # the message of the error can name a bucket or a key: it is not shown to the model
+    assert any("skill_read_failed" in r.message and "private-bucket" in r.message for r in caplog.records)

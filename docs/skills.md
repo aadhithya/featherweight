@@ -121,6 +121,29 @@ meeting-notes/
 
 **`Skill.from_markdown(text)`** parses the text of one `SKILL.md`, with the resources you give it.
 
+## Reading a skill from somewhere else
+
+A skill whose text lives in a database or an object store is a `Skill` subclass that fetches it when the agent asks. The agent's
+`get_skill` tool awaits `skill.aread(resource)`. The default returns `skill.read(resource)`, so a skill that holds its text needs
+nothing; a subclass overrides `aread`:
+
+```python
+class BucketSkill(Skill):
+    etag: str  # changes when the text does
+
+    async def aread(self, resource: str = "") -> str:
+        return await bucket.get_text(f"{self.name}/{resource or 'SKILL.md'}")  # your client, awaited: it must not block
+```
+
+- The `name` and the `description` are plain fields, because they are in the prompt. Only the instructions and the files are read late.
+- **Give the subclass a field that changes when the text does** (an `etag`, a `version`). The agent's hash is made from the fields of its
+  skills, and a fetched text is not one of them: without it, an edit in the store leaves the hash as it was, and
+  [resuming a job](agents.md#resuming-a-job) reuses results made with the old text.
+- A read that fails does not fail the run. The agent is told `The skill 'x' could not be read: <the type of the error>`, and the error
+  goes to the log as `skill_read_failed`, because its message can name a bucket or a key.
+- featherweight ships no store and no client. Where the skills live, who may edit them and which ones an agent gets is your application's.
+  The [spec](specs/skills.md#reading-a-skill-from-somewhere-else) has the rules.
+
 ## What is supported
 
 What the specification defines, and what featherweight does with it:
