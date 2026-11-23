@@ -59,7 +59,7 @@ taken over looks in itself first, then in the old job. The execution that asks i
 that lost the job and has not noticed is still the execution it was).
 
 A job created with `resume_from` (see [jobs and tracing](jobs-and-tracing.md#resuming-a-job)) makes the runner look up a
-run before it runs it. This is replay with memoised agent calls: the caller's code runs again, and only agent runs are
+run before it runs it. This is replay with memoised agent calls: the caller's code runs again, and only runs are
 answered from the log.
 
 - **Where.** At the start of `_invoke`, once per `run` call, before the attempt loop, and only when `depth` is 1 and
@@ -68,7 +68,7 @@ answered from the log.
   matching row will do. A row with no `agent_hash` or `input_hash` never matches. The log is the metadata question.
 - **The result.** The output comes from the runner's `ResultStore` (`get(ResultKey(old job, agent hash, input hash))`). No
   store (`results=None`) is a `SetupError`; no result for a step that the log says succeeded logs `result_missing` and the
-  agent runs.
+  runs.
 - **The check.** The kept output is validated against the current output model, then `check_output(agent_input,
   output)` runs again. If either fails, `run_reuse_rejected reason=...` is logged and the agent runs normally.
 - **What is kept.** The output of a depth-1 run that succeeds inside a `resumable` job, put in the store after the row is
@@ -226,7 +226,7 @@ is needed for the real model. A missing key is a setup error: the run fails at o
 - **Depth and breadth, not cost.** They are simple to explain and to set. A budget is not built.
 - **Slots are held by attempts that call the model**, which keeps the limit on model calls honest.
 - **The runner owns no workflow.** It is not a graph engine. Resuming is replay: the caller's code runs again, and the
-  runner answers the agent runs that already succeeded.
+  runner answers the runs that already succeeded.
 - **`AgentResult.reused`.** A plain flag, so that a pipeline or a test can tell a reused result from a run without
   reading the log.
 

@@ -47,7 +47,7 @@ Checked with a fake stdio server, and once with a real Gemini call through `crea
    `Attempted to exit cancel scope in a different task`. An owner task per server, which opens the session and waits for
    a stop signal, works.
 3. **A server that dies raises** (`McpError: Connection closed`, or `FileNotFoundError` for a missing command), and the
-   agent run dies with it. The adapter handles only `isError` results. We wrap every MCP tool.
+   run dies with it. The adapter handles only `isError` results. We wrap every MCP tool.
 
 **Gemini's schema conversion is lenient and lossy.** It never raised, but: nested optional fields became required; a
 `oneOf` collapsed to its first type; a dict with typed values became a bare object; `format`, `minimum` and `maximum`
@@ -172,7 +172,7 @@ the agent loop. Without the wrapper a dead server ends the whole run (checked).
 - **A resource link is turned into text** (`Resource link: <uri> (<mime type>)`), not passed through. The adapter makes
   it a file block with a URL, and the Gemini client then **fetches that URL itself**, when the next model call is
   prepared. That has two problems: a server can make our process fetch any address, and a failed fetch raises outside
-  the tool, so the tool wrapper cannot catch it (checked: a 404 killed the agent run).
+  the tool, so the tool wrapper cannot catch it (checked: a 404 killed the run).
 - **Audio** makes the adapter raise. The wrapper turns that into text: `The tool returned audio, which is not supported`.
 - **`structuredContent`** is not shown to the model separately: the adapter puts it in the message's artifact, and a
   server that declares an output schema must also return the same data as text. If a result has **no content but has

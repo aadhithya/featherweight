@@ -88,7 +88,7 @@ Set `GOOGLE_API_KEY` first. The default model is Gemini, and the [other provider
 
 The run log is a sqlite file here. For a deployment, `PostgresDatabase` ships in the package (`pip install 'featherweight[postgres]'`), and switching is one line: see [persistence](persistence.md).
 
-The `job_id` is the job the run belongs to; each agent run has its own `attempt_id` ([agents](agents.md#running-an-agent)).
+The `job_id` is the job the run belongs to; each run has a `run_id` and each of its attempts an `attempt_id` ([agents](agents.md#running-an-agent)).
 
 ## Where next
 

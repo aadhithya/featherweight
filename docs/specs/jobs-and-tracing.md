@@ -20,12 +20,12 @@ Jobs can also be submitted to a queue and run by a separate worker: see the [sub
 ## Goal
 
 Every attempt of every agent is on record, tied to the job it belongs to and to the agent that launched it, so that a
-failed pipeline can be diagnosed from its rows, and replayed against them, without new model calls. A pipeline run is a
+failed pipeline can be diagnosed from its rows, and replayed against them, without new model calls. A pipeline that is declared and recorded is a
 **job**.
 
 ## Jobs
 
-A job is one run of a pipeline. It is declared as a `Job` class ([submitted jobs](submitted-jobs.md#the-job)), and it runs either in your
+A job is a pipeline. It is declared as a `Job` class ([submitted jobs](submitted-jobs.md#the-job)), and it runs either in your
 process or on a worker. `run_job(runner, job, input, *, job_id=None, resume_from=None, resumable=False)` runs it in your process:
 
 1. creates the job (or uses `job_id`, which must exist), with the job's name, version, hash and the hash of the input, and starts it
@@ -92,7 +92,7 @@ A resume is the user running a job that **ended** again, as a **new** job. (A jo
 
 A pipeline that failed at step 2 is run again with `resume_from=<failed job>`, if the failed job was created `resumable=True`
 (decided before it ran; otherwise nothing was kept and `create_job` raises). This is replay with memoised agent calls, not
-pausing: the pipeline's own code, loops and decisions run again, and the runner answers an agent run from the old job's
+pausing: the pipeline's own code, loops and decisions run again, and the runner answers a run from the old job's
 kept results when it can ([runner](runner.md#resuming) has the rules). A job created with `resume_from` is resumable too. The new job's trace has every step: a reused step
 is a `SUCCESS` row with zero tokens and `reused_from_attempt_id` pointing at the original, so the totals of the new job
 count only the calls it made. The old job is not changed.
@@ -126,7 +126,7 @@ columns of every table, their types and constraints are in [the schema](persiste
   data, so it is in the logs and the result, never the log.
 
 `completed_at - started_at` is the run, and `started_at - created_at` the wait for a slot. A reused run, or one cancelled while queued, has no
-`started_at`. The whole launch tree of a job is one query on `parent_attempt_id` and `depth`, and the indexes on the job, the invocation, the
+`started_at`. The whole launch tree of a job is one query on `parent_attempt_id` and `depth`, and the indexes on the job, the run, the
 parent and `(job_id, agent_hash, input_hash)` (the lookup for reuse) keep the queries cheap.
 
 ## Statuses
@@ -168,7 +168,7 @@ Failures log at warning or error.
 - Rows for tool calls. Skill reads and MCP calls are log lines only.
 - Redaction of inputs and outputs, and retention or cleanup.
 - Several processes writing one database.
-- Resuming from a crash inside the pipeline's code, mid-step. The code runs again; agent runs are answered from the log.
+- Resuming from a crash inside the pipeline's code, mid-step. The code runs again; runs are answered from the log.
 - Reusing the runs of sub-agents.
 
 ## Tests

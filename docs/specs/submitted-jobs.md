@@ -243,7 +243,7 @@ for ever. This section is the recovery from that, and it is all that it is: we d
   ownership). A job whose message never comes back is not found: the queue's redelivery is the only trigger, and there is no sweeper.
 - **Executions.** `jobs.executions` counts how many times a worker started the job: 1 for the first, and one more each time it is started again (built,
   #105: a job that a shutdown put back in the queue is started again as execution 2; a takeover, #106, does the same). (It is not `attempt`, which is the
-  retry of one agent call.) Each agent run records the execution that made it (`attempts.job_execution`, built, #106), and the job's span
+  retry of one agent call.) Each run records the execution that made it (`attempts.job_execution`, built, #106), and the job's span
   has `ftw.job.execution`. The execution comes from the task that runs the job (`execute_job` sets it, as it sets who the owner is), and not from the
   job's row, so that a worker that lost the job and has not noticed yet still records the execution it was.
 - **A takeover reuses the steps that finished** (built, #106), if the job is `resumable`, with the same mechanism as a resume ([the runner](runner.md#resuming)): the
@@ -262,7 +262,7 @@ for ever. This section is the recovery from that, and it is all that it is: we d
 - **The timeout** (built: [#107](https://github.com/aadhithya/featherweight/issues/107)). One execution of a job may run for `Job.timeout` seconds (default 600, `None` for no limit). When it is exceeded the
   task is cancelled and the job is `FAILED` with error type `JobTimeout`; it is not retried (the user resumes it). It applies to a job run
   by `run_job` too, because it is in the shared `execute_job`. Only the limit's own expiry counts: a `TimeoutError` that the job raises itself, and a
-  cancellation from outside, do not (the job ends `FAILED` with that error, and `CANCELLED`). The agent runs that it interrupts end `CANCELLED`. A heartbeat cannot do this, because a hung job in a healthy worker still
+  cancellation from outside, do not (the job ends `FAILED` with that error, and `CANCELLED`). The runs that it interrupts end `CANCELLED`. A heartbeat cannot do this, because a hung job in a healthy worker still
   heartbeats.
 - **Delivery count.** `Delivery.delivery_count` says how many times a message has been delivered. **How many redeliveries are allowed is the
   queue's business**: a broker has its own policy and dead-letter queue. Ours, `SqliteQueue`, allows 3 by default (`max_deliveries`), then marks

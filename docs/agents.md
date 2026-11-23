@@ -98,7 +98,7 @@ async with SqliteDatabase("featherweight.db") as db:
   results in input order. It has no limit of its own: the runner's concurrency limit bounds it.
 - Several agents of one pipeline share a `job_id`. Without one, the run is logged with no job.
 - A `job_id` is **the job that the run belongs to**, not the id of the run. A job is one unit of work with a status (a pipeline
-  you run with `run_job`, or one you submit to a worker): it has many agent runs, and each run has its own `attempt_id`.
+  you run with `run_job`, or one you submit to a worker): it has many runs, each with a `run_id`, and each attempt of a run has an `attempt_id`.
 
 `AgentRunner(db, ...)` takes these keyword arguments:
 
@@ -235,7 +235,7 @@ The [identity spec](specs/identity.md) has the rules, [the book](book/05-in-prod
 
 ## Jobs and tracing
 
-A **job** is one run of a pipeline, declared as a class with typed input and output, like an agent. It runs in your process,
+A **job** is a pipeline declared as a class with typed input and output, like an agent. It runs in your process,
 or on a worker ([submitted jobs](submitted-jobs.md)), and it is the same job either way. `run_job` creates it, marks it `RUNNING`,
 runs it and marks it `SUCCESS`, or `FAILED` with the error. A job that raises comes back as a failed `JobOutcome`, not an exception.
 
@@ -439,12 +439,12 @@ outcome = await run_job(runner, my_pipeline, PipelineInput(...), resume_from=fir
 - **The result store** is where the outputs are kept: `AgentRunner(db, results=...)`. The default is a `SqliteResultStore`, a
   table in the run log's sqlite file, which is for local development. `results=None` keeps nothing, and then resuming a job
   is a `SetupError`. To keep outputs somewhere else (a database per tenant, a bucket), write a [`ResultStore`](#writing-a-result-store).
-- **Resuming is up to you.** Nothing retries a failed job by itself. The attempts of one agent run are retried
+- **Resuming is up to you.** Nothing retries a failed job by itself. The attempts of one run are retried
   automatically (`max_attempts`), but a failed job is resumed by the person or the code that decides to, for example a
   retry button that calls `run_job(..., resume_from=...)`.
 
 This creates a **new job** that records `resumed_from`, and is resumable itself, so that a third attempt is possible. Your
-pipeline runs again from the top, with its own loops and decisions. Only the agent runs are answered from kept results. It is
+pipeline runs again from the top, with its own loops and decisions. Only the runs are answered from kept results. It is
 replay, not pausing: featherweight is not a workflow engine. To create the job first, use `db.create_job(name,
 resume_from=old_job_id)` and pass its id with `job_id` (`run_job` refuses `job_id` together with `resume_from` or
 `resumable`). [`examples/resume`](../examples/resume) runs a pipeline that crashes halfway and resumes, with the default result store and Claude Haiku
