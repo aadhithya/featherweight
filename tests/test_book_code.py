@@ -3,7 +3,8 @@
 import importlib.util
 from pathlib import Path
 
-from fakes import FakeSettings, Streams, runner_with
+from fakes import FakeSettings, Scripted, Streams, runner_with, structured_reply, tool_reply
+from langchain_core.messages import ToolMessage
 
 from featherweight.model_settings import ModelSettings
 
@@ -55,3 +56,48 @@ def test_chapter_4_4_attaches_an_image_as_an_image_block(tmp_path):
 
 def test_the_chapter_sets_its_own_attachment_limit():
     assert load("book_4_4_limit", "4-4/app.py").IncidentAssistant.max_attachments == 3
+
+
+async def run_5_5(db, monkeypatch, capsys, user_id, team):
+    app = load(f"book_5_5_{user_id}", "5-5/app.py")
+
+    class Fake(app.IncidentLookup):
+        model: ModelSettings = FakeSettings()
+
+    monkeypatch.setattr(app, "IncidentLookup", Fake)
+    model = Scripted(
+        script=[
+            tool_reply("open_incident", {"incident_id": "INC-7"}, "t1"),
+            structured_reply("Answer", {"answer": "ok"}),
+        ]
+    )
+    runner_with(db, model)
+
+    await app.main(user_id, team)
+
+    (tool_text,) = [m.content for m in model.seen[-1] if isinstance(m, ToolMessage) and m.tool_call_id == "t1"]
+    assert capsys.readouterr().out.strip() == "ok"
+    return tool_text
+
+
+async def test_chapter_5_5_opens_an_incident_for_the_team_it_belongs_to(db, monkeypatch, capsys):
+    assert await run_5_5(db, monkeypatch, capsys, "ana", "payments") == "Checkout is down for card payments."
+
+
+async def test_chapter_5_5_refuses_another_team_in_text_and_the_run_goes_on(db, monkeypatch, capsys):
+    assert await run_5_5(db, monkeypatch, capsys, "raj", "search") == "Not allowed."
+
+
+async def test_chapter_5_5_requires_an_identity_on_every_run(db):
+    app = load("book_5_5_required", "5-5/app.py")
+    runner = runner_with(db, Scripted(script=[]))
+    del runner
+    from featherweight import AgentRunner
+
+    strict = AgentRunner(db, identity_type=app.Responder)
+    try:
+        await strict.run(app.IncidentLookup, app.Question(text="?"))
+    except TypeError as exc:
+        assert "every run needs identity=" in str(exc)
+    else:
+        raise AssertionError("a run without an identity must raise when a type is declared")

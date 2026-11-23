@@ -22,6 +22,8 @@ or finding out why it behaves as it does.
   typed agent to a chat and a pipeline on workers. Start with [the map](book/00-start-here/02-the-map.md). The guides and the specs below are the reference.
 - **I want a short pattern to adapt.** [Recipes](recipes/README.md): a pipeline, resuming a job, a fake model for tests, a worker, a chat that
   streams, each one small and complete.
+- **I'm building a platform where users define skills or agents.** [Recipes](recipes/README.md): a skill from a database or S3, agents built from JSON with your own rules, a queue that signs its messages,
+  a tool that acts for the signed-in user. Then [who is asking](agents.md#who-is-asking-the-identity-of-a-run) and [jobs that are not declared in code](submitted-jobs.md#jobs-that-are-not-declared-in-code).
 - **I want a coding agent to build with it.** [The skill](../skills/featherweight/SKILL.md): install it in Claude Code, or copy
   `skills/featherweight` into another tool's skills folder. It carries the rules, a working app, the book and the guides.
 - **I'm new here.** [Getting started](getting-started.md): install it, write an agent, run it.

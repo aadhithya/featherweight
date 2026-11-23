@@ -16,5 +16,10 @@ Short, complete patterns to adapt, for building with featherweight. They use the
 | [Traces for jobs and agents](traces-for-jobs-and-agents.md) | OpenTelemetry spans for jobs, attempts, model calls and tool calls |
 | [An agent that starts another and goes on](an-agent-that-starts-another-and-goes-on.md) | A background agent whose result comes back later |
 | [A different provider](a-different-provider.md) | Use another model or provider |
+| [A skill from a database or S3](a-skill-from-a-database-or-s3.md) | Keep a skill's text in your own storage, and read it when the agent asks |
+| [A skill for each department](a-skill-for-each-department.md) | One agent, with the skills of whoever is asking |
+| [Agents built from JSON, with your own rules](agents-built-from-json.md) | Let users define agents from a catalog you control, and run them on workers |
+| [A queue that signs its messages](a-queue-that-signs-its-messages.md) | Wrap any queue with an HMAC signature, and check it with the kit |
+| [A tool that gets a token for its identity](a-tool-that-gets-a-token-for-its-identity.md) | Act for the signed-in user: check, then get a credential at each call |
 
 The skill for coding agents carries an abridged copy of these pages, built from them by `scripts/build_skill.py`, so edit the pages here.

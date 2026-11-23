@@ -56,6 +56,7 @@ New to featherweight? Start with [what it is](00-start-here/01-what-it-is.md). W
 2. [Several workers](05-in-production/02-several-workers.md)
 3. [Background agents](05-in-production/03-background-agents.md)
 4. [Observability](05-in-production/04-observability.md)
+5. [Who is asking](05-in-production/05-who-is-asking.md)
 
 ### Part 6: Bring your own storage
 

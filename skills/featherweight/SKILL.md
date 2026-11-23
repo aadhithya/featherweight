@@ -157,7 +157,7 @@ The guides are the reference for one subject each (the book above is the way to 
 | The task | Read |
 |---|---|
 | Define and run an agent, results, retries, checks, tools, jobs, tracing, configuration | `references/agents.md` |
-| Patterns: a pipeline, feeding errors back, a fake model for tests, a second agent | `references/recipes.md` |
+| Patterns: a pipeline, feeding errors back, a fake model for tests, a second agent; and for a platform where users define skills or agents: a skill from a database or S3, agents built from JSON, a queue that signs messages, a tool that acts for the signed-in user (`identity`) | `references/recipes.md` |
 | Pick a model or provider, effort, add GPT-5.x or Ollama | `references/models.md` |
 | An agent that launches other agents | `references/launching-agents.md` |
 | Use an MCP server, discovery, secrets, failures | `references/mcp.md` |

@@ -101,6 +101,11 @@ nav:
       - recipes/traces-for-jobs-and-agents.md
       - recipes/an-agent-that-starts-another-and-goes-on.md
       - recipes/a-different-provider.md
+      - recipes/a-skill-from-a-database-or-s3.md
+      - recipes/a-skill-for-each-department.md
+      - recipes/agents-built-from-json.md
+      - recipes/a-queue-that-signs-its-messages.md
+      - recipes/a-tool-that-gets-a-token-for-its-identity.md
   - Guides:
       - documentation.md
       - getting-started.md

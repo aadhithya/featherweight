@@ -56,6 +56,9 @@ the variable.
 
 A server that stdio starts gets a default environment (`PATH`, `HOME` and the like) plus the variables in `env_from`.
 
+**A stdio server runs a command on your server.** If your users define agents (from a form or a file), do not let them declare one: allow `HttpMCPServer`, or servers from a list you control
+([agents built from JSON](recipes/agents-built-from-json.md)). A server that acts for a user needs a token issued for that server, not the one your own API was given; per-user connections are not built in yet.
+
 ## Running an agent that uses MCP
 
 Nothing special: run it like any agent.
