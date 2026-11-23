@@ -12,7 +12,7 @@ do not](#words-we-use-and-words-we-do-not) lists the names that look the same an
 | **agent** | A typed class: an input, an output, a prompt and what it may use. A running agent is complete and validated before it runs, and its hash identifies it. [A typed agent](../01-your-first-agent/02-a-typed-agent.md) |
 | **allow-list** | A list the developer writes of what an agent may use: its tools, MCP servers, skills, sub-agents and background jobs. Nothing is granted by default. [Philosophy](../00-start-here/03-philosophy.md) |
 | **attachment** | A file (an image, a document, audio or video) sent with a chat message, as inline bytes. featherweight passes it on and checks nothing but the limits. [Attaching a file](../04-chat/04-attaching-a-file.md) |
-| **attempt** | One try of one agent call. A failed attempt is retried, up to three. Each attempt is a row of the run log. Not an execution. [Failures](../01-your-first-agent/05-failures-and-check-output.md) |
+| **attempt** | One try within a run. A failed attempt is retried, up to three times. Each attempt is a row of the run log. Not a run, and not an execution. [Failures](../01-your-first-agent/05-failures-and-check-output.md) |
 | **background job** | A job that an agent starts with `start_background` and does not wait for. The agent lists the agents and jobs it may start in `background_jobs`, and an agent class in that list runs as a job of its own. [Background jobs](../05-in-production/03-background-jobs.md) |
 | **catalog** | The list your application keeps of the tools, models or skills that users may pick from when they define an agent. featherweight has none: the builder is yours. [Agents built from JSON](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/agents-built-from-json.md) |
 | **check_output** | A method of an agent that rejects an output that a schema cannot, by raising. [Failures](../01-your-first-agent/05-failures-and-check-output.md) |
@@ -27,7 +27,6 @@ do not](#words-we-use-and-words-we-do-not) lists the names that look the same an
 | **hash** | A fingerprint, stored instead of the content: `agent_hash` (the whole declaration), `job_hash`, `input_hash`, `output_hash` and `identity_hash`. [What happened](../01-your-first-agent/04-what-happened.md) |
 | **history** | The messages of a chat. It is yours: featherweight keeps none. [Stopping and the conversation](../04-chat/03-stopping-and-the-conversation.md) |
 | **identity** | Who a run is for: a small Pydantic model that your application defines and passes as `identity=`. Tools read it from their `RunContext`, a launched agent inherits it, and it crosses the queue to a worker. It is never shown to the model, stored or logged, and it is not a credential. Declared with `identity_type`. [Who is asking](../05-in-production/05-who-is-asking.md) |
-| **invocation** | One call of `run` for one agent and one input, with all its attempts. Prose says "a run" for this. [Observability](../05-in-production/04-observability.md) |
 | **job** | A declared class, or a function with `@job`, that runs in your process or on a worker. It has a name, an id, a status, events and a result. [What a job is](../03-jobs-and-pipelines/01-what-a-job-is.md) |
 | **job name** | The string a worker runs a job by. It is yours to choose, unique in what the worker looks in, stable, and it matches `[A-Za-z][A-Za-z0-9_.-]*`. [Identity spec](https://github.com/aadhithya/featherweight/blob/main/docs/specs/identity.md#the-developers-responsibilities) |
 | **jobs_lookup** | The worker's fallback for jobs that are not declared in code: it is called only for a name that `jobs` does not have, and what it returns is checked. [Jobs that are not declared in code](../../submitted-jobs.md#jobs-that-are-not-declared-in-code) |
@@ -41,6 +40,7 @@ do not](#words-we-use-and-words-we-do-not) lists the names that look the same an
 | **pipeline** | Plain Python that runs agents: order, loops and branching are `if` and `for`. When it is declared as a class or with `@job`, it is a job. [What a job is](../03-jobs-and-pipelines/01-what-a-job-is.md) |
 | **queue** | How a submitted job travels to a worker: `SqliteQueue`, `MemoryQueue` or yours. [Submit and a worker](../05-in-production/01-submit-and-a-worker.md) |
 | **recipe** | A short, complete pattern for one job, in `docs/recipes`. Its code is run by the tests. [Recipes](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/README.md) |
+| **run** | One call of an agent, with its retries: what `runner.run(agent, input)` is and what returns an `AgentResult`. One streamed turn is a run. A run makes one or more attempts. Used as a verb, "to run" starts anything; as a noun, "a run" is only this. [Running it](../01-your-first-agent/03-running-it.md) |
 | **resume, resumable** | A job made `resumable` keeps its step results, so a later job (made with `resume_from`) can run again without redoing them. Only a step of the same agent, input and identity is reused. [Resume](../03-jobs-and-pipelines/04-resume.md) |
 | **result store** | Where job results are kept: `SqliteResultStore` or yours. [Results and the result store](../03-jobs-and-pipelines/03-results-and-the-result-store.md) |
 | **run log** | The rows of every job and every attempt, metadata only. [What happened](../01-your-first-agent/04-what-happened.md) |
@@ -49,7 +49,7 @@ do not](#words-we-use-and-words-we-do-not) lists the names that look the same an
 | **skill** | Instructions an agent reads when it needs them, in the Agent Skills format. [Skills](../02-abilities/03-skills.md) |
 | **span** | A unit of an OpenTelemetry trace: a job, an attempt, a model call or a tool call. [Observability](../05-in-production/04-observability.md) |
 | **SSE** | Server-sent events: the only streaming protocol featherweight uses, for chat and job events. [In the browser](../04-chat/02-in-the-browser.md) |
-| **step** | One agent run at the top of a job (depth 1): what a resume reuses. [Resume](../03-jobs-and-pipelines/04-resume.md) |
+| **step** | A run made directly by the job's own code (depth 1): what a resume reuses. A role of a run, not a unit of its own. [Resume](../03-jobs-and-pipelines/04-resume.md) |
 | **streaming agent** | An agent that streams its answer, for chat: a `StreamingAgent`. [A streaming agent](../04-chat/01-a-streaming-agent.md) |
 | **sub-agent** | An agent that another agent launches and waits for. Written `sub-agent` in prose, and `subagents` for the field that lists them. [Sub-agents](../02-abilities/04-sub-agents.md) |
 | **takeover** | Another worker taking a job whose worker died, as the same job with a higher execution. [Several workers](../05-in-production/02-several-workers.md) |
@@ -71,7 +71,7 @@ Where two names could mean one thing, the docs use one.
 | **streaming agent** | chat agent | `StreamingAgent` is the class, and it is used for chat. |
 | **allow-list** | allowlist, whitelist | One spelling. |
 | **identity** | caller, principal, actor, user (for what is passed) | "Caller" is the model calling a tool, and "actor" is the other side of a delegation. |
-| **attempt** / **invocation** / **execution** | "run" or "try" for all three | An attempt is one try, an invocation is one call of `run`, an execution is one start of a job by a worker. |
+| **run** / **attempt** / **execution** | "invocation" or "agent run" for a run, "run" for an attempt or a job | A run is one call of an agent, an attempt is one try within it, an execution is one start of a job by a worker. A job is never "a run of a pipeline". |
 | **resume** (a job), **reuse** (a step) | replay, rerun, for the same thing | A resume is a new job that points to an old one; it reuses the steps that finished. |
 | **pipeline** (your code), **job** (a declared pipeline) | workflow | A job has a name, an id, a status and events. `workflow` is the OpenTelemetry word for it in a span name. |
 | **featherweight**, lowercase | Featherweight | The name is written in lowercase, always. |
