@@ -124,3 +124,7 @@ Python 3.12 or later. Import what you use: `from featherweight import AgentBase,
 ## License
 
 Apache License 2.0. See [LICENSE](https://github.com/aadhithya/featherweight/blob/main/LICENSE).
+
+---
+
+Designed by a human. Implemented by AI agents.

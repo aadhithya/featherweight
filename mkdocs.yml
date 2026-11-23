@@ -7,6 +7,7 @@ site_url: https://ftw.asankar.de/
 repo_url: https://github.com/aadhithya/featherweight
 repo_name: aadhithya/featherweight
 edit_uri: edit/main/docs/
+copyright: Designed by a human. Implemented by AI agents.
 
 docs_dir: docs
 exclude_docs: |
