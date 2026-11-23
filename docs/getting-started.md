@@ -12,8 +12,7 @@ pip install 'featherweight[anthropic]'    # or mcp, openai, postgres, otel
 pip install 'featherweight[all]'          # all of them
 ```
 
-Python 3.12 or later. Import what you use: `from featherweight import AgentBase, AgentRunner`. (`import featherweight as ftw`
-works too, as a joke.)
+Python 3.12 or later. Import what you use: `from featherweight import AgentBase, AgentRunner`.
 
 ## With a coding agent
 

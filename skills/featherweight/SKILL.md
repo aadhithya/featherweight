@@ -110,7 +110,7 @@ asyncio.run(main())
 
 ## Rules that save you a round trip
 
-- **Import what you use:** `from featherweight import AgentBase, AgentRunner`, not `import featherweight as ftw` (a joke).
+- **Import what you use:** `from featherweight import AgentBase, AgentRunner`, not `import featherweight as ftw`.
 - **A `job_id` is the job a run belongs to, not the run's id.** A job has many runs; a run has a `run_id`, and each of its attempts an `attempt_id`.
 - **featherweight keeps metadata only** (status, tokens, timing, hashes). Inputs, outputs and results go to stores you provide
   (`ResultStore`, `Database`, `JobQueue` are interfaces you can implement), so never expect it to hold them.
