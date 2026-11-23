@@ -29,6 +29,7 @@ from pydantic import ValidationError
 from featherweight.background import BackgroundChildren, BackgroundResults, background_result_message
 from featherweight.context import (
     CURRENT_AGENT_RUN_ID,
+    CURRENT_IDENTITY,
     CURRENT_JOB_EXECUTION,
     CURRENT_TOOL_CALL_ID,
     IN_BACKGROUND_JOB,
@@ -38,6 +39,7 @@ from featherweight.db import AgentRunRow, Database, RunEnd, RunStart, new_id
 from featherweight.discovery import discovery_tools
 from featherweight.errors import RETRYABLE_4XX, SetupError
 from featherweight.fingerprint import agent_hash, error_fields, input_hash, output_hash, text_hash, tools_hash
+from featherweight.identity import IdentitySpec
 from featherweight.mcp_connections import Lease, MCPConnections
 from featherweight.messages import to_langchain
 from featherweight.models import (
@@ -245,6 +247,7 @@ class AgentRunner:
         results: ResultStore | None | Literal["default"] = "default",
         observers: Sequence[Observer] = (),
         observer_timeout: float = 1.0,
+        identity_type: Any = None,
     ):
         """`max_concurrent` caps how many attempts (model calls) run at once across this runner. Default:
         `MAX_CONCURRENT_AGENT_RUNS` from the environment, else 10.
@@ -263,6 +266,10 @@ class AgentRunner:
 
         `observers` hear what the runner does (`featherweight.observers`): they are called inline, each with a timeout of
         `observer_timeout` seconds, and what they raise is logged and ignored, so they never change or fail a run.
+
+        `identity_type` is the type of the identity of a run (a Pydantic model: who the run is for, for the tools; docs/specs/identity.md).
+        A declared type makes `identity=` required on `run`, `run_many`, `stream` and `run_job`; a union with `None`
+        (`Teacher | None`) allows runs without one; with nothing declared, passing one is a `TypeError`.
         """
         if max_attempts < 1:
             raise ValueError("max_attempts must be at least 1")
@@ -299,6 +306,7 @@ class AgentRunner:
         )
         self.max_attempts = max_attempts
         self.retry_delay_s = retry_delay_s
+        self.identity = IdentitySpec(identity_type)
         self._observers = Observers(observers, observer_timeout)
         self._keep_open = False  # True inside `async with`: MCP servers stay up between runs
         self._mcp: MCPConnections | None = None  # created when a run first needs an MCP server
@@ -328,26 +336,35 @@ class AgentRunner:
         return self._mcp
 
     async def run(
-        self, agent_cls: type[AgentBase], agent_input: AgentInput, *, job_id: str | None = None
+        self, agent_cls: type[AgentBase], agent_input: AgentInput, *, job_id: str | None = None, identity: Any = None
     ) -> AgentResult[Any]:
         """Run an agent. Runtime failures come back as a FAILED result; they are not raised.
 
-        Programming errors still raise: an input that is not the agent's `input_model`, or a
-        `job_id` that does not exist. A streaming agent is run with `stream()`.
+        Programming errors still raise: an input that is not the agent's `input_model`, a `job_id` that does not exist, and an
+        `identity` that is missing, of the wrong type, or given when no `identity_type` is declared. A streaming agent is run
+        with `stream()`.
+
+        `identity` is who the run is for. The tools read it from their `RunContext`, a launched agent inherits it, and it is never
+        shown to the model.
         """
         if agent_cls.streaming:
             raise TypeError(f"{agent_cls.__name__} is a streaming agent: run it with runner.stream()")
-        return await self._run(agent_cls, agent_input, job_id=job_id)
+        self.identity.check(identity)
+        token = CURRENT_IDENTITY.set(identity)
+        try:
+            return await self._run(agent_cls, agent_input, job_id=job_id)
+        finally:
+            CURRENT_IDENTITY.reset(token)
 
     def stream(
-        self, agent_cls: type[StreamingAgent], chat_input: ChatInput, *, job_id: str | None = None
+        self, agent_cls: type[StreamingAgent], chat_input: ChatInput, *, job_id: str | None = None, identity: Any = None
     ) -> StreamingRun:
         """Run a streaming agent. Returns at once; the run starts when you loop over it, and its events (AG-UI's) come as
         the model writes. A failure is an `RUN_ERROR` event and a FAILED row, not an exception; and nothing is retried.
 
         Programming errors raise, as for `run()`: an agent that is not a streaming agent, an input that is not a
-        `ChatInput`, a conversation with more attachments or bytes than the agent allows, or a `job_id` that does not exist
-        (raised when the loop starts).
+        `ChatInput`, a conversation with more attachments or bytes than the agent allows, an `identity` that is missing or of the
+        wrong type, or a `job_id` that does not exist (raised when the loop starts).
         """
         if not (isinstance(agent_cls, type) and issubclass(agent_cls, StreamingAgent)):
             raise TypeError(
@@ -356,8 +373,11 @@ class AgentRunner:
         if not isinstance(chat_input, ChatInput):
             raise TypeError(f"{agent_cls.__name__} expects a ChatInput, got {type(chat_input).__name__}")
         agent_cls.check_attachments(chat_input)  # before any run or row exists
+        self.identity.check(identity)
         self._check_background_setup(agent_cls())  # ty: ignore[missing-argument]  # a subclass supplies the defaults
-        return StreamingRun(new_id(), lambda run, emit: self._stream(agent_cls, chat_input, run, emit, job_id=job_id))
+        return StreamingRun(
+            new_id(), lambda run, emit: self._stream(agent_cls, chat_input, run, emit, job_id=job_id, identity=identity)
+        )
 
     def cancel(self, run_id: str) -> bool:
         """Stop a streaming run of this runner by its id (the `run_id` of its `RUN_STARTED` event). It ends as `run.cancel()`
@@ -376,6 +396,7 @@ class AgentRunner:
         emit: Callable[[BaseEvent], None],
         *,
         job_id: str | None,
+        identity: Any = None,
     ) -> None:
         """The whole of a streamed turn, in the task of the run: the row, the MCP servers, the events, and the end.
 
@@ -388,6 +409,7 @@ class AgentRunner:
         can_launch = bool(agent.subagents) and 1 < self.max_depth
         system_prompt = agent.build_system_prompt(can_launch=can_launch, can_background=self._can_background(agent))
         CURRENT_AGENT_RUN_ID.set(run.run_id)  # this task has its own context, so nothing needs undoing
+        CURRENT_IDENTITY.set(identity)  # the tools of this turn, and what it launches, read it
         logger.info(
             "stream_started agent_run_id=%s agent=%s version=%s model=%s reasoning=%s job_id=%s thread_id=%s",
             run.run_id,
@@ -514,7 +536,7 @@ class AgentRunner:
             run.status = RunStatus.RUNNING
             if setup_error is not None:
                 raise setup_error
-            context = RunContext(job_id=job_id, agent_run_id=run.run_id)
+            context = RunContext(job_id=job_id, agent_run_id=run.run_id, identity=CURRENT_IDENTITY.get())
             async for event in self._stream_events(
                 agent, chat_input, system_prompt, context, slot, can_launch, registry, turn.mapper, run._new_messages
             ):
@@ -855,7 +877,7 @@ class AgentRunner:
                 try:
                     if setup_error is not None:
                         raise setup_error
-                    context = RunContext(job_id=job_id, agent_run_id=agent_run_id)
+                    context = RunContext(job_id=job_id, agent_run_id=agent_run_id, identity=CURRENT_IDENTITY.get())
                     output, input_tokens, output_tokens, reported_model = await self._attempt(
                         agent, agent_input, system_prompt, message, context, slot, depth, can_launch, registry
                     )
@@ -1120,8 +1142,9 @@ class AgentRunner:
         agent_inputs: Sequence[AgentInput],
         *,
         job_id: str | None = None,
+        identity: Any = None,
     ) -> list[AgentResult[Any]]:
-        """Run one agent over many inputs concurrently (fan-out).
+        """Run one agent over many inputs concurrently (fan-out), all for the same `identity`.
 
         Results come back in input order. As with `run`, runtime failures are FAILED results, not
         exceptions, so the caller decides what a failure means. There is no limit of its own: the
@@ -1130,7 +1153,9 @@ class AgentRunner:
         name = agent_cls().name  # ty: ignore[missing-argument]  # a subclass supplies the defaults
         logger.info("fan_out_started agent=%s count=%d job_id=%s", name, len(agent_inputs), job_id)
         results = list(
-            await asyncio.gather(*(self.run(agent_cls, agent_input, job_id=job_id) for agent_input in agent_inputs))
+            await asyncio.gather(
+                *(self.run(agent_cls, agent_input, job_id=job_id, identity=identity) for agent_input in agent_inputs)
+            )
         )
         failed = sum(result.status == RunStatus.FAILED for result in results)
         log = logger.warning if failed else logger.info
@@ -1344,7 +1369,14 @@ class AgentRunner:
         from featherweight.jobs import run_job  # jobs.py imports this module
 
         try:
-            await run_job(self, declared, child_input, job_id=job_id, trace_context=trace_context or {})
+            await run_job(
+                self,
+                declared,
+                child_input,
+                job_id=job_id,
+                trace_context=trace_context or {},
+                identity=CURRENT_IDENTITY.get(),
+            )
         except asyncio.CancelledError:
             raise
         except Exception:

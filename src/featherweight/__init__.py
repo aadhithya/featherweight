@@ -101,6 +101,7 @@ _MODULES = (
     "db",
     "errors",
     "events",
+    "identity",
     "jobs",
     "log",
     "mcp",

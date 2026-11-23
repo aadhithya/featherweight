@@ -1,8 +1,6 @@
 # Spec: identity
 
-Status: designed, not built. It is [epic #190](https://github.com/aadhithya/featherweight/issues/190), with an issue for each part: the runner and the tools
-([#195](https://github.com/aadhithya/featherweight/issues/195)), the queue and the worker ([#196](https://github.com/aadhithya/featherweight/issues/196)) and the
-identity hash ([#197](https://github.com/aadhithya/featherweight/issues/197)). When a part is built, this page says so, and the guide shows how to use it.
+Status: partly built. **The runner and the tools are built** ([#195](https://github.com/aadhithya/featherweight/issues/195)): `identity_type`, `identity=`, `RunContext.identity`, `CURRENT_IDENTITY`, `JobContext.identity` and the inheritance by launched agents and by agents started in the background in the same process. **Not built yet:** the queue and the worker ([#196](https://github.com/aadhithya/featherweight/issues/196): until then a job that is submitted to a worker does not carry the identity) and the identity hash ([#197](https://github.com/aadhithya/featherweight/issues/197)). It is [epic #190](https://github.com/aadhithya/featherweight/issues/190), with an issue for each part. When a part is built, this page says so, and the guide shows how to use it.
 
 It builds on [the runner](runner.md), [tools and the registry](tools-and-store.md), [submitted jobs](submitted-jobs.md) and [persistence](persistence.md),
 and adds a few lines to each. What it owns is the identity itself.
