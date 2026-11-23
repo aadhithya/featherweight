@@ -123,6 +123,7 @@ nav:
       - attachments-providers.md
       - example-pipeline.md
       - development.md
+      - migration.md
       - releasing.md
   - Specs:
       - specs/README.md
@@ -133,6 +134,7 @@ nav:
       - specs/persistence.md
       - specs/submitted-jobs.md
       - specs/identity.md
+      - specs/units.md
       - specs/observability.md
       - specs/background-jobs.md
       - specs/streaming.md

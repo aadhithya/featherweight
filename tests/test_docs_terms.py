@@ -24,7 +24,10 @@ RULED_OUT = [
     (r"\bnothing has been released\b", "(the first release is out)"),
 ]
 # where a ruled-out name is used on purpose
-ALLOWED = {"docs/specs/tools-and-store.md": {r"\brun stores?\b"}}  # it recounts that the run store was removed
+ALLOWED = {
+    "docs/specs/tools-and-store.md": {r"\brun stores?\b"},  # it recounts that the run store was removed
+    "docs/migration.md": {r"\brun stores?\b"},  # it says what to do about the removal
+}
 
 PROTECTED = re.compile(r"(```.*?```|~~~.*?~~~|`[^`\n]*`|\]\([^)]*\)|<!--.*?-->|<https?://[^>]+>|https?://\S+)", re.S)
 
