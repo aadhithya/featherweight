@@ -2,7 +2,7 @@
 
 Everything that breaks between 0.1 and the next release, what to search for in your project, what to write instead, and how to check. It is for people, and for the coding agents that work on projects that use featherweight: the last section is written for them, and the skill carries the same page.
 
-> **Draft.** It is written with [the spec of the units of work](specs/units.md) so that the mapping can be reviewed. The code of that rename is [issue #217](https://github.com/aadhithya/featherweight/issues/217), and a test will then check every name on this page against the code ([#219](https://github.com/aadhithya/featherweight/issues/219)).
+The rename of the units is [specified](specs/units.md), and a test checks every name on this page against the code.
 
 - [What breaks, in the order you are likely to meet it](#what-breaks)
 - [The run store is gone](#the-run-store-is-gone)

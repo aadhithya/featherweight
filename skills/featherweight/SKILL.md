@@ -163,6 +163,7 @@ The guides are the reference for one subject each (the book above is the way to 
 | An agent that launches other agents | `references/launching-agents.md` |
 | Use an MCP server, discovery, secrets, failures | `references/mcp.md` |
 | Give an agent skills | `references/skills.md` |
+| Upgrade a project that uses an older featherweight: what broke, what to search for, what to write instead, and a rename table in order | `references/migration.md` |
 | A streaming agent for chat its answer: `StreamingAgent`, `runner.stream()`, AG-UI and Vercel adapters, stopping, keeping the conversation | `references/streaming.md` |
 | Attach images, PDFs, audio or video to a chat message: what is accepted, the limits, and a dated snapshot of what Anthropic, Google, OpenAI and Ollama accept | `references/streaming.md` (Attachments), `references/attachments-providers.md` |
 | What is kept and what is not, resuming a job (`resumable=True`), a result store of your own, choosing a database | `references/persistence.md` |

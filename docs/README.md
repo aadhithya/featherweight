@@ -54,6 +54,7 @@ or finding out why it behaves as it does.
 | Guide | Covers | Its spec |
 |---|---|---|
 | [Agents](agents.md) | Defining and running an agent, results, retries, output checks, tools, jobs and tracing, configuration | [Agents](specs/agents.md), [the runner](specs/runner.md), [jobs and tracing](specs/jobs-and-tracing.md), [tools and the store](specs/tools-and-store.md) |
+| [Migrating from 0.1](migration.md) | What breaks between 0.1 and the next release, what to search for, what to write instead, and the same for a coding agent | [The units of work](specs/units.md) |
 | [Models and providers](models.md) | `Gemini`, `Gemma`, `Claude`, `OpenAI`, what is checked, adding a model or a provider | [Models](specs/models.md) |
 | [Launching agents](launching-agents.md) | The `subagents` allow-list, the two tools, depth and breadth, concurrency, tracing | [The runner](specs/runner.md#launching-agents) |
 | [MCP tools](mcp.md) | Declaring servers, connections, what the model gets, failures, finding tools by search | [MCP tools](specs/mcp-tools.md), [tool discovery](specs/tool-discovery.md) |
