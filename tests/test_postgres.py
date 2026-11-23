@@ -291,3 +291,31 @@ def test_it_is_on_the_package_without_importing_psycopg():
     env = {**os.environ, "PYTHONPATH": str(Path(__file__).parent.parent / "src")}
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True, env=env).stdout
     assert out.strip() == "False"
+
+
+@needs_postgres
+async def test_a_database_from_before_the_attempts_rename_keeps_its_rows_under_the_new_names(schema, monkeypatch):
+    import psycopg
+
+    monkeypatch.setattr("featherweight.postgres.MIGRATIONS", MIGRATIONS[:3])  # the release before the rename
+    async with PostgresDatabase(URL, schema=schema):
+        pass
+    monkeypatch.undo()
+    digest = sha("x")
+    async with await psycopg.AsyncConnection.connect(URL, autocommit=True) as conn:
+        await conn.execute(SQL("SET search_path TO {}").format(Identifier(schema)))
+        await conn.execute(
+            """INSERT INTO agent_runs (agent_run_id, invocation_id, attempt, depth, agent_name, agent_version, agent_hash,
+                   system_prompt_hash, tools_hash, provider, model_name, reasoning, settings, input_hash, status, created_at)
+               VALUES ('old-attempt', 'old-run', 2, 1, 'echo', '1', %s, %s, %s, 'fake', 'fake-model', 'low', '{}', %s,
+                   'SUCCESS', now())""",
+            (digest, digest, digest, digest),
+        )
+    async with PostgresDatabase(URL, schema=schema) as db:
+        row = await db.get_attempt("old-attempt")
+    assert row is not None and row.run_id == "old-run" and row.attempt == 2
+    tables = {
+        r["table_name"]
+        for r in await query(schema, "SELECT table_name FROM information_schema.tables WHERE table_schema = %s", schema)
+    }
+    assert "attempts" in tables and "agent_runs" not in tables

@@ -1,4 +1,4 @@
-# Spec: agents
+# Agents
 
 Status: implemented. How to use it is in [agents.md](../agents.md). The code is [models.py](../../src/featherweight/models.py).
 

@@ -1,10 +1,10 @@
-# Spec: the run log and the persistence boundary
+# Run log and persistence
 
 Status: implemented (epic #58 is done: #59 the agent hash, #60 resumable jobs and the result store, #61 the `Database` abstract class and the metadata-only schema, #62 `PostgresDatabase`, #63 the guide and the example). It is tracked in [epic #58](https://github.com/aadhithya/featherweight/issues/58), and each part has
 its own issue (listed [at the end](#the-work)). When a part is built, this page says so, and the guide `docs/persistence.md`
 shows how to use it.
 
-It changes [jobs and tracing](jobs-and-tracing.md) (the database, the schema, the migrations, resumable jobs), [the
+It changes [jobs](jobs.md) (the database, the schema, the migrations, resumable jobs), [the
 runner](runner.md) (resuming reads through a result store), [agents](agents.md) (what `agent_hash` covers, resuming a job) and
 [streaming agents](streaming.md) (the run log of a streaming run).
 
@@ -182,7 +182,7 @@ about the same: the change is in what the table holds. **Audited and kept:** `ag
 |---|---|---|
 | `job_id` | `text` primary key | |
 | `name` | `text` not null | |
-| `status` | `text` not null, as for `attempts` | See [statuses](jobs-and-tracing.md#statuses) |
+| `status` | `text` not null, as for `attempts` | See [statuses](jobs.md#statuses) |
 | `resumable` | `boolean` / `integer` not null, default false | Decided when the job is created: it keeps the results of its steps |
 | `resumed_from` | `text` null, foreign key `jobs` | The job this one resumes |
 | `job_hash`, `input_hash` | `text` null | A submitted job: the hash of its declaration and of its input. `NULL` for a job made without a job class |
@@ -249,7 +249,7 @@ agent (reusing launched agents is [parked](https://github.com/aadhithya/featherw
 ## Resuming a job
 
 Which steps of a failed job are reused, and the checks on them, are the runner's ([resuming](runner.md#resuming)); what a resumed job
-means for a pipeline is the job's ([resuming a job](jobs-and-tracing.md#resuming-a-job)). What is persistence's is where the pieces
+means for a pipeline is the job's ([resuming a job](jobs.md#resuming-a-job)). What is persistence's is where the pieces
 are kept:
 
 1. **The old job must have been resumable.** If it was not, `create_job` raises, before any model call, saying that nothing was kept (a

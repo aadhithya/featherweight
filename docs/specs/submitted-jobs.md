@@ -1,11 +1,11 @@
-# Spec: submitted jobs
+# Submitted jobs
 
 Status: implemented, including [several workers](#several-workers) ([epic #103](https://github.com/aadhithya/featherweight/issues/103)): the queue's lease (#104), the job lease, the heartbeat and the owner check (#105), takeover (#106), the job timeout (#107), and the guide, the example and the skill reference (#108). #72 (the `Job` class, `JobContext`, the job columns and `CANCELLED`), #73 (the queue), #74 (job events and SSE), #75 (the client), #76 (the worker, with the compare-and-set steps for taking and cancelling a job), #77 (the `@job` decorator) and #78 (the guide, the example and the skill reference) are done. It is tracked in [epic #71](https://github.com/aadhithya/featherweight/issues/71), and each part has
 its own issue (listed [at the end](#the-work)). When a part is built, this page says so, and the guide `docs/submitted-jobs.md`
 shows how to use it. The [`jobs_lookup` fallback](#jobs-that-are-not-declared-in-code) is implemented too ([#199](https://github.com/aadhithya/featherweight/issues/199), in epic [#190](https://github.com/aadhithya/featherweight/issues/190)).
 
 It builds on [the persistence spec](persistence.md) (the `Database`, the result store, the rule that featherweight keeps no
-data). It changes [jobs and tracing](jobs-and-tracing.md) (the job columns, the `CANCELLED` status, the job events),
+data). It changes [jobs](jobs.md) (the job columns, the `CANCELLED` status, the job events),
 [the runner](runner.md) (a job context runs agents in the job) and [agents](agents.md) (jobs).
 
 - [Goal](#goal)
@@ -72,7 +72,7 @@ class Summarise(Job):
 - **`@job`** is sugar: it builds a `Job` class from an async function, taking the name from the function (or `name=`), the
   version `"1"` (or `version=`), and the models from the annotations of `input` and the return type.
 - **`run_job`** runs a `Job` class in your process, with the same code as the worker ([running a job
-  class](jobs-and-tracing.md#running-a-job-class)). A job whose task is cancelled is `CANCELLED`.
+  class](jobs.md#running-a-job-class)). A job whose task is cancelled is `CANCELLED`.
 
 ## The queue
 
@@ -166,7 +166,7 @@ database, the queue and the user's store. `jobs` are the jobs declared in code; 
    `jobs_lookup`, if there is one, found nothing), or the input does not validate, or the identity does not (it is missing and the worker's `identity_type` does not allow `None`, or it does not fit the type: `InvalidJobIdentity`), mark the job
    `FAILED` (`error_type`, `error_hash`) and acknowledge. A job that fails for this is not run, and is not retried.
 2. **Start:** take the job (`start_job`: `RUNNING`, `started_at`, a `running` event) and run it as an asyncio task, up to `concurrency` at a time. What the
-   task does is `execute_job`, the function that also runs a job for `run_job` ([running a job class](jobs-and-tracing.md#running-a-job-class)): the worker adds the queue.
+   task does is `execute_job`, the function that also runs a job for `run_job` ([running a job class](jobs.md#running-a-job-class)): the worker adds the queue.
 3. **Success:** write the output through the user's `ResultStore` under `ResultKey(job_id, job_hash, input_hash)`, mark the job
    `SUCCESS`, acknowledge. **If the store fails to keep the result, the job is `FAILED`**, because the result is its product (a lost
    step result only reruns the step; a lost job result is the deliverable). `results=None` keeps nothing, and `client.result` has

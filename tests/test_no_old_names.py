@@ -12,7 +12,7 @@ OWNERS = {"src/featherweight/migrations.py"}
 
 def test_the_retired_names_are_not_in_the_code():
     found = []
-    for folder in ("src", "examples"):
+    for folder in ("src", "examples", "docs/book/code"):
         for path in (ROOT / folder).rglob("*.py"):
             rel = path.relative_to(ROOT).as_posix()
             if rel in OWNERS:

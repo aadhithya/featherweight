@@ -62,7 +62,7 @@ or finding out why it behaves as it does.
 | [Streaming agents](streaming.md) | `StreamingAgent`, `runner.stream()`, the events, thoughts, the AG-UI and Vercel adapters, stopping a response, keeping the conversation, the example | [Streaming agents](specs/streaming.md) |
 | [What the providers accept as attachments](attachments-providers.md) | A dated snapshot of what Anthropic, Google, OpenAI and Ollama accept: types, how, sizes, counts, with links | [Attachments](specs/attachments.md) |
 | [Persistence](persistence.md) | What the run log holds and what it never does, result stores, choosing a database, migrations, tenants | [Persistence](specs/persistence.md) |
-| [Jobs](jobs.md) | Declaring a job as a class or with `@job`, `run_job`, following it with events and SSE, resuming a failed job | [Jobs and tracing](specs/jobs-and-tracing.md) |
+| [Jobs](jobs.md) | Declaring a job as a class or with `@job`, `run_job`, following it with events and SSE, resuming a failed job | [Jobs](specs/jobs.md) |
 | [Submitted jobs](submitted-jobs.md) | `JobClient`, `JobWorker` and `JobQueue`: submitting a job, cancelling, several workers and takeover, your own queue, the example | [Submitted jobs](specs/submitted-jobs.md) |
 | [Background jobs](background-jobs.md) | `background_jobs`, `start_background`, here or on a worker, the result message, the events, a chat in the browser, how long a child lives | [Background jobs](specs/background-jobs.md) |
 | [Observability](observability.md) | Observers, `OTelObserver`, what is on the spans, content, your own spans, evaluation, the convention versions | [Observers and OpenTelemetry](specs/observability.md) |
@@ -83,7 +83,7 @@ runner ──────────── runs agents: attempts, retries, conc
   │   │
   │   ├── models ──────── which model and provider, and how hard it thinks
   │   │
-  │   └── jobs and tracing ── what is recorded, and how
+  │   └── jobs ────────── a pipeline: its status, events and resuming
   │
   ├── tools ───────────── the tools of an attempt, the registry
   │       │

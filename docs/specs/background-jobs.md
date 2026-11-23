@@ -1,4 +1,4 @@
-# Spec: background jobs
+# Background jobs
 
 Status: implemented. The declaration, the tool and the child job ([#116](https://github.com/aadhithya/featherweight/issues/116)), the result and the run that waits ([#117](https://github.com/aadhithya/featherweight/issues/117)), and the events, the cancel and the trace ([#118](https://github.com/aadhithya/featherweight/issues/118)) and the guide, the skill reference and the example ([#119](https://github.com/aadhithya/featherweight/issues/119), [#120](https://github.com/aadhithya/featherweight/issues/120)) are done. It is tracked in [epic #115](https://github.com/aadhithya/featherweight/issues/115), and each part has its own issue (listed [at the end](#the-work)). When a part is
 built, this page says so, and the guide `docs/background-jobs.md` shows how to use it.
@@ -75,7 +75,7 @@ class Researcher(AgentBase):
 Where a child runs is the application's configuration, and nothing else changes with it: **the same job, here or on a worker**.
 
 - **Here (the default).** The child runs in the parent's process, as an asyncio task, by the same code as `run_job`
-  ([running a job class](jobs-and-tracing.md#running-a-job-class)). Nothing but the runner is needed.
+  ([running a job class](jobs.md#running-a-job-class)). Nothing but the runner is needed.
 - **On a worker.** `AgentRunner(db, background=client)`, where `client` is a `JobClient`: the child is submitted to the queue with
   `client.submit`, and a worker runs it. The workers must list the child's job in their `jobs`; a worker that does not know it fails the job,
   as it does for any job.

@@ -1,4 +1,4 @@
-# Spec: the agent runner
+# Agent runner
 
 Status: implemented. How to use it is in [agents.md](../agents.md) and [launching-agents.md](../launching-agents.md). The
 code is [runner.py](../../src/featherweight/runner.py).
@@ -20,7 +20,7 @@ code is [runner.py](../../src/featherweight/runner.py).
 ## Goal
 
 `AgentRunner` runs [agent definitions](agents.md): it validates, calls the model, checks what came back, retries, limits
-concurrency, lets an agent launch other agents, and records every attempt ([jobs and tracing](jobs-and-tracing.md)). It
+concurrency, lets an agent launch other agents, and records every attempt ([jobs](jobs.md)). It
 is not a workflow engine. Order, loops, branching and when to stop are the caller's code. A runner is not tied to one
 agent: the agent is chosen on each call, and one runner can run any number of different agents.
 
@@ -58,7 +58,7 @@ is read under this job's own key, so nothing is copied forward, and only a `resu
 taken over looks in itself first, then in the old job. The execution that asks is the one that the task running the job has (not the job row's: a worker
 that lost the job and has not noticed is still the execution it was).
 
-A job created with `resume_from` (see [jobs and tracing](jobs-and-tracing.md#resuming-a-job)) makes the runner look up a
+A job created with `resume_from` (see [jobs](jobs.md#resuming-a-job)) makes the runner look up a
 run before it runs it. This is replay with memoised agent calls: the caller's code runs again, and only runs are
 answered from the log.
 
@@ -202,7 +202,7 @@ is needed for the real model. A missing key is a setup error: the run fails at o
   run by a worker call the same observers, and nothing is reported twice.
 - **When it calls them.** Around each attempt (from the moment it holds a slot and runs, until its row is finished; a streamed run: from its row to
   its end), when a step is reused ([resuming](#resuming): an event, not an attempt), and for each model call and tool call of an attempt. A
-  streaming run is one attempt, with its model calls and tool calls, and none per token. Around the job: the one function that runs a job (`execute_job`, for `run_job` and for a worker) enters the observers' `job` scope before the pipeline and finishes it with the status and the error type, so an observer can make its span current while the pipeline runs ([jobs](jobs-and-tracing.md#running-a-job-class)); a worker hands it the message's trace context.
+  streaming run is one attempt, with its model calls and tool calls, and none per token. Around the job: the one function that runs a job (`execute_job`, for `run_job` and for a worker) enters the observers' `job` scope before the pipeline and finishes it with the status and the error type, so an observer can make its span current while the pipeline runs ([jobs](jobs.md#running-a-job-class)); a worker hands it the message's trace context.
 - **Model calls and tool calls.** An attempt is one `lc_agent.ainvoke(...)`, so they happen inside LangChain's agent loop. A callback handler
   added to the config of each attempt (and of a streamed run) turns LangChain's callbacks into the observers' events, with real timings. It does
   nothing when there are no observers.

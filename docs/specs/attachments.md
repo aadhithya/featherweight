@@ -1,4 +1,4 @@
-# Spec: attachments
+# Attachments
 
 Status: implemented, in [epic #170](https://github.com/aadhithya/featherweight/issues/170): the converters and what `ChatInput` refuses (#171), the limits (#172), the provider tests (#173), the adapters (#174), and the guide (#175). It changes [streaming agents](streaming.md) (`ChatInput`, `to_langchain`, `to_agui`, the Vercel adapter), and nothing else.
 

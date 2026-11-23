@@ -133,20 +133,20 @@ nav:
       - releasing.md
   - Specs:
       - specs/README.md
+      - specs/units.md
       - specs/agents.md
       - specs/runner.md
       - specs/models.md
-      - specs/jobs-and-tracing.md
-      - specs/persistence.md
-      - specs/submitted-jobs.md
+      - specs/tools-and-store.md
+      - specs/mcp-tools.md
+      - specs/tool-discovery.md
+      - specs/skills.md
       - specs/identity.md
-      - specs/units.md
-      - specs/observability.md
-      - specs/background-jobs.md
       - specs/streaming.md
       - specs/attachments.md
-      - specs/skills.md
-      - specs/tools-and-store.md
-      - specs/tool-discovery.md
-      - specs/mcp-tools.md
+      - specs/persistence.md
+      - specs/jobs.md
+      - specs/submitted-jobs.md
+      - specs/background-jobs.md
+      - specs/observability.md
   - API reference: []

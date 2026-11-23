@@ -1,4 +1,4 @@
-# Spec: jobs and tracing
+# Jobs
 
 Status: implemented. How to use it is in [jobs.md](../jobs.md), [persistence.md](../persistence.md). The code is
 [db.py](../../src/featherweight/db.py) (the abstract class, the records and rows), [sqlite.py](../../src/featherweight/sqlite.py),

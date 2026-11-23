@@ -1,4 +1,4 @@
-# Spec: skills
+# Skills
 
 Status: implemented. How to use it is in [skills.md](../skills.md). The code is [skills.py](../../src/featherweight/skills.py). It
 follows the [Agent Skills specification](https://agentskills.io/specification).

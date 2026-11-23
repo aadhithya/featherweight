@@ -1,4 +1,4 @@
-# Spec: identity
+# Identity
 
 Status: implemented, in [epic #190](https://github.com/aadhithya/featherweight/issues/190): the runner and the tools ([#195](https://github.com/aadhithya/featherweight/issues/195): `identity_type`, `identity=`, `RunContext.identity`, `CURRENT_IDENTITY`, `JobContext.identity` and the inheritance), the identity hash ([#197](https://github.com/aadhithya/featherweight/issues/197): the `identity_hash` column, `fingerprint.identity_hash` and the reuse check) and the queue and the worker ([#196](https://github.com/aadhithya/featherweight/issues/196): the `identity` field of the message, `JobClient(identity_type=)` and `submit(identity=)`, `JobWorker(identity_type=)`, `InvalidJobIdentity`, the migration of the sqlite queue table, and the kit's check). The guides are [who is asking](../agents.md#who-is-asking-the-identity-of-a-run) and [the identity across the queue](../submitted-jobs.md#who-the-job-is-for-the-identity).
 
