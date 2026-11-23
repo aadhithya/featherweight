@@ -77,7 +77,7 @@ attempt 1: SUCCESS, gemini-3.5-flash-lite, tokens=312+96, 2210 ms, input_hash=2d
 - The file is `/data/book.db`. `make clean` in `docs/book/code` resets it.
 
 > **Why only metadata.** What went through the agent is yours, and so is how it is kept. See [the rule](../../specs/persistence.md#the-rule)
-> and [jobs and tracing](../../agents.md#jobs-and-tracing).
+> and [jobs and tracing](../../jobs.md#declaring-and-running-a-job).
 
 Next: a rule the schema cannot say.
 

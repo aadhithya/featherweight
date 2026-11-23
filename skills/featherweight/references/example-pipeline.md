@@ -140,4 +140,4 @@ This is a prototype, and these were left out on purpose, to keep the scope small
   follow the examples. Repeated items are not modelled as lists.
 - **Gemini only,** one language per category, markdown in and out. Learning from a user's edits and detecting documents
   unlike the examples are designed but not built. A failed job can be resumed with `run_job(..., resume_from=...)`
-  ([resuming a job](agents.md#resuming-a-job)), but the example does not use it.
+  ([resuming a job](jobs.md#resuming-a-job)), but the example does not use it.

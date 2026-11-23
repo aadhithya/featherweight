@@ -312,7 +312,7 @@ finally:
 
 ## What is logged
 
-One `attempts` row per turn, in the same [run log](agents.md#jobs-and-tracing) as any run, which holds **no content** for any
+One `attempts` row per turn, in the same [run log](jobs.md#what-is-on-record-and-what-is-not) as any run, which holds **no content** for any
 agent: no messages, no text.
 
 | Column | |
@@ -324,7 +324,7 @@ agent: no messages, no text.
 | tokens, latency, agent, model, the hashes of the agent | As for any run |
 
 The words stay with your application. Save `run_id` next to each turn you store, and you can join your messages to the log.
-The slot is held for the whole stream. A streaming run is never reused when a job is [resumed](agents.md#resuming-a-job).
+The slot is held for the whole stream. A streaming run is never reused when a job is [resumed](jobs.md#resuming-a-job).
 
 ## How it differs from an agent
 

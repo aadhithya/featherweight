@@ -136,5 +136,5 @@ The run log keeps only `tools_hash`, which changes when they do: a tool's name c
 - **Finding agents.** An agent knows only its own allow-list. There is no tool to search for agents.
 - **Launching in the background.** `launch_agent` waits for the child. An agent that goes on is a [background job](background-jobs.md).
 - **Reusing a launch** when a job is resumed. A parent that succeeded is reused whole; one that failed runs again with
-  its children ([resuming a job](agents.md#resuming-a-job)).
+  its children ([resuming a job](jobs.md#resuming-a-job)).
 - **A limit on the number of launches per job**, or on cost. Depth and breadth are the only limits.

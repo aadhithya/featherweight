@@ -28,5 +28,5 @@ Each `make` target runs in Docker. Without Docker, run the script with `uv run p
 
 The documentation for what they use is in [`docs`](../docs): [agents](../docs/agents.md),
 [launching agents](../docs/launching-agents.md), [MCP tools](../docs/mcp.md), [skills](../docs/skills.md),
-[resuming a job](../docs/agents.md#resuming-a-job), [streaming agents](../docs/streaming.md) and the
+[resuming a job](../docs/jobs.md#resuming-a-job), [streaming agents](../docs/streaming.md) and the
 [example pipeline](../docs/example-pipeline.md).

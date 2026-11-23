@@ -25,6 +25,7 @@ GUIDES = [
     "launching-agents.md",
     "mcp.md",
     "skills.md",
+    "jobs.md",
     "streaming.md",
     "attachments-providers.md",
     "persistence.md",

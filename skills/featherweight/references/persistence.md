@@ -32,7 +32,7 @@ A hash says that something changed without saying what it was: `agent_hash` (the
 included), `system_prompt_hash` (so that you can see *the prompt* changed), `tools_hash`, `input_hash`, `output_hash` and `identity_hash` (the hash of who the run was for: the identity itself is not kept). A failed
 attempt keeps `error_type` (the class, such as `ValidationError`) and `error_hash`, because a message can quote data. You still get
 the error text in the `AgentResult` you are returned, in the logs, and (for a streaming run) in the `RUN_ERROR` event. The columns
-are in [agents](agents.md#jobs-and-tracing).
+are in [agents](jobs.md#declaring-and-running-a-job).
 
 Content leaves featherweight in two ways only: in what `AgentRunner.run` returns to you, and through an **observer** that asks for it
 ([observability](observability.md)): never into the run log. The two exceptions are the sqlite queue and the sqlite result store, for
@@ -53,7 +53,7 @@ second = await run_job(
 The outputs go to a **result store**. With a `SqliteDatabase` the default is a table in the same file, which is for local
 development; a deployment passes its own: `AgentRunner(db, results=MyStore())`. `results=None` keeps nothing. Resuming a job
 that was not `resumable`, or with no store, raises before any model call. A step whose result is missing runs again. A reused step
-copies its result to the new job, so deleting an old job never affects a newer one. [Resuming a job](agents.md#resuming-a-job)
+copies its result to the new job, so deleting an old job never affects a newer one. [Resuming a job](jobs.md#resuming-a-job)
 has the rest, and says why resuming is always up to you.
 
 [`examples/resume`](https://github.com/aadhithya/featherweight/blob/main/examples/resume) uses the default store: it passes none. [`examples/results`](https://github.com/aadhithya/featherweight/blob/main/examples/results) shows how to write your own.
