@@ -43,6 +43,7 @@
 - [Several workers](05-in-production/02-several-workers.md)
 - [Background agents](05-in-production/03-background-agents.md)
 - [Observability](05-in-production/04-observability.md)
+- [Who is asking](05-in-production/05-who-is-asking.md)
 
 # Part 6: Bring your own storage
 

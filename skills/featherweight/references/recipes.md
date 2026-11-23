@@ -337,3 +337,266 @@ class Triager(AgentBase):
 `pip install "featherweight[anthropic]"` and set `ANTHROPIC_API_KEY`.
 
 [The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/a-different-provider.md)
+
+## A skill from a database or S3
+
+A skill is plain data, so it can live anywhere. Text in a database needs nothing; text in an object store is fetched when the agent asks.
+
+```python
+from featherweight import Skill
+
+# the skill is a row of text in your database: build it from the rows, nothing to add
+skill = Skill.from_markdown(row["skill_md"], resources={r["path"]: r["text"] for r in resource_rows})
+```
+
+```python
+from featherweight import Skill
+
+
+# the skill is in S3: fetch it when the agent asks, without blocking the event loop
+class BucketSkill(Skill):
+    etag: str  # changes when the text does: it is a field, so it is in the agent's hash
+
+    async def aread(self, resource: str = "") -> str:
+        return await bucket.get_text(f"{self.name}/{resource or 'SKILL.md'}")  # your client, awaited
+
+
+skill = BucketSkill(name="meeting-notes", description="How this department writes meeting notes", etag=head.etag)
+```
+
+[The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/a-skill-from-a-database-or-s3.md)
+
+## A skill for each department
+
+The agent is written once, and each department's skills are data: build the agent class for the request, with that department's skills.
+
+```python
+from typing import ClassVar
+
+from pydantic import Field, create_model
+
+from featherweight import AgentBase, AgentInput, AgentOutput, Skill
+
+
+class NotesInput(AgentInput):
+    transcript: str
+
+
+class NotesOutput(AgentOutput):
+    notes: str = ""
+
+
+class LectureNotes(AgentBase):
+    name: str = "lecture_notes"
+    description: str = "Turns a lecture transcript into notes"
+    version: str = "1"
+    prompt: str = "Write lecture notes from the transcript, in the style of the skill you have."
+    input_model: ClassVar[type[AgentInput]] = NotesInput
+    output_model: ClassVar[type[AgentOutput]] = NotesOutput
+
+
+def for_department(skills: list[Skill]) -> type[LectureNotes]:
+    """The same agent, with this department's skills."""
+    return create_model(
+        "DepartmentNotes", __base__=LectureNotes, skills=(list[Skill], Field(default_factory=lambda: skills))
+    )
+
+
+law = for_department([Skill.from_markdown(row["skill_md"]) for row in rows_of("law")])  # your database
+result = await runner.run(law, NotesInput(transcript="..."))
+```
+
+[The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/a-skill-for-each-department.md)
+
+## Agents built from JSON, with your own rules
+
+Your users define agents in a form; you keep the definition as JSON and build the class when it is needed. The builder is yours, so the rules are too:
+which tools a user may pick, which models, whether they may add skills, what every agent gets.
+
+```python
+from typing import ClassVar
+
+from langchain_core.tools import BaseTool, tool
+from pydantic import Field, create_model
+
+from featherweight import AgentBase, AgentInput, AgentOutput, SetupError, Skill
+from featherweight.model_settings import Gemini, ModelSettings
+
+HOUSE_STYLE = Skill.from_markdown(house_style_md)  # injected into every agent: the users do not choose it
+MODELS: dict[str, ModelSettings] = {"fast": Gemini()}  # the models a user may pick, by a name
+
+
+@tool
+def word_count(text: str) -> int:
+    """Count the words in a text."""
+    return len(text.split())
+
+
+TOOLS: dict[str, BaseTool] = {"word_count": word_count}  # the catalog: the only tools a user can give an agent
+TYPES = {"string": str, "integer": int, "boolean": bool}
+
+
+def fields(base: type, name: str, spec: list[dict], default) -> type:
+    return create_model(name, __base__=base, **{f["name"]: (TYPES[f["type"]], default(f)) for f in spec})
+
+
+def build(definition: dict) -> type[AgentBase]:
+    """A user's definition, as an agent class. What it may not contain is refused here, before anything runs."""
+    if definition.get("skills"):
+        raise SetupError("users cannot add skills")
+    unknown = [t for t in definition.get("tools", []) if t not in TOOLS]
+    if unknown:
+        raise SetupError(f"not in the catalog: {unknown}")
+    title = "".join(part.title() for part in definition["id"].split("_"))
+    In = fields(AgentInput, f"{title}Input", definition["input"], lambda f: ...)
+    Out = fields(AgentOutput, f"{title}Output", definition["output"], lambda f: TYPES[f["type"]]())
+    cls = create_model(
+        title,
+        __base__=AgentBase,
+        name=(str, definition["id"]),  # your unique key: it is the job's name on a worker
+        description=(str, definition["description"]),
+        version=(str, str(definition["version"])),
+        prompt=(str, definition["prompt"]),
+        model=(ModelSettings, Field(default_factory=lambda: MODELS[definition["model"]])),
+        tools=(list[BaseTool], Field(default_factory=lambda: [TOOLS[t] for t in definition.get("tools", [])])),
+        skills=(list[Skill], Field(default_factory=lambda: [HOUSE_STYLE])),
+    )
+    cls.input_model, cls.output_model = In, Out
+    return cls
+
+
+Summariser = build(definition_from_your_database)
+result = await runner.run(Summariser, Summariser.input_model(text="..."))
+```
+
+On a worker, the agent does not exist in the code that started it. `jobs_lookup` is the fallback that finds it, from the same definitions:
+
+```python
+from featherweight import JobWorker
+
+
+async def jobs_lookup(name: str, job_hash: str | None, identity):
+    definition = await definitions.get(identity.tenant, name)  # your storage; the identity scopes the search
+    return build(definition) if definition else None
+
+
+worker = JobWorker(db, queue, runner, jobs=[], jobs_lookup=jobs_lookup, identity_type=Teacher)
+```
+
+[The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/agents-built-from-json.md)
+
+## A queue that signs its messages
+
+featherweight trusts its queue: a message says who a run is for, and whoever can write to the queue can write that. Secure the queue the way you secure any broker (access control, TLS, encryption at rest). If you
+want a signature of your own too, wrap a queue: `JobQueue` is the seam, and a wrapper is a queue like any other.
+
+```python
+import hashlib
+import hmac
+import json
+import logging
+import time
+
+from featherweight.queue import Delivery, JobMessage, JobQueue
+
+logger = logging.getLogger(__name__)
+SIGNATURE = "x-signature"  # a key of `trace_context`: the one map of strings that every message carries
+
+
+class HmacQueue(JobQueue):
+    """Signs a message when it goes in, and drops one that does not carry the signature of its content when it comes out."""
+
+    def __init__(self, inner: JobQueue, key: bytes):
+        self.inner, self.key = inner, key
+
+    def _sign(self, message: JobMessage) -> str:
+        trace = {k: v for k, v in message.trace_context.items() if k != SIGNATURE}
+        body = message.model_copy(update={"trace_context": trace}).model_dump(mode="json")
+        return hmac.new(self.key, json.dumps(body, sort_keys=True).encode(), hashlib.sha256).hexdigest()
+
+    async def enqueue(self, message: JobMessage) -> None:
+        signed = {**message.trace_context, SIGNATURE: self._sign(message)}
+        await self.inner.enqueue(message.model_copy(update={"trace_context": signed}))
+
+    async def receive(self, timeout: float) -> Delivery | None:
+        deadline = time.monotonic() + timeout
+        while (left := deadline - time.monotonic()) > 0:
+            delivery = await self.inner.receive(left)
+            if delivery is None:
+                return None
+            message = delivery.message
+            plain = message.model_copy(
+                update={"trace_context": {k: v for k, v in message.trace_context.items() if k != SIGNATURE}}
+            )
+            if hmac.compare_digest(message.trace_context.get(SIGNATURE, ""), self._sign(plain)):
+                return delivery.model_copy(update={"message": plain})  # as it was put in
+            logger.warning("message_dropped job_id=%s: its signature is not valid", message.job_id)
+            await self.inner.nack(
+                delivery, requeue=False
+            )  # the job row is not touched: a forged message may name a real job
+        return None
+
+    async def ack(self, delivery: Delivery) -> None:
+        await self.inner.ack(delivery)
+
+    async def nack(self, delivery: Delivery, *, requeue: bool) -> None:
+        await self.inner.nack(delivery, requeue=requeue)
+
+    async def extend(self, delivery: Delivery) -> None:
+        await self.inner.extend(delivery)
+```
+
+Check it like any queue, with the kit, and give the client and the worker the wrapper, with the same key:
+
+```python
+from featherweight import JobClient, JobWorker, testing
+from featherweight.queue import SqliteQueue
+from featherweight.testing import MemoryQueue
+
+await testing.check_queue(lambda lease: HmacQueue(MemoryQueue(lease=lease), key=b"a secret from your vault"))
+
+queue = HmacQueue(SqliteQueue(db), key)
+client, worker = JobClient(db, queue), JobWorker(db, queue, runner, jobs=[...])
+```
+
+[The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/a-queue-that-signs-its-messages.md)
+
+## A tool that gets a token for its identity
+
+A tool acts for the user whose identity the run has. featherweight carries the identity; the tool checks what it may do, and gets a credential with code of your own, at each call.
+
+```python
+from langchain.tools import ToolRuntime, tool
+from pydantic import BaseModel
+
+from featherweight import AgentRunner, RunContext
+
+
+class Teacher(BaseModel):
+    user_id: str
+    tenant: str
+
+
+def send_email_tool(tokens, directory):
+    """`tokens` and `directory` are yours: they are given to the tool when your application starts."""
+
+    @tool
+    async def send_email(to: str, subject: str, body: str, runtime: ToolRuntime[RunContext[Teacher]]) -> str:
+        """Send an email as the signed-in teacher."""
+        who = runtime.context.identity
+        if who is None or not await directory.may(
+            who.user_id, "send_email"
+        ):  # re-checked now: the identity is a snapshot
+            return "Not allowed."
+        token = await tokens.access_token(who.user_id, scope="mail.send")  # at each call: a long job outlives a token
+        await mail_api.send(token, to, subject, body)
+        return "Sent."
+
+    return send_email
+
+
+runner = AgentRunner(db, identity_type=Teacher)
+result = await runner.run(Mailer, MailerInput(...), identity=Teacher(user_id="u1", tenant="uni"))
+```
+
+[The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/a-tool-that-gets-a-token-for-its-identity.md)

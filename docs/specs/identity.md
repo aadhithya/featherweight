@@ -122,7 +122,7 @@ by anything but the application.
   stores it in the `job_queue` table (a migration) until the message is acknowledged, on the same terms as the input.
 - **The queue is trusted.** featherweight does not sign or encrypt a message: a deployment secures its queue (access control, TLS, encryption at rest) as it does for the
   input. An application that wants a signature or encryption of its own writes or wraps a queue: `JobQueue` is the seam, and a wrapper that signs the message on
-  `enqueue` and checks it on `receive` is a [recipe](../recipes/README.md), run through `check_queue` like any queue.
+  `enqueue` and checks it on `receive` is a [recipe](../recipes/a-queue-that-signs-its-messages.md), run through `check_queue` like any queue.
 
 ## Resuming a job
 

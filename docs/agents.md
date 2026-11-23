@@ -223,7 +223,15 @@ result = await runner.run(Mailer, MailerInput(...), identity=Teacher(user_id="u1
 - A job that is submitted to a worker carries it in the queue message, and the worker rebuilds it ([submitted jobs](submitted-jobs.md#who-the-job-is-for-the-identity)).
 - **Resuming a job reuses a step only for the same identity** ([resuming a job](#resuming-a-job)): a change in who the run is for may be a change in what it may do, so the old result is not relied on. Whether a person may resume a job at all is your check.
 
-The [identity spec](specs/identity.md) has the rules and what stays the application's.
+**What stays yours,** on purpose:
+
+- **Authorization.** A tool that ignores the identity acts for everyone. Check what the identity may do before the tool acts, and refuse in text.
+- **Staleness.** The identity is a snapshot taken when the job was submitted. A queued job may run after a role changed or a user left: for a sensitive action, re-check with your application by user id.
+- **Credentials.** Get a token from the identity with your own code, at each call: [a tool that gets a token for its identity](recipes/a-tool-that-gets-a-token-for-its-identity.md).
+- **Who may resume a job.** A resume reuses only steps of the same identity, but whether someone may resume a job, or read its result, is a check you make with your own records of who started it.
+- **Stdio MCP servers.** If users define agents, do not let them declare one ([MCP](mcp.md#declaring-a-server)).
+
+The [identity spec](specs/identity.md) has the rules, [the book](book/05-in-production/05-who-is-asking.md) has a chapter on it, and the [recipes](recipes/README.md) show how to build on it.
 
 ## Jobs and tracing
 
