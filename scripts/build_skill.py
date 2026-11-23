@@ -33,6 +33,7 @@ GUIDES = [
     "production-stack.md",
     "observability.md",
     "example-pipeline.md",
+    "migration.md",
 ]
 REPO_URL = "https://github.com/aadhithya/featherweight/blob/main"
 HEADER = "<!-- Copied from {source} by scripts/build_skill.py. Edit the original, not this file. -->\n\n"
