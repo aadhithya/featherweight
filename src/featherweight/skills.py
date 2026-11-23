@@ -10,7 +10,8 @@ A skill follows the Agent Skills specification (https://agentskills.io/specifica
 
 A `Skill` is plain data, so it is defined as an instance (or as a subclass with defaults) and listed in an agent's
 `skills`; or it is loaded from a skill directory with `Skill.from_directory`. Scripts are kept as text for the agent
-to read: nothing here runs them. `allowed_tools` is kept but not enforced.
+to read: nothing here runs them. `allowed_tools` is kept but not enforced. A skill whose text lives elsewhere is a subclass that
+overrides `aread`.
 """
 
 import logging
@@ -99,6 +100,12 @@ class Skill(BaseModel):
             listing = ", ".join(sorted(self.resources)) or "none"
             return f"The skill '{self.name}' has no file '{resource}'. Its files: {listing}."
         return text
+
+    async def aread(self, resource: str = "") -> str:
+        """`read`, asynchronously: the one the runner's `get_skill` tool awaits. The default returns `read`. A skill whose text is
+        somewhere else (a database, an object store) is a subclass that overrides this and fetches without blocking the event loop.
+        It should return text; if it raises, the agent is told the skill could not be read, and the error is logged."""
+        return self.read(resource)
 
     # loading a skill that follows the specification
 

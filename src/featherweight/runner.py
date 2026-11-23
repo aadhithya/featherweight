@@ -1424,7 +1424,18 @@ class AgentRunner:
             if skill is None:
                 return f"'{name}' is not one of your skills. Your skills: {available}."
             logger.info("skill_read agent=%s skill=%s resource=%s", agent.name, name, resource or "-")
-            return skill.read(resource)
+            try:
+                return await skill.aread(resource)
+            except Exception as exc:  # a read that fails is text for the agent, as it is for the other tools; the error goes to the log only
+                logger.warning(
+                    "skill_read_failed agent=%s skill=%s resource=%s error=%s: %s",
+                    agent.name,
+                    name,
+                    resource or "-",
+                    type(exc).__name__,
+                    exc,
+                )
+                return f"The skill '{name}' could not be read: {type(exc).__name__}."
 
         return [get_skill]
 
