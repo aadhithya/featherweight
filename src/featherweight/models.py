@@ -125,7 +125,7 @@ class AgentBase(BaseModel):
     subagents: list[type] = Field(default_factory=list)
     # Agents (or job classes) this agent may start in the background: the runner gives it `start_background`, which returns at once
     # with the id of a job of its own. An agent may be in both lists: the model then chooses between `launch_agent` and
-    # `start_background` for it. See docs/specs/background-agents.md.
+    # `start_background` for it. See docs/specs/background-jobs.md.
     background_jobs: list[type] = Field(default_factory=list)
     # Skills this agent can read (see featherweight/skills.py). Their names and descriptions are in the prompt; the
     # runner gives the agent `get_skill` to read the instructions when one applies.

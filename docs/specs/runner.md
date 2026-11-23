@@ -154,7 +154,7 @@ parent attempt launches its children again, and the earlier children stay in the
   validation do not count. It is per attempt, not per job, so with the defaults a tree can reach 1 + 10 + 100 = 111
   agents before retries. This is different from `recursion_limit`, which bounds the steps of one agent's own tool loop.
 
-A launched child blocks its parent. One that does not is a **background job**, which is a job and has [its own spec](background-agents.md). The runner gives it `start_background` (and settings `max_background` and `background=`); the rules are there.
+A launched child blocks its parent. One that does not is a **background job**, which is a job and has [its own spec](background-jobs.md). The runner gives it `start_background` (and settings `max_background` and `background=`); the rules are there.
 
 **The slot hand-over.** A parent that waits for its child holds a slot the child needs, and with enough waiting parents
 nothing could finish. So a parent gives up its slot while its launches run and takes one again when the last of them is
@@ -233,7 +233,7 @@ is needed for the real model. A missing key is a setup error: the run fails at o
 ## Not supported
 
 - **Finding agents.** An agent knows only its own allow-list. There is no tool to search for agents.
-- **Launching in the background.** `launch_agent` waits for the child. An agent that does not wait is a [background job](background-agents.md).
+- **Launching in the background.** `launch_agent` waits for the child. An agent that does not wait is a [background job](background-jobs.md).
 - **Resuming inside a run.** An attempt that failed halfway runs whole. Reusing the result of a sub-agent when its
   parent is run again is not built: a parent that failed reruns with its children.
 - **A limit on launches per job**, or on cost or tokens.

@@ -1,4 +1,4 @@
-<!-- Copied from docs/background-agents.md by scripts/build_skill.py. Edit the original, not this file. -->
+<!-- Copied from docs/background-jobs.md by scripts/build_skill.py. Edit the original, not this file. -->
 
 # Background jobs
 
@@ -7,7 +7,7 @@
 An agent hands work to another agent and **goes on**. A launched sub-agent ([launching agents](launching-agents.md)) blocks its parent until it
 returns. A background job does not: the agent starts it, gets a job id at once, and the result comes back when it is ready.
 
-Spec: [Background jobs](https://github.com/aadhithya/featherweight/blob/main/docs/specs/background-agents.md). Example: `examples/background` (a session that wakes itself).
+Spec: [Background jobs](https://github.com/aadhithya/featherweight/blob/main/docs/specs/background-jobs.md). Example: `examples/background` (a session that wakes itself).
 
 - [How it works](#how-it-works)
 - [Declaring it](#declaring-it)

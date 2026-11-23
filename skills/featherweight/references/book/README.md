@@ -54,7 +54,7 @@ New to featherweight? Start with [what it is](00-start-here/01-what-it-is.md). W
 
 1. [Submit and a worker](05-in-production/01-submit-and-a-worker.md)
 2. [Several workers](05-in-production/02-several-workers.md)
-3. [Background jobs](05-in-production/03-background-agents.md)
+3. [Background jobs](05-in-production/03-background-jobs.md)
 4. [Observability](05-in-production/04-observability.md)
 5. [Who is asking](05-in-production/05-who-is-asking.md)
 

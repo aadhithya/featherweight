@@ -41,7 +41,7 @@ flowchart TD
 | Build a chat | [A streaming agent](../04-chat/01-a-streaming-agent.md), [In the browser](../04-chat/02-in-the-browser.md) |
 | Attach a file to a chat message | [Attaching a file](../04-chat/04-attaching-a-file.md) |
 | Run it somewhere else, on several workers | [Submit and a worker](../05-in-production/01-submit-and-a-worker.md), [Several workers](../05-in-production/02-several-workers.md) |
-| Let an agent start another and go on | [Background jobs](../05-in-production/03-background-agents.md) |
+| Let an agent start another and go on | [Background jobs](../05-in-production/03-background-jobs.md) |
 | See what it did | [What happened](../01-your-first-agent/04-what-happened.md), [Observability](../05-in-production/04-observability.md) |
 | Use my own database, queue or store | [Bring your own storage](../06-bring-your-own-storage/01-postgres.md) |
 | Look up an exact rule | [The guides](../07-reference/01-the-guides.md), [the specs](../07-reference/02-the-specs.md) |

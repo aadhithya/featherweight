@@ -5,7 +5,7 @@
 An agent hands work to another agent and **goes on**. A launched sub-agent ([launching agents](launching-agents.md)) blocks its parent until it
 returns. A background job does not: the agent starts it, gets a job id at once, and the result comes back when it is ready.
 
-Spec: [Background jobs](specs/background-agents.md). Example: `examples/background` (a session that wakes itself).
+Spec: [Background jobs](specs/background-jobs.md). Example: `examples/background` (a session that wakes itself).
 
 - [How it works](#how-it-works)
 - [Declaring it](#declaring-it)

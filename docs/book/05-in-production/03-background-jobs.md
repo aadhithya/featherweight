@@ -1,4 +1,6 @@
-<!-- Copied from docs/book/05-in-production/03-background-agents.md by scripts/build_skill.py. Edit the original, not this file. -->
+<!-- nav:top -->
+[Book](../README.md) › [Part 5: In production](../README.md#part-5-in-production) › Background jobs  [![docs for](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Faadhithya%2Ffeatherweight%2Fmain%2Fpyproject.toml&query=%24.project.version&label=docs%20for&color=blue)](https://pypi.org/project/featherweight/)
+<!-- /nav:top -->
 
 # Background jobs
 
@@ -99,6 +101,12 @@ The researcher says: something like the cause named in the note.
 - **Nothing is kept for you.** If the process restarts, the history and the notes that were not stored are lost; this session keeps both in memory.
 
 > **Why a message, not a tool result.** The tool call already returned ("started"), and providers reject a second result for it. The result arrives as new information, as a user message.
-> See [background jobs](https://github.com/aadhithya/featherweight/blob/main/docs/specs/background-agents.md#getting-the-result-back) and [the guide](../../background-agents.md).
+> See [background jobs](../../specs/background-jobs.md#getting-the-result-back) and [the guide](../../background-jobs.md).
 
 Next: see what all of it did.
+
+<!-- nav:bottom -->
+---
+
+[← Several workers](02-several-workers.md) · [Part 5: In production](../README.md#part-5-in-production) · [Observability →](04-observability.md)
+<!-- /nav:bottom -->

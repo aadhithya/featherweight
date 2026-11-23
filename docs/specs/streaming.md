@@ -123,7 +123,7 @@ How LangChain's stream maps to this (to be confirmed while building, see [Findin
 `updates` mode gives what a tool node returned.
 
 Events with no source here (state, activity, custom, sub-agent events) are not produced. The custom event is used for two
-events of [background jobs](background-agents.md#events), `background_started` and `background_finished`.
+events of [background jobs](background-jobs.md#events), `background_started` and `background_finished`.
 
 ## The model's thoughts
 
@@ -274,7 +274,7 @@ A third format is a third adapter: the events are the contract.
 
 ## Not supported
 
-- **Background jobs** (a sub-agent that runs while the chat goes on): [their own spec](background-agents.md). The application can do it today
+- **Background jobs** (a sub-agent that runs while the chat goes on): [their own spec](background-jobs.md). The application can do it today
   with a job and by starting the next turn itself; the guide shows how.
 - **Cancelling across processes**, and queued or multi-process jobs: the jobs epic.
 - **Streaming sub-agents:** a launched sub-agent is a tool call.

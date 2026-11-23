@@ -38,7 +38,7 @@ or finding out why it behaves as it does.
 - **I want to teach an agent a procedure.** [Skills](skills.md): instructions in the Agent Skills format, read on demand.
 - **I want to see a whole pipeline.** [Example pipeline](example-pipeline.md): `doclearn`, five agents and two pipelines
   built on featherweight. Run it with `make pipeline`.
-- **I want an agent to start another and go on.** [Background jobs](background-agents.md): a job exposed to an agent as a tool, with the
+- **I want an agent to start another and go on.** [Background jobs](background-jobs.md): a job exposed to an agent as a tool, with the
   result coming back as a message. Then [`examples/background`](../examples/background).
 - **I want to run jobs in the background.** [Submitted jobs](submitted-jobs.md): a client submits, a worker runs, and you follow
   it with events. Then [`examples/jobs`](../examples/jobs).
@@ -57,7 +57,7 @@ or finding out why it behaves as it does.
 | [Models and providers](models.md) | `Gemini`, `Gemma`, `Claude`, `OpenAI`, what is checked, adding a model or a provider | [Models](specs/models.md) |
 | [Launching agents](launching-agents.md) | The `subagents` allow-list, the two tools, depth and breadth, concurrency, tracing | [The runner](specs/runner.md#launching-agents) |
 | [MCP tools](mcp.md) | Declaring servers, connections, what the model gets, failures, finding tools by search | [MCP tools](specs/mcp-tools.md), [tool discovery](specs/tool-discovery.md) |
-| [Background jobs](background-agents.md) | `background_jobs`, `start_background`, here or on a worker, the result message, the events, a chat in the browser, how long a child lives | [Background jobs](specs/background-agents.md) |
+| [Background jobs](background-jobs.md) | `background_jobs`, `start_background`, here or on a worker, the result message, the events, a chat in the browser, how long a child lives | [Background jobs](specs/background-jobs.md) |
 | [Streaming agents](streaming.md) | `StreamingAgent`, `runner.stream()`, the events, thoughts, the AG-UI and Vercel adapters, stopping a response, keeping the conversation, the example | [Streaming agents](specs/streaming.md) |
 | [What the providers accept as attachments](attachments-providers.md) | A dated snapshot of what Anthropic, Google, OpenAI and Ollama accept: types, how, sizes, counts, with links | [Attachments](specs/attachments.md) |
 | [Getting started](getting-started.md) | Installing it, a first agent, running it, the examples | |
