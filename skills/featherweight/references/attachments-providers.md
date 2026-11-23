@@ -2,14 +2,7 @@
 
 # What the providers accept as attachments
 
-> **Warning: this is a snapshot, as of 2026-11-22 (the date of the commit that last changed this page). Do your own research.**
->
-> Providers change what they accept, and their limits, often and without notice. This page is **information, not a promise**:
-> featherweight does not maintain it actively. We update it from time to time, hopefully with each release, and the date above says when.
-> A limit that is wrong here is not a bug in featherweight. **Before you design a workflow around an attachment type, a size or a count,
-> read the provider's own page** (linked in each section) **and try it with your model.** Nothing here replaces that.
->
-> Where two pages of a provider disagree, this page says so.
+> **A snapshot, as of 2026-11-22.** Providers change their limits often and without notice, and this page is not actively maintained. Before you build on a type, a size or a count, read the provider's page (linked in each section) and try it with your model. Where two pages of a provider disagree, this page says so.
 
 featherweight does not check any of this: it passes attachments to the model and the provider's answer comes back as a failed run
 ([attachments](https://github.com/aadhithya/featherweight/blob/main/docs/specs/attachments.md)). This page is for choosing what to build on.

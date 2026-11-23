@@ -312,7 +312,7 @@ finally:
 
 ## What is logged
 
-One `attempts` row per turn, in the same [run log](jobs.md#what-is-on-record-and-what-is-not) as any run, which holds **no content** for any
+One `attempts` row per turn, in the same [run log](persistence.md#the-tables) as any run, which holds **no content** for any
 agent: no messages, no text.
 
 | Column | |

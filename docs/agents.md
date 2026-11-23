@@ -123,7 +123,7 @@ a test, give it fake model settings ([testing your agents](models.md#testing-you
 | `input_tokens`, `output_tokens` | Summed over the attempt's model calls. Output includes thinking tokens, and the input includes the tool results the model read |
 | `attempts`, `latency_ms` | Attempts made, and total time across them |
 | `model_name` | The model as the API reported it, which can differ from the one requested |
-| `reused` | `True` when the output came from the job this one resumes, with no model call ([resuming a job](#resuming-a-job)) |
+| `reused` | `True` when the output came from the job this one resumes, with no model call ([resuming a job](jobs.md#resuming-a-job)) |
 
 ## Failures and retries
 
@@ -219,7 +219,7 @@ result = await runner.run(Mailer, MailerInput(...), identity=Teacher(user_id="u1
 - **It is carried, not used.** It is never shown to the model, never part of the agent's hash, never logged and never stored. Keep it small, and keep secrets out of it:
   a tool gets a credential from the identity with your own code. Checking what the identity may do is the tool's job.
 - A job that is submitted to a worker carries it in the queue message, and the worker rebuilds it ([submitted jobs](submitted-jobs.md#who-the-job-is-for-the-identity)).
-- **Resuming a job reuses a step only for the same identity** ([resuming a job](#resuming-a-job)): a change in who the run is for may be a change in what it may do, so the old result is not relied on. Whether a person may resume a job at all is your check.
+- **Resuming a job reuses a step only for the same identity** ([resuming a job](jobs.md#resuming-a-job)): a change in who the run is for may be a change in what it may do, so the old result is not relied on. Whether a person may resume a job at all is your check.
 
 **What stays yours,** on purpose:
 

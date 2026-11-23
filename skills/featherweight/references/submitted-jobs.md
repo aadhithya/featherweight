@@ -29,12 +29,12 @@ JobClient --submit--> database (job row, "queued" event) + JobQueue --> JobWorke
 ```
 
 The client and the worker never talk to each other. The queue and the database are their only connection, so they can be two
-processes, or two machines. A job is the same thing as in [Agents](agents.md): a row with a status. Submitting only adds
+processes, or two machines. A job is the same thing as in [Jobs](jobs.md): a row with a status. Submitting only adds
 `queued` to it; the worker is what runs it.
 
 ## Defining a job
 
-A job has a name, an input model, an output model and a `run`. The decorator is the short way:
+The example of this page, declared with the decorator ([jobs](jobs.md#declaring-a-job) says more):
 
 ```python
 from featherweight import job, JobContext
@@ -54,10 +54,7 @@ async def shout(ctx: JobContext, input: Text) -> Shouted:
     return Shouted(shouted=input.text.upper())
 ```
 
-The name is the function name, and the models are read from the annotations. For more control, subclass `Job` and set
-`name`, `version`, `input_model` and `output_model` yourself. An agent is a job too: pass an agent class to `submit` and the
-worker runs it. A job may run for `timeout` seconds (default 600, `None` for no limit): set `timeout = 120` on the class, or `@job(timeout=120)`.
-A job that runs longer is cancelled and fails with error type `JobTimeout`, in a worker and in `run_job` alike. Inside a job, `await ctx.run(SomeAgent, input)` and `ctx.run_many(...)` run agents in the same job.
+How to declare a job (`@job`, a `Job` class, the version, the timeout, `ctx.run`) is in [jobs](jobs.md#declaring-a-job). An agent is a job too: pass an agent class to `submit` and the worker runs it.
 
 ## Submitting and following
 
@@ -107,21 +104,7 @@ a queued job, and exactly one of them wins: a job is never both cancelled and ru
 
 ## Events and SSE
 
-Every status change writes an event in the same transaction, so the stored events are the history and cannot disagree with the
-status. `events(job_id, after=n)` yields the stored events after `n`, then each new one, and ends at the final one.
-
-SSE is the only streaming protocol. featherweight runs no server: you return the stream from your own handler.
-
-```python
-@app.get("/jobs/{job_id}/events")
-async def events(job_id: str, request: Request):
-    after = int(request.headers.get("last-event-id", 0))  # a browser that reconnects resumes where it was
-    stream = sse.encode(client.events(job_id, after=after))
-    return StreamingResponse(stream, headers=sse.HEADERS)
-```
-
-Each event is `id: <seq>`, `event: <type>` and `data: <json>`, with a keep-alive comment every 15 seconds. `examples/jobs/api.py`
-is this behind FastAPI.
+`client.events(job_id, after=n)` is the stream of the job's events that [jobs](jobs.md#following-a-job-events-and-sse) describes (`job_events`): the stored ones after `n`, then each new one, ending at the final one. A worker writes the same events as `run_job` does. To send them to a browser, `sse.encode(client.events(job_id, after=after))` with `sse.HEADERS`, as in that section; `examples/jobs/api.py` is this behind FastAPI.
 
 ## Running a worker
 
@@ -177,7 +160,7 @@ several, share one database (`PostgresDatabase` ships in the package) and use a 
   which sees that the job's lease expired and **takes it over**: the same job, with `executions` one higher and a `lost` event in its
   events (queued, running, lost, running, succeeded). A message that arrives while the job's lease is still alive is a duplicate: it is acknowledged and the job is left alone.
 - **What the new worker reuses.** If the job is `resumable`, the steps that finished before the worker died are reused, as in a
-  [resume](persistence.md#resuming-a-job); otherwise the job runs again from the start. A resume is you running a job that *ended* again, as a new
+  [resume](jobs.md#resuming-a-job); otherwise the job runs again from the start. A resume is you running a job that *ended* again, as a new
   job; a takeover is the system running a job that *did not end* again, as the same job.
 - **A worker that only stalled.** If a worker was paused (not dead) and wakes up after a takeover, its writes are refused, because every write of a running
   job checks that the worker still owns it. It stops the job at once and writes nothing more. Only featherweight's writes are checked: **a job must be safe

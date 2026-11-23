@@ -58,7 +58,11 @@ markdown_extensions:
   - toc:
       permalink: true
   - pymdownx.highlight
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid # the diagrams (production-stack.md, the map): Material draws them in the browser
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
 
 hooks:
   - scripts/docs_hooks.py
@@ -114,17 +118,17 @@ nav:
       - launching-agents.md
       - mcp.md
       - skills.md
-      - jobs.md
-      - background-jobs.md
       - streaming.md
-      - submitted-jobs.md
-      - persistence.md
-      - production-stack.md
-      - observability.md
       - attachments-providers.md
+      - persistence.md
+      - jobs.md
+      - submitted-jobs.md
+      - background-jobs.md
+      - observability.md
+      - production-stack.md
       - example-pipeline.md
-      - development.md
       - migration.md
+      - development.md
       - releasing.md
   - Specs:
       - specs/README.md
