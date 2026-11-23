@@ -41,7 +41,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/aadhithya/featherweight"
-Documentation = "https://featherweight.asankar.de/"
+Documentation = "https://ftw.asankar.de/"
 Repository = "https://github.com/aadhithya/featherweight"
 Issues = "https://github.com/aadhithya/featherweight/issues"
 Changelog = "https://github.com/aadhithya/featherweight/blob/main/CHANGELOG.md"

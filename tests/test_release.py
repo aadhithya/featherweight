@@ -91,9 +91,7 @@ def test_the_package_metadata_is_ready_for_pypi():
     assert not [c for c in project["classifiers"] if c.startswith("License ::")]  # a license expression replaces it
     assert {"Homepage", "Repository", "Issues", "Changelog", "Documentation"} <= set(project["urls"])
     urls = dict(project["urls"])
-    assert (
-        urls.pop("Documentation") == "https://featherweight.asankar.de/"
-    )  # the docs site; the rest are the repository
+    assert urls.pop("Documentation") == "https://ftw.asankar.de/"  # the docs site; the rest are the repository
     assert all(url.startswith("https://github.com/aadhithya/featherweight") for url in urls.values())
     assert (ROOT / "src" / "featherweight" / "py.typed").exists()
 

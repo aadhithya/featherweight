@@ -84,7 +84,7 @@ jobs:
           TAG: ${{ needs.release.outputs.tag_name }}
 
   # After the package is published, and only then: publish the documentation site for this release (a version of
-  # https://featherweight.asankar.de, see docs.yml). Its failure does not undo the release: run the `docs` workflow by hand.
+  # https://ftw.asankar.de, see docs.yml). Its failure does not undo the release: run the `docs` workflow by hand.
   docs:
     needs: [release, publish]
     if: needs.release.outputs.release_created == 'true'

@@ -73,12 +73,12 @@ def test_the_docs_are_published_after_the_package_and_by_hand_for_any_tag():
     runs = " ".join(step.get("run", "") for step in steps)
     assert "mkdocs build --strict" in runs and "mike deploy --push --update-aliases" in runs
     assert "cut -d. -f1,2" in runs  # one version per minor release
-    assert 'echo "$DOMAIN" > CNAME' in runs and docs["jobs"]["docs"]["env"]["DOMAIN"] == "featherweight.asankar.de"
+    assert 'echo "$DOMAIN" > CNAME' in runs and docs["jobs"]["docs"]["env"]["DOMAIN"] == "ftw.asankar.de"
 
 
 def test_the_site_is_built_strict_on_every_pull_request():
     steps = workflow("test.yml")["jobs"]["test"]["steps"]
     assert any(step.get("run") == "uv run mkdocs build --strict" for step in steps)
     assert yaml.safe_load((ROOT / "mkdocs.yml").read_text().replace("!!python", ""))["site_url"] == (
-        "https://featherweight.asankar.de/"
+        "https://ftw.asankar.de/"
     )

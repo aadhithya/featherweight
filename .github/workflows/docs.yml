@@ -1,6 +1,6 @@
 name: docs
 
-# Publishes the documentation site (https://featherweight.asankar.de) for one release, as a version of the site on the
+# Publishes the documentation site (https://ftw.asankar.de) for one release, as a version of the site on the
 # `gh-pages` branch, with mike. The release workflow calls this after the package is published, so a release publishes its
 # docs by itself. By hand, it publishes the docs of any tag again (Actions, docs, Run workflow, e.g. v0.2.1): use it after a fix
 # to the docs of a release that is already out, or if the publish step failed.
@@ -34,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TAG: ${{ inputs.tag }}
-      DOMAIN: featherweight.asankar.de
+      DOMAIN: ftw.asankar.de
     steps:
       - uses: actions/checkout@v4
         with:

@@ -72,7 +72,7 @@ run, so the secret is the way to go.
 
 ## The documentation site
 
-The site is <https://featherweight.asankar.de>: the book, the guides and the specs of `docs/`, and an API reference made from
+The site is <https://ftw.asankar.de>: the book, the guides and the specs of `docs/`, and an API reference made from
 the docstrings. It is built with MkDocs Material and mkdocstrings, and each release publishes its own version of it with
 [mike](https://github.com/jimporter/mike), so there is nothing to do by hand.
 
@@ -93,13 +93,13 @@ the docstrings. It is built with MkDocs Material and mkdocstrings, and each rele
 **One-time setup, by the owner:**
 
 1. After the first release (it creates `gh-pages`): Settings, Pages, Source: **Deploy from a branch**, `gh-pages`, `/ (root)`.
-2. DNS for `asankar.de`: `CNAME featherweight` → `aadhithya.github.io`. Then in Settings, Pages, set the custom domain
-   `featherweight.asankar.de` and tick **Enforce HTTPS** (GitHub issues the certificate). The workflow keeps the `CNAME` file in the
+2. DNS for `asankar.de`: `CNAME ftw` → `aadhithya.github.io`. Then in Settings, Pages, set the custom domain
+   `ftw.asankar.de` and tick **Enforce HTTPS** (GitHub issues the certificate). The workflow keeps the `CNAME` file in the
    branch, so a release does not remove the setting.
 3. Optional: verify the domain in your account's Pages settings, so nobody else can claim the subdomain.
-4. `ftw.asankar.de` is a short address for the same site. A Pages site has only one custom domain, so it cannot be a second name
-   of this one: make it a redirect to `https://featherweight.asankar.de` at the DNS provider (an HTTP redirect, or URL forwarding, if it has
-   one), or in a small repository of its own that publishes a page with a redirect.
+4. A longer name, such as `featherweight.asankar.de`, can only be a redirect to `https://ftw.asankar.de`: a Pages site has only one
+   custom domain. Make it an HTTP redirect (URL forwarding) at the DNS provider, or a small repository of its own that publishes a
+   page with a redirect.
 
 ## Publishing to PyPI
 
