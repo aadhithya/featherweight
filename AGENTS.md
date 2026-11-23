@@ -18,7 +18,7 @@ retries and limits, and jobs run in your process or on workers. Pydantic is the 
 - An agent is a class: `input_model`, `output_model`, a `prompt`. Pass the class to the runner, not an instance: `runner.run(MyAgent, input)`.
 - A failed run is a value. Check `result.status` (`RunStatus.SUCCESS` or `FAILED`); do not wrap `run` in `try`.
 - Rules a schema cannot say go in `check_output`: raise to reject, and the runner retries.
-- Capabilities are allow-lists: `tools`, `mcp_servers`, `skills`, `subagents` and `background_agents` are what the developer gave the agent.
+- Capabilities are allow-lists: `tools`, `mcp_servers`, `skills`, `subagents` and `background_jobs` are what the developer gave the agent.
 - The framework stores metadata only (status, tokens, timing, hashes). Results and inputs go to stores you provide.
 - Never call a real model in tests: use a fake model (see [`docs/recipes/testing-with-a-fake-model.md`](docs/recipes/testing-with-a-fake-model.md)).
   A real call costs money: ask first, use the smallest model.

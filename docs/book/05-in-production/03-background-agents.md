@@ -13,7 +13,7 @@ The chat is the assistant from Part 4, with one addition: a list of agents it ma
 ```python
 class IncidentAssistant(StreamingAgent):
     ...
-    background_agents: list[type] = [RootCauseResearcher]  # in assistant.py
+    background_jobs: list[type] = [RootCauseResearcher]  # in assistant.py
 ```
 
 The `Session` is **yours**: featherweight keeps no conversation, so a small class holds the history and wakes the chat when the researcher is done.
@@ -92,8 +92,8 @@ The researcher says: something like the cause named in the note.
 
 **What to notice**
 
-- **`background_agents`** gives the model one more tool, `start_background`. It returns a job id at once, so the turn goes on. The researcher is an ordinary agent, run as a job of its own.
-- **Results need a result store.** The runner reads the researcher's note from it (the default sqlite store is enough here). An agent with `background_agents` and no result store is refused before any model call.
+- **`background_jobs`** gives the model one more tool, `start_background`. It returns a job id at once, so the turn goes on. The researcher is an ordinary agent, run as a job of its own.
+- **Results need a result store.** The runner reads the researcher's note from it (the default sqlite store is enough here). An agent with `background_jobs` and no result store is refused before any model call.
 - **The stream says what happened.** The chat's stream carries `background_started` (with the child's `job_id`), which is how the session knows what to follow, and `background_finished`.
   The child's own job events are the full record: `job_events` follows them until the job is final.
 - **`runner.background_message(job_id)`** builds the user message with the child's result, and the session starts the next turn with it. A chat turn does not wait for its children.

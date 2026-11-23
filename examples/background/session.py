@@ -62,7 +62,7 @@ class Assistant(StreamingAgent):
         "its note arrives in a later message, and then you tell the user what it says."
     )
     model: ModelSettings = HAIKU
-    background_agents: list[type] = [Researcher]
+    background_jobs: list[type] = [Researcher]
 
 
 class Session:

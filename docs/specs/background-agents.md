@@ -46,15 +46,15 @@ An agent declares which agents it may start in the background, as it declares `s
 
 ```python
 class Researcher(AgentBase):
-    background_agents = [WebSearcher, Summariser]  # agent classes, or Job classes
+    background_jobs = [WebSearcher, Summariser]  # agent classes, or Job classes
 ```
 
 - Every entry is an agent class (not a streaming one) or a `Job` class, as `submit` takes; none is the agent's own class; the names are
-  distinct. **An agent may be in both `subagents` and `background_agents`**: then the model chooses, per call, between `launch_agent` (it waits
-  and gets the output) and `start_background` (it goes on). A `Job` class can only be in `background_agents`. An agent that is itself in a
-  `background_agents` list may not declare `background_agents`: **a background agent cannot start background agents** (a bound on fan-out).
+  distinct. **An agent may be in both `subagents` and `background_jobs`**: then the model chooses, per call, between `launch_agent` (it waits
+  and gets the output) and `start_background` (it goes on). A `Job` class can only be in `background_jobs`. An agent that is itself in a
+  `background_jobs` list may not declare `background_jobs`: **a background agent cannot start background agents** (a bound on fan-out).
 - **The model gets one more tool,** `start_background(agent_name, input_json)`. **The prompt lists each agent once**, by name and description, in
-  three groups: *inline* (only in `subagents`), *background* (only in `background_agents`) and *either* (in both), so that an agent in both lists is
+  three groups: *inline* (only in `subagents`), *background* (only in `background_jobs`) and *either* (in both), so that an agent in both lists is
   not described twice ([agents](agents.md#the-system-prompt)). `get_agent_schema(agent_name)` covers all of them. `input_json` is a string, for the same reason as in
   `launch_agent`.
 - **It returns at once, and as text,** and never raises into the parent's run:
@@ -62,7 +62,7 @@ class Researcher(AgentBase):
 | Case | What comes back |
 |---|---|
 | Started | `{"status": "STARTED", "agent": "...", "job_id": "..."}` |
-| A name that is not in `background_agents` | `'x' is not an agent you can start in the background. You can start: ...` |
+| A name that is not in `background_jobs` | `'x' is not an agent you can start in the background. You can start: ...` |
 | The input does not fit | `The input for 'x' is not valid: ... Check get_agent_schema and try again.` |
 | The limit of live children is reached | A sentence saying so |
 
@@ -81,7 +81,7 @@ Where a child runs is the application's configuration, and nothing else changes 
   as it does for any job.
 
 Either way the child's events and its result are those of any job, and an application that wants to follow it uses `client.events(job_id)`.
-The runner needs a result store (`results=`) to read the result from; **an agent with `background_agents` run on a runner with
+The runner needs a result store (`results=`) to read the result from; **an agent with `background_jobs` run on a runner with
 `results=None` is a `SetupError`** before any model call.
 
 ## Getting the result back
@@ -152,12 +152,13 @@ A failed child has `status="FAILED"` and its `error_type`, and a cancelled one `
 
 ## What changes
 
-Each in the spec that owns it: **agents** (the `background_agents` field and its checks); **the runner** (the tool, the limits, the hook before
+Each in the spec that owns it: **agents** (the `background_jobs` field and its checks); **the runner** (the tool, the limits, the hook before
 the model call, `AgentRunner(background=)`, `runner.background_message`, cancel propagation); **persistence** (`jobs.parent_agent_run_id`);
 **streaming** (the two `CUSTOM` events); **observability** (the child's span); **submitted jobs** (nothing: a child is a job).
 
 ## Decisions
 
+- **The field is `background_jobs`** ([#204](https://github.com/aadhithya/featherweight/issues/204); it was `background_agents`). It holds agent classes and `Job` classes, and **an agent class in it runs as a job** of its own (its own id, status, events and result), so the name says what the list holds. The tool and the events keep their names (`start_background`, `background_started`, `background_finished`). The agent hash still names this entry `background_agents` in the declaration, so renaming the field changed no hash and a resume of an older job still reuses its steps. There is no alias for the old name (0.x).
 - **A background agent is a job exposed as a tool,** and one concept runs here or on a worker, by configuration.
 - **An agent may be inline, background or both,** by which lists it is in; the model chooses for an agent in both, and the prompt describes each agent once.
 - **The result comes back as a user message,** never as a second tool result, and only where every call of the round has its result.
@@ -186,7 +187,7 @@ the model call, `AgentRunner(background=)`, `runner.background_message`, cancel 
 
 No live model call. Fake models, `MemoryQueue`, the dict result store.
 
-- **The declaration:** the checks of `background_agents`, a background agent that declares its own refused, an agent in both lists accepted, the prompt (each agent once, in its group) and the tool.
+- **The declaration:** the checks of `background_jobs`, a background agent that declares its own refused, an agent in both lists accepted, the prompt (each agent once, in its group) and the tool.
 - **The tool:** every row of the table; a child here and on a worker (`MemoryQueue` and a worker); the same job, row, events and result in both;
   `results=None` refused before the model call; the limit of live children.
 - **The result:** a child that finishes mid-loop is added after the round's tool results and once; a failed and a cancelled child; a model
@@ -199,7 +200,7 @@ No live model call. Fake models, `MemoryQueue`, the dict result store.
 
 Tracked in [epic #115](https://github.com/aadhithya/featherweight/issues/115). One issue and one pull request each, in this order:
 
-1. [#116](https://github.com/aadhithya/featherweight/issues/116) **The child job and the tool:** `background_agents`, `start_background`, `jobs.parent_agent_run_id`, here and on a worker, the limit.
+1. [#116](https://github.com/aadhithya/featherweight/issues/116) **The child job and the tool:** `background_jobs`, `start_background`, `jobs.parent_agent_run_id`, here and on a worker, the limit.
 2. [#117](https://github.com/aadhithya/featherweight/issues/117) **The result:** the hook before the model call, `runner.background_message`, and a run that waits for its children.
 3. [#118](https://github.com/aadhithya/featherweight/issues/118) **Events and cancel:** the two `CUSTOM` events, stopping a response cancels its children, observers.
 4. [#119](https://github.com/aadhithya/featherweight/issues/119) **The guide and the skill.**

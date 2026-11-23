@@ -58,7 +58,7 @@ class Parent(AgentBase):
     version: str = "0.1.0"
     prompt: str = "Do the task."
     model: ModelSettings = FakeSettings()
-    background_agents: list[type] = [Child]
+    background_jobs: list[type] = [Child]
     input_model: ClassVar[type[AgentInput]] = ParentInput
     output_model: ClassVar[type[AgentOutput]] = ParentOutput
 
@@ -111,16 +111,16 @@ async def finished(runner: AgentRunner) -> None:
 # the declaration
 
 
-def test_background_agents_may_be_agent_classes_and_job_classes():
+def test_background_jobs_may_be_agent_classes_and_job_classes():
     @job
     async def summarise(ctx: JobContext, input: ChildInput) -> ChildOutput:
         return ChildOutput(summary="s")
 
     class Both(Parent):
         name: str = "both"
-        background_agents: list[type] = [Child, summarise]
+        background_jobs: list[type] = [Child, summarise]
 
-    assert [getattr(e, "name", None) for e in Both().background_agents if e is summarise] == ["summarise"]
+    assert [getattr(e, "name", None) for e in Both().background_jobs if e is summarise] == ["summarise"]
     assert Both().background_entry("summarise") is summarise and Both().background_entry("child") is Child
     assert Both().background_entry("stranger") is None
 
@@ -129,7 +129,7 @@ def test_an_agent_may_be_a_subagent_and_a_background_agent_both():
     class Either(Parent):
         name: str = "either"
         subagents: list[type] = [Child]
-        background_agents: list[type] = [Child]
+        background_jobs: list[type] = [Child]
 
     assert Either().subagent_instance("child") is not None and Either().background_entry("child") is Child
 
@@ -147,7 +147,7 @@ def test_the_declaration_is_checked_when_the_agent_is_built():
 
     class Nested(Child):
         name: str = "nested"
-        background_agents: list[type] = [Child]
+        background_jobs: list[type] = [Child]
 
     class Itself(Parent):
         name: str = "itself"
@@ -159,9 +159,9 @@ def test_the_declaration_is_checked_when_the_agent_is_built():
         [Nested],
     ):  # not a class of ours, streaming, one name twice, a nested one
         with pytest.raises(ValueError):
-            Parent(background_agents=entries)
+            Parent(background_jobs=entries)
     with pytest.raises(ValueError, match="itself"):
-        Itself(background_agents=[Itself])
+        Itself(background_jobs=[Itself])
 
 
 def test_a_job_class_cannot_be_a_subagent():
@@ -173,12 +173,12 @@ def test_a_job_class_cannot_be_a_subagent():
         Parent(subagents=[summarise])
 
 
-def test_an_agent_without_background_agents_keeps_its_hash_and_one_with_them_has_another():
+def test_an_agent_without_background_jobs_keeps_its_hash_and_one_with_them_has_another():
     class Plain(Parent):
-        background_agents: list[type] = []
+        background_jobs: list[type] = []
 
     assert agent_hash(Plain()) != agent_hash(Parent())
-    assert "background_agents" not in agent_declaration(Plain())
+    assert "background_jobs" not in agent_declaration(Plain())
 
 
 # the prompt and the tools
@@ -192,7 +192,7 @@ async def test_the_prompt_describes_each_agent_once_in_its_group(db):
     class Mixed(Parent):
         name: str = "mixed"
         subagents: list[type] = [Child, Writer]
-        background_agents: list[type] = [Child]
+        background_jobs: list[type] = [Child]
 
     model = Scripted(script=[parent_done()])
     await runner_with(db, model, results=MemoryResultStore()).run(Mixed, PARENT_INPUT)
@@ -208,7 +208,7 @@ async def test_an_agent_with_only_subagents_has_the_prompt_it_always_had(db):
     class Inline(Parent):
         name: str = "inline"
         subagents: list[type] = [Child]
-        background_agents: list[type] = []
+        background_jobs: list[type] = []
 
     model = Scripted(script=[parent_done()])
     await runner_with(db, model).run(Inline, PARENT_INPUT)
@@ -235,7 +235,7 @@ async def test_the_tools_follow_the_declaration(db):
     assert both.tools_hash == tools_hash([], ["launch_agent", "get_agent_schema", "start_background"])
 
 
-async def test_get_agent_schema_covers_the_background_agents_too(db):
+async def test_get_agent_schema_covers_the_background_jobs_too(db):
     @job
     async def summarise(ctx: JobContext, input: ChildInput) -> ChildOutput:
         """Summarises a page."""
@@ -243,7 +243,7 @@ async def test_get_agent_schema_covers_the_background_agents_too(db):
 
     class Two(Parent):
         name: str = "two"
-        background_agents: list[type] = [Child, summarise]
+        background_jobs: list[type] = [Child, summarise]
 
     model = Scripted(
         script=[
@@ -350,7 +350,7 @@ async def test_a_job_class_can_be_started_in_the_background(db, results):
 
     class Jobby(Parent):
         name: str = "jobby"
-        background_agents: list[type] = [summarise]
+        background_jobs: list[type] = [summarise]
 
     model = Scripted(
         script=[
@@ -375,7 +375,7 @@ async def test_a_job_class_can_be_started_in_the_background(db, results):
 # a runner with no result store
 
 
-async def test_an_agent_with_background_agents_needs_a_result_store_before_any_model_call(db):
+async def test_an_agent_with_background_jobs_needs_a_result_store_before_any_model_call(db):
     model = Scripted(script=[parent_done()])
     runner = runner_with(db, model, results=None)
 
@@ -384,14 +384,14 @@ async def test_an_agent_with_background_agents_needs_a_result_store_before_any_m
     assert model.calls == 0
 
 
-async def test_a_streaming_agent_with_background_agents_is_refused_the_same_way(db):
+async def test_a_streaming_agent_with_background_jobs_is_refused_the_same_way(db):
     class Chat(StreamingAgent):
         name: str = "chat"
         description: str = "Talks to the user"
         version: str = "1"
         prompt: str = "You are a helpful chat agent."
         model: ModelSettings = FakeSettings()
-        background_agents: list[type] = [Child]
+        background_jobs: list[type] = [Child]
 
     runner = runner_with(db, Scripted(script=[]), results=None)
     with pytest.raises(SetupError, match="result store"):
@@ -401,7 +401,7 @@ async def test_a_streaming_agent_with_background_agents_is_refused_the_same_way(
 # a child inside a background job cannot start background agents
 
 
-async def test_what_a_background_job_runs_cannot_start_background_agents(db):
+async def test_what_a_background_job_runs_cannot_start_background_jobs(db):
     seen: list[bool] = []
 
     @job

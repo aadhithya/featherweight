@@ -310,7 +310,7 @@ Content is off unless `OTelObserver(capture_content=True)`. Your own spans use t
 
 ```python
 class Researcher(AgentBase):
-    background_agents = [WebSearcher]  # the model gets `start_background`; the child is a job
+    background_jobs = [WebSearcher]  # the model gets `start_background`; the child is a job
 
 
 runner = AgentRunner(db, results=store)  # here, in this process; needs a result store

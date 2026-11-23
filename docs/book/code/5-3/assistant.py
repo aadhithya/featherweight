@@ -38,4 +38,4 @@ class IncidentAssistant(StreamingAgent):  # a streaming agent answers in a chat:
     )
     model: ModelSettings = MODEL
     # the agents this one may start in the background: each is an explicit choice
-    background_agents: list[type] = [RootCauseResearcher]
+    background_jobs: list[type] = [RootCauseResearcher]

@@ -13,7 +13,7 @@ Ask it to research something ("research how kettles work"), then keep chatting. 
 
 [`session.py`](session.py) has the two agents and a `Session`:
 
-- the chat agent lists the researcher in `background_agents`, so it gets a `start_background` tool that returns at once;
+- the chat agent lists the researcher in `background_jobs`, so it gets a `start_background` tool that returns at once;
 - featherweight emits a `background_started` event on the chat stream, with the id of the child's job;
 - **the `Session` is the part that wakes the chat.** It follows that job's events, and when it ends it starts the next turn with the
   history plus `await runner.background_message(job_id)`, which is the researcher's note as a user message.

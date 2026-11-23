@@ -62,13 +62,14 @@ def agent_declaration(agent: AgentBase, _seen: tuple[type, ...] = ()) -> dict[st
         "input_schema": type(agent).input_model.model_json_schema(),
         "output_schema": type(agent).output_model.model_json_schema(),
     }
-    if agent.background_agents:  # only when there are some, so that an agent without any keeps the hash it had
-        declaration["background_agents"] = [_background_entry(entry, seen) for entry in agent.background_agents]
+    if agent.background_jobs:  # only when there are some, so that an agent without any keeps the hash it had
+        # The key is still the field's old name, `background_agents`: renaming it would change the hash of every agent that has some.
+        declaration["background_agents"] = [_background_entry(entry, seen) for entry in agent.background_jobs]
     return _canonical(declaration)
 
 
 def _background_entry(entry: Any, seen: tuple[type, ...]) -> dict[str, Any]:
-    """An agent in `background_agents` as a plain structure; a job class by its declaration hash."""
+    """An agent in `background_jobs` as a plain structure; a job class by its declaration hash."""
     if issubclass(entry, AgentBase):
         return {"cycle": entry.__qualname__} if entry in seen else agent_declaration(entry(), seen)
     return {"job": entry.name, "version": entry.version, "job_hash": entry.job_hash()}
