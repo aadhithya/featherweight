@@ -1,0 +1,124 @@
+# The documentation site: https://ftw.asankar.de. Made from docs/ (the pages stay readable on GitHub) and from the
+# docstrings of src/featherweight. `make docs` serves it, `make docs-build` builds it (strict: a broken link fails).
+# The release workflow publishes it, one version per minor release, with mike (see docs/releasing.md).
+site_name: featherweight
+site_description: An opinionated Python agent harness. An agent is a typed class, a runner runs it with retries and limits, and jobs run in your process or on workers.
+site_url: https://ftw.asankar.de/
+repo_url: https://github.com/aadhithya/featherweight
+repo_name: aadhithya/featherweight
+edit_uri: edit/main/docs/
+
+docs_dir: docs
+exclude_docs: |
+  book/code/
+  book/SUMMARY.md
+  book/STYLE.md
+
+theme:
+  name: material
+  font: false # no Google Fonts: nothing is fetched from a third party. assets/site.css sets the system fonts
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.action.edit
+  palette:
+    # Dark is the default for everyone (no `media` rule, so the OS setting is not followed); the toggle switches to light.
+    # The colours are in assets/site.css.
+    - scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Light mode
+    - scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+
+extra_css:
+  - assets/site.css
+
+extra:
+  generator: false
+  version:
+    provider: mike
+    default: latest
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+hooks:
+  - scripts/docs_hooks.py
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          options:
+            show_source: false
+            show_root_heading: true
+            show_root_full_path: false
+            heading_level: 2
+            members_order: source
+            separate_signature: true
+            show_signature_annotations: true
+            signature_crossrefs: true
+            merge_init_into_class: true
+            docstring_section_style: list
+            filters: ["!^_"]
+
+# The book and the API reference are filled in by scripts/docs_hooks.py: the book from docs/book/SUMMARY.md, the reference
+# from the modules of the package. The guides and the specs are listed here.
+nav:
+  - Home: index.md
+  - Book: []
+  - Guides:
+      - documentation.md
+      - getting-started.md
+      - agents.md
+      - models.md
+      - launching-agents.md
+      - mcp.md
+      - skills.md
+      - background-agents.md
+      - streaming.md
+      - submitted-jobs.md
+      - persistence.md
+      - production-stack.md
+      - observability.md
+      - attachments-providers.md
+      - example-pipeline.md
+      - development.md
+      - releasing.md
+  - Specs:
+      - specs/README.md
+      - specs/agents.md
+      - specs/runner.md
+      - specs/models.md
+      - specs/jobs-and-tracing.md
+      - specs/persistence.md
+      - specs/submitted-jobs.md
+      - specs/observability.md
+      - specs/background-agents.md
+      - specs/streaming.md
+      - specs/attachments.md
+      - specs/skills.md
+      - specs/tools-and-store.md
+      - specs/tool-discovery.md
+      - specs/mcp-tools.md
+  - API reference: []

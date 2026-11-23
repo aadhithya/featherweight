@@ -1,0 +1,415 @@
+/* The look of the documentation site (mkdocs.yml). Material for MkDocs, restyled: the palette comes from the banner (a deep
+   navy with white serif lettering), the fonts are the system's own (nothing is loaded from a third party), and the page
+   is quieter than the stock theme: no coloured header bar, thin borders, rounded corners. Dark is the default. */
+
+:root {
+  --ftw-sans: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --ftw-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Charter", "Book Antiqua", Georgia, serif;
+  --ftw-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --ftw-radius: 10px;
+  --ftw-brand: #2b315d; /* the navy of the banner (docs/assets/banner.png): every accent is this colour or a tint of it */
+}
+
+/* ---- palette ---- */
+
+[data-md-color-scheme="slate"] {
+  --md-hue: 232;
+  --md-default-bg-color: #0c0e1b;
+  --md-default-bg-color--light: #0c0e1bb3;
+  --md-default-fg-color: #e6e8f4e6;
+  --md-default-fg-color--light: #aeb3cc;
+  --md-default-fg-color--lighter: #6f7595;
+  --md-default-fg-color--lightest: #262a44;
+  --md-primary-fg-color: #0c0e1b;
+  --md-primary-bg-color: #e6e8f4;
+  /* The navy itself is too dark to read as text on this background, so text accents are a lighter tint of the same hue. */
+  --md-accent-fg-color: #aab1e8;
+  --md-typeset-color: #d7daeb;
+  --md-typeset-a-color: #aab1e8;
+  --ftw-accent-fill: var(--ftw-brand);
+  --ftw-accent-on-fill: #ffffff;
+  --ftw-accent-line: #4b5497;
+  --md-code-bg-color: #131630;
+  --md-code-fg-color: #d7daeb;
+  --md-footer-bg-color: #0c0e1b;
+  --md-footer-bg-color--dark: #090b16;
+  --ftw-border: #232850;
+  --ftw-card: #101330;
+  --md-typeset-table-color: #232850;
+}
+
+[data-md-color-scheme="default"] {
+  --md-default-bg-color: #fbfbfe;
+  --md-default-fg-color: #1b1e33e6;
+  --md-primary-fg-color: #fbfbfe;
+  --md-primary-bg-color: #1b1e33;
+  --md-accent-fg-color: var(--ftw-brand);
+  --md-typeset-a-color: var(--ftw-brand);
+  --ftw-accent-fill: var(--ftw-brand);
+  --ftw-accent-on-fill: #ffffff;
+  --ftw-accent-line: var(--ftw-brand);
+  --md-code-bg-color: #f0f1f9;
+  --md-code-fg-color: #25294a;
+  --ftw-border: #dfe1ee;
+  --ftw-card: #ffffff;
+}
+
+/* ---- type ---- */
+
+body,
+.md-typeset,
+.md-nav,
+.md-search__input,
+.md-tabs {
+  font-family: var(--ftw-sans);
+}
+
+.md-typeset code,
+.md-typeset pre,
+.md-typeset kbd {
+  font-family: var(--ftw-mono);
+}
+
+.md-typeset {
+  font-size: 0.78rem;
+  line-height: 1.7;
+}
+
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4 {
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  color: var(--md-default-fg-color);
+}
+
+.md-typeset h1 {
+  font-family: var(--ftw-serif);
+  font-weight: 600;
+  font-size: 2.2em;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.8em;
+}
+
+.md-typeset h2 {
+  margin-top: 2.2em;
+  padding-bottom: 0.35em;
+  border-bottom: 1px solid var(--ftw-border);
+}
+
+.md-typeset .headerlink {
+  opacity: 0;
+}
+
+.md-typeset :is(h1, h2, h3, h4):hover .headerlink {
+  opacity: 0.6;
+}
+
+/* ---- header and tabs: quiet, no coloured bar ---- */
+
+.md-header,
+.md-tabs {
+  background: var(--md-default-bg-color--light, var(--md-default-bg-color));
+  color: var(--md-default-fg-color);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+.md-header {
+  box-shadow: none;
+}
+
+.md-header--shadow {
+  box-shadow: 0 1px 0 var(--ftw-border);
+}
+
+.md-tabs {
+  border-bottom: 1px solid var(--ftw-border);
+}
+
+.md-header__title,
+.md-header__topic {
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.md-tabs__link {
+  font-size: 0.72rem;
+  opacity: 0.7;
+}
+
+.md-tabs__link:hover,
+.md-tabs__item--active .md-tabs__link {
+  opacity: 1;
+}
+
+.md-tabs__item--active .md-tabs__link {
+  color: var(--md-default-fg-color);
+  box-shadow: 0 2px 0 var(--ftw-accent-line);
+}
+
+.md-search__form {
+  border-radius: var(--ftw-radius);
+  background: var(--ftw-card);
+  border: 1px solid var(--ftw-border);
+}
+
+.md-search__form:hover {
+  background: var(--ftw-card);
+}
+
+[data-md-toggle="search"]:checked ~ .md-header .md-search__form {
+  background: var(--ftw-card);
+}
+
+.md-search__input::placeholder,
+.md-search__input + .md-search__icon {
+  color: var(--md-default-fg-color--light);
+}
+
+.md-search__output {
+  border-radius: 0 0 var(--ftw-radius) var(--ftw-radius);
+}
+
+/* ---- navigation ---- */
+
+.md-nav {
+  font-size: 0.7rem;
+}
+
+.md-nav__item .md-nav__link--active {
+  color: var(--md-accent-fg-color);
+  font-weight: 600;
+}
+
+@media screen and (min-width: 76.25em) {
+  .md-nav--primary .md-nav__link--active:not(.md-nav__link--index) {
+    background: var(--ftw-accent-fill);
+    color: var(--ftw-accent-on-fill);
+    border-radius: 6px;
+    padding: 0.15em 0.6em;
+    margin-left: -0.6em;
+  }
+}
+
+.md-nav--secondary .md-nav__title,
+.md-nav__title {
+  font-weight: 650;
+}
+
+.md-nav__link {
+  transition: color 0.12s;
+}
+
+/* ---- content ---- */
+
+.md-grid {
+  max-width: 70rem;
+}
+
+.md-content__inner {
+  margin-bottom: 3rem;
+}
+
+.md-typeset a {
+  text-underline-offset: 0.18em;
+}
+
+.md-typeset p > a:hover,
+.md-typeset li > a:hover {
+  text-decoration: underline;
+}
+
+.md-typeset hr {
+  border-bottom: 1px solid var(--ftw-border);
+}
+
+.md-typeset blockquote {
+  border-left: 3px solid var(--ftw-accent-line);
+  background: var(--ftw-card);
+  color: var(--md-default-fg-color--light);
+  border-radius: 0 var(--ftw-radius) var(--ftw-radius) 0;
+  padding: 0.6em 1.2em;
+  margin: 1.4em 0;
+}
+
+.md-typeset blockquote p {
+  margin: 0.4em 0;
+}
+
+/* ---- code ---- */
+
+.md-typeset code {
+  border-radius: 6px;
+  padding: 0.12em 0.4em;
+  font-size: 0.86em;
+}
+
+.md-typeset pre > code {
+  border-radius: var(--ftw-radius);
+  border: 1px solid var(--ftw-border);
+  padding: 1em 1.2em;
+  font-size: 0.74rem;
+  line-height: 1.6;
+}
+
+.md-typeset .highlight,
+.md-typeset .highlighttable {
+  margin: 1.2em 0;
+}
+
+/* ---- tables ---- */
+
+.md-typeset__table {
+  display: block;
+}
+
+.md-typeset table:not([class]) {
+  display: table;
+  width: 100%;
+  font-size: 0.74rem;
+  border: 1px solid var(--ftw-border);
+  border-radius: var(--ftw-radius);
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  background: var(--ftw-card);
+  box-shadow: none;
+}
+
+.md-typeset table:not([class]) th {
+  background: transparent;
+  color: var(--md-default-fg-color--light);
+  font-weight: 600;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.8em 1.1em;
+  border-bottom: 1px solid var(--ftw-border);
+}
+
+.md-typeset table:not([class]) td {
+  padding: 0.85em 1.1em;
+  border-top: 0;
+  border-bottom: 1px solid var(--ftw-border);
+  vertical-align: top;
+}
+
+.md-typeset table:not([class]) tr:last-child td {
+  border-bottom: 0;
+}
+
+.md-typeset table:not([class]) tbody tr:hover {
+  background: transparent;
+}
+
+/* ---- buttons, admonitions ---- */
+
+.md-typeset .md-button {
+  border-radius: 999px;
+  border: 1px solid var(--ftw-border);
+  color: var(--md-default-fg-color);
+  background: var(--ftw-card);
+  font-weight: 600;
+  font-size: 0.78rem;
+  padding: 0.6em 1.4em;
+  margin: 0.2em 0.3em 0.2em 0;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.md-typeset .md-button:hover {
+  border-color: var(--ftw-accent-line);
+  background: var(--ftw-card);
+  color: var(--md-accent-fg-color);
+}
+
+.md-typeset .md-button--primary {
+  background: var(--ftw-accent-fill);
+  border-color: var(--ftw-accent-line);
+  color: var(--ftw-accent-on-fill);
+}
+
+.md-typeset .md-button--primary:hover {
+  background: var(--ftw-accent-fill);
+  border-color: var(--md-accent-fg-color);
+  color: var(--ftw-accent-on-fill);
+  filter: brightness(1.15);
+}
+
+.md-typeset .admonition,
+.md-typeset details {
+  border-radius: var(--ftw-radius);
+  border-width: 1px;
+  box-shadow: none;
+  background: var(--ftw-card);
+}
+
+/* ---- the home page (the README) ---- */
+
+.md-content__inner > p[align="center"] {
+  margin: 1.2rem 0 2rem;
+}
+
+.md-content__inner > p[align="center"] img {
+  max-width: min(100%, 640px);
+  height: auto;
+  border-radius: 18px;
+  border: 1px solid var(--ftw-border);
+}
+
+.md-content__inner > p > a > img[src*="shields.io"],
+.md-content__inner > p > a > img[src*="badge.svg"] {
+  height: 20px;
+  margin-right: 0.15em;
+}
+
+/* ---- the API reference (mkdocstrings) ---- */
+
+.doc .doc-contents {
+  padding-left: 1em;
+  border-left: 1px solid var(--ftw-border);
+  margin-left: 0.2em;
+}
+
+.doc-heading code {
+  font-size: 0.9em;
+  background: transparent;
+  padding: 0;
+}
+
+.doc-label,
+.md-typeset .doc-label code {
+  border-radius: 999px;
+  font-size: 0.62rem;
+}
+
+.md-typeset .doc-symbol {
+  border-radius: 6px;
+}
+
+/* ---- footer ---- */
+
+.md-footer {
+  border-top: 1px solid var(--ftw-border);
+}
+
+.md-footer-meta {
+  background: transparent;
+}
+
+.md-footer__link {
+  font-size: 0.74rem;
+}
+
+/* ---- version selector (mike) ---- */
+
+.md-version__current {
+  font-weight: 600;
+}
+
+.md-version__list {
+  border-radius: var(--ftw-radius);
+  border: 1px solid var(--ftw-border);
+  background: var(--ftw-card);
+}

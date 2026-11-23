@@ -1,4 +1,4 @@
-.PHONY: skill all-docs build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching example-resume example-results example-jobs example-takeover example-observability example-chat example-chat-api example-chat-attach example-background example-mcp book-build book-chapter book-run book-chat book-shell shell
+.PHONY: skill all-docs docs docs-build build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching example-resume example-results example-jobs example-takeover example-observability example-chat example-chat-api example-chat-attach example-background example-mcp book-build book-chapter book-run book-chat book-shell shell
 
 build:
 	docker compose build
@@ -39,6 +39,17 @@ check:
 # Copy the guides of docs/ into the skill (skills/featherweight/references). The tests fail when they are out of date.
 skill:
 	python3 scripts/build_skill.py
+
+# The documentation site (mkdocs.yml), in the container, as your user: `make docs` serves it at http://localhost:8001 (`make docs DOCS_PORT=9000` for another port), `make docs-build`
+# builds it into ./site (git-ignored) and fails on a broken link or a docstring problem. The release workflow publishes it.
+DOCS_PORT ?= 8001
+DOCS_RUN = docker compose run --rm --no-deps -u $$(id -u):$$(id -g) -e HOME=/tmp featherweight
+
+docs:
+	docker compose run --rm --no-deps -p $(DOCS_PORT):8000 -u $$(id -u):$$(id -g) -e HOME=/tmp featherweight mkdocs serve -a 0.0.0.0:8000
+
+docs-build:
+	$(DOCS_RUN) mkdocs build --strict
 
 # Put all the documentation in one file, ALL_DOCS.md at the root (git-ignored): the README, docs/ (guides, specs, book) and the examples' READMEs.
 all-docs:

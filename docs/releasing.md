@@ -19,6 +19,7 @@ Only the release pull request is a manual step. Merging it is how you choose whe
 2. **Review and merge it** when its checks are green. Read the version and the changelog section first.
 3. **That is all.** The merge makes the tag `vX.Y.Z` and a GitHub release whose notes are the changelog section, by itself,
    and then the `publish` job builds the package and publishes it to PyPI. The built files are attached to the release.
+   Then the `docs` job publishes the documentation site for the release ([below](#the-documentation-site)).
    A push to `main` that is not a merged release pull request does nothing.
 
 No pull request is opened unless someone runs the workflow, and nothing is tagged or released until a release pull request
@@ -64,8 +65,41 @@ run, so the secret is the way to go.
 | `.github/workflows/release.yml` | The workflow: by hand it opens the release pull request, and on a push to `main` it makes the tag and the GitHub release if that push is the merged release pull request |
 | `release-please-config.json` | The release type, the pre-1.0 rule, the title of the bump commit, the changelog sections |
 | `.release-please-manifest.json` | The last released version. The workflow keeps it up to date |
+| `.github/workflows/docs.yml` | Publishes the documentation site for a release (called by `release.yml`), or for any tag, by hand |
+| `mkdocs.yml`, `scripts/docs_hooks.py` | The site: its theme, the navigation, the API reference, the links to GitHub |
 | `.github/workflows/publish-testpypi.yml` | A dry run of publishing, by hand, to TestPyPI |
 | `CHANGELOG.md` | The changelog. Written by the release pull request, not by hand |
+
+## The documentation site
+
+The site is <https://ftw.asankar.de>: the book, the guides and the specs of `docs/`, and an API reference made from
+the docstrings. It is built with MkDocs Material and mkdocstrings, and each release publishes its own version of it with
+[mike](https://github.com/jimporter/mike), so there is nothing to do by hand.
+
+- **Per release.** After `publish`, the `docs` job runs [`docs.yml`](../.github/workflows/docs.yml) on the release tag: it builds the site
+  (strict, so a broken link stops it), and `mike deploy` adds it to the `gh-pages` branch. The links to code in the pages point at
+  that tag on GitHub.
+- **One version per minor release.** `v0.2.1` replaces the pages of `0.2`, and the alias `latest` points at them. The root of the
+  site redirects to `latest`, and the version list is in the header. Below 1.0 a minor release is the breaking one, so this is
+  where the pages should differ.
+- **`gh-pages` is output.** One branch, a folder per version, committed by the workflow. Nobody edits it, and it needs no
+  branch protection. The source is `main`.
+- **Nothing is published between releases.** The docs on `main` are the docs of the next release.
+- **A fix to the docs of a release already out:** Actions, `docs`, Run workflow, with the tag (`v0.2.1`). It builds from that tag, so
+  to fix the pages of `0.2`, the fix must be in the tag you give.
+- **Locally,** in the container: `make docs` serves it at <http://localhost:8001> (`make docs DOCS_PORT=9000` for another port), and `make docs-build` builds it into `site/` (git-ignored).
+  Both the pull request check and the commit hook run the strict build.
+
+**One-time setup, by the owner:**
+
+1. After the first release (it creates `gh-pages`): Settings, Pages, Source: **Deploy from a branch**, `gh-pages`, `/ (root)`.
+2. DNS for `asankar.de`: `CNAME ftw` → `aadhithya.github.io`. Then in Settings, Pages, set the custom domain
+   `ftw.asankar.de` and tick **Enforce HTTPS** (GitHub issues the certificate). The workflow keeps the `CNAME` file in the
+   branch, so a release does not remove the setting.
+3. Optional: verify the domain in your account's Pages settings, so nobody else can claim the subdomain.
+4. A longer name, such as `featherweight.asankar.de`, can only be a redirect to `https://ftw.asankar.de`: a Pages site has only one
+   custom domain. Make it an HTTP redirect (URL forwarding) at the DNS provider, or a small repository of its own that publishes a
+   page with a redirect.
 
 ## Publishing to PyPI
 

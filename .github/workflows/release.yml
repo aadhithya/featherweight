@@ -6,7 +6,8 @@ name: release
 #      version, worked out from the commit messages, and the new section of CHANGELOG.md. Nothing is tagged or released.
 #   2. Review that pull request, and merge it when its checks are green. Merging it is your decision to release.
 #   3. The merge makes the tag and the GitHub release (the notes are the changelog section) by itself, and the `publish` job
-#      then builds the package and publishes it to PyPI (trusted publishing: no token is stored). See docs/releasing.md.
+#      then builds the package and publishes it to PyPI (trusted publishing: no token is stored). The `docs` job then
+#      publishes the documentation site for the release (docs.yml). See docs/releasing.md.
 #
 # Any other push to main does nothing here. See docs/releasing.md. The secret RELEASE_TOKEN lets the release pull request
 # start the `test` check (a pull request made with the default token does not).
@@ -81,3 +82,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.release.outputs.tag_name }}
+
+  # After the package is published, and only then: publish the documentation site for this release (a version of
+  # https://ftw.asankar.de, see docs.yml). Its failure does not undo the release: run the `docs` workflow by hand.
+  docs:
+    needs: [release, publish]
+    if: needs.release.outputs.release_created == 'true'
+    permissions:
+      contents: write # docs.yml pushes the gh-pages branch
+    uses: ./.github/workflows/docs.yml
+    with:
+      tag: ${{ needs.release.outputs.tag_name }}

@@ -21,5 +21,7 @@ jobs:
         run: uv run ty check
       - name: Book
         run: python3 scripts/build_book.py --check
+      - name: Docs site
+        run: uv run mkdocs build --strict
       - name: Release setup
         run: uv run pytest tests/test_release.py

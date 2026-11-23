@@ -116,6 +116,7 @@ Python 3.12 or later. Import what you use: `from featherweight import AgentBase,
 
 ## Read more
 
+- [**The documentation site**](https://ftw.asankar.de): the book, the guides, the specs and an API reference, with a page for each release
 - [**The book**](https://github.com/aadhithya/featherweight/blob/main/docs/book/README.md): build something step by step, from a first agent to workers
 - [**A production stack**](https://github.com/aadhithya/featherweight/blob/main/docs/production-stack.md): what to use where, with Postgres, your queue and your result store
 - [**The guides**](https://github.com/aadhithya/featherweight/blob/main/docs/README.md), [**the specs**](https://github.com/aadhithya/featherweight/blob/main/docs/specs/README.md) (what each part does, and why) and [**the examples**](https://github.com/aadhithya/featherweight/blob/main/examples/README.md)
