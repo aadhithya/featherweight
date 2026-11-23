@@ -14,6 +14,7 @@ data). It changes [jobs and tracing](jobs-and-tracing.md) (the job columns, the 
 - [The queue](#the-queue)
 - [The client](#the-client)
 - [The worker](#the-worker)
+- [Jobs that are not declared in code](#jobs-that-are-not-declared-in-code)
 - [Several workers](#several-workers)
 - [Cancelling](#cancelling)
 - [Job events](#job-events)
@@ -83,6 +84,7 @@ class JobMessage(BaseModel):            # frozen
     job_name: str
     input: dict[str, Any]               # JSON, or references inside it
     trace_context: dict[str, str] = {}  # the W3C trace context of the submitter, if an observer gave one (see below)
+    identity: dict[str, Any] | None = None  # the identity of the run as JSON, if it has one ([identity](identity.md#across-the-queue))
 
 class Delivery(BaseModel):              # frozen
     message: JobMessage
@@ -119,9 +121,13 @@ The **trace context** ([#93](https://github.com/aadhithya/featherweight/issues/9
 the client that submitted the job ([observers and OpenTelemetry](observability.md#opentelemetry)). It is empty unless the client has an observer
 that gives one, and it travels in the message only: it is stored in no table. Every queue carries it, and `check_queue` checks that it does.
 
+The **identity** ([identity](identity.md)) is how a tool on a worker knows who the run is for. It is the identity as JSON, and it too travels in the message only. Every queue
+carries it, and `check_queue` checks that a queue returns it unchanged, so a queue that drops the field fails the kit. `SqliteQueue` keeps it in its `job_queue` table until
+the message is acknowledged, on the same terms as the input. The queue is trusted: how to secure it (and a queue that signs its messages) is the deployment's, see [identity](identity.md#across-the-queue).
+
 ## The client
 
-`JobClient(db, queue, results, observers=[...])` submits and follows jobs, from any process. The observers are heard on `submit` only: each can return a
+`JobClient(db, queue, results, observers=[...], identity_type=None)` submits and follows jobs, from any process. The observers are heard on `submit` only: each can return a
 carrier (the trace context) that travels in the message ([the queue](#the-queue)), and an observer that raises changes nothing.
 
 ```python
@@ -135,25 +141,28 @@ output = await client.result(Summarise, job_id)  # read from YOUR result store
 
 | Method | |
 |---|---|
-| `submit(job, input, *, resumable=False, resume_from=None, job_id=None)` | Validates the input against the job's model, creates the job row (name, `job_hash`, `input_hash`, `resumable`, `resumed_from`, and a `queued` event), then puts a `JobMessage` on the queue. If the enqueue fails the job is marked `FAILED` and the error is raised |
+| `submit(job, input, *, resumable=False, resume_from=None, job_id=None, identity=None)` | Validates the input against the job's model, creates the job row (name, `job_hash`, `input_hash`, `resumable`, `resumed_from`, and a `queued` event), then puts a `JobMessage` on the queue. If the enqueue fails the job is marked `FAILED` and the error is raised |
 | `status(job_id)` | The `JobRow` |
 | `cancel(job_id)` | See [cancelling](#cancelling). Returns whether there was anything to cancel |
 | `result(job, job_id)` | The output, read from the user's `ResultStore` under `ResultKey(job_id, job_hash, input_hash)` and parsed into the job's output model, or `None` while there is none. It never reads our tables, which hold no results |
 | `events(job_id, after=0)` | The [events](#job-events) of the job |
 | `wait(job_id, timeout=None)` | The `JobRow` once the job is final (`SUCCESS`, `FAILED` or `CANCELLED`); `TimeoutError` otherwise. A convenience for scripts and tests: a web handler should return the job id, not wait |
 
-**Resuming** is `submit(job, input, resume_from=failed_job_id)`: a new job points to the old one, and the worker's runner reuses the
+**`identity=`** is the identity of the run ([identity](identity.md#declaring-and-passing-it)). With `identity_type` the client checks it before it creates a job, and puts it in the message; the worker
+rebuilds it. **Resuming** is `submit(job, input, resume_from=failed_job_id)`: a new job points to the old one, and the worker's runner reuses the
 finished steps exactly as `run_job(..., resume_from=...)` does. Nothing resumes a failed job by itself.
 
 ## The worker
 
-`JobWorker(db, queue, runner, jobs, results, concurrency)` is the process that runs jobs. It holds no state of its own: it is the
-database, the queue and the user's store.
+`JobWorker(db, queue, runner, jobs, results, concurrency, jobs_lookup=None, identity_type=None)` is the process that runs jobs. It holds no state of its own: it is the
+database, the queue and the user's store. `jobs` are the jobs declared in code; `jobs_lookup` is an optional fallback for jobs that are not
+([below](#jobs-that-are-not-declared-in-code)).
 
 `await worker.run()` loops:
 
-1. **Receive** a message. If the job is already `CANCELLED`, acknowledge and skip it. If the job name is unknown, or the input does
-   not validate, mark the job `FAILED` (`error_type`, `error_hash`) and acknowledge.
+1. **Receive** a message. If the job is already `CANCELLED`, acknowledge and skip it. If the job name is unknown (not in `jobs`, and
+   `jobs_lookup`, if there is one, found nothing), or the input does not validate, or the identity does not (it is missing and the worker's `identity_type` does not allow `None`, or it does not fit the type: `InvalidJobIdentity`), mark the job
+   `FAILED` (`error_type`, `error_hash`) and acknowledge. A job that fails for this is not run, and is not retried.
 2. **Start:** take the job (`start_job`: `RUNNING`, `started_at`, a `running` event) and run it as an asyncio task, up to `concurrency` at a time. What the
    task does is `execute_job`, the function that also runs a job for `run_job` ([running a job class](jobs-and-tracing.md#running-a-job-class)): the worker adds the queue.
 3. **Success:** write the output through the user's `ResultStore` under `ResultKey(job_id, job_hash, input_hash)`, mark the job
@@ -167,6 +176,45 @@ database, the queue and the user's store.
 `nack`s their messages with `requeue=True`: those jobs return to `INIT` (a `queued` event), the interrupted attempts are `CANCELLED`,
 and a worker (this one, later, or another) runs them again, as a takeover does ([several workers](#several-workers)): the steps that finished
 before the interruption are reused if the job is `resumable`.
+
+## Jobs that are not declared in code
+
+A worker is given its jobs when it starts. A platform where users define their own agents, stored in the platform's own database and
+built into classes when they are needed, has jobs that a worker could not have been given. `jobs_lookup` is how the worker finds them.
+
+```python
+async def jobs_lookup(name: str, job_hash: str, identity: Any | None) -> type[Job] | type[AgentBase] | None: ...
+
+
+worker = JobWorker(db, queue, runner, jobs=[Summarise], jobs_lookup=jobs_lookup)
+```
+
+- **It is a fallback.** The worker looks the job name up in `jobs` first. If `jobs` has the name, `jobs_lookup` is **not called**, so
+  declaring jobs in code behaves exactly as without it. Only for a name `jobs` does not have does the worker call `jobs_lookup(name, job_hash)`.
+  `jobs` may be empty.
+- **What it gets:** the name from the message, the `job_hash` recorded at submit, and **the identity** the worker rebuilt from the message (`None` if there is none). A lookup that
+  does not need the identity ignores it; one that does can scope what it searches (by tenant, say).
+- **What it returns:** a `Job` class, a plain (non-streaming) agent class, which is made a job as in `jobs` (`as_job`), or `None`. `None` is
+  an unknown job, as before: the job is `FAILED` with `UnknownJob`, and the message is acknowledged.
+- **What the worker checks** about a class it got from `jobs_lookup`, before it runs anything:
+  - its name is the name that was asked for (a lookup that returns another job is a bug, and a job is run by its name);
+  - its `job_hash()` is the hash recorded on the job row when the job was submitted. If the definition changed while the job was queued
+    (a user edited their agent), the job is **not** run as the new definition: it is `FAILED`, and the user can resubmit.
+  - A job that fails either check, or whose `jobs_lookup` raises, is `FAILED` with the error type `JobLookupError` (the message says which),
+    and the message is acknowledged. **A failed job is not retried by the worker** (as always), so a lookup that can fail for a transient reason
+    (a database that is briefly away) retries inside itself.
+- **`job_hash`** is the hash of the job's declaration: for an agent, the whole of its declaration (its prompt, model settings, tools,
+  sub-agents, skills, MCP servers, the system prompt and the schemas of its input and output); for a `Job` class, its name, its version and
+  the schemas of its input and output (not the code of `run`: bump `version` when that changes). A lookup may ignore it, and then a job queued
+  before an edit fails, which is safe. A lookup that keeps saved versions of a definition uses it to load the exact one. It is made from the
+  content, so a lookup may cache what it built by `(name, job_hash)` without it going stale. The worker caches nothing.
+- **Names are the application's.** The name is the job's key: a worker runs a job by it, and a name must match `^[A-Za-z][A-Za-z0-9_.-]*$` (a letter first, then letters, digits, `_`, `.` and
+  `-`). It is a plain string that the application chooses: unique in what its lookup searches (with the identity, unique within a tenant is enough), and stable, because a rename breaks the jobs
+  queued under the old name and changes the agent's hash. An agent's `name` is also what a model sees when it launches the agent as a sub-agent and what the run log shows, so a readable name
+  and a unique one pull apart: an application that needs ids in the name can use them (`agent-7f3a...`), and one that wants readable names keeps them unique per tenant. featherweight
+  has no `key` and does not decide which.
+- **The client needs nothing.** `submit` takes a class: the platform builds it from its definition, the same way, and sends it.
+- **Not for classes that are known.** It is a fallback for what the code cannot name. It does not scan for jobs, and it is not a registry.
 
 ## Several workers
 
@@ -279,6 +327,9 @@ stream, no stream of all jobs.
 
 - **Everything is passed, nothing is kept:** inputs in the message, results in the user's store, and the metadata in ours.
 - **A job is a declared class,** registered with the worker by name, with a decorator as sugar. An agent can be a job.
+- **`jobs_lookup` is a fallback, not a registry:** `jobs` is tried first, and the lookup is called only for a name `jobs` does not have. The worker
+  checks the name and the hash of what it returns, and caches nothing. Finding a user's definition and building its class is the platform's
+  code, because where definitions live is its decision, as with the result store and the queue.
 - **`JobQueue` is an abstract class** with sqlite as our only product implementation and a conformance kit; the user brings Redis,
   SQS or anything else.
 - **Client and worker are independent:** the queue and the database are their only connection.
@@ -308,6 +359,7 @@ stream, no stream of all jobs.
 - **A durable queue we ship** beyond sqlite, and a pub/sub channel.
 - **Automatic retry of a failed job.**
 - **A sweeper** for a job whose message never comes back.
+- **A worker that finds jobs by itself.** `jobs_lookup` is the platform's code, and the worker scans nothing.
 - **A worker registry, scheduling, priorities, autoscaling,** and a broker of our own.
 - **Fencing the user's stores and the effects of their code:** only our own writes are checked.
 - **Progress with content** in events, and a stream of all jobs.
@@ -328,6 +380,11 @@ No live model call. Fake models, `MemoryQueue`, the dict result store.
   `executions` is 2 and the events read queued, running, lost, running, succeeded; a duplicate delivery of a live job is skipped; a stalled
   worker that wakes up loses its job quietly and writes nothing; the heartbeat keeps a long job alive; a takeover of a resumable job reuses its finished steps (and one that is not resumable reruns them), and
   never its own execution's; `client.fail` on an `INIT` job, and on a final one; the timeout fails a hung job (in the worker and in `run_job`).
+- **`jobs_lookup`:** it is not called for a name `jobs` has; a name `jobs` lacks is looked up, and the class it returns runs (an agent class too);
+  `None` is `UnknownJob`; a lookup that returns another name, a job whose hash is not the one recorded at submit, and a lookup that raises each
+  fail the job with `JobLookupError` and do not run it; a lookup that ignores the hash runs a job whose definition did not change; an empty `jobs`; the identity reaches the lookup.
+- **The identity** ([the spec](identity.md#tests)): a job submitted with an identity whose tool reads it on a worker; a message without one for a worker whose type does not allow `None`, and one
+  that does not validate, fail the job without running it; `check_queue` and the identity field.
 - **The client and the worker:** submit, status, wait, result; a failing enqueue; every cancel case, in the same process and from
   another; success, failure, an unknown job, an invalid input, a failing result store, a skipped cancelled job; shutdown with the
   grace period and the requeue; concurrency; resuming through `submit`; and a client in one process with a worker in another.

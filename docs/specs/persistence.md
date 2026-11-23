@@ -60,6 +60,7 @@ A hash says that something changed without saying what it was, so it can stand w
 | `tools_hash` | The tools bound to the model (names, descriptions, argument schemas) | Replaces `tool_names`: a tool's name can be client-specific. It says *the tools* changed |
 | `input_hash` | The input, as canonical JSON | Matches the same input again |
 | `output_hash` | The output, as canonical JSON (every agent, and a streaming run's text) | Compares two runs without keeping either |
+| `identity_hash` | The identity of the run, as canonical JSON, without its excluded fields; `NULL` when there is none | A resume reuses only a step of the same identity, and no identity is stored ([identity](identity.md#resuming-a-job)) |
 
 **`agent_hash` and the schemas.** (Done in #59.) Before it, `agent_hash` left out `input_model` and `output_model`, which are class attributes and
 not instance fields, so a changed output model does not change the hash. That is an oversight: the declaration includes them. Their
@@ -92,7 +93,7 @@ not write every abstract method cannot be built.
 | `renew_job_leases(worker_id, jobs, lease)`, `owns_job(job_id, owner)` | A worker's heartbeat (one in-place update for all of its jobs, returning the ones it still owns), and a cheap read of whether it still owns one ([several workers](submitted-jobs.md#several-workers)). `set_job_status(..., owner=)` and the lease renewal are conditional on the owner, in the statement, and raise `JobLost` when it is not |
 | `take_over_job(job_id, worker_id, lease)` | Taking a job whose lease expired: one transaction, a `lost` event and then a `running` event, `executions` + 1, a new lease; False if the lease is live. Where the database has a clock, it decides ([several workers](submitted-jobs.md#several-workers)) |
 | `create_run(RunStart)`, `mark_run_running(...)`, `finish_run(RunEnd)`, `get_run(...)`, `list_runs(...)` | Runs |
-| `find_reusable_run(job_id, agent_hash, input_hash, before_execution=None)` | The run of a job that succeeded with this agent and input: metadata only. With `before_execution`, only runs of an earlier execution of the job (a takeover looks in its own job) |
+| `find_reusable_run(job_id, agent_hash, input_hash, identity_hash, before_execution=None)` | The run of a job that succeeded with this agent, input and identity (an empty `identity_hash` matches only an empty one): metadata only. With `before_execution`, only runs of an earlier execution of the job (a takeover looks in its own job) |
 
 **Typed in, typed out.** `create_run` and `finish_run` take frozen Pydantic records (`RunStart`, `RunEnd`), and the methods return
 Pydantic rows (`JobRow`, `AgentRunRow`). Statuses, hash formats and non-negative numbers are checked once, in the model, whichever
@@ -156,6 +157,7 @@ Types are given as *Postgres / sqlite*. A `CHECK` is in both.
 | `reasoning` | `text` not null | The effort or thinking level, as a short label |
 | `settings` | `jsonb` / `text` not null | All the model settings |
 | `input_hash` | `text` not null, 64 hex | |
+| `identity_hash` | `text` null, 64 hex | The hash of the run's identity, `NULL` when it had none ([identity](identity.md#resuming-a-job)); added by a migration |
 | `output_hash` | `text` null, 64 hex | Set when the run produced one |
 | `reused_from_agent_run_id` | `text` null | For a run answered from an earlier one |
 | `job_execution` | `integer` null | The execution of the job that made the run ([several workers](submitted-jobs.md#several-workers)): given by the task that runs the job, or else the job's `executions` when the run is created. `NULL` without a job |
@@ -252,8 +254,8 @@ are kept:
 
 1. **The old job must have been resumable.** If it was not, `create_job` raises, before any model call, saying that nothing was kept (a
    full rerun is a run without `resume_from`).
-2. **The log answers the metadata question:** `find_reusable_run(old_job, agent_hash, input_hash)` is a `SUCCESS` run of the old job at
-   depth 1.
+2. **The log answers the metadata question:** `find_reusable_run(old_job, agent_hash, input_hash, identity_hash)` is a `SUCCESS` run of the old job at
+   depth 1, with the same identity.
 3. **The store answers the data question:** `get(ResultKey(old_job, agent_hash, input_hash))`. A runner with no store, for a job that
    resumes another, is a `SetupError`.
 4. **A reused step's result is copied forward** under the new job's key (a takeover has no new job, so nothing is copied: [several workers](submitted-jobs.md#several-workers)). Each job then holds its own results, deleting an old job never
@@ -279,7 +281,7 @@ its own and drops it.
 ## Tenants
 
 There is **no tenant column and no tenant label**: the metadata holds nothing of a client's, so one database can be shared. A user
-who needs to attribute runs to a tenant chooses the job id (`create_job(name, job_id="acme-...")`) or the job name. A result store
+who needs to attribute runs to a tenant chooses the job id (`create_job(name, job_id="acme-...")`) or the job name. An [identity](identity.md) is carried to the tools and never stored: only its hash is recorded. A result store
 that must route by tenant can do so from the job id of its keys, or be one per tenant.
 
 ## Decisions

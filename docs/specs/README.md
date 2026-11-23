@@ -12,6 +12,7 @@ not supported, tests.
 | [Jobs and tracing](jobs-and-tracing.md) | Jobs, the run log, statuses, logging |
 | [The run log and the persistence boundary](persistence.md) | What featherweight keeps and never keeps, hashes, `Database` and `ResultStore`, migrations, the schema, resumable jobs, Postgres |
 | [Submitted jobs](submitted-jobs.md) | A job as a declared class, `JobQueue`, `JobClient`, `JobWorker`, cancelling, job events and SSE |
+| [Identity](identity.md) | Who a run is for: a typed identity the application passes, how tools read it, how it crosses the queue, and the identity hash for resuming; what stays the application's |
 | [Observers and OpenTelemetry](observability.md) | The `Observer` class and what it receives, `OTelObserver` and the GenAI conventions, spans for jobs, attempts, model calls and tool calls, evaluation |
 | [Background agents](background-agents.md) | A job exposed to an agent as a tool, here or on a worker, getting its result back, events, how long a child lives |
 | [Streaming agents](streaming.md) | `StreamingAgent`, `runner.stream()`, AG-UI events, thoughts, stopping a response, messages, the AG-UI and Vercel adapters |
@@ -33,6 +34,7 @@ A change goes in the spec of the thing it changes, and not in the spec of the ep
 | [Jobs and tracing](jobs-and-tracing.md) | A job: `run_job`, running a job class, its version, statuses, what the run log records, logging |
 | [Submitted jobs](submitted-jobs.md) | The `Job` class and `@job`, the queue and its message, the client, the worker, cancelling, job events and SSE |
 | [Persistence](persistence.md) | The metadata-only rule, hashes, the `Database` class, the schema of every table, migrations, the result store, Postgres, tenants |
+| [Identity](identity.md) | The identity of a run: declaring and passing it, `RunContext.identity`, who inherits it, its field in the queue message, `identity_hash`, the developer's responsibilities |
 | [Observers and OpenTelemetry](observability.md) | The `Observer` class and its records, `OTelObserver`, the GenAI mapping, your own spans, evaluation |
 | [Background agents](background-agents.md) | `background_agents`, `start_background`, where a child runs, the result message, the events, how long a child lives |
 | [Streaming agents](streaming.md) | `StreamingAgent`, `runner.stream()`, the events, the adapters |
