@@ -99,7 +99,8 @@ class AgentOutput(BaseModel):
 
 
 class AgentBase(BaseModel):
-    """Static definition of an agent. Each agent is a subclass; the runner instantiates it.
+    """Static definition of an agent. Each agent is a subclass; the runner instantiates it. The subclass may be written in
+    code or built from data when it is needed; either way it is complete and validated before it runs.
 
     Pydantic v2 rejects overriding an inherited field with an unannotated attribute, so
     subclasses re-annotate the fields they override.

@@ -15,9 +15,11 @@ Status: implemented. How to use it is in [agents.md](../agents.md). The code is 
 ## Goal
 
 An agent is a **static, typed definition**. Pydantic is the specification: the input, the output, the tools, the
-skills, the sub-agents and the MCP servers are declared on the class and enforced by Pydantic, not by convention. Nothing
-about an agent is decided at run time, so it can be read, tested and versioned like any class. A malformed definition
-fails when it is built, before any model is called.
+skills, the sub-agents and the MCP servers are declared on the class and enforced by Pydantic, not by convention. A
+running agent is complete before it runs: nothing about it is decided while it runs, so it can be read, tested and
+versioned like any class, and its hash identifies it. The class can be written in code, or built from data (a file, a
+database row) when it is needed: the runner sees a class either way, and a definition built from data is checked as
+strictly as one written by hand. A malformed definition fails when it is built, before any model is called.
 
 ## The definition
 
@@ -109,7 +111,10 @@ equal declarations give the same hash in any process. The code inside tools and 
 ## Decisions
 
 - **Static, and classes, not instances.** A definition has no per-run state. A run passes the class and the input, and
-  the runner builds the agent. A different prompt is a different class, with a new `version`.
+  the runner builds the agent. A different prompt is a different class, with a new `version`. Static means complete
+  before the run, not written in the source: an application may build the class from data, when a request arrives, with
+  its own rules about what a user may choose. What the runner needs is a validated class, and its hash says which agent
+  ran. How the class is made is the application's.
 - **The instruction flags are not enforced.** `allow_user_questions` and `raise_conflicts` only tell the model what it
   may do. An output that asks a question when asking is forbidden is not rejected.
 - **A failing rule is the pipeline's, not the agent's.** `check_output` only rejects. It cannot fix the output or decide

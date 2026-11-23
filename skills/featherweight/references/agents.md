@@ -19,8 +19,9 @@ How to define an agent, run it, and what to expect back. Agents that launch othe
 
 ## Defining an agent
 
-An agent is a static definition: a subclass of `AgentBase`, with Pydantic models for its input and output. Nothing is
-decided at run time, so an agent is easy to read, test and version.
+An agent is a static definition: a subclass of `AgentBase`, with Pydantic models for its input and output. A running agent
+is complete and validated before it runs, and its hash identifies it, so it is easy to read, test and version. You write
+the class, or you build it from data (a file, a database row) when you need it: the runner sees a class either way.
 
 ```python
 from typing import ClassVar
