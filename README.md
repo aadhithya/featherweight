@@ -127,4 +127,4 @@ Apache License 2.0. See [LICENSE](https://github.com/aadhithya/featherweight/blo
 
 ---
 
-Designed by a human. Implemented by AI agents.
+Designed by humans. Implemented by AI agents.
