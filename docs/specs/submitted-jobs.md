@@ -2,7 +2,7 @@
 
 Status: implemented, including [several workers](#several-workers) ([epic #103](https://github.com/aadhithya/featherweight/issues/103)): the queue's lease (#104), the job lease, the heartbeat and the owner check (#105), takeover (#106), the job timeout (#107), and the guide, the example and the skill reference (#108). #72 (the `Job` class, `JobContext`, the job columns and `CANCELLED`), #73 (the queue), #74 (job events and SSE), #75 (the client), #76 (the worker, with the compare-and-set steps for taking and cancelling a job), #77 (the `@job` decorator) and #78 (the guide, the example and the skill reference) are done. It is tracked in [epic #71](https://github.com/aadhithya/featherweight/issues/71), and each part has
 its own issue (listed [at the end](#the-work)). When a part is built, this page says so, and the guide `docs/submitted-jobs.md`
-shows how to use it.
+shows how to use it. The [`jobs_lookup` fallback](#jobs-that-are-not-declared-in-code) is implemented too ([#199](https://github.com/aadhithya/featherweight/issues/199), in epic [#190](https://github.com/aadhithya/featherweight/issues/190)).
 
 It builds on [the persistence spec](persistence.md) (the `Database`, the result store, the rule that featherweight keeps no
 data). It changes [jobs and tracing](jobs-and-tracing.md) (the job columns, the `CANCELLED` status, the job events),
@@ -202,8 +202,10 @@ worker = JobWorker(db, queue, runner, jobs=[Summarise], jobs_lookup=jobs_lookup)
   - its name is the name that was asked for (a lookup that returns another job is a bug, and a job is run by its name);
   - its `job_hash()` is the hash recorded on the job row when the job was submitted. If the definition changed while the job was queued
     (a user edited their agent), the job is **not** run as the new definition: it is `FAILED`, and the user can resubmit.
-  - A job that fails either check, or whose `jobs_lookup` raises, is `FAILED` with the error type `JobLookupError` (the message says which),
-    and the message is acknowledged. **A failed job is not retried by the worker** (as always), so a lookup that can fail for a transient reason
+  - A job whose row has no recorded hash (one that a client did not make) is not checked against one, and the lookup gets `None` for it.
+  - A job that fails either check, or whose `jobs_lookup` raises, or that returns something that is not a job, is `FAILED` with the error type `JobLookupError` (the message
+    says which), and the message is acknowledged. The worker **rebuilds the identity first**, because the lookup receives it, so a message whose identity does not fit fails
+    before the lookup is asked. **A failed job is not retried by the worker** (as always), so a lookup that can fail for a transient reason
     (a database that is briefly away) retries inside itself.
 - **`job_hash`** is the hash of the job's declaration: for an agent, the whole of its declaration (its prompt, model settings, tools,
   sub-agents, skills, MCP servers, the system prompt and the schemas of its input and output); for a `Job` class, its name, its version and

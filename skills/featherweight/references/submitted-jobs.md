@@ -131,13 +131,41 @@ await worker.run()  # until stop() or cancellation
 await worker.stop(grace=30)
 ```
 
-- It runs only the jobs you list; a message for another name fails that job.
+- It runs only the jobs you list (and the ones your `jobs_lookup` finds, [below](#jobs-that-are-not-declared-in-code)); a message for another name fails that job.
 - It never retries a failed job. If the job was `resumable`, you resume it with a new job ([Persistence](persistence.md)).
 - The result is written to your result store, keyed by the job id, the job hash and the input hash. If it cannot be written, the job fails.
 - While it runs jobs, the worker holds a **lease** on each (`JobWorker(lease=60)`, in seconds) and renews it, and the queue's lease of the message, every third of
   it (`heartbeat=`). A worker that finds a job taken from it stops that job at once and writes nothing more to it. A job must be safe to run twice.
 - On `stop`, the worker takes no new messages, waits up to `grace` seconds, then cancels what is left, puts those messages back on the queue and
   sets those jobs back to `INIT`, so they run again.
+
+### Jobs that are not declared in code
+
+A worker is given its jobs when it starts. If your users define their own agents (kept in your database, built into classes when they are needed), a worker
+cannot have been given them. `jobs_lookup` is a **fallback** for those: `jobs` is tried first, and the lookup is called only for a name `jobs` does not have.
+
+```python
+async def jobs_lookup(name: str, job_hash: str | None, identity: Teacher | None):
+    definition = await my_agents.get(identity.tenant, name)  # your storage; the identity can scope the search
+    return build_agent(definition) if definition else None  # an agent class or a Job class; None: unknown
+
+
+worker = JobWorker(
+    db, queue, AgentRunner(db, identity_type=Teacher), jobs=[], jobs_lookup=jobs_lookup, identity_type=Teacher
+)
+```
+
+- It gets the name from the message, the `job_hash` recorded when the job was submitted, and the identity the worker rebuilt (an application that does not need it ignores it).
+- The worker **checks what it returns** before anything runs: the name must be the one asked for, and `job_hash()` must be the recorded hash. If the user edited
+  their agent while the job waited, the job fails (`JobLookupError`) instead of running the new definition. A lookup that keeps old versions of a definition can use `job_hash` to load the exact one.
+  `None` is `UnknownJob`; a lookup that raises, or returns something that is not a job, fails the job with `JobLookupError`. The worker never retries a job, so a lookup that can fail for a
+  transient reason retries inside itself.
+- The worker caches nothing. The hash is made from the content, so you may cache what you built by `(name, job_hash)`.
+- **Names are yours.** A job's name is a string you choose, unique in what your lookup searches (with the identity, unique within a tenant is enough) and stable: a rename breaks the jobs queued
+  under the old name. It must match `[A-Za-z][A-Za-z0-9_.-]*`.
+- On the client side nothing changes: `submit` takes the class that you built from the same definition.
+
+The [spec](https://github.com/aadhithya/featherweight/blob/main/docs/specs/submitted-jobs.md#jobs-that-are-not-declared-in-code) has the rules. It is not a registry: where definitions live, who may define one and which tools a user may pick are your application's.
 
 ## Several workers
 
