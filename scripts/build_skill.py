@@ -4,9 +4,10 @@
     python scripts/build_skill.py --check  # fail if they are out of date (the tests run this)
 
 The guides go to `references/<name>.md`, and the book (its home and every chapter in `docs/book/SUMMARY.md`) to `references/book/`,
-without the breadcrumbs and the previous and next links, which mean nothing in the skill. `references/recipes.md` is written by hand
-and is not touched. A link to another copied page stays relative, and every other relative link becomes a link into the repository on
-GitHub, so that it works wherever the skill is installed.
+without the breadcrumbs and the previous and next links, which mean nothing in the skill. `references/recipes.md` is built from the pages of
+`docs/recipes/` in the order of their index, abridged: what a page puts between `<!-- skill:omit -->` and `<!-- /skill:omit -->` is
+left out, and each recipe ends with a link to its full page. A link to another copied page stays relative, and every other relative link
+becomes a link into the repository on GitHub, so that it works wherever the skill is installed.
 """
 
 import posixpath
@@ -17,6 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 REFERENCES = ROOT / "skills" / "featherweight" / "references"
 BOOK = ROOT / "docs" / "book"
+RECIPES = ROOT / "docs" / "recipes"
 GUIDES = [
     "agents.md",
     "models.md",
@@ -34,6 +36,13 @@ GUIDES = [
 ]
 REPO_URL = "https://github.com/aadhithya/featherweight/blob/main"
 HEADER = "<!-- Copied from {source} by scripts/build_skill.py. Edit the original, not this file. -->\n\n"
+RECIPES_HEADER = "<!-- Built from docs/recipes by scripts/build_skill.py. Edit the pages there, not this file. -->\n\n"
+RECIPES_INTRO = (
+    "# Recipes\n\nPatterns for building with `featherweight`. Each snippet is complete enough to adapt. The agent definitions are in "
+    "`SKILL.md`. This is an abridged copy: each recipe links to its full page.\n"
+)
+OMIT = re.compile(r"<!-- skill:omit -->.*?<!-- /skill:omit -->\n*", re.S)
+INDEX_ENTRY = re.compile(r"^\| \[[^\]]+\]\((?P<path>[^)\s]+\.md)\)", re.M)
 
 LINK = re.compile(r"(?<!!)\[([^\]]*)\]\(([^)\s]+)\)")
 CHAPTER = re.compile(r"^- \[[^\]]+\]\((?P<path>[^)\s]+)\)\s*$")
@@ -50,9 +59,11 @@ def copied() -> dict[str, str]:
     return pages
 
 
-def rewrite_links(text: str, source: str, pages: dict[str, str]) -> str:
-    """Keep links between the copied pages, and point every other relative link at the repository. Code blocks are left alone."""
+def rewrite_links(text: str, source: str, pages: dict[str, str], dest: str | None = None) -> str:
+    """Keep links between the copied pages, and point every other relative link at the repository. Code blocks are left alone.
+    `dest` is where the text ends up, under `references/` (the copy of `source` by default)."""
     here = posixpath.dirname(source)
+    dest = dest or pages[source]
 
     def fix(match: re.Match[str]) -> str:
         label, target = match.groups()
@@ -62,20 +73,31 @@ def rewrite_links(text: str, source: str, pages: dict[str, str]) -> str:
         resolved = posixpath.normpath(posixpath.join(here, path))
         suffix = "#" + anchor if anchor else ""
         if resolved in pages:
-            return f"[{label}]({posixpath.relpath(pages[resolved], posixpath.dirname(pages[source])) + suffix})"
+            return f"[{label}]({posixpath.relpath(pages[resolved], posixpath.dirname(dest) or '.') + suffix})"
         return f"[{label}]({REPO_URL}/{resolved}{suffix})"
 
     parts = re.split(r"(^```.*?^```[^\n]*$)", text, flags=re.S | re.M)  # the odd parts are fenced blocks
     return "".join(part if n % 2 else LINK.sub(fix, part) for n, part in enumerate(parts))
 
 
+def abridged(page: str, pages: dict[str, str]) -> str:
+    """One recipe for the skill: its title as a second-level heading, without what it marks to omit, and a link to the full page."""
+    source = f"docs/recipes/{page}"
+    text = OMIT.sub("", (ROOT / source).read_text()).strip("\n")
+    text = re.sub(r"^# ", "## ", text, count=1, flags=re.M)  # the title is the first line
+    return rewrite_links(text, source, pages, dest="recipes.md") + f"\n\n[The full recipe]({REPO_URL}/{source})\n"
+
+
 def build() -> dict[str, str]:
-    """The text of each copied page, by its path under `references/`."""
+    """The text of each copied page, by its path under `references/`, and the abridged recipes."""
     pages = copied()
     built = {}
     for source, dest in pages.items():
         text = NAV.sub("", (ROOT / source).read_text()).strip("\n") + "\n"
         built[dest] = HEADER.format(source=source) + rewrite_links(text, source, pages)
+    index = (RECIPES / "README.md").read_text()
+    recipes = [m["path"] for m in INDEX_ENTRY.finditer(index)]
+    built["recipes.md"] = RECIPES_HEADER + RECIPES_INTRO + "\n" + "\n".join(abridged(page, pages) for page in recipes)
     return built
 
 

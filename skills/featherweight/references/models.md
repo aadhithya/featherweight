@@ -193,8 +193,8 @@ class UnderTest(PeopleExtractor):  # the same agent, run by the fake
 result = await AgentRunner(db).run(UnderTest, ExtractInput(text="..."))
 ```
 
-Nothing in the runner exists for tests, so the test runs the same code as production. The skill's
-[recipes](https://github.com/aadhithya/featherweight/blob/main/skills/featherweight/references/recipes.md) have a whole test file with a fake chat model.
+Nothing in the runner exists for tests, so the test runs the same code as production. The
+[recipes](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/testing-with-a-fake-model.md) have a whole test file with a fake chat model.
 
 ## Tokens and the run log
 

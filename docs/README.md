@@ -2,12 +2,13 @@
 
 [![docs for](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Faadhithya%2Ffeatherweight%2Fmain%2Fpyproject.toml&query=%24.project.version&label=docs%20for&color=blue)](https://pypi.org/project/featherweight/)
 
-Four kinds of page, from "how do I build it" to "why is it this way". Start at the top and go down only as far as you need.
+Five kinds of page, from "how do I build it" to "why is it this way". Start at the top and go down only as far as you need.
 
 | Level | Answers | Where |
 |---|---|---|
 | **Overview** | What is featherweight, and is it for me? | The [README](../README.md) |
 | **The book** | How do I build something, step by step? | [`book/`](book/README.md) |
+| **Recipes** | How do I put a few parts together for one job? | [`recipes/`](recipes/README.md) |
 | **Guides** | How do I do X? | [This folder](#guides) |
 | **Specs** | What exactly does it do, what was decided and why, and what is left out? | [`specs/`](specs) |
 | **Examples** | Show me running code | [`examples/`](../examples) |
@@ -19,6 +20,8 @@ or finding out why it behaves as it does.
 
 - **I want to build something, step by step.** [The book](book/README.md): a short chapter at a time, one small project that grows from a
   typed agent to a chat and a pipeline on workers. Start with [the map](book/00-start-here/02-the-map.md). The guides and the specs below are the reference.
+- **I want a short pattern to adapt.** [Recipes](recipes/README.md): a pipeline, resuming a job, a fake model for tests, a worker, a chat that
+  streams, each one small and complete.
 - **I want a coding agent to build with it.** [The skill](../skills/featherweight/SKILL.md): install it in Claude Code, or copy
   `skills/featherweight` into another tool's skills folder. It carries the rules, a working app, the book and the guides.
 - **I'm new here.** [Getting started](getting-started.md): install it, write an agent, run it.

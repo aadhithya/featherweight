@@ -44,8 +44,14 @@ def test_the_copied_guides_match_the_docs():
     assert build_skill.main(["--check"]) == 0, "run: python scripts/build_skill.py"
 
 
-@pytest.mark.parametrize("path", [SKILL / "SKILL.md", SKILL / "references" / "recipes.md"])
-def test_all_python_in_the_skill_is_valid(path):
+RECIPES = ROOT / "docs" / "recipes"
+RECIPE_PAGES = sorted(p for p in RECIPES.glob("*.md") if p.name != "README.md")
+
+
+@pytest.mark.parametrize(
+    "path", [SKILL / "SKILL.md", SKILL / "references" / "recipes.md", *RECIPE_PAGES], ids=lambda p: p.name
+)
+def test_all_python_in_the_skill_and_the_recipes_is_valid(path):
     blocks = python_blocks(path)
     assert blocks
     for block in blocks:
@@ -71,12 +77,12 @@ def test_the_recipes_pipeline_defines_and_the_fake_model_test_file_passes_as_wri
     namespace: dict = {"__name__": "skill_example"}
     exec(definition, namespace)
     exec(pipeline.replace("asyncio.run(main())", ""), namespace)  # the imports and main(), not run
-    exec(python_blocks(SKILL / "references" / "recipes.md")[0], namespace)  # the pipeline of two agents: defines it
+    exec(python_blocks(RECIPES / "a-pipeline-of-two-agents.md")[0], namespace)  # the pipeline of two agents: defines it
 
     # The recipe's test file, saved next to the agent as `app.py`, as the recipe says, and run by pytest.
     (tmp_path / "app.py").write_text(definition)
     (tmp_path / "test_app.py").write_text(
-        next(b for b in python_blocks(SKILL / "references" / "recipes.md") if "class FakeModel" in b)
+        next(b for b in python_blocks(RECIPES / "testing-with-a-fake-model.md") if "class FakeModel" in b)
     )
     env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
     done = subprocess.run(
@@ -99,3 +105,31 @@ def test_the_recipes_pipeline_defines_and_the_fake_model_test_file_passes_as_wri
     )
     assert done.returncode == 0, done.stdout + done.stderr
     assert "4 passed" in done.stdout
+
+
+def test_the_recipes_index_lists_every_page_and_the_skill_has_them_all():
+    index = (RECIPES / "README.md").read_text()
+    listed = re.findall(r"^\| \[[^\]]+\]\(([^)\s]+\.md)\)", index, re.M)
+    assert sorted(listed) == [p.name for p in RECIPE_PAGES]  # a page that is not in the index would not reach the skill
+    skill = (SKILL / "references" / "recipes.md").read_text()
+    for page in RECIPE_PAGES:
+        title = page.read_text().splitlines()[0].removeprefix("# ")
+        assert f"## {title}\n" in skill and f"/docs/recipes/{page.name})" in skill
+    assert "skill:omit" not in skill
+
+
+def test_what_a_recipe_marks_to_omit_is_left_out_of_the_skill(monkeypatch, tmp_path):
+    spec = importlib.util.spec_from_file_location("build_skill", ROOT / "scripts" / "build_skill.py")
+    assert spec and spec.loader
+    build_skill = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(build_skill)
+    page = tmp_path / "docs" / "recipes" / "x.md"
+    page.parent.mkdir(parents=True)
+    page.write_text(
+        "# X\n\nShort.\n\n<!-- skill:omit -->\nLong explanation.\n<!-- /skill:omit -->\n\n```python\nx = 1\n```\n"
+    )
+    monkeypatch.setattr(build_skill, "ROOT", tmp_path)
+    text = build_skill.abridged("x.md", {})
+    assert text.startswith("## X\n") and "Short." in text and "x = 1" in text
+    assert "Long explanation" not in text and "skill:omit" not in text
+    assert text.endswith("/docs/recipes/x.md)\n")

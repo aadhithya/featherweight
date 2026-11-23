@@ -119,7 +119,7 @@ problems are returned in the result.
   attempts, not by guessing.
 
 To build your own: define the agents, write the pipeline as an async function of `(runner, ..., job_id)`, run it with
-`run_job`, and test it with a mocked model. [The agent skill](../skills/featherweight/references/recipes.md) has a scripted fake
+`run_job`, and test it with a mocked model. [The recipes](recipes/testing-with-a-fake-model.md) have a scripted fake
 chat model and a whole test file. Add a few real-model tests on small fixtures for what mocks cannot show.
 
 ## Limits

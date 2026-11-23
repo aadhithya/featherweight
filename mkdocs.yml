@@ -87,6 +87,20 @@ plugins:
 nav:
   - Home: index.md
   - Book: []
+  - Recipes:
+      - recipes/README.md
+      - recipes/a-pipeline-of-two-agents.md
+      - recipes/resuming-a-failed-job.md
+      - recipes/telling-a-retry-what-went-wrong.md
+      - recipes/testing-with-a-fake-model.md
+      - recipes/an-agent-with-an-mcp-server.md
+      - recipes/an-agent-that-launches-another.md
+      - recipes/a-chat-agent-that-streams.md
+      - recipes/a-result-store-of-your-own.md
+      - recipes/a-job-that-a-worker-runs.md
+      - recipes/traces-for-jobs-and-agents.md
+      - recipes/an-agent-that-starts-another-and-goes-on.md
+      - recipes/a-different-provider.md
   - Guides:
       - documentation.md
       - getting-started.md

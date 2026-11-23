@@ -26,11 +26,12 @@ src/featherweight/    the harness
 examples/             runnable examples, each with a README (launching, skills, mcp, resume, results, chat, jobs, doclearn)
 docs/                 the guides; docs/specs has what each part does, and why
 mkdocs.yml            the documentation site, made from docs/ and the docstrings (scripts/docs_hooks.py fills it in)
-skills/               the skill that teaches a coding agent to build with featherweight (references are copied from the guides and the book)
+docs/recipes/         short patterns for one job each; the skill gets an abridged copy of them
+skills/               the skill that teaches a coding agent to build with featherweight (references are copied from the guides and the book, and built from the recipes)
 tests/                the harness's tests; tests/e2e uses the real model
 ```
 
-`python3 scripts/build_skill.py` copies the guides and the book into the skill, and `python3 scripts/build_book.py` writes the book's navigation and checks its code listings ([the style](book/STYLE.md)). The tests check the skill, and the commit hook and CI check the book.
+`python3 scripts/build_skill.py` copies the guides and the book into the skill and builds its abridged recipes from `docs/recipes`, and `python3 scripts/build_book.py` writes the book's navigation and checks its code listings ([the style](book/STYLE.md)). The tests check the skill, and the commit hook and CI check the book.
 
 ## Contributing
 
