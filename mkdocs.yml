@@ -127,6 +127,7 @@ nav:
       - specs/jobs-and-tracing.md
       - specs/persistence.md
       - specs/submitted-jobs.md
+      - specs/identity.md
       - specs/observability.md
       - specs/background-agents.md
       - specs/streaming.md

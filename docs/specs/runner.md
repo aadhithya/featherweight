@@ -35,8 +35,9 @@ results = await runner.run_many(AgentClass, inputs, job_id=job_id)
 - `run_many` runs one agent over many inputs at the same time and returns the results **in input order**. It has no limit
   of its own: the concurrency limit bounds it.
 - `job_id` is optional. Runs of one pipeline share a job. Without one, the runs have no job.
+- `identity=` is who the run is for. Whether it is optional or required depends on the type the runner declares (`AgentRunner(db, identity_type=...)`): a declared type makes it required, a union with `None` allows none, and with nothing declared passing one is an error. `run`, `run_many` and `stream` take it. See [identity](identity.md#declaring-and-passing-it).
 - **Runtime failures are values.** `run` returns a `FAILED` result. It does not raise.
-- **Programming errors raise:** an input of the wrong type (`TypeError`), a `job_id` that does not exist.
+- **Programming errors raise:** an input of the wrong type (`TypeError`), a `job_id` that does not exist, an identity that is missing, of the wrong type, or given when no type is declared (`TypeError`).
 - **A streaming agent** is not run with `run`: it raises `TypeError` and names `stream`. `stream(StreamingAgent, ChatInput, job_id=...)`
   returns a `StreamingRun` at once, whose events come as the model writes ([streaming agents](streaming.md)). It takes a
   concurrency slot like any run, holds it for the whole stream, and is never retried. `cancel(run_id)` stops a streaming run of this runner by its id and says whether there was one ([stopping a response](streaming.md#stopping-a-response)).
@@ -63,7 +64,7 @@ answered from the log.
 
 - **Where.** At the start of `_invoke`, once per `run` call, before the attempt loop, and only when `depth` is 1 and
   there is a `job_id`. A sub-agent (depth above 1) is never looked up.
-- **The match.** In the old job: `status = SUCCESS`, the same `agent_hash`, the same `input_hash`, `depth = 1`. Any
+- **The match.** In the old job: `status = SUCCESS`, the same `agent_hash`, the same `input_hash`, the same `identity_hash` (an empty one matches only an empty one: [identity](identity.md#resuming-a-job)), `depth = 1`. Any
   matching row will do. A row with no `agent_hash` or `input_hash` never matches. The log is the metadata question.
 - **The result.** The output comes from the runner's `ResultStore` (`get(ResultKey(old job, agent hash, input hash))`). No
   store (`results=None`) is a `SetupError`; no result for a step that the log says succeeded logs `result_missing` and the
@@ -111,6 +112,8 @@ agent. A queued attempt shows as `INIT` until it holds a slot. The slot is relea
 ## Launching agents
 
 An agent can hand part of its work to another agent: it launches it, waits, and reads the result.
+
+**The identity.** A launched agent runs with the identity of its parent, and the model cannot set or change it ([identity](identity.md#who-inherits-it)).
 
 **Declaration.** `subagents` is an allow-list of agent **classes**: the agent can launch exactly those. There is no
 registry to maintain. The agent definition checks the list ([agents](agents.md#checked-when-an-agent-is-built)).

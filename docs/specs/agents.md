@@ -115,6 +115,7 @@ equal declarations give the same hash in any process. The code inside tools and 
   before the run, not written in the source: an application may build the class from data, when a request arrives, with
   its own rules about what a user may choose. What the runner needs is a validated class, and its hash says which agent
   ran. How the class is made is the application's.
+- **Who runs an agent is not part of it.** An identity is an argument of the run, so the same agent runs for every user, and it is not in `agent_hash` ([identity](identity.md#the-identity)).
 - **The instruction flags are not enforced.** `allow_user_questions` and `raise_conflicts` only tell the model what it
   may do. An output that asks a question when asking is forbidden is not rejected.
 - **A failing rule is the pipeline's, not the agent's.** `check_output` only rejects. It cannot fix the output or decide

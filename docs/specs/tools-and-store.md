@@ -64,18 +64,19 @@ In `featherweight.tools`. All return text, never raise, and the model can read w
 ## The run context
 
 A tool that needs the job declares `runtime: ToolRuntime[RunContext]`. Langchain fills it in and hides it from
-the model, so the model never passes a job id. `RunContext` has `job_id` and `agent_run_id` (the attempt that is
-running).
+the model, so the model never passes a job id. `RunContext` has `job_id`, `agent_run_id` (the attempt that is
+running) and `identity`: who the run is for, if the application gave one. `RunContext` is generic in the identity,
+so a tool declares `ToolRuntime[RunContext[Teacher]]` and reads `runtime.context.identity`. The [identity spec](identity.md#how-tools-read-it) owns it.
 
 The shared MCP tools cannot take a `RunContext`, because one tool object serves many attempts. They read
-`CURRENT_AGENT_RUN_ID`, a context variable the runner sets around each attempt, to say in the log which attempt called them.
+`CURRENT_AGENT_RUN_ID`, a context variable the runner sets around each attempt, to say in the log which attempt called them. The identity has one of its own for code that cannot take `runtime`: `CURRENT_IDENTITY`.
 
 ## Decisions
 
 - **Allow-lists everywhere.** The agent lists its tools, sub-agents, skills and MCP servers, and gets nothing else.
 - **Tools return text.** An error is a message the model can act on, in the same way a failed run is a value.
 - **Exact arithmetic.** Totals are computed with `Decimal` by a tool, because a model does arithmetic badly.
-- **The model never sees the job.** Scope comes from the run context.
+- **The model never sees the job, or who the run is for.** Scope comes from the run context.
 - **A registry per attempt, connections per runner.** What can differ between two agents belongs in the registry; what is
   shared is not.
 - **No state is shared between agents.** There was a run store (an in-memory key-value store per job, with two tools); it was removed (issue #12). Agents pass information through
