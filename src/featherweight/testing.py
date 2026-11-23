@@ -122,6 +122,32 @@ def _run(job_id: str | None, agent_run_id: str, **changes: Any) -> RunStart:
     return RunStart(**{**fields, **changes})
 
 
+async def _check_identity_hash(db: Database) -> None:
+    """A step is reused only for the same identity: the hash of the identity is recorded on the run, and it matches by equality, where
+    `None` (a run with no identity) matches only a run that had none."""
+    job_id = await db.create_job("identity", resumable=True)
+    mine, other = _hash("identity: a"), _hash("identity: b")
+    await db.create_run(_run(job_id, "id-none", agent_hash=_hash("who")))
+    await db.create_run(_run(job_id, "id-a", agent_hash=_hash("who"), identity_hash=mine))
+    for run_id in ("id-none", "id-a"):
+        await db.finish_run(run_id, RunEnd(status=RunStatus.SUCCESS))
+    recorded = await db.get_run("id-a")
+    assert recorded is not None and recorded.identity_hash == mine, "a run records the hash of its identity"
+    plain = await db.get_run("id-none")
+    assert plain is not None and plain.identity_hash is None, "and None when it had none"
+
+    found = await db.find_reusable_run(job_id, _hash("who"), _hash("input"), mine)
+    assert found is not None and found.agent_run_id == "id-a", "the same identity is reused"
+    assert await db.find_reusable_run(job_id, _hash("who"), _hash("input"), other) is None, "another identity is not"
+    nothing = await db.find_reusable_run(job_id, _hash("who"), _hash("input"), None)
+    assert nothing is not None and nothing.agent_run_id == "id-none", "no identity matches only a run that had none"
+    await db.create_run(_run(job_id, "id-only-a", agent_hash=_hash("only a"), identity_hash=mine))
+    await db.finish_run("id-only-a", RunEnd(status=RunStatus.SUCCESS))
+    assert await db.find_reusable_run(job_id, _hash("only a"), _hash("input"), None) is None, (
+        "a run with an identity is not found for none"
+    )
+
+
 async def _check_taking_a_job(db: Database) -> None:
     """Taking a queued job and cancelling it are compare-and-set steps: exactly one of them wins."""
     taken = await db.create_job("take")
@@ -212,12 +238,14 @@ async def _check_takeover(db: Database) -> None:
 
     # a takeover looks in its own job, at earlier executions only
     reusable = _hash("agent")
-    first = await db.find_reusable_run(lost, reusable, _hash("input"))
+    first = await db.find_reusable_run(lost, reusable, _hash("input"), None)
     assert first is not None and first.agent_run_id == "l-1"
-    assert (await db.find_reusable_run(lost, reusable, _hash("input"), 2)) is not None, "execution 1 is before 2"
-    assert await db.find_reusable_run(lost, reusable, _hash("input"), 1) is None, "and nothing is before execution 1"
+    assert (await db.find_reusable_run(lost, reusable, _hash("input"), None, 2)) is not None, "execution 1 is before 2"
+    assert await db.find_reusable_run(lost, reusable, _hash("input"), None, 1) is None, (
+        "and nothing is before execution 1"
+    )
     await db.finish_run("l-2", RunEnd(status=RunStatus.SUCCESS))
-    again = await db.find_reusable_run(lost, reusable, _hash("input"), 2)
+    again = await db.find_reusable_run(lost, reusable, _hash("input"), None, 2)
     assert again is not None and again.agent_run_id == "l-1", "the run of the current execution is never found"
 
     # ending a job that will not run
@@ -536,20 +564,24 @@ async def check_database(make_db: Callable[[], Database]) -> None:
         assert second is not None and (second.parent_agent_run_id, second.depth) == ("run-1", 2)
 
         # finding a step to reuse: the first successful top-level run of the job with this agent and this input
-        found = await db.find_reusable_run(keeps, _hash("agent"), _hash("input"))
+        found = await db.find_reusable_run(keeps, _hash("agent"), _hash("input"), None)
         assert found is not None and found.agent_run_id == "run-1"
-        assert await db.find_reusable_run(keeps, _hash("other agent"), _hash("input")) is None
-        assert await db.find_reusable_run(keeps, _hash("agent"), _hash("other input")) is None
-        assert await db.find_reusable_run(job_id, _hash("agent"), _hash("input")) is None, (
+        assert await db.find_reusable_run(keeps, _hash("other agent"), _hash("input"), None) is None
+        assert await db.find_reusable_run(keeps, _hash("agent"), _hash("other input"), None) is None
+        assert await db.find_reusable_run(job_id, _hash("agent"), _hash("input"), None) is None, (
             "another job's runs do not match"
         )
         await db.finish_run("run-2", RunEnd(status=RunStatus.SUCCESS))
-        found = await db.find_reusable_run(keeps, _hash("agent"), _hash("input"))
+        found = await db.find_reusable_run(keeps, _hash("agent"), _hash("input"), None)
         assert found is not None and found.agent_run_id == "run-1", (
             "a run launched by an agent (depth 2) is never reused"
         )
         await db.create_run(_run(keeps, "run-5", agent_hash=_hash("agent 2")))
-        assert await db.find_reusable_run(keeps, _hash("agent 2"), _hash("input")) is None, "only a SUCCESS run matches"
+        assert await db.find_reusable_run(keeps, _hash("agent 2"), _hash("input"), None) is None, (
+            "only a SUCCESS run matches"
+        )
+
+        await _check_identity_hash(db)
 
         await _check_job_events(db)
 

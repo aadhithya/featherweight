@@ -64,7 +64,9 @@ async def test_postgres_follows_the_database_contract(schema):
 async def test_connect_makes_the_schema_in_its_own_schema_and_records_the_baseline(schema):
     async with PostgresDatabase(URL, schema=schema):
         pass
-    assert await query(schema, "SELECT version, name FROM schema_migrations") == [{"version": 1, "name": "baseline"}]
+    assert await query(schema, "SELECT version, name FROM schema_migrations ORDER BY version") == [
+        {"version": m.version, "name": m.name} for m in MIGRATIONS
+    ]
     tables = {
         r["table_name"]
         for r in await query(schema, "SELECT table_name FROM information_schema.tables WHERE table_schema = %s", schema)
@@ -88,7 +90,7 @@ async def test_a_second_connect_applies_nothing_and_keeps_the_rows(schema):
         job = await db.create_job("p")
     async with PostgresDatabase(URL, schema=schema) as db:
         assert await db.get_job(job) is not None
-    assert (await query(schema, "SELECT COUNT(*) AS n FROM schema_migrations"))[0]["n"] == 1
+    assert (await query(schema, "SELECT COUNT(*) AS n FROM schema_migrations"))[0]["n"] == len(MIGRATIONS)
 
 
 @needs_postgres
@@ -100,24 +102,29 @@ async def test_processes_that_connect_at_the_same_moment_to_a_fresh_schema_all_c
             return True
 
     assert await asyncio.gather(*(connect() for _ in range(6))) == [True] * 6
-    assert await query(schema, "SELECT version FROM schema_migrations") == [{"version": 1}]  # applied once
+    assert await query(schema, "SELECT version FROM schema_migrations ORDER BY version") == [
+        {"version": m.version} for m in MIGRATIONS
+    ]  # applied once
 
 
 @needs_postgres
 async def test_a_new_migration_is_applied_once_and_a_failing_one_is_rolled_back(schema, monkeypatch):
     async with PostgresDatabase(URL, schema=schema) as db:
         job = await db.create_job("p")
-    good = Migration(version=2, name="second", sql={"sqlite": "", "postgres": "CREATE TABLE second (x integer);"})
+    last = MIGRATIONS[-1].version
+    good = Migration(
+        version=last + 1, name="second", sql={"sqlite": "", "postgres": "CREATE TABLE second (x integer);"}
+    )
     monkeypatch.setattr("featherweight.postgres.MIGRATIONS", [*MIGRATIONS, good])
     async with PostgresDatabase(URL, schema=schema) as db:
         assert await db.get_job(job) is not None
     assert [r["version"] for r in await query(schema, "SELECT version FROM schema_migrations ORDER BY version")] == [
-        1,
-        2,
+        *[m.version for m in MIGRATIONS],
+        last + 1,
     ]
 
     bad = Migration(
-        version=3,
+        version=last + 2,
         name="bad",
         sql={"sqlite": "", "postgres": "CREATE TABLE half (x integer); SELECT nope FROM nowhere;"},
     )
@@ -130,7 +137,7 @@ async def test_a_new_migration_is_applied_once_and_a_failing_one_is_rolled_back(
     }
     assert "half" not in tables and [
         r["version"] for r in await query(schema, "SELECT version FROM schema_migrations")
-    ] == [1, 2]
+    ] == [*[m.version for m in MIGRATIONS], last + 1]
 
 
 @needs_postgres

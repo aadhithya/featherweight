@@ -196,6 +196,16 @@ CREATE TABLE job_events (
 CREATE INDEX idx_job_events_job ON job_events(job_id, seq);
 """
 
+# The hash of the identity of a run, so that a resume reuses only a step of the same identity (docs/specs/identity.md). NULL: the run had none,
+# and so does every run from before this column.
+SQLITE_IDENTITY_HASH = "ALTER TABLE agent_runs ADD COLUMN identity_hash TEXT;"
+POSTGRES_IDENTITY_HASH = "ALTER TABLE agent_runs ADD COLUMN identity_hash text;"
+
 MIGRATIONS: list[Migration] = [
     Migration(version=1, name="baseline", sql={"sqlite": SQLITE_BASELINE, "postgres": POSTGRES_BASELINE}),
+    Migration(
+        version=2,
+        name="identity_hash",
+        sql={"sqlite": SQLITE_IDENTITY_HASH, "postgres": POSTGRES_IDENTITY_HASH},
+    ),
 ]

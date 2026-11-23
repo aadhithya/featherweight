@@ -38,7 +38,15 @@ from featherweight.context import (
 from featherweight.db import AgentRunRow, Database, RunEnd, RunStart, new_id
 from featherweight.discovery import discovery_tools
 from featherweight.errors import RETRYABLE_4XX, SetupError
-from featherweight.fingerprint import agent_hash, error_fields, input_hash, output_hash, text_hash, tools_hash
+from featherweight.fingerprint import (
+    agent_hash,
+    error_fields,
+    identity_hash,
+    input_hash,
+    output_hash,
+    text_hash,
+    tools_hash,
+)
 from featherweight.identity import IdentitySpec
 from featherweight.mcp_connections import Lease, MCPConnections
 from featherweight.messages import to_langchain
@@ -449,6 +457,7 @@ class AgentRunner:
                     reasoning=agent.model.label(),
                     settings=agent.model.model_dump(mode="json"),
                     input_hash=input_hash(chat_input),  # the words stay with the application
+                    identity_hash=identity_hash(CURRENT_IDENTITY.get()),
                     thread_id=chat_input.thread_id,
                 )
             )
@@ -821,6 +830,7 @@ class AgentRunner:
                     reasoning=agent.model.label(),
                     settings=agent.model.model_dump(mode="json"),
                     input_hash=input_hash(agent_input),
+                    identity_hash=identity_hash(CURRENT_IDENTITY.get()),
                 )
             )
             scope: Entered | None = None  # the observers' scope of this attempt, once it runs
@@ -1038,12 +1048,13 @@ class AgentRunner:
                 )
             return None  # a takeover with no store kept nothing: the job runs again
         this_input_hash = input_hash(agent_input)
+        this_identity_hash = identity_hash(CURRENT_IDENTITY.get())
         old: AgentRunRow | None = None
         source_job = ""
         for source_job, before in sources:
             old = await self.db.find_reusable_run(
-                source_job, declaration_hash, this_input_hash, before
-            )  # did the step succeed
+                source_job, declaration_hash, this_input_hash, this_identity_hash, before
+            )  # did the step succeed, for the same identity
             if old is not None:
                 break
         if old is None:
@@ -1078,6 +1089,7 @@ class AgentRunner:
                 reasoning=agent.model.label(),
                 settings=agent.model.model_dump(mode="json"),
                 input_hash=this_input_hash,
+                identity_hash=this_identity_hash,
                 reused_from_agent_run_id=old.agent_run_id,
             )
         )

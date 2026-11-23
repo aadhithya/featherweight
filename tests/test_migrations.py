@@ -34,7 +34,7 @@ def columns(path, table: str) -> list[str]:
 async def test_connect_makes_the_schema_and_records_the_baseline(tmp_path):
     async with SqliteDatabase(tmp_path / "f.db") as db:
         async with db.conn.execute("SELECT version, name FROM schema_migrations") as cur:
-            assert [tuple(r) for r in await cur.fetchall()] == [(1, "baseline")]
+            assert [tuple(r) for r in await cur.fetchall()] == [(m.version, m.name) for m in MIGRATIONS]
     assert {"jobs", "agent_runs", "results", "schema_migrations"} <= {
         row[0]
         for row in sqlite3.connect(tmp_path / "f.db").execute("SELECT name FROM sqlite_master WHERE type='table'")
@@ -48,32 +48,41 @@ async def test_a_second_connect_applies_nothing_and_keeps_the_rows(tmp_path):
         assert (await db.get_job(job)) is not None
         async with db.conn.execute("SELECT COUNT(*) FROM schema_migrations") as cur:
             row = await cur.fetchone()
-            assert row is not None and row[0] == 1
+            assert row is not None and row[0] == len(MIGRATIONS)
 
 
 async def test_a_new_migration_is_applied_once_in_order_and_the_old_rows_stay(tmp_path, monkeypatch):
     async with SqliteDatabase(tmp_path / "f.db") as db:
         job = await db.create_job("p")
+    last = MIGRATIONS[-1].version  # the migrations of the release come first, whatever their number
     later = [
         *MIGRATIONS,
-        Migration(version=3, name="third", sql={"sqlite": "CREATE TABLE third (x INTEGER);"}),
-        Migration(version=2, name="second", sql={"sqlite": "CREATE TABLE second (x INTEGER);"}),
+        Migration(version=last + 2, name="third", sql={"sqlite": "CREATE TABLE third (x INTEGER);"}),
+        Migration(version=last + 1, name="second", sql={"sqlite": "CREATE TABLE second (x INTEGER);"}),
     ]
     monkeypatch.setattr("featherweight.sqlite.MIGRATIONS", later)
     async with SqliteDatabase(tmp_path / "f.db") as db:
         assert await db.get_job(job) is not None
         async with db.conn.execute("SELECT version, name FROM schema_migrations ORDER BY applied_at, version") as cur:
-            assert [tuple(r) for r in await cur.fetchall()] == [(1, "baseline"), (2, "second"), (3, "third")]
+            assert [tuple(r) for r in await cur.fetchall()] == [
+                *[(m.version, m.name) for m in MIGRATIONS],
+                (last + 1, "second"),
+                (last + 2, "third"),
+            ]
     async with SqliteDatabase(tmp_path / "f.db") as db:  # and not again
         async with db.conn.execute("SELECT COUNT(*) FROM schema_migrations") as cur:
             row = await cur.fetchone()
-            assert row is not None and row[0] == 3
+            assert row is not None and row[0] == len(MIGRATIONS) + 2
 
 
 async def test_a_migration_that_fails_is_rolled_back_and_the_database_stays_usable(tmp_path, monkeypatch):
     async with SqliteDatabase(tmp_path / "f.db") as db:
         job = await db.create_job("p")
-    bad = Migration(version=2, name="bad", sql={"sqlite": "CREATE TABLE half (x INTEGER); SELECT nope FROM nowhere;"})
+    bad = Migration(
+        version=MIGRATIONS[-1].version + 1,
+        name="bad",
+        sql={"sqlite": "CREATE TABLE half (x INTEGER); SELECT nope FROM nowhere;"},
+    )
     monkeypatch.setattr("featherweight.sqlite.MIGRATIONS", [*MIGRATIONS, bad])
     with pytest.raises(sqlite3.OperationalError):
         await SqliteDatabase(tmp_path / "f.db").connect()
@@ -100,7 +109,7 @@ async def test_a_database_from_before_migrations_is_refused_and_left_alone(tmp_p
 EXPECTED_RUN_COLUMNS = {
     "seq", "agent_run_id", "invocation_id", "attempt", "job_id", "parent_agent_run_id", "depth", "agent_name",
     "agent_version", "agent_hash", "system_prompt_hash", "tools_hash", "provider", "model_name", "reported_model_name",
-    "reasoning", "settings", "input_hash", "output_hash", "reused_from_agent_run_id", "job_execution", "thread_id", "status", "error_type",
+    "reasoning", "settings", "input_hash", "identity_hash", "output_hash", "reused_from_agent_run_id", "job_execution", "thread_id", "status", "error_type",
     "error_hash", "input_tokens", "output_tokens", "latency_ms", "created_at", "started_at", "completed_at",
 }  # fmt: skip
 

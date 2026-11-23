@@ -223,6 +223,7 @@ result = await runner.run(Mailer, MailerInput(...), identity=Teacher(user_id="u1
 - **It is carried, not used.** It is never shown to the model, never part of the agent's hash, never logged and never stored. Keep it small, and keep secrets out of it:
   a tool gets a credential from the identity with your own code. Checking what the identity may do is the tool's job.
 - A job that is submitted to a worker does not carry the identity yet ([#196](https://github.com/aadhithya/featherweight/issues/196)).
+- **Resuming a job reuses a step only for the same identity** ([resuming a job](#resuming-a-job)): a change in who the run is for may be a change in what it may do, so the old result is not relied on. Whether a person may resume a job at all is your check.
 
 The [identity spec](https://github.com/aadhithya/featherweight/blob/main/docs/specs/identity.md) has the rules and what stays the application's.
 
@@ -397,6 +398,7 @@ started and completed. A job whose task is cancelled is `CANCELLED`. `agent_runs
 | `status` | `INIT` (queued for a slot), `RUNNING`, `SUCCESS`, `FAILED` or `CANCELLED` (the task that awaited it was cancelled, or a [streaming](streaming.md) run was stopped) |
 | `error_type`, `error_hash` | For a failed attempt: the class of the exception (`ValidationError`, `RateLimitError`) and the hash of its message. Recurring errors group; the text is in the logs and in the `AgentResult` you get back, not in the run log (a message can quote the data) |
 | `input_hash`, `output_hash` | The SHA-256 of the input and of the output, as canonical JSON. A reused or repeated step is recognised by them, with no content kept |
+| `identity_hash` | The SHA-256 of the run's identity as canonical JSON (without its excluded fields), empty when it had none. A resume reuses only a step of the same identity; the identity itself is kept nowhere |
 | `reused_from_agent_run_id` | For a run that reused an earlier one ([resuming a job](#resuming-a-job)): the row it took its output from |
 | `thread_id` | For a [streaming](streaming.md) run: the conversation the client named |
 | `input_tokens`, `output_tokens`, `latency_ms` | Of the attempt |
@@ -446,7 +448,8 @@ For each run that your pipeline starts in the new job, the runner looks in the o
 
 - has status `SUCCESS`,
 - has the same `agent_hash` (the same agent: prompt, version, model settings, tools and so on),
-- has the same input (`input_hash`), and
+- has the same input (`input_hash`),
+- has the same identity (`identity_hash`: [who the run is for](#who-is-asking-the-identity-of-a-run); a run with none matches only a run with none), and
 - is a top-level run (`depth` 1).
 
 If there is one, the runner gets its output from the result store, and checks that it still validates against the output model
