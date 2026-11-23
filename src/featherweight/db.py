@@ -57,6 +57,7 @@ class RunStart(_Model):
     reasoning: str  # the effort or thinking level, as a short label
     settings: dict[str, Any]  # all the model settings
     input_hash: str = Field(pattern=HASH)
+    identity_hash: str | None = Field(default=None, pattern=HASH)  # the hash of the run's identity; None: it had none
     reused_from_agent_run_id: str | None = None
     job_execution: int | None = (
         None  # the execution of the job that makes it; None: the job's `executions` when the run is created
@@ -165,6 +166,7 @@ class AgentRunRow(_Model):
     reasoning: str
     settings: dict[str, Any]
     input_hash: str
+    identity_hash: str | None = None  # the hash of the run's identity; None: it had none
     output_hash: str | None
     reused_from_agent_run_id: str | None
     job_execution: int | None  # the execution of the job that made the run (its `executions` then); None without a job
@@ -361,9 +363,15 @@ class Database(ABC):
 
     @abstractmethod
     async def find_reusable_run(
-        self, job_id: str, agent_hash: str, input_hash: str, before_execution: int | None = None
+        self,
+        job_id: str,
+        agent_hash: str,
+        input_hash: str,
+        identity_hash: str | None,
+        before_execution: int | None = None,
     ) -> AgentRunRow | None:
-        """The first top-level run (depth 1) of `job_id` that succeeded with this agent and this input, or None. With
+        """The first top-level run (depth 1) of `job_id` that succeeded with this agent, this input and this identity, or None. The
+        identity matches by its hash, and `None` (no identity) matches only a run that had none. With
         `before_execution`, only a run of an earlier execution of the job (`job_execution` below it): that is how a takeover
         looks in its own job without finding the runs of the execution that asks."""
 

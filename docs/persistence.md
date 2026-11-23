@@ -27,7 +27,7 @@ data has to be kept for a feature (resuming a job), you provide the place.
 | The type of an error, and a hash of its message | The text of an error, and the names of tools |
 
 A hash says that something changed without saying what it was: `agent_hash` (the whole declaration, input and output schemas
-included), `system_prompt_hash` (so that you can see *the prompt* changed), `tools_hash`, `input_hash` and `output_hash`. A failed
+included), `system_prompt_hash` (so that you can see *the prompt* changed), `tools_hash`, `input_hash`, `output_hash` and `identity_hash` (the hash of who the run was for: the identity itself is not kept). A failed
 attempt keeps `error_type` (the class, such as `ValidationError`) and `error_hash`, because a message can quote data. You still get
 the error text in the `AgentResult` you are returned, in the logs, and (for a streaming run) in the `RUN_ERROR` event. The columns
 are in [agents](agents.md#jobs-and-tracing).

@@ -86,6 +86,13 @@ def input_hash(agent_input: BaseModel) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
+def identity_hash(identity: BaseModel | None) -> str | None:
+    """SHA-256 of the identity of a run as canonical JSON, as `input_hash` is of the input: it is what a resume compares, so that a step is reused
+    only for the same identity, and no identity is stored. The fields marked `exclude=True` are not in it, so it is the same in a process and on a
+    worker. `None` when the run has no identity."""
+    return None if identity is None else input_hash(identity)
+
+
 def _digest(value: Any) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 

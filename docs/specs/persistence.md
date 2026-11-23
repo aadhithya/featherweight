@@ -123,7 +123,7 @@ contract against any implementation. Our two pass it.
 The schema is made by **hand-rolled, numbered, dialect-aware migrations**: a list of `Migration(version, name, sqlite, postgres)`,
 applied in order by `connect()`, each in a transaction, and recorded in `schema_migrations` (`version`, `name`, `applied_at`). The
 sqlite-only patching of added columns is gone. A later change is a new migration with the SQL of each dialect, and a migration is
-never edited once released.
+never edited once released. Migration 2, `identity_hash`, adds `agent_runs.identity_hash` (`NULL` for every run from before it).
 
 **One baseline migration** creates the final schema. Nothing has been released and the database can be destroyed, so no data is
 carried over: an old database is **not read**. One that has `agent_runs` but no `schema_migrations` raises `SetupError` ("this
