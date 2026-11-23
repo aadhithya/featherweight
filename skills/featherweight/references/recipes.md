@@ -7,7 +7,7 @@ Patterns for building with `featherweight`. Each snippet is complete enough to a
 ## A pipeline of two agents
 
 A pipeline is a job: a function with a typed input and output. Order and branching are plain Python. Every agent it runs with `ctx`
-belongs to the job, so they share the run store and the trace.
+belongs to the job, so they share its run log and its trace.
 
 ```python
 from pydantic import BaseModel
@@ -55,7 +55,7 @@ outcome = await run_job(runner, find_people, texts, resume_from=first.job_id)
 ```
 
 Agent runs that succeeded with the same agent and input are answered from the kept results (`result.reused`, zero tokens). Keep
-the code between agents deterministic (no clock, no `random`), and do not rely on the run store for a resume.
+the code between agents deterministic (no clock, no `random`), and do not rely on state outside the result store for a resume.
 
 [The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/resuming-a-failed-job.md)
 
@@ -213,7 +213,7 @@ class Editor(AgentBase):
 
 [The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/an-agent-that-launches-another.md)
 
-## A chat agent that streams
+## A streaming agent for chat
 
 ```python
 from contextlib import aclosing
@@ -319,7 +319,7 @@ message = await runner.background_message(job_id)  # a user message with the chi
 ```
 
 While the parent runs, a finished child's result is added before the next model call. A chat turn does not wait: follow `background_started` and
-`background_finished` on its stream, or the child's job events, and start the next turn yourself. [the background agents guide](background-agents.md) has the rest.
+`background_finished` on its stream, or the child's job events, and start the next turn yourself. [the background jobs guide](background-agents.md) has the rest.
 
 [The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/an-agent-that-starts-another-and-goes-on.md)
 

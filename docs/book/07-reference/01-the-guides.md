@@ -19,9 +19,12 @@ the same list by task.
 | Build a chat that streams, in the terminal or the browser | [Streaming agents](../../streaming.md) |
 | Know what is kept and what is not, resume a job, choose or write a store | [Persistence](../../persistence.md) |
 | Submit jobs, run workers, cancel, follow events, write a queue | [Submitted jobs](../../submitted-jobs.md) |
-| Let an agent start another and go on | [Background agents](../../background-agents.md) |
+| Let an agent start another and go on | [Background jobs](../../background-agents.md) |
 | See traces, send content to a platform, write an observer | [Observability](../../observability.md) |
 | Read a whole pipeline of several agents | [Example pipeline](../../example-pipeline.md) |
+| Pick what to use where in production: Postgres, a queue, a result store | [A production stack](../../production-stack.md) |
+| Know what each provider accepts as an attachment | [Attachments by provider](../../attachments-providers.md) |
+| Copy a short pattern for one job: a fake model for tests, a worker, a signed queue, agents built from JSON | [Recipes](../../recipes/README.md) |
 | Install it and run a first agent in a few minutes | [Getting started](../../getting-started.md) |
 | Work on featherweight itself, or make a release | [Development](../../development.md), [Releasing](../../releasing.md) |
 

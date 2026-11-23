@@ -7,6 +7,7 @@ retries and limits, and jobs run in your process or on workers. Pydantic is the 
 
 - **Start with the book:** [`docs/book/README.md`](docs/book/README.md) builds one small project, a chapter at a time, from a first agent to
   workers. Its code is in [`docs/book/code/`](docs/book/code).
+- **Use the words of the glossary:** [`docs/book/07-reference/03-the-glossary.md`](docs/book/07-reference/03-the-glossary.md) says what each term means and which name to use (sub-agent, background job, worker, run log, identity...). A test fails when the docs use a name it rules out.
 - **Look things up in the guides:** [`docs/README.md`](docs/README.md) says which guide answers what. The specs in
   [`docs/specs/`](docs/specs/README.md) say what each part does and why.
 - **A skill for coding agents** is in [`skills/featherweight/`](skills/featherweight/SKILL.md): a router by what you want to build, the rules below
@@ -20,6 +21,7 @@ retries and limits, and jobs run in your process or on workers. Pydantic is the 
 - Rules a schema cannot say go in `check_output`: raise to reject, and the runner retries.
 - Capabilities are allow-lists: `tools`, `mcp_servers`, `skills`, `subagents` and `background_jobs` are what the developer gave the agent.
 - The framework stores metadata only (status, tokens, timing, hashes). Results and inputs go to stores you provide.
+- Who a run is for is an `identity`: a small model you define, declared with `identity_type` and passed as `identity=`, and read by a tool as `runtime.context.identity`. The model never sees it. The tool checks authorization.
 - Never call a real model in tests: use a fake model (see [`docs/recipes/testing-with-a-fake-model.md`](docs/recipes/testing-with-a-fake-model.md)).
   A real call costs money: ask first, use the smallest model.
 

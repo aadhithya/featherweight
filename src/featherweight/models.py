@@ -187,7 +187,7 @@ class AgentBase(BaseModel):
                 if entry().background_jobs:  # ty: ignore[missing-argument]  # a subclass supplies the defaults
                     raise ValueError(
                         f"{self.name} lists {entry.__name__} in background_jobs, and it has background_jobs of its own: "
-                        "a background agent cannot start background agents"
+                        "a background job cannot start background jobs"
                     )
             names.append(entry_name(entry))
         if len(set(names)) != len(names):

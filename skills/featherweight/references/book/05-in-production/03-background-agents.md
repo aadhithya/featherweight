@@ -1,6 +1,6 @@
 <!-- Copied from docs/book/05-in-production/03-background-agents.md by scripts/build_skill.py. Edit the original, not this file. -->
 
-# Background agents
+# Background jobs
 
 Let an agent start another agent and go on.
 
@@ -99,6 +99,6 @@ The researcher says: something like the cause named in the note.
 - **Nothing is kept for you.** If the process restarts, the history and the notes that were not stored are lost; this session keeps both in memory.
 
 > **Why a message, not a tool result.** The tool call already returned ("started"), and providers reject a second result for it. The result arrives as new information, as a user message.
-> See [background agents](https://github.com/aadhithya/featherweight/blob/main/docs/specs/background-agents.md#getting-the-result-back) and [the guide](../../background-agents.md).
+> See [background jobs](https://github.com/aadhithya/featherweight/blob/main/docs/specs/background-agents.md#getting-the-result-back) and [the guide](../../background-agents.md).
 
 Next: see what all of it did.

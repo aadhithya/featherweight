@@ -13,7 +13,7 @@ make example-jobs
 The client and the worker only meet in the queue and the database, so they can be two processes:
 
 ```
-uv run python examples/jobs/worker.py                      # a job worker
+uv run python examples/jobs/worker.py                      # a worker
 uv run uvicorn --app-dir examples/jobs api:app             # an API that submits, follows (SSE) and reads
 curl -X POST localhost:8000/jobs -H 'content-type: application/json' -d '{"text": "hello"}'
 curl -N localhost:8000/jobs/<job id>/events                # server-sent events, until the job is done

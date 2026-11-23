@@ -1,4 +1,4 @@
-# A chat agent that streams
+# A streaming agent for chat
 
 ```python
 from contextlib import aclosing

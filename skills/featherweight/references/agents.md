@@ -342,7 +342,7 @@ async def events(job_id: str, request: Request):
     return StreamingResponse(sse.encode(job_events(db, job_id, after)), headers=sse.HEADERS)
 ```
 
-**Running jobs: the job worker.** `JobWorker(db, queue, runner, jobs=[...], results=...)` is the process that runs submitted
+**Running jobs: the worker.** `JobWorker(db, queue, runner, jobs=[...], results=...)` is the process that runs submitted
 jobs. It holds no state of its own: it is the database, the queue and your result store.
 
 ```python

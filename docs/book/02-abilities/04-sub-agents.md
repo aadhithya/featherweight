@@ -135,7 +135,7 @@ SUCCESS gemini-3.5-flash-lite open_questions=[...] title='Sign-in trouble' sever
 - **The child is a run of its own,** with its own rows in the run log, linked to the parent's.
 - **Limits keep a chain from running away:** how deep agents may launch agents, and how many launches one attempt may make. They are
   [in the guide](../../launching-agents.md#limits); nothing to set for this example.
-- **A launched child blocks its parent.** For work that goes on while the agent carries on, see [background agents](../05-in-production/03-background-agents.md).
+- **A launched child blocks its parent.** For work that goes on while the agent carries on, see [background jobs](../05-in-production/03-background-agents.md).
 
 > **Why an allow-list of classes.** There is no registry to maintain, and an agent can launch only what it declares. See
 > [launching agents](../../specs/runner.md#launching-agents).

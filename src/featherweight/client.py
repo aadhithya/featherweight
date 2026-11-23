@@ -1,6 +1,6 @@
 """`JobClient`: submit a job, follow it, cancel it, and read its result, from any process.
 
-The client and the job worker are independent: the queue and the database are all that connects them. The client writes the job
+The client and the worker are independent: the queue and the database are all that connects them. The client writes the job
 row and puts a message on the queue; it never runs a job. The result is read from the user's result store, because featherweight
 keeps no results of its own. See docs/specs/submitted-jobs.md.
 """
@@ -67,7 +67,7 @@ class JobClient:
         (the old job must have been `resumable`, or `ValueError` says nothing was kept). If the queue refuses the message, the
         job is marked `FAILED` and the error is raised.
 
-        `parent_agent_run_id` is set by a runner that starts the job as a background agent: the attempt that started it. It is stored.
+        `parent_agent_run_id` is set by a runner that starts the job as a background job: the attempt that started it. It is stored.
         `parent_tool_call_id` is the tool call that started it: it goes to the observers (so that a trace nests the job under
         the call) and is stored nowhere.
 

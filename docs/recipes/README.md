@@ -10,11 +10,11 @@ Short, complete patterns to adapt, for building with featherweight. They use the
 | [Testing with a fake model](testing-with-a-fake-model.md) | A whole test file with a scripted fake chat model, and no real call |
 | [An agent with an MCP server](an-agent-with-an-mcp-server.md) | Give an agent the tools of an MCP server |
 | [An agent that launches another](an-agent-that-launches-another.md) | A sub-agent on an allow-list, with limits |
-| [A chat agent that streams](a-chat-agent-that-streams.md) | Stream a chat answer to a browser |
+| [A streaming agent for chat](a-chat-agent-that-streams.md) | Stream a chat answer to a browser |
 | [A result store of your own](a-result-store-of-your-own.md) | Keep job results where you decide, and check the store with the kit |
 | [A job that a worker runs](a-job-that-a-worker-runs.md) | Submit a job, run it on a worker, and follow it |
 | [Traces for jobs and agents](traces-for-jobs-and-agents.md) | OpenTelemetry spans for jobs, attempts, model calls and tool calls |
-| [An agent that starts another and goes on](an-agent-that-starts-another-and-goes-on.md) | A background agent whose result comes back later |
+| [An agent that starts another and goes on](an-agent-that-starts-another-and-goes-on.md) | A background job whose result comes back later |
 | [A different provider](a-different-provider.md) | Use another model or provider |
 | [A skill from a database or S3](a-skill-from-a-database-or-s3.md) | Keep a skill's text in your own storage, and read it when the agent asks |
 | [A skill for each department](a-skill-for-each-department.md) | One agent, with the skills of whoever is asking |

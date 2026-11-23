@@ -170,7 +170,7 @@ These stay the application's, on purpose, and the guides, the book and the recip
 - **Typed, declared, and required when declared:** the type says what a run must pass, and a union with `None` is how an application allows none. A missing identity raises,
   instead of letting a tool run as nobody.
 - **It crosses the queue as a field of the message, rebuilt with the declared type,** and a message that does not fit fails the job. It is the one place where a run leaves the process.
-- **Inherited by what a run launches, and the model cannot touch it.** It is the principal of the run, not a capability.
+- **Inherited by what a run launches, and the model cannot touch it.** It is who the run is for, not a capability.
 - **Identity, not credentials.** The framework has no credential provider and no protocol for one: where tokens live and how they are exchanged is the application's.
 - **A hash on the run, so that resume reuses only the same step.** The framework keeps a hash, as it keeps `input_hash`, and never the identity.
 - **No codec, no signing and no encryption in the framework.** The queue is the seam; a deployment secures it, and a wrapper queue is a recipe.
@@ -195,7 +195,7 @@ No live model call. Fake models, `MemoryQueue`.
 - **Tools:** a tool of the parent, a tool of a launched agent and a sync tool (which runs in a thread) see the identity; the shared tools read `CURRENT_IDENTITY`; two runs
   with two identities on one runner at once do not mix; `ctx.identity` in a job.
 - **Never:** the hash of an agent does not change with it; it is not in the prompt, the log, the run log or a span.
-- **Inheritance:** a launched agent and an in-process background agent have it; a background job submitted to a worker carries it.
+- **Inheritance:** a launched agent and an in-process background job have it; a background job submitted to a worker carries it.
 - **The queue:** `check_queue` against `SqliteQueue` and `MemoryQueue` (a queue that drops the field fails it); a job submitted with an identity whose tool reads it on a worker; a
   message without an identity for a worker that requires one, and a message that does not validate, fail the job and are not run.
 - **Resume:** the same identity reuses, another one reruns, `NULL` matches only `NULL`; the hash is the same in a process and on a worker, and a field marked `exclude=True` is not in it; the `Database`

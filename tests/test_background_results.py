@@ -1,4 +1,4 @@
-"""Background agents: the result of a child comes back as a message, mid-loop and at the end of a run that is not a chat."""
+"""Background jobs: the result of a child comes back as a message, mid-loop and at the end of a run that is not a chat."""
 
 import asyncio
 import json

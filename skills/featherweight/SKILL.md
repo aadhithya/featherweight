@@ -1,11 +1,11 @@
 ---
 name: featherweight
-description: "Build AI agents and pipelines with the featherweight Python framework: typed Pydantic agents, a runner with retries and limits, sub-agents and background agents, MCP tools, Agent Skills, jobs and workers with resume, streaming chat, and OpenTelemetry traces. Use when the user wants to build, extend, test or debug an app, pipeline, chat, batch job or agent system with featherweight, or when code imports `featherweight`, `featherweight.models`, `featherweight.runner` or `featherweight.model_settings`."
+description: "Build AI agents and pipelines with the featherweight Python framework: typed Pydantic agents, a runner with retries and limits, sub-agents and background jobs, MCP tools, Agent Skills, jobs and workers with resume, streaming chat, and OpenTelemetry traces. Use when the user wants to build, extend, test or debug an app, pipeline, chat, batch job or agent system with featherweight, or when code imports `featherweight`, `featherweight.models`, `featherweight.runner` or `featherweight.model_settings`."
 ---
 
 # Building with featherweight
 
-featherweight is a small Python framework for **agents that run in pipelines and on workers**: batches, fan-out, jobs, background agents. A chat
+featherweight is a small Python framework for **agents that run in pipelines and on workers**: batches, fan-out, jobs, background jobs. A chat
 agent that streams its answer is a `StreamingAgent`; there is no UI and no stored conversation.
 An agent is a typed class. A runner runs it with retries, limits and a trace. Your code, plain async Python, decides what
 runs next. It has opinions, but they are defaults: follow them unless the user wants something else.
@@ -30,9 +30,9 @@ runs. Paths are under `references/`; the book's home is `references/book/README.
 | To see how the pieces fit first | `references/book/00-start-here/02-the-map.md`, `references/book/00-start-here/03-philosophy.md` |
 | A typed agent, and run it | `references/book/01-your-first-agent/02-a-typed-agent.md`, `references/book/01-your-first-agent/03-running-it.md`, `references/book/01-your-first-agent/05-failures-and-check-output.md`, then `references/book/01-your-first-agent/06-choosing-a-model.md` for the provider |
 | What a run recorded | `references/book/01-your-first-agent/04-what-happened.md` |
-| Tools, MCP servers, skills, subagents for an agent | `references/book/02-abilities/01-tools.md`, `references/book/02-abilities/02-mcp.md`, `references/book/02-abilities/03-skills.md`, `references/book/02-abilities/04-sub-agents.md` |
+| Tools, MCP servers, skills, sub-agents for an agent | `references/book/02-abilities/01-tools.md`, `references/book/02-abilities/02-mcp.md`, `references/book/02-abilities/03-skills.md`, `references/book/02-abilities/04-sub-agents.md` |
 | A pipeline over many inputs, with resume | `references/book/03-jobs-and-pipelines/01-what-a-job-is.md`, `references/book/03-jobs-and-pipelines/02-status-and-events.md`, `references/book/03-jobs-and-pipelines/03-results-and-the-result-store.md`, `references/book/03-jobs-and-pipelines/04-resume.md` |
-| A chat agent that streams, in a terminal or a browser | `references/book/04-chat/01-a-streaming-agent.md`, `references/book/04-chat/02-in-the-browser.md`, `references/book/04-chat/03-stopping-and-the-conversation.md`, `references/book/04-chat/04-attaching-a-file.md` (a file sent with a message) |
+| A streaming agent for chat, in a terminal or a browser | `references/book/04-chat/01-a-streaming-agent.md`, `references/book/04-chat/02-in-the-browser.md`, `references/book/04-chat/03-stopping-and-the-conversation.md`, `references/book/04-chat/04-attaching-a-file.md` (a file sent with a message) |
 | Jobs on workers, and workers that die | `references/book/05-in-production/01-submit-and-a-worker.md`, `references/book/05-in-production/02-several-workers.md` |
 | An agent that starts another and goes on | `references/book/05-in-production/03-background-agents.md` |
 | Traces, and input for an evaluation platform | `references/book/05-in-production/04-observability.md` |
@@ -141,6 +141,7 @@ asyncio.run(main())
 - **Skills:** `skills=[Skill.from_directory(path)]`, Agent Skills format. The agent reads them when it decides to.
 - **Capabilities are allow-lists:** `tools`, `mcp_servers`, `skills`, `subagents` and `background_jobs` are what the developer gave the agent, on purpose.
 - **Check what the model returned in code.** Validators and `check_output` have the last word. The model proposes.
+- **Who a run is for is an `identity`,** not something the model chooses: a small Pydantic model you define, declared with `identity_type` on the runner, the worker and the client, and passed as `identity=`. A tool reads it as `runtime.context.identity` and checks authorization itself. It carries no secrets.
 
 ## Tests and cost
 
@@ -162,7 +163,7 @@ The guides are the reference for one subject each (the book above is the way to 
 | An agent that launches other agents | `references/launching-agents.md` |
 | Use an MCP server, discovery, secrets, failures | `references/mcp.md` |
 | Give an agent skills | `references/skills.md` |
-| A chat agent that streams its answer: `StreamingAgent`, `runner.stream()`, AG-UI and Vercel adapters, stopping, keeping the conversation | `references/streaming.md` |
+| A streaming agent for chat its answer: `StreamingAgent`, `runner.stream()`, AG-UI and Vercel adapters, stopping, keeping the conversation | `references/streaming.md` |
 | Attach images, PDFs, audio or video to a chat message: what is accepted, the limits, and a dated snapshot of what Anthropic, Google, OpenAI and Ollama accept | `references/streaming.md` (Attachments), `references/attachments-providers.md` |
 | What is kept and what is not, resuming a job (`resumable=True`), a result store of your own, choosing a database | `references/persistence.md` |
 | Submit a job to a queue and run it in a worker: `JobClient`, `JobWorker`, `JobQueue`, cancelling, events and SSE | `references/submitted-jobs.md` |

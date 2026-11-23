@@ -92,7 +92,7 @@ class JobRow(_Model):
     status: RunStatus
     resumable: bool
     resumed_from: str | None
-    parent_agent_run_id: str | None  # a background agent: the attempt that started this job; None for any other job
+    parent_agent_run_id: str | None  # a background job: the attempt that started this job; None for any other job
     job_version: str | None  # the version of the job class that it runs; None for a job made without one
     job_hash: str | None  # the hash of the job's declaration; None for a job made without a job class
     input_hash: str | None  # a submitted job: the hash of its input
@@ -329,7 +329,7 @@ class Database(ABC):
 
     @abstractmethod
     async def list_cancel_requested(self, job_ids: Sequence[str]) -> set[str]:
-        """Which of these jobs have `cancel_requested` set and are not final yet, in one query. It is what a job worker asks, about
+        """Which of these jobs have `cancel_requested` set and are not final yet, in one query. It is what a worker asks, about
         the jobs it is running, to learn that a client wants one of them cancelled."""
 
     # job events

@@ -1,4 +1,4 @@
-"""Background agents: the events on a chat stream, cancelling the children of a run that was stopped, and the trace."""
+"""Background jobs: the events on a chat stream, cancelling the children of a run that was stopped, and the trace."""
 
 import asyncio
 import json

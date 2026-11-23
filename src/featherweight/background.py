@@ -1,4 +1,4 @@
-"""Background agents: the result of a child comes back to its parent as a message.
+"""Background jobs: the result of a child comes back to its parent as a message.
 
 A child that was started with `start_background` is a job of its own. When it finishes, its result cannot be a second result of the
 call that started it (a provider rejects a tool result with no call), so it comes back as **a user message**:

@@ -674,7 +674,7 @@ class AgentRunner:
 
     @staticmethod
     def _can_background(agent: AgentBase) -> bool:
-        """Whether `agent` may start background agents here: it declares some, and this is not itself a background job (what
+        """Whether `agent` may start background jobs here: it declares some, and this is not itself a background job (what
         a background job runs, inline sub-agents included, cannot start more)."""
         return bool(agent.background_jobs) and not IN_BACKGROUND_JOB.get()
 
@@ -691,14 +691,14 @@ class AgentRunner:
         )
 
     def _check_background_setup(self, agent: AgentBase) -> None:
-        """An agent that can start background agents needs a result store to read their results from: the client's, when the
+        """An agent that can start background jobs needs a result store to read their results from: the client's, when the
         children are submitted to a worker, and the runner's otherwise. A `SetupError` before any model call."""
         if not self._can_background(agent):
             return
         store = self.background.results if self.background is not None else self.results
         if store is None:
             raise SetupError(
-                f"{agent.name} can start background agents, which need a result store to read their results from: pass "
+                f"{agent.name} can start background jobs, which need a result store to read their results from: pass "
                 "`results=` to AgentRunner (or a `JobClient` with one as `background=`)"
             )
 
@@ -1185,7 +1185,7 @@ class AgentRunner:
     ) -> list[BaseTool]:
         """`launch_agent`, `start_background` and `get_agent_schema` for one attempt of `agent`: they know the agents it may
         launch and start, and count its launches, so they are built for each attempt. `launch_agent` is built when the agent
-        may launch (`can_launch`), `start_background` when it may start background agents here.
+        may launch (`can_launch`), `start_background` when it may start background jobs here.
 
         All return text, also for a refusal or a failed child, so that the model can read what went wrong and carry
         on; they never raise into the run.
@@ -1282,7 +1282,7 @@ class AgentRunner:
             if entry is None:
                 names = ", ".join(entry_name(e) for e in agent.background_jobs)
                 return f"'{agent_name}' is not an agent you can start in the background. You can start: {names}."
-            assert children is not None  # the tool is only built for an agent that can start background agents
+            assert children is not None  # the tool is only built for an agent that can start background jobs
             if await children.live() >= self.max_background:
                 return (
                     f"You cannot start more agents in the background now: {self.max_background} are still running. "
