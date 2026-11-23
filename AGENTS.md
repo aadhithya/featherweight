@@ -17,7 +17,7 @@ retries and limits, and jobs run in your process or on workers. Pydantic is the 
 
 - Import what you use: `from featherweight import AgentBase, AgentRunner`. Do not write `import featherweight as ftw`.
 - An agent is a class: `input_model`, `output_model`, a `prompt`. Pass the class to the runner, not an instance: `runner.run(MyAgent, input)`.
-- A failed run is a value. Check `result.status` (`RunStatus.SUCCESS` or `FAILED`); do not wrap `run` in `try`.
+- A failed run is a value. Check `result.status` (`Status.SUCCESS` or `FAILED`); do not wrap `run` in `try`.
 - Rules a schema cannot say go in `check_output`: raise to reject, and the runner retries.
 - Capabilities are allow-lists: `tools`, `mcp_servers`, `skills`, `subagents` and `background_jobs` are what the developer gave the agent.
 - The framework stores metadata only (status, tokens, timing, hashes). Results and inputs go to stores you provide.

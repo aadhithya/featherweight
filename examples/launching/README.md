@@ -26,7 +26,7 @@ runs of this job:
     translator  attempt 1  SUCCESS  79 in / 23 out
 ```
 
-Each indented run was launched by the one above it; that is recorded in the run log (`parent_agent_run_id`). To see the log
+Each indented run was launched by the one above it; that is recorded in the run log (`parent_attempt_id`). To see the log
 lines too (`agent_launch ...` for each launch), run `FTW_LOG_LEVEL=INFO make example-launching`.
 
 ## Things to try

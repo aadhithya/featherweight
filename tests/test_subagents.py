@@ -11,7 +11,7 @@ from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from featherweight.context import RunContext
 from featherweight.fingerprint import input_hash, tools_hash
 from featherweight.model_settings import ModelSettings
-from featherweight.models import AgentBase, AgentInput, AgentOutput, RunStatus
+from featherweight.models import AgentBase, AgentInput, AgentOutput, Status
 from featherweight.runner import _Slot
 
 
@@ -102,17 +102,17 @@ async def test_the_prompt_lists_the_allowed_agents_and_the_run_log_the_launch_to
 
     result = await runner_with(db, model).run(Parent, PARENT_INPUT)
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     (prompt,) = system_prompts(model)
     assert "- child: Summarises a topic" in prompt and "get_agent_schema" in prompt and "launch_agent" in prompt
     assert "input schema" not in prompt.lower().replace(
         "input it expects", ""
     )  # schemas come from the tool, not the prompt
-    (row,) = await db.list_runs()
+    (row,) = await db.list_attempts()
     assert row.tools_hash == tools_hash(
         [], ["launch_agent", "get_agent_schema"]
     )  # the model was given the launch tools
-    assert row.depth == 1 and row.parent_agent_run_id is None
+    assert row.depth == 1 and row.parent_attempt_id is None
 
 
 async def test_an_agent_without_subagents_gets_no_launch_tools_and_no_prompt_section(db):
@@ -122,7 +122,7 @@ async def test_an_agent_without_subagents_gets_no_launch_tools_and_no_prompt_sec
 
     (prompt,) = system_prompts(model)
     assert "launch_agent" not in prompt
-    assert (await db.list_runs())[0].tools_hash == tools_hash([], [])  # no launch tools
+    assert (await db.list_attempts())[0].tools_hash == tools_hash([], [])  # no launch tools
 
 
 async def test_get_agent_schema_returns_the_input_and_output_schema_on_demand(db):
@@ -152,11 +152,11 @@ async def test_a_launch_runs_the_child_in_the_same_job_and_returns_its_output_to
 
     result = await runner_with(db, model).run(Parent, PARENT_INPUT, job_id=job_id)
 
-    assert result.status == RunStatus.SUCCESS and result.output.answer == "done"
-    parent_row, child_row = await db.list_runs(job_id=job_id)
-    assert (parent_row.agent_name, parent_row.depth, parent_row.parent_agent_run_id) == ("parent", 1, None)
+    assert result.status == Status.SUCCESS and result.output.answer == "done"
+    parent_row, child_row = await db.list_attempts(job_id=job_id)
+    assert (parent_row.agent_name, parent_row.depth, parent_row.parent_attempt_id) == ("parent", 1, None)
     assert (child_row.agent_name, child_row.depth) == ("child", 2)
-    assert child_row.parent_agent_run_id == parent_row.agent_run_id
+    assert child_row.parent_attempt_id == parent_row.attempt_id
     assert child_row.input_hash == input_hash(ChildInput(topic="x"))  # the input is in the hash, not in the row
     (returned,) = (json.loads(t) for t in tool_messages(model))
     assert returned == {
@@ -184,7 +184,7 @@ async def test_the_parents_tokens_are_its_own_and_the_child_has_its_own_row(db):
     result = await runner_with(db, model).run(Parent, PARENT_INPUT)
 
     assert (result.input_tokens, result.output_tokens) == (43, 9)
-    parent_row, child_row = await db.list_runs()
+    parent_row, child_row = await db.list_attempts()
     assert (child_row.input_tokens, child_row.output_tokens) == (11, 13)
     assert parent_row.input_tokens == 43
 
@@ -203,8 +203,8 @@ async def test_a_refused_launch_is_told_to_the_parent_which_carries_on(db, call,
 
     result = await runner_with(db, model).run(Parent, PARENT_INPUT)
 
-    assert result.status == RunStatus.SUCCESS and result.output.answer == "carried on"
-    assert [r.agent_name for r in await db.list_runs()] == ["parent"]  # nothing was launched
+    assert result.status == Status.SUCCESS and result.output.answer == "carried on"
+    assert [r.agent_name for r in await db.list_attempts()] == ["parent"]  # nothing was launched
     (text,) = tool_messages(model)
     assert expected in text
 
@@ -216,10 +216,10 @@ async def test_a_child_that_fails_comes_back_as_a_failed_result_and_the_parent_c
 
     result = await runner_with(db, model).run(Parent, PARENT_INPUT)
 
-    assert result.status == RunStatus.SUCCESS
-    parent_row, *children = await db.list_runs()
-    assert [c.status for c in children] == [RunStatus.FAILED] * 3  # the child's own retries
-    assert all(c.parent_agent_run_id == parent_row.agent_run_id for c in children)
+    assert result.status == Status.SUCCESS
+    parent_row, *children = await db.list_attempts()
+    assert [c.status for c in children] == [Status.FAILED] * 3  # the child's own retries
+    assert all(c.parent_attempt_id == parent_row.attempt_id for c in children)
     (returned,) = (json.loads(t) for t in tool_messages(model))
     assert returned["status"] == "FAILED" and "boom" in returned["error"]
 
@@ -238,8 +238,8 @@ async def test_depth_stops_the_chain_where_the_limit_is(db):
 
     result = await runner_with(db, model, max_depth=2).run(Top, PARENT_INPUT)
 
-    assert result.status == RunStatus.SUCCESS
-    top_row, mid_row = await db.list_runs()
+    assert result.status == Status.SUCCESS
+    top_row, mid_row = await db.list_attempts()
     assert (top_row.depth, mid_row.depth) == (1, 2)
     assert top_row.tools_hash == tools_hash([], ["launch_agent", "get_agent_schema"])
     assert mid_row.tools_hash == tools_hash([], [])  # Mid has a sub-agent, but no depth left to launch it
@@ -263,9 +263,9 @@ async def test_a_chain_can_go_as_deep_as_the_limit_allows(db):
     result = await runner_with(db, model, max_depth=3).run(Top, PARENT_INPUT)
 
     assert result.output.answer == "top done"
-    rows = await db.list_runs()
+    rows = await db.list_attempts()
     assert [(r.agent_name, r.depth) for r in rows] == [("top", 1), ("mid", 2), ("leaf", 3)]
-    assert rows[2].parent_agent_run_id == rows[1].agent_run_id and rows[1].parent_agent_run_id == rows[0].agent_run_id
+    assert rows[2].parent_attempt_id == rows[1].attempt_id and rows[1].parent_attempt_id == rows[0].attempt_id
 
 
 async def test_a_depth_of_one_turns_launching_off(db):
@@ -273,19 +273,19 @@ async def test_a_depth_of_one_turns_launching_off(db):
 
     await runner_with(db, model, max_depth=1).run(Parent, PARENT_INPUT)
 
-    assert (await db.list_runs())[0].tools_hash == tools_hash([], [])
+    assert (await db.list_attempts())[0].tools_hash == tools_hash([], [])
     assert all("launch_agent" not in p for p in system_prompts(model))
 
 
 async def test_the_launch_tool_refuses_at_the_depth_limit_even_if_it_is_called(db):
     runner = runner_with(db, Scripted(script=[]), max_depth=2)
-    context = RunContext(job_id=None, agent_run_id="a")
+    context = RunContext(job_id=None, run_id="r", attempt_id="a")
 
     launch, _ = runner._launch_tools(Mid(), context, _Slot(asyncio.Semaphore(1)), depth=2)
     text = await launch.ainvoke({"agent_name": "leaf", "input_json": '{"topic": "x"}'})
 
     assert "limit of 2 nested agents" in text
-    assert await db.list_runs() == []
+    assert await db.list_attempts() == []
 
 
 async def test_one_attempt_cannot_launch_more_than_the_breadth_limit(db):
@@ -293,8 +293,8 @@ async def test_one_attempt_cannot_launch_more_than_the_breadth_limit(db):
 
     result = await runner_with(db, model, max_launches=1).run(Parent, PARENT_INPUT)
 
-    assert result.status == RunStatus.SUCCESS
-    assert [r.agent_name for r in await db.list_runs()] == ["parent", "child"]  # the second launch did not happen
+    assert result.status == Status.SUCCESS
+    assert [r.agent_name for r in await db.list_attempts()] == ["parent", "child"]  # the second launch did not happen
     assert any("limit is 1 launches" in t for t in tool_messages(model))
 
 
@@ -349,7 +349,7 @@ async def test_a_parent_waiting_for_its_child_does_not_hold_the_only_slot(db):
 
     result = await asyncio.wait_for(runner.run(Parent, ParentInput(task="a")), timeout=10)  # a deadlock would time out
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     assert model.max_in_flight == 1  # still one model call at a time: the limit holds
     assert runner._slots._value == 1  # and the slot is back
 
@@ -362,7 +362,7 @@ async def test_many_parents_each_launching_a_child_finish_on_one_slot(db):
 
     assert [r.output.answer for r in results] == list("abcd")
     assert model.max_in_flight == 1 and runner._slots._value == 1
-    assert len(await db.list_runs()) == 8
+    assert len(await db.list_attempts()) == 8
 
 
 async def test_several_launches_in_one_turn_hand_the_slot_back_once(db):
@@ -387,8 +387,8 @@ async def test_several_launches_in_one_turn_hand_the_slot_back_once(db):
 
     result = await asyncio.wait_for(runner.run(Parent, PARENT_INPUT), timeout=10)
 
-    assert result.status == RunStatus.SUCCESS and result.output.answer == "both"
-    rows = await db.list_runs()
+    assert result.status == Status.SUCCESS and result.output.answer == "both"
+    rows = await db.list_attempts()
     assert sorted(r.input_hash for r in rows if r.agent_name == "child") == sorted(
         input_hash(ChildInput(topic=t)) for t in ("a", "b")
     )  # the two children had the inputs a and b

@@ -23,12 +23,13 @@ from typing import Any
 
 try:
     from opentelemetry import propagate, trace
-    from opentelemetry.trace import Span, SpanKind, Status, StatusCode, TracerProvider
+    from opentelemetry.trace import Span, SpanKind, StatusCode, TracerProvider
+    from opentelemetry.trace import Status as SpanStatus
 except ImportError as exc:  # pragma: no cover - the extra is not installed
     raise ImportError("OTelObserver needs OpenTelemetry: pip install 'featherweight[otel]'") from exc
 
 from featherweight import __version__
-from featherweight.models import RunStatus
+from featherweight.models import Status
 from featherweight.observers import (
     AttemptEnd,
     AttemptStart,
@@ -38,7 +39,7 @@ from featherweight.observers import (
     ModelCallEnd,
     ModelCallStart,
     Observer,
-    ReusedRun,
+    RunReused,
     Scope,
     ToolCallEnd,
     ToolCallStart,
@@ -82,15 +83,15 @@ ATTRIBUTES: frozenset[str] = frozenset(
         "ftw.job.hash",
         "ftw.job.execution",
         "ftw.agent.hash",
+        "ftw.attempt.id",
         "ftw.run.id",
-        "ftw.invocation.id",
         "ftw.attempt",
         "ftw.attempts",
         "ftw.attempt.final",
         "ftw.tokens.input",
         "ftw.tokens.output",
         "ftw.reused",
-        "ftw.reused_from_agent_run_id",
+        "ftw.reused_from_attempt_id",
         "ftw.resumed_from",
     }
 )
@@ -190,7 +191,7 @@ class OTelObserver(Observer):
         wants = _capture_content_from_env() if capture_content is None else capture_content
         object.__setattr__(self, "capture_content", wants)  # this observer decides, and not its class
         self._tracer = trace.get_tracer("featherweight", __version__, tracer_provider=tracer_provider)
-        self._attempts: dict[str, Span] = {}  # agent_run_id -> its span
+        self._attempts: dict[str, Span] = {}  # attempt_id -> its span
         self._tools: dict[str, tuple[str, Span]] = {}  # call id -> the attempt, and the span
         self._models: dict[str, tuple[str, Span]] = {}
 
@@ -233,7 +234,7 @@ class OTelObserver(Observer):
         # The parent is the tool call that launched this agent, or else the attempt that did: a launched agent runs in another
         # task, so the current span is not enough. With neither, it is a child of whatever span is current (the job, or yours).
         launched_by = self._tools.get(start.parent_tool_call_id or "")
-        parent = launched_by[1] if launched_by else self._attempts.get(start.parent_agent_run_id or "")
+        parent = launched_by[1] if launched_by else self._attempts.get(start.parent_attempt_id or "")
         content = self.capture_content
         span = self._tracer.start_span(
             f"invoke_agent {start.agent_name}",
@@ -253,14 +254,14 @@ class OTelObserver(Observer):
                 ),
                 ftw__job__id=start.job_id,
                 ftw__agent__hash=start.agent_hash,
-                ftw__run__id=start.agent_run_id,
-                ftw__invocation__id=start.invocation_id,
+                ftw__attempt__id=start.attempt_id,
+                ftw__run__id=start.run_id,
                 ftw__attempt=start.attempt,
                 ftw__attempts=start.max_attempts,
             ),
         )
-        self._attempts[start.agent_run_id] = span
-        return self._scope(span, attempt=start.agent_run_id)
+        self._attempts[start.attempt_id] = span
+        return self._scope(span, attempt=start.attempt_id)
 
     def _finish(self, span: Span, end: JobEnd | AttemptEnd) -> None:
         if isinstance(end, AttemptEnd):
@@ -274,18 +275,18 @@ class OTelObserver(Observer):
             )
         if self.capture_content and end.output is not None:
             span.set_attribute("gen_ai.output.messages", _single("assistant", end.output))
-        if end.status in (RunStatus.FAILED, RunStatus.CANCELLED):
-            self._error(span, end.error_type or ("CancelledError" if end.status == RunStatus.CANCELLED else "_OTHER"))
+        if end.status in (Status.FAILED, Status.CANCELLED):
+            self._error(span, end.error_type or ("CancelledError" if end.status == Status.CANCELLED else "_OTHER"))
 
     @staticmethod
     def _error(span: Span, error_type: str) -> None:
         """The span failed: its status, and the type of the error. Never the text, which can quote data."""
         span.set_attribute("error.type", error_type)
-        span.set_status(Status(StatusCode.ERROR))
+        span.set_status(SpanStatus(StatusCode.ERROR))
 
     # ---------------------------------------------------------------- events
 
-    async def reused(self, run: ReusedRun) -> None:
+    async def reused(self, run: RunReused) -> None:
         span = self._tracer.start_span(
             f"invoke_agent {run.agent_name}",
             kind=SpanKind.INTERNAL,
@@ -298,17 +299,17 @@ class OTelObserver(Observer):
                 ),
                 ftw__job__id=run.job_id,
                 ftw__agent__hash=run.agent_hash,
-                ftw__run__id=run.agent_run_id,
-                ftw__invocation__id=run.invocation_id,
+                ftw__attempt__id=run.attempt_id,
+                ftw__run__id=run.run_id,
                 ftw__reused=True,
-                ftw__reused_from_agent_run_id=run.reused_from_agent_run_id,
+                ftw__reused_from_attempt_id=run.reused_from_attempt_id,
                 ftw__resumed_from=run.resumed_from,
             ),
         )
         span.end()
 
-    def _child(self, name: str, kind: SpanKind, agent_run_id: str, attributes: dict[str, Any]) -> Span:
-        parent = self._attempts.get(agent_run_id)
+    def _child(self, name: str, kind: SpanKind, attempt_id: str, attributes: dict[str, Any]) -> Span:
+        parent = self._attempts.get(attempt_id)
         return self._tracer.start_span(
             name,
             context=trace.set_span_in_context(parent) if parent is not None else None,
@@ -321,7 +322,7 @@ class OTelObserver(Observer):
         span = self._child(
             f"chat {call.model}",
             SpanKind.CLIENT,
-            call.agent_run_id,
+            call.attempt_id,
             _attributes(
                 gen_ai__operation__name="chat",
                 gen_ai__provider__name=_PROVIDERS.get(call.provider, call.provider),
@@ -330,7 +331,7 @@ class OTelObserver(Observer):
                 gen_ai__input__messages=_json(chat) if call.messages is not None else None,
             ),
         )
-        self._models[call.call_id] = (call.agent_run_id, span)
+        self._models[call.call_id] = (call.attempt_id, span)
 
     async def model_call_finished(self, call: ModelCallEnd) -> None:
         _, span = self._models.pop(call.call_id, (None, None))
@@ -359,7 +360,7 @@ class OTelObserver(Observer):
         span = self._child(
             f"execute_tool {call.tool_name}",
             SpanKind.INTERNAL,
-            call.agent_run_id,
+            call.attempt_id,
             _attributes(
                 gen_ai__operation__name="execute_tool",
                 gen_ai__tool__name=call.tool_name,
@@ -368,7 +369,7 @@ class OTelObserver(Observer):
                 gen_ai__tool__call__arguments=_json(_object(call.arguments)) if call.arguments is not None else None,
             ),
         )
-        self._tools[call.call_id] = (call.agent_run_id, span)
+        self._tools[call.call_id] = (call.attempt_id, span)
 
     async def tool_call_finished(self, call: ToolCallEnd) -> None:
         _, span = self._tools.pop(call.call_id, (None, None))
@@ -380,10 +381,10 @@ class OTelObserver(Observer):
             self._error(span, call.error_type)
         span.end()
 
-    def _end_open(self, agent_run_id: str) -> None:
+    def _end_open(self, attempt_id: str) -> None:
         """End the model and tool spans of an attempt that is over without their end (a cancelled attempt)."""
         for spans in (self._models, self._tools):
-            for call_id in [c for c, (run, _) in spans.items() if run == agent_run_id]:
+            for call_id in [c for c, (run, _) in spans.items() if run == attempt_id]:
                 spans.pop(call_id)[1].end()
 
     async def submitted(self, job: JobSubmitted) -> Mapping[str, str] | None:

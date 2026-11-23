@@ -71,7 +71,7 @@ DISCOVERY = (
 )
 
 
-class RunStatus(StrEnum):
+class Status(StrEnum):
     INIT = "INIT"
     RUNNING = "RUNNING"
     SUCCESS = "SUCCESS"
@@ -311,12 +311,13 @@ OutT = TypeVar("OutT", bound=AgentOutput)
 
 
 class AgentResult(BaseModel, Generic[OutT]):
-    """What `AgentRunner.run` returns. The runner's status is kept separate from the model's output."""
+    """What a run of an agent returns (`AgentRunner.run`). The runner's status is kept separate from the model's output."""
 
-    status: RunStatus
+    status: Status
     output: OutT | None = None
     error: str | None = None
-    agent_run_id: str
+    run_id: str  # this run: its attempts in the run log share it
+    attempt_id: str  # the last attempt of the run
     input_tokens: int = 0
     output_tokens: int = 0  # includes thinking tokens
     attempts: int = Field(default=1, ge=1)
@@ -326,6 +327,6 @@ class AgentResult(BaseModel, Generic[OutT]):
 
     @model_validator(mode="after")
     def _terminal_status_only(self):
-        if self.status not in (RunStatus.SUCCESS, RunStatus.FAILED):
+        if self.status not in (Status.SUCCESS, Status.FAILED):
             raise ValueError("AgentResult status must be SUCCESS or FAILED")
         return self

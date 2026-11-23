@@ -185,7 +185,7 @@ the agent loop. Without the wrapper a dead server ends the whole run (checked).
 
 ## Logging
 
-- Each call logs `mcp_call agent_run_id=... server=... tool=... status=ok|error|timeout ms=...`. Arguments and results
+- Each call logs `mcp_call attempt_id=... server=... tool=... status=ok|error|timeout ms=...`. Arguments and results
   are not logged.
 - Opening and closing log `mcp_open server=... transport=...` and `mcp_close server=...`.
 - No new tables or columns.

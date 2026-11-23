@@ -45,7 +45,7 @@ Without Docker: `uv sync`, then `PYTHONPATH=src:examples/doclearn uv run python 
 It learns from the documents, shows what it learned (the tree, the template, the inputs, and how well each source
 document conforms to the tree), then fills the form: **manual** opens the inputs in `$EDITOR`, **auto** has an agent
 invent a case and a story, which you accept, edit or redo. Last it generates the document. `--fill manual|auto` skips
-the question and `-v` shows every log line. Everything is saved in `runs/<time>_<category>/` (`run.log`, `learned/`,
+the question and `-v` shows every log line. Everything is saved in `out/<time>_<category>/` (`doclearn.log`, `learned/`,
 `facts.json`, `story.txt`, `generated.md`, `summary.md`) and in `featherweight.db`. Exit codes: 0 done, 1 failed, 2 stopped
 before generating.
 
@@ -115,7 +115,7 @@ problems are returned in the result.
   model of the next.
 - Retries and `check_output` absorb an occasional bad reply; pipeline code decides what is fatal (one section failing)
   and what is not (one document failing).
-- The trace is what makes development bearable: the prompts were improved by reading the `agent_runs` rows of failed
+- The trace is what makes development bearable: the prompts were improved by reading the `attempts` rows of failed
   attempts, not by guessing.
 
 To build your own: define the agents, write the pipeline as an async function of `(runner, ..., job_id)`, run it with

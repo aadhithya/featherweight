@@ -106,25 +106,25 @@ A launched agent runs with the identity of its parent ([who is asking](agents.md
 
 ## Concurrency
 
-Every attempt holds one concurrency slot while it runs (`MAX_CONCURRENT_AGENT_RUNS`). A parent waiting for its child
+Every attempt holds one concurrency slot while it runs (`MAX_CONCURRENT_ATTEMPTS`). A parent waiting for its child
 would hold a slot the child needs, and with enough waiting parents nothing could finish. So **a parent gives up its
 slot while its launches run, and takes one again when the last of them is done**, also when it launched several at
 once. The limit on model calls at one time still holds, because a waiting parent is not calling the model.
 
 ## Tracing
 
-Children are in the same job. Each row in `agent_runs` records:
+Children are in the same job. Each row in `attempts` records:
 
-- `parent_agent_run_id`: the attempt that launched it (empty for a top-level run);
+- `parent_attempt_id`: the attempt that launched it (empty for a top-level run);
 - `depth`: 1 for a top-level run, 2 for the agent it launched, and so on.
 
 The whole tree of a job is one query:
 
 ```
-sqlite3 featherweight.db "select depth, agent_name, attempt, status, parent_agent_run_id from agent_runs where job_id = '<job id>' order by seq"
+sqlite3 featherweight.db "select depth, agent_name, attempt, status, parent_attempt_id from attempts where job_id = '<job id>' order by seq"
 ```
 
-The log has one line per launch: `agent_launch parent_agent_run_id=... child=... depth=2 launch=1/10`.
+The log has one line per launch: `agent_launch parent_attempt_id=... child=... depth=2 launch=1/10`.
 
 The `attempt_started` log line lists the tools an agent had, `launch_agent` and `get_agent_schema` among them (`tools=...`).
 The run log keeps only `tools_hash`, which changes when they do: a tool's name can be client-specific, so names are not stored.

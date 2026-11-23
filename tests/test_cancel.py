@@ -10,7 +10,7 @@ from langchain_core.tools import tool
 from stream_check import assert_valid
 
 from featherweight.model_settings import ModelSettings
-from featherweight.models import RunStatus
+from featherweight.models import Status
 from featherweight.streaming import ChatInput, StreamingAgent
 
 
@@ -75,9 +75,9 @@ async def test_cancelling_while_text_streams_ends_the_stream_cleanly_and_keeps_t
     assert kinds(events)[-3:] == ["TEXT_MESSAGE_END", "STEP_FINISHED", "RUN_FINISHED"]
     assert events[-1].outcome.type == "cancelled"
     assert "".join(e.delta for e in events if e.type.value == "TEXT_MESSAGE_CONTENT") == "Let me think about "
-    assert run.status is RunStatus.CANCELLED and run.error is None
-    row = await db.get_run(run.run_id)
-    assert row.status is RunStatus.CANCELLED and (row.error_type, row.error_hash) == (None, None)
+    assert run.status is Status.CANCELLED and run.error is None
+    row = await db.get_attempt(run.attempt_id)
+    assert row.status is Status.CANCELLED and (row.error_type, row.error_hash) == (None, None)
     assert row.output_hash is None  # a stopped run produced no output
     assert [(type(m), m.content) for m in run.new_messages] == [(AIMessage, "Let me think about ")]
 
@@ -99,7 +99,7 @@ async def test_runner_cancel_stops_a_run_by_its_id(db):
     assert events[-1].outcome.type == "cancelled"
     assert runner.cancel(run.run_id) is False  # it is over
     assert runner.cancel("no-such-run") is False
-    assert (await db.get_run(run.run_id)).status is RunStatus.CANCELLED
+    assert (await db.get_attempt(run.attempt_id)).status is Status.CANCELLED
 
 
 async def test_cancelling_twice_or_after_the_end_does_nothing(db):
@@ -108,7 +108,7 @@ async def test_cancelling_twice_or_after_the_end_does_nothing(db):
     events = [e async for e in run]
     run.cancel()
     run.cancel()
-    assert events[-1].outcome.type == "success" and run.status is RunStatus.SUCCESS
+    assert events[-1].outcome.type == "success" and run.status is Status.SUCCESS
 
 
 async def test_cancelling_before_the_loop_starts_makes_a_cancelled_run(db):
@@ -120,7 +120,7 @@ async def test_cancelling_before_the_loop_starts_makes_a_cancelled_run(db):
     assert_valid(events)
     assert kinds(events) == ["RUN_STARTED", "RUN_FINISHED"] and events[-1].outcome.type == "cancelled"
     assert model.calls == 0 and run.new_messages == []
-    assert (await db.get_run(run.run_id)).status is RunStatus.CANCELLED
+    assert (await db.get_attempt(run.attempt_id)).status is Status.CANCELLED
 
 
 async def test_cancelling_while_waiting_for_a_slot(db):
@@ -139,13 +139,13 @@ async def test_cancelling_while_waiting_for_a_slot(db):
     task_b = asyncio.create_task(read(second, second_events))
     for _ in range(50):  # the second run is waiting for the slot
         await asyncio.sleep(0.01)
-        if (await db.get_run(second.run_id)) is not None:
+        if (await db.get_attempt(second.attempt_id)) is not None:
             break
-    assert (await db.get_run(second.run_id)).status is RunStatus.INIT
+    assert (await db.get_attempt(second.attempt_id)).status is Status.INIT
     second.cancel()
     await task_b
     assert kinds(second_events) == ["RUN_STARTED", "RUN_FINISHED"] and second_events[-1].outcome.type == "cancelled"
-    assert (await db.get_run(second.run_id)).status is RunStatus.CANCELLED
+    assert (await db.get_attempt(second.attempt_id)).status is Status.CANCELLED
     first_gate.release.set()
     await task_a
     assert first_events[-1].outcome.type == "success"  # the first run was not touched
@@ -296,10 +296,10 @@ async def test_a_reader_that_leaves_cancels_the_run_and_the_partial_turn_is_kept
             break
     await stream.aclose()  # a web framework does this when the client goes away
     for _ in range(100):
-        if (await db.get_run(run.run_id)).status is RunStatus.CANCELLED:
+        if (await db.get_attempt(run.attempt_id)).status is Status.CANCELLED:
             break
         await asyncio.sleep(0.01)
-    assert run.status is RunStatus.CANCELLED
+    assert run.status is Status.CANCELLED
     assert [m.content for m in run.new_messages] == ["Half a "]
     second = runner_with(db, Streams(turns=[["fine"]]), max_concurrent=1)
     assert [e async for e in second.stream(Chat, say("again"))][-1].outcome.type == "success"  # the slot is free
@@ -380,9 +380,9 @@ async def test_a_launched_agent_is_cancelled_with_its_parent_and_its_row_says_so
     await asyncio.sleep(0.03)  # the chunks written so far are read
     run.cancel()
     await reader
-    rows = {r.agent_name: r for r in await db.list_runs()}
-    assert rows["chat"].status is RunStatus.CANCELLED
-    assert rows["echo"].status is RunStatus.CANCELLED  # not left RUNNING
+    rows = {r.agent_name: r for r in await db.list_attempts()}
+    assert rows["chat"].status is Status.CANCELLED
+    assert rows["echo"].status is Status.CANCELLED  # not left RUNNING
     assert_sendable(run.new_messages)
 
 
@@ -396,13 +396,13 @@ async def test_a_run_whose_task_is_cancelled_is_marked_cancelled(db):
     task = asyncio.create_task(runner.run(Echo, EchoInput(text="ok-1")))
     for _ in range(100):
         await asyncio.sleep(0.01)
-        rows = await db.list_runs()
-        if rows and rows[0].status is RunStatus.RUNNING:
+        rows = await db.list_attempts()
+        if rows and rows[0].status is Status.RUNNING:
             break
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
-    assert [r.status for r in await db.list_runs()] == [RunStatus.CANCELLED]
+    assert [r.status for r in await db.list_attempts()] == [Status.CANCELLED]
     assert (
         await runner_with(db, Reactive(respond=respond, delay_s=0), max_concurrent=1).run(Echo, EchoInput(text="ok-2"))
-    ).status is RunStatus.SUCCESS
+    ).status is Status.SUCCESS

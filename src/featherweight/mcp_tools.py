@@ -10,7 +10,7 @@ from typing import Any
 
 from langchain_core.tools import BaseTool, StructuredTool
 
-from featherweight.context import CURRENT_AGENT_RUN_ID
+from featherweight.context import CURRENT_ATTEMPT_ID
 from featherweight.errors import SetupError
 from featherweight.mcp import MCPServer
 from featherweight.mcp_connections import Lease, require_adapter
@@ -114,8 +114,8 @@ def _wrap(tool: BaseTool, server: MCPServer, lease: Lease) -> BaseTool:
             text = f"MCP server '{server.name}' is unavailable: {type(exc).__name__}: {exc}"[:MAX_ERROR_CHARS]
         finally:
             logger.info(
-                "mcp_call agent_run_id=%s server=%s tool=%s status=%s ms=%.0f",
-                CURRENT_AGENT_RUN_ID.get(),
+                "mcp_call attempt_id=%s server=%s tool=%s status=%s ms=%.0f",
+                CURRENT_ATTEMPT_ID.get(),
                 server.name,
                 tool.name,
                 status,

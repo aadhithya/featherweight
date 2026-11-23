@@ -15,7 +15,7 @@ from featherweight.errors import SetupError
 from featherweight.fingerprint import agent_declaration, agent_hash, input_hash, tools_hash
 from featherweight.jobs import JobContext, job, run_job
 from featherweight.model_settings import ModelSettings
-from featherweight.models import AgentBase, AgentInput, AgentOutput, RunStatus
+from featherweight.models import AgentBase, AgentInput, AgentOutput, Status
 from featherweight.queue import SqliteQueue
 from featherweight.results import ResultKey
 from featherweight.runner import AgentRunner
@@ -215,7 +215,7 @@ async def test_an_agent_with_only_subagents_has_the_prompt_it_always_had(db):
 
     (prompt,) = prompts(model)
     assert "You can launch other agents to do part of the work." in prompt and "start_background" not in prompt
-    (row,) = await db.list_runs()
+    (row,) = await db.list_attempts()
     assert row.tools_hash == tools_hash([], ["launch_agent", "get_agent_schema"])
 
 
@@ -226,12 +226,12 @@ async def test_the_tools_follow_the_declaration(db):
 
     model = Scripted(script=[parent_done()])
     await runner_with(db, model, results=MemoryResultStore()).run(Parent, PARENT_INPUT)
-    (only_background,) = await db.list_runs()
+    (only_background,) = await db.list_attempts()
     assert only_background.tools_hash == tools_hash([], ["start_background", "get_agent_schema"])
 
     model = Scripted(script=[parent_done()])
     await runner_with(db, model, results=MemoryResultStore()).run(Both, PARENT_INPUT)
-    both = (await db.list_runs())[-1]
+    both = (await db.list_attempts())[-1]
     assert both.tools_hash == tools_hash([], ["launch_agent", "get_agent_schema", "start_background"])
 
 
@@ -273,12 +273,12 @@ async def test_start_background_returns_at_once_and_the_child_runs_as_a_job_of_i
     result = await runner.run(Parent, PARENT_INPUT)
     await finished(runner)
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     started = json.loads(tool_results(model)[0])
     assert started["status"] == "STARTED" and started["agent"] == "child"
     child = await db.get_job(started["job_id"])
-    assert child is not None and child.status == RunStatus.SUCCESS and child.name == "child"
-    assert child.parent_agent_run_id == result.agent_run_id
+    assert child is not None and child.status == Status.SUCCESS and child.name == "child"
+    assert child.parent_attempt_id == result.attempt_id
     assert child.job_hash is not None and child.input_hash == input_hash(ChildInput(topic="x"))
     events = await db.list_job_events(started["job_id"])
     assert [e.type for e in events] == ["queued", "running", "succeeded"]
@@ -295,11 +295,11 @@ async def test_the_runs_of_a_child_belong_to_its_job_and_not_to_the_parents(db, 
     await finished(runner)
 
     started = json.loads(tool_results(model)[0])
-    runs = await db.list_runs()
+    runs = await db.list_attempts()
     child_runs = [r for r in runs if r.agent_name == "child"]
     assert len(child_runs) == 1 and child_runs[0].job_id == started["job_id"] and child_runs[0].depth == 1
-    assert child_runs[0].parent_agent_run_id is None
-    assert [r.agent_name for r in runs if r.job_id is None] == ["parent"] and result.status == RunStatus.SUCCESS
+    assert child_runs[0].parent_attempt_id is None
+    assert [r.agent_name for r in runs if r.job_id is None] == ["parent"] and result.status == Status.SUCCESS
 
 
 async def test_an_agent_that_is_not_in_the_list_is_refused_in_words(db, results):
@@ -328,14 +328,14 @@ async def test_a_start_over_the_limit_is_refused_and_does_not_count(db, results)
     slow = Reactive(respond=lambda text, n: child_done(), delay_s=0.3)
     use_model(slow, "child")
     model = Scripted(script=[start_child("t1"), start_child("t2"), parent_done(), parent_done()])
-    runner = runner_with(db, model, results=results, max_background=1)
+    runner = runner_with(db, model, results=results, max_background_jobs=1)
 
     await runner.run(Parent, PARENT_INPUT)
 
     first, second = tool_results(model)
     assert json.loads(first)["status"] == "STARTED"
     assert "cannot start more agents in the background" in second and "1 are still running" in second
-    assert len([r for r in await db.list_runs() if r.agent_name == "child"]) == 1  # the refused start made no job
+    assert len([r for r in await db.list_attempts() if r.agent_name == "child"]) == 1  # the refused start made no job
     await finished(runner)
     children = BackgroundChildren(db, results)
     children.add(json.loads(first)["job_id"])
@@ -365,7 +365,7 @@ async def test_a_job_class_can_be_started_in_the_background(db, results):
 
     started = json.loads(tool_results(model)[0])
     child = await db.get_job(started["job_id"])
-    assert child is not None and child.status == RunStatus.SUCCESS and child.job_version == "1"
+    assert child is not None and child.status == Status.SUCCESS and child.job_version == "1"
     kept = await results.get(
         ResultKey(job_id=child.job_id, agent_hash=child.job_hash or "", input_hash=child.input_hash or "")
     )
@@ -411,7 +411,7 @@ async def test_what_a_background_job_runs_cannot_start_background_jobs(db):
 
     runner = AgentRunner(db, results=MemoryResultStore())
     await run_job(runner, probe, ChildInput(topic="x"))
-    background = await db.create_job("probe", parent_agent_run_id="some-attempt")
+    background = await db.create_job("probe", parent_attempt_id="some-attempt")
     await run_job(runner, probe, ChildInput(topic="x"), job_id=background)
 
     assert seen == [False, True] and IN_BACKGROUND_JOB.get() is False  # and nothing is left set afterwards
@@ -470,7 +470,7 @@ async def test_a_child_on_a_worker_is_the_same_job_as_a_child_here(db, make_queu
     assert here is not None and there is not None
     for column in ("name", "status", "resumable", "job_version", "job_hash", "input_hash"):
         assert getattr(here, column) == getattr(there, column), column
-    assert here.parent_agent_run_id is not None and there.parent_agent_run_id is not None
+    assert here.parent_attempt_id is not None and there.parent_attempt_id is not None
     assert [e.type for e in await db.list_job_events(here_id)] == [e.type for e in await db.list_job_events(worker_id)]
     key = ResultKey(job_id=here_id, agent_hash=here.job_hash or "", input_hash=here.input_hash or "")
     other = ResultKey(job_id=worker_id, agent_hash=there.job_hash or "", input_hash=there.input_hash or "")
@@ -493,4 +493,4 @@ async def test_a_worker_that_does_not_know_the_child_fails_its_job(db):
     finally:
         await worker.stop(grace=1)
         await asyncio.wait_for(running, timeout=5)
-    assert row.status == RunStatus.FAILED
+    assert row.status == Status.FAILED

@@ -51,7 +51,7 @@ async def main() -> None:
         # the class, not an instance: the runner builds the agent
         result = await AgentRunner(db).run(IncidentSummariser, report, job_id=job_id)
         print(result.status.value, f"attempts={result.attempts}", result.output if result.output else result.error)
-        for row in await db.list_runs(job_id=job_id):
+        for row in await db.list_attempts(job_id=job_id):
             print(f"attempt {row.attempt}: {row.status.value} {row.error_type or ''}")
 
 

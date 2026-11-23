@@ -7,8 +7,8 @@ from fakes import Echo, EchoInput, EchoOutput, Reactive, runner_with, structured
 from pydantic import BaseModel
 
 from featherweight.fingerprint import agent_hash, job_hash
-from featherweight.jobs import AgentRunFailed, Job, JobContext, as_job
-from featherweight.models import RunStatus
+from featherweight.jobs import Job, JobContext, RunFailed, as_job
+from featherweight.models import Status
 from featherweight.runner import AgentRunner
 from featherweight.streaming import StreamingAgent
 
@@ -116,8 +116,8 @@ async def test_the_context_runs_agents_in_the_job(db):
     one = await ctx.run(Echo, EchoInput(text="a"))
     many = await ctx.run_many(Echo, [EchoInput(text="b"), EchoInput(text="c")])
 
-    assert one.status is RunStatus.SUCCESS and [r.output.echoed for r in many] == ["b", "c"]
-    assert [r.job_id for r in await db.list_runs()] == [job_id] * 3  # all three belong to the job
+    assert one.status is Status.SUCCESS and [r.output.echoed for r in many] == ["b", "c"]
+    assert [r.job_id for r in await db.list_attempts()] == [job_id] * 3  # all three belong to the job
 
 
 async def test_the_context_is_frozen(db):
@@ -158,7 +158,7 @@ async def test_an_agent_job_returns_the_output_and_raises_when_the_agent_fails(d
     assert (await as_job(Echo)().run(ctx, EchoInput(text="a"))).echoed == "hi"
 
     broken = runner_with(db, Reactive(respond=lambda text, n: RuntimeError("down"), delay_s=0), max_attempts=1)
-    with pytest.raises(AgentRunFailed, match="down"):
+    with pytest.raises(RunFailed, match="down"):
         await as_job(Echo)().run(JobContext(runner=broken, job_id=await db.create_job("echo")), EchoInput(text="a"))
 
 
@@ -170,9 +170,9 @@ async def test_the_job_columns_hold_the_hashes_and_the_time_it_started(db):
     row = await db.get_job(job_id)
     assert row is not None and (row.job_hash, row.input_hash) == (Shout.job_hash(), "a" * 64)
     assert row.started_at is None and row.cancel_requested is False
-    await db.set_job_status(job_id, RunStatus.RUNNING)
+    await db.set_job_status(job_id, Status.RUNNING)
     running = await db.get_job(job_id)
     assert running is not None and running.started_at is not None
-    await db.set_job_status(job_id, RunStatus.SUCCESS)
+    await db.set_job_status(job_id, Status.SUCCESS)
     done = await db.get_job(job_id)
     assert done is not None and done.started_at == running.started_at

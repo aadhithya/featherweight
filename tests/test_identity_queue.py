@@ -16,7 +16,7 @@ from featherweight.client import JobClient
 from featherweight.jobs import Job, JobContext
 from featherweight.migrations import MIGRATIONS
 from featherweight.model_settings import ModelSettings
-from featherweight.models import AgentBase, AgentInput, AgentOutput, RunStatus
+from featherweight.models import AgentBase, AgentInput, AgentOutput, Status
 from featherweight.queue import JobMessage, SqliteQueue
 from featherweight.runner import AgentRunner
 from featherweight.sqlite import SqliteDatabase
@@ -71,7 +71,7 @@ async def test_a_job_submitted_with_an_identity_runs_with_one_that_is_equal_to_i
     async with Running(make(db, queue, [WhoAmI], runner=runner_for(db), identity_type=Teacher)):
         row = await final(db, job_id)
 
-    assert row.status is RunStatus.SUCCESS
+    assert row.status is Status.SUCCESS
     (seen,) = WhoAmI.seen
     assert isinstance(seen, Teacher) and seen is not teacher  # rebuilt from the message, not the same object
     assert seen == Teacher(user_id="a", tenant="uni", token="")  # without the field that is excluded
@@ -95,7 +95,7 @@ async def test_a_job_without_an_identity_has_none_when_the_worker_allows_it(db, 
     async with Running(make(db, queue, [WhoAmI], runner=runner_for(db, Teacher | None), identity_type=Teacher | None)):
         row = await final(db, job_id)
 
-    assert row.status is RunStatus.SUCCESS and WhoAmI.seen == [None]
+    assert row.status is Status.SUCCESS and WhoAmI.seen == [None]
 
 
 # a message that does not fit the worker
@@ -114,7 +114,7 @@ async def test_a_message_without_an_identity_fails_a_worker_that_requires_one_an
     async with Running(make(db, queue, [WhoAmI], runner=runner_for(db), identity_type=Teacher)):
         row = await final(db, job_id)
 
-    assert row.status is RunStatus.FAILED and row.error_type == "InvalidJobIdentity"
+    assert row.status is Status.FAILED and row.error_type == "InvalidJobIdentity"
     assert WhoAmI.seen == []  # it did not run
     assert await queue.receive(0.05) is None  # and the message is acknowledged: it is not retried
 
@@ -128,7 +128,7 @@ async def test_an_identity_that_does_not_fit_the_declared_type_fails_the_job_and
         async with Running(make(db, queue, [WhoAmI], runner=runner_for(db), identity_type=Teacher)):
             row = await final(db, job_id)
 
-    assert row.status is RunStatus.FAILED and row.error_type == "InvalidJobIdentity"
+    assert row.status is Status.FAILED and row.error_type == "InvalidJobIdentity"
     assert WhoAmI.seen == []
     assert "secret-value-123" not in caplog.text
     assert "user_id" in caplog.text  # the field is named, the value is not
@@ -140,7 +140,7 @@ async def test_an_identity_in_a_message_fails_a_worker_that_declares_no_type(db,
     async with Running(make(db, queue, [WhoAmI])):
         row = await final(db, job_id)
 
-    assert row.status is RunStatus.FAILED and row.error_type == "InvalidJobIdentity" and WhoAmI.seen == []
+    assert row.status is Status.FAILED and row.error_type == "InvalidJobIdentity" and WhoAmI.seen == []
 
 
 # the client
@@ -227,7 +227,7 @@ async def test_a_job_that_an_agent_starts_in_the_background_on_a_worker_runs_for
         await worker.stop(grace=1)
         await asyncio.wait_for(running, timeout=5)
 
-    assert result.status == RunStatus.SUCCESS and row.status is RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS and row.status is Status.SUCCESS
     assert WhoAmI.seen == [Teacher(user_id="boss")]  # the child ran on a worker, for whom its parent ran
 
 

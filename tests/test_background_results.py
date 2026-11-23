@@ -23,7 +23,7 @@ from featherweight.background import BackgroundChildren, _would_end
 from featherweight.client import JobClient
 from featherweight.db import FINAL
 from featherweight.model_settings import ModelSettings
-from featherweight.models import RunStatus
+from featherweight.models import Status
 from featherweight.queue import SqliteQueue
 from featherweight.runner import AgentRunner
 from featherweight.streaming import ChatInput, StreamingAgent
@@ -80,7 +80,7 @@ async def test_a_child_that_ends_mid_loop_is_given_once_after_the_tool_results(d
 
     result = await runner.run(Parent, PARENT_INPUT)
 
-    assert result.status == RunStatus.SUCCESS and model.calls == 3
+    assert result.status == Status.SUCCESS and model.calls == 3
     last = model.seen[2]
     assert len(results_in(last)) == 1
     assert isinstance(last[-1], HumanMessage) and "<background_result" in str(last[-1].content)
@@ -106,7 +106,7 @@ async def test_two_children_that_end_in_one_round_are_both_given_each_once(db, r
 
     result = await runner.run(Parent, PARENT_INPUT)
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     ids = [json.loads(text)["job_id"] for text in tool_results(model)[:2]]
     given = results_in(model.seen[2])
     assert len(given) == 2 and len(set(ids)) == 2
@@ -125,7 +125,7 @@ async def test_a_child_that_failed_is_given_with_its_error_type(db, results):
 
     result = await runner.run(Parent, PARENT_INPUT)
 
-    assert result.status == RunStatus.SUCCESS  # the parent goes on: a failed child is a result like any other
+    assert result.status == Status.SUCCESS  # the parent goes on: a failed child is a result like any other
     (given,) = results_in(model.seen[2])
     assert (
         'status="FAILED"' in given and 'error_type="' in given and "boom" not in given
@@ -140,7 +140,7 @@ async def test_a_child_that_has_not_ended_is_not_given(db, results):
 
     result = await runner.run(Parent, PARENT_INPUT)  # it waits for the child at the end
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     assert [len(results_in(messages)) for messages in model.seen] == [0, 0, 0, 0, 1]
 
 
@@ -182,8 +182,8 @@ async def test_background_message_for_a_result_that_is_gone_says_so(db, results)
 async def test_background_message_for_a_failed_a_cancelled_and_a_running_job(db, results):
     runner = runner_with(db, Scripted(script=[]), results=results)
     failed = await db.create_job("child", job_hash="h", input_hash="i")
-    await db.set_job_status(failed, RunStatus.RUNNING)
-    await db.set_job_status(failed, RunStatus.FAILED, error_type="ValueError", error_hash="e" * 64)
+    await db.set_job_status(failed, Status.RUNNING)
+    await db.set_job_status(failed, Status.FAILED, error_type="ValueError", error_hash="e" * 64)
     cancelled = await db.create_job("child", job_hash="h", input_hash="i")
     assert await db.cancel_queued_job(cancelled)
     waiting = await db.create_job("child", job_hash="h", input_hash="i")
@@ -207,7 +207,7 @@ async def test_a_run_that_is_not_a_chat_waits_for_its_child_and_goes_on_with_the
 
     result = await asyncio.wait_for(runner.run(Parent, PARENT_INPUT), timeout=20)
 
-    assert result.status == RunStatus.SUCCESS and model.calls == 3
+    assert result.status == Status.SUCCESS and model.calls == 3
     assert (
         result.output is not None and result.output.answer == "with the result"
     )  # the answer that came after the result
@@ -236,7 +236,7 @@ async def test_a_run_waits_for_every_child_it_started(db, results):
 
     result = await runner.run(Parent, PARENT_INPUT)
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     given = [text for messages in model.seen for text in results_in(messages)]
     assert len(set(given)) == 2  # both were given, and neither twice to the same call
     assert (await db.list_job_events(json.loads(tool_results(model)[0])["job_id"]))[-1].type == "succeeded"

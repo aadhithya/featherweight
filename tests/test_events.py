@@ -11,7 +11,7 @@ from fakes import run_pipeline
 from featherweight import sse
 from featherweight.db import JobEvent
 from featherweight.events import hub_for, job_events, wait_for_job
-from featherweight.models import RunStatus
+from featherweight.models import Status
 from featherweight.postgres import PostgresDatabase
 from featherweight.sqlite import SqliteDatabase
 
@@ -51,16 +51,16 @@ async def take(stream, n: int, timeout: float = 2.0) -> list[JobEvent]:
 async def test_every_status_change_makes_exactly_one_event_whoever_makes_it(any_db):
     db = any_db
     job = await db.create_job("p")
-    await db.set_job_status(job, RunStatus.RUNNING)
+    await db.set_job_status(job, Status.RUNNING)
     await db.request_job_cancel(job)
-    await db.set_job_status(job, RunStatus.CANCELLED)
+    await db.set_job_status(job, Status.CANCELLED)
     failed = await db.create_job("p")
-    await db.set_job_status(failed, RunStatus.FAILED, error_type="ValueError", error_hash="a" * 64)
+    await db.set_job_status(failed, Status.FAILED, error_type="ValueError", error_hash="a" * 64)
 
     assert types(await db.list_job_events(job)) == ["queued", "running", "cancel_requested", "cancelled"]
     events = await db.list_job_events(failed)
     assert types(events) == ["queued", "failed"]
-    assert (events[1].status, events[1].error_type, events[1].error_hash) == (RunStatus.FAILED, "ValueError", "a" * 64)
+    assert (events[1].status, events[1].error_type, events[1].error_hash) == (Status.FAILED, "ValueError", "a" * 64)
 
 
 async def test_run_job_makes_the_events_of_its_statuses(any_db):
@@ -104,7 +104,7 @@ async def test_the_event_and_the_status_are_written_together_or_not_at_all(any_d
 
     monkeypatch.setattr(type(db), "_write_event", refuse)
     with pytest.raises(RuntimeError, match="cannot be written"):
-        await db.set_job_status(job, RunStatus.RUNNING)
+        await db.set_job_status(job, Status.RUNNING)
     with pytest.raises(RuntimeError, match="cannot be written"):
         await db.request_job_cancel(job)
     with pytest.raises(RuntimeError, match="cannot be written"):
@@ -112,7 +112,7 @@ async def test_the_event_and_the_status_are_written_together_or_not_at_all(any_d
     monkeypatch.undo()
 
     row = await db.get_job(job)
-    assert row is not None and row.status is RunStatus.INIT and row.cancel_requested is False  # neither changed
+    assert row is not None and row.status is Status.INIT and row.cancel_requested is False  # neither changed
     assert await db.get_job("never") is None  # nor was the new job written
     assert types(await db.list_job_events(job)) == ["queued"]
 
@@ -123,8 +123,8 @@ async def test_the_event_and_the_status_are_written_together_or_not_at_all(any_d
 async def test_a_late_listener_replays_what_it_missed_and_the_stream_ends_at_the_final_event(any_db):
     db = any_db
     job = await db.create_job("p")
-    await db.set_job_status(job, RunStatus.RUNNING)
-    await db.set_job_status(job, RunStatus.SUCCESS)
+    await db.set_job_status(job, Status.RUNNING)
+    await db.set_job_status(job, Status.SUCCESS)
 
     events = [e async for e in job_events(db, job)]
     assert types(events) == ["queued", "running", "succeeded"]
@@ -143,12 +143,12 @@ async def _collect(stream):
 async def test_a_listener_that_starts_midway_misses_nothing_and_gets_nothing_twice(any_db):
     db = any_db
     job = await db.create_job("p")
-    await db.set_job_status(job, RunStatus.RUNNING)
+    await db.set_job_status(job, Status.RUNNING)
     stream = job_events(db, job)
     first = await take(stream, 2)  # the stored ones
     assert types(first) == ["queued", "running"]
 
-    await db.set_job_status(job, RunStatus.SUCCESS)
+    await db.set_job_status(job, Status.SUCCESS)
     last = await take(stream, 1)
     assert types(last) == ["succeeded"]
     with pytest.raises(StopAsyncIteration):
@@ -169,7 +169,7 @@ async def test_a_listener_in_the_same_process_hears_at_commit_with_no_polling(an
     assert types(await take(stream, 1)) == ["queued"]
     waiting = asyncio.create_task(anext(stream))
     await asyncio.sleep(0)  # let the stream start to wait
-    await db.set_job_status(job, RunStatus.RUNNING)
+    await db.set_job_status(job, Status.RUNNING)
     assert (await asyncio.wait_for(waiting, 0.5)).type == "running"
     await stream.aclose()
 
@@ -182,9 +182,9 @@ async def test_a_listener_in_another_process_hears_through_the_one_reader(tmp_pa
         assert types(await take(stream, 1)) == ["queued"]
         waiting = asyncio.create_task(anext(stream))
         await asyncio.sleep(0.01)
-        await writer.set_job_status(job, RunStatus.RUNNING)  # the reader's own database was not told
+        await writer.set_job_status(job, Status.RUNNING)  # the reader's own database was not told
         assert (await asyncio.wait_for(waiting, 3)).type == "running"
-        await writer.set_job_status(job, RunStatus.SUCCESS)
+        await writer.set_job_status(job, Status.SUCCESS)
         assert types(await take(stream, 1)) == ["succeeded"]
         assert hub_for(reader).polls >= 1
 
@@ -211,7 +211,7 @@ async def test_one_reader_serves_many_streams(tmp_path):
         await asyncio.sleep(0.6)
         assert calls - before < 15, "one reader polls once for every stream, not once per stream"
         for job in jobs:
-            await writer.set_job_status(job, RunStatus.RUNNING)
+            await writer.set_job_status(job, Status.RUNNING)
         got = await asyncio.wait_for(asyncio.gather(*waiting), 5)
         assert {e.type for e in got} == {"running"} and {e.job_id for e in got} == set(jobs)
         for stream in streams:
@@ -246,11 +246,11 @@ async def test_wait_for_job_returns_a_final_job_and_waits_for_one_that_is_not(an
     waiting = asyncio.create_task(wait_for_job(db, job, timeout=5))
     await asyncio.sleep(0.01)
     assert not waiting.done()
-    await db.set_job_status(job, RunStatus.RUNNING)
-    await db.set_job_status(job, RunStatus.FAILED, error_type="X", error_hash="b" * 64)
+    await db.set_job_status(job, Status.RUNNING)
+    await db.set_job_status(job, Status.FAILED, error_type="X", error_hash="b" * 64)
     row = await asyncio.wait_for(waiting, 5)
-    assert row.status is RunStatus.FAILED and row.error_type == "X"
-    assert (await wait_for_job(db, job)).status is RunStatus.FAILED  # already final: no waiting
+    assert row.status is Status.FAILED and row.error_type == "X"
+    assert (await wait_for_job(db, job)).status is Status.FAILED  # already final: no waiting
 
 
 async def test_wait_for_job_times_out_and_refuses_a_job_that_does_not_exist(any_db):
@@ -266,7 +266,7 @@ async def test_wait_for_job_times_out_and_refuses_a_job_that_does_not_exist(any_
 # SSE
 
 
-def event(seq=12, type="running", status=RunStatus.RUNNING, **fields) -> JobEvent:
+def event(seq=12, type="running", status=Status.RUNNING, **fields) -> JobEvent:
     return JobEvent(
         seq=seq, job_id="job-1", type=type, status=status, at=datetime(2026, 11, 20, 10, 0, 1, tzinfo=UTC), **fields
     )
@@ -278,7 +278,7 @@ def test_an_event_is_sse_byte_for_byte():
         'data: {"seq":12,"job_id":"job-1","type":"running","status":"RUNNING","error_type":null,"error_hash":null,'
         '"at":"2026-11-20T10:00:01Z"}\n\n'
     )
-    failed = event(13, "failed", RunStatus.FAILED, error_type="ValueError", error_hash="c" * 64)
+    failed = event(13, "failed", Status.FAILED, error_type="ValueError", error_hash="c" * 64)
     assert '"error_type":"ValueError","error_hash":"' + "c" * 64 + '"' in sse.format_event(failed)
 
 
@@ -299,7 +299,7 @@ async def source(items, pause=0.0):
 
 
 async def test_the_stream_is_encoded_and_ends_when_the_events_end():
-    out = [piece async for piece in sse.encode(source([event(1, "queued", RunStatus.INIT), event(2)]))]
+    out = [piece async for piece in sse.encode(source([event(1, "queued", Status.INIT), event(2)]))]
     assert [p.split("\n")[0] for p in out] == ["id: 1", "id: 2"]
 
 
@@ -328,8 +328,8 @@ async def test_the_source_is_closed_when_the_consumer_stops():
 async def test_a_job_followed_over_sse_resumes_from_last_event_id(any_db):
     db = any_db
     job = await db.create_job("p")
-    await db.set_job_status(job, RunStatus.RUNNING)
-    await db.set_job_status(job, RunStatus.SUCCESS)
+    await db.set_job_status(job, Status.RUNNING)
+    await db.set_job_status(job, Status.SUCCESS)
     everything = [p async for p in sse.encode(job_events(db, job))]
     assert [p.split("\n")[1] for p in everything] == ["event: queued", "event: running", "event: succeeded"]
     last_event_id = int(everything[0].split("\n")[0].removeprefix("id: "))  # the browser had the first

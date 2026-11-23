@@ -57,7 +57,7 @@ class Observer(ABC):
 
     def job(self, start: JobStart) -> AbstractAsyncContextManager[Scope]: ...
     def attempt(self, start: AttemptStart) -> AbstractAsyncContextManager[Scope]: ...
-    async def reused(self, run: ReusedRun) -> None: ...
+    async def reused(self, run: RunReused) -> None: ...
     async def model_call_started(self, call: ModelCallStart) -> None: ...
     async def model_call_finished(self, call: ModelCallEnd) -> None: ...
     async def tool_call_started(self, call: ToolCallStart) -> None: ...
@@ -83,19 +83,19 @@ class Observer(ABC):
 
 ## What an observer sees
 
-Records are frozen Pydantic models, as everywhere. Always present (metadata): ids (`job_id`, `agent_run_id`,
-`invocation_id`, `parent_agent_run_id`), names and versions, hashes, `attempt` and `max_attempts`, the provider and model,
+Records are frozen Pydantic models, as everywhere. Always present (metadata): ids (`job_id`, `attempt_id`,
+`run_id`, `parent_attempt_id`), names and versions, hashes, `attempt` and `max_attempts`, the provider and model,
 tokens, timing, status, and the **error type** (never the text). Only for an observer with `capture_content = True`:
 the job input and output, the agent input and output, messages, system instructions, tool definitions, tool arguments and
 results, and error text.
 
 - **A job** (`JobStart`/`JobEnd`): `job_id`, `name`, `version`, `job_hash`, `input_hash`, `resumable`, `resumed_from`, and the
   trace carrier that came with the message (see [OpenTelemetry](#opentelemetry)); at the end: status, error type.
-- **An attempt**: one per row of `agent_runs`. Agent name, version, description and hash, `invocation_id`, `attempt`,
-  `parent_agent_run_id` (the agent that launched it), `parent_tool_call_id` (the tool call that launched it), `depth`, provider, model, whether it is a streaming run; at the end: status, tokens, `final` (the
+- **An attempt**: one per row of `attempts`. Agent name, version, description and hash, `run_id`, `attempt`,
+  `parent_attempt_id` (the agent that launched it), `parent_tool_call_id` (the tool call that launched it), `depth`, provider, model, whether it is a streaming run; at the end: status, tokens, `final` (the
   attempt succeeded, or it was the last one allowed), error type.
-- **A reused step** (`ReusedRun`): a step of a resumed job that was answered from the result store, with
-  `reused_from_agent_run_id` and the `resumed_from` job. It is not an attempt, and has no model calls.
+- **A reused step** (`RunReused`): a step of a resumed job that was answered from the result store, with
+  `reused_from_attempt_id` and the `resumed_from` job. It is not an attempt, and has no model calls.
 - **A model call**: provider, model, the model the API reported, the finish reasons, input and output tokens, duration; with content: the messages.
 - **A tool call**: tool name and call id (the id the model gave it; the OpenTelemetry tool type is always `function`); with content: arguments and result. A tool that launches an agent (the runner's
   launch tools) has the launched agent's attempt as its child.
@@ -119,8 +119,8 @@ application.
 
 - **Nesting:** a job holds the attempts of its pipeline; an attempt holds its model calls and tool calls; a tool that launches
   an agent holds that agent's attempt. The parent of an attempt comes from the tool call that launched it
-  (`parent_tool_call_id`) or else from `parent_agent_run_id`, and not only from the current span, because a launched agent runs
-  in another task. Retries are siblings that share `ftw.invocation.id`. The job of a [background job](background-jobs.md#events) is under the tool call that started it: the `submitted` hook is told the tool call (`JobSubmitted.parent_agent_run_id` and `parent_tool_call_id`, which are for observers and stored nowhere), and `OTelObserver` gives the carrier of that call's span.
+  (`parent_tool_call_id`) or else from `parent_attempt_id`, and not only from the current span, because a launched agent runs
+  in another task. Retries are siblings that share `ftw.run.id`. The job of a [background job](background-jobs.md#events) is under the tool call that started it: the `submitted` hook is told the tool call (`JobSubmitted.parent_attempt_id` and `parent_tool_call_id`, which are for observers and stored nowhere), and `OTelObserver` gives the carrier of that call's span.
 - **Attributes from the conventions:** `gen_ai.operation.name` (`invoke_workflow`, `invoke_agent`, `chat`, `execute_tool`),
   `gen_ai.agent.name` (an agent's name, and a job's name: the conventions call it the name of "the GenAI agent or workflow"),
   `gen_ai.agent.version`, `gen_ai.agent.description`, `gen_ai.request.model`, `gen_ai.tool.name`, `gen_ai.tool.call.id`,
@@ -137,9 +137,9 @@ application.
   conventions' own switch, `OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT`: `NO_CONTENT` (the default) or `SPAN_ONLY` are
   supported; the values that send content as events are not, and are logged and treated as `NO_CONTENT`.
 - **Ours, in the `ftw.` namespace:** `ftw.job.id`, `ftw.job.name`, `ftw.job.version`, `ftw.job.hash`, `ftw.job.execution` (1 for the first execution of the job, one more for each takeover: [several workers](submitted-jobs.md#several-workers)), `ftw.agent.hash`,
-  `ftw.run.id` (the `agent_run_id`), `ftw.invocation.id`, `ftw.attempt` and `ftw.attempts` (the number, and how many are
+  `ftw.attempt.id` (the `attempt_id`), `ftw.run.id`, `ftw.attempt` and `ftw.attempts` (the number, and how many are
   allowed), `ftw.attempt.final`, `ftw.tokens.input` and `ftw.tokens.output` (the attempt's totals), `ftw.reused`,
-  `ftw.reused_from_agent_run_id`, `ftw.resumed_from`.
+  `ftw.reused_from_attempt_id`, `ftw.resumed_from`.
 - **A rejected attempt** ends its span with an error status and `error.type` (the exception type, for example the type
   that `check_output` raised). The attempt that counted has `ftw.attempt.final = true`.
 - **A reused step** is a span with no model-call children and `ftw.reused = true`, with the ids that say where it came from.

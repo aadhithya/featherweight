@@ -197,12 +197,12 @@ async def test_the_run_log_holds_no_byte_of_the_attachment(db):
     run = runner_with(db, Streams(turns=[["It is a cat"]])).stream(Chat, attachment_input())
     await collect(run)
 
-    row = await db.get_run(run.run_id)
+    row = await db.get_attempt(run.attempt_id)
     assert row.input_hash  # the hash is there, the content is not
     dumped = ""
     async with db.conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'") as cursor:
         tables = [r[0] for r in await cursor.fetchall()]
-    assert "agent_runs" in tables
+    assert "attempts" in tables
     for table in tables:
         async with db.conn.execute(f'SELECT * FROM "{table}"') as cursor:  # noqa: S608  # our own table names
             dumped += " ".join(str(tuple(r)) for r in await cursor.fetchall())

@@ -4,7 +4,7 @@ import asyncio
 from pathlib import Path
 from typing import ClassVar, Literal
 
-from featherweight import AgentBase, AgentInput, AgentOutput, AgentRunner, RunStatus, SqliteDatabase, default_db_path
+from featherweight import AgentBase, AgentInput, AgentOutput, AgentRunner, SqliteDatabase, Status, default_db_path
 
 
 class Report(AgentInput):  # what goes in: a typed model, checked before the model is called
@@ -37,7 +37,7 @@ async def main() -> None:
     async with SqliteDatabase(default_db_path()) as db:  # the run log: a sqlite file, /data/book.db in the container
         # the class, not an instance: the runner builds the agent
         result = await AgentRunner(db).run(IncidentSummariser, report)
-    if result.status == RunStatus.SUCCESS:
+    if result.status == Status.SUCCESS:
         print(result.output)
     else:
         print("failed:", result.error)  # a failed run is a value, not an exception

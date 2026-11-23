@@ -11,7 +11,7 @@ from test_streaming import Chat, say
 
 from featherweight.errors import SetupError
 from featherweight.fingerprint import agent_hash, input_hash
-from featherweight.models import RunStatus
+from featherweight.models import Status
 from featherweight.results import ResultKey, ResultStore, SqliteResultStore
 from featherweight.sqlite import SqliteDatabase
 from featherweight.testing import MemoryResultStore, check_result_store
@@ -121,9 +121,9 @@ async def test_nothing_is_kept_for_a_job_that_is_not_resumable(db):
 
 async def test_nothing_is_kept_for_a_run_with_no_job_or_a_failure(db):
     runner = runner_with(db, model(broken={"bad"}), max_attempts=1)
-    assert (await runner.run(Echo, EchoInput(text="a"))).status is RunStatus.SUCCESS
+    assert (await runner.run(Echo, EchoInput(text="a"))).status is Status.SUCCESS
     job = await db.create_job("p", resumable=True)
-    assert (await runner.run(Echo, EchoInput(text="bad"), job_id=job)).status is RunStatus.FAILED
+    assert (await runner.run(Echo, EchoInput(text="bad"), job_id=job)).status is Status.FAILED
     assert await kept(db) == []
 
 
@@ -147,7 +147,7 @@ async def test_nothing_is_kept_for_a_launched_agent_or_a_streaming_run(db):
 async def test_a_runner_with_no_store_runs_normally_and_keeps_nothing(db):
     runner = runner_with(db, model(), max_attempts=1, results=None)
     job = await db.create_job("p", resumable=True)
-    assert (await runner.run(Echo, EchoInput(text="a"), job_id=job)).status is RunStatus.SUCCESS
+    assert (await runner.run(Echo, EchoInput(text="a"), job_id=job)).status is Status.SUCCESS
     assert await kept(db) == []
 
 
@@ -164,9 +164,9 @@ async def test_a_reused_step_copies_its_result_to_the_new_job(db):
 async def test_a_chain_of_attempts_works_even_when_the_first_jobs_results_are_deleted(db):
     broken = model(broken={"b"})
     first = await run_steps(db, ["a", "b"], broken)
-    assert first.status is RunStatus.FAILED
+    assert first.status is Status.FAILED
     second = await run_steps(db, ["a", "b"], model(broken={"b"}), resume_from=first.job_id)  # a reused, b fails again
-    assert second.status is RunStatus.FAILED
+    assert second.status is Status.FAILED
 
     await SqliteResultStore(db).delete_job(first.job_id)  # the oldest job's results are gone
     ((job_id, text),) = await kept(db)
@@ -174,9 +174,9 @@ async def test_a_chain_of_attempts_works_even_when_the_first_jobs_results_are_de
 
     counting = model()
     third = await run_steps(db, ["a", "b"], counting, resume_from=second.job_id)
-    assert third.status is RunStatus.SUCCESS and texts(counting) == ["b"]  # only b ran
-    rows = await db.list_runs(job_id=third.job_id)
-    assert [bool(r.reused_from_agent_run_id) for r in rows] == [True, False]
+    assert third.status is Status.SUCCESS and texts(counting) == ["b"]  # only b ran
+    rows = await db.list_attempts(job_id=third.job_id)
+    assert [bool(r.reused_from_attempt_id) for r in rows] == [True, False]
 
 
 async def test_a_step_the_log_says_succeeded_but_the_store_lost_runs_again(db, caplog):
@@ -185,10 +185,10 @@ async def test_a_step_the_log_says_succeeded_but_the_store_lost_runs_again(db, c
     counting = model()
     with caplog.at_level(logging.WARNING, logger="featherweight"):
         outcome = await run_steps(db, "a", counting, resume_from=first.job_id)
-    assert outcome.status is RunStatus.SUCCESS and texts(counting) == ["a"]
+    assert outcome.status is Status.SUCCESS and texts(counting) == ["a"]
     assert "result_missing" in caplog.text
-    (row,) = await db.list_runs(job_id=outcome.job_id)
-    assert row.reused_from_agent_run_id is None
+    (row,) = await db.list_attempts(job_id=outcome.job_id)
+    assert row.reused_from_attempt_id is None
 
 
 async def test_a_store_that_fails_to_keep_does_not_fail_the_run(db, caplog):
@@ -200,7 +200,7 @@ async def test_a_store_that_fails_to_keep_does_not_fail_the_run(db, caplog):
     job = await db.create_job("p", resumable=True)
     with caplog.at_level(logging.WARNING, logger="featherweight"):
         result = await runner.run(Echo, EchoInput(text="a"), job_id=job)
-    assert result.status is RunStatus.SUCCESS
+    assert result.status is Status.SUCCESS
     assert "result_not_kept" in caplog.text and "disk full" in caplog.text
 
 

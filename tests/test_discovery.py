@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from featherweight.fingerprint import tools_hash
 from featherweight.mcp import StdioMCPServer
-from featherweight.models import RunStatus
+from featherweight.models import Status
 
 
 def finder(**kwargs) -> StdioMCPServer:
@@ -53,8 +53,8 @@ async def test_a_discovering_agent_is_bound_to_the_two_tools_only_and_the_prompt
     agent = worker(finder(description="Fake numbers and pictures"))
     result = await run_with(db, model, agent)
 
-    assert result.status == RunStatus.SUCCESS
-    (row,) = await db.list_runs()
+    assert result.status == Status.SUCCESS
+    (row,) = await db.list_attempts()
     assert row.tools_hash == tools_hash([], ["search_tools", "call_tool"])  # nothing of the server is bound
     assert model.bound == [
         ["search_tools", "call_tool", "EchoOutput"]
@@ -76,7 +76,7 @@ async def test_an_agent_that_opts_out_binds_the_tools_and_has_neither_discovery_
     model = Scripted(script=[done()])
     await run_with(db, model, worker(fake(tools=("add",))))
 
-    (row,) = await db.list_runs()
+    (row,) = await db.list_attempts()
     assert model.bound == [["fake_add", "EchoOutput"]]
     assert "search_tools" not in system_prompt(model)
 
@@ -86,7 +86,7 @@ async def test_one_agent_can_bind_one_server_and_search_another(db):
     agent = worker(fake(name="near", tools=("add",)), finder(name="far"), tools=())
     await run_with(db, model, agent)
 
-    (row,) = await db.list_runs()
+    (row,) = await db.list_attempts()
     assert model.bound == [["near_add", "search_tools", "call_tool", "EchoOutput"]]
     prompt = system_prompt(model)
     assert "- far" in prompt and "- near" not in prompt  # only the searched server is listed
@@ -161,7 +161,7 @@ async def test_a_found_tool_is_called_with_call_tool(db):
     model = Scripted(script=[search("add"), call("fake_add", {"a": 2, "b": 3}), done()])
     result = await run_with(db, model, worker(finder()))
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     assert texts(model)[1] == "5"
 
 
@@ -175,7 +175,7 @@ async def test_a_call_that_does_not_fit_the_schema_returns_the_errors_and_the_sc
     model = Scripted(script=[call("fake_add", {"a": "x"}), done()])
     result = await run_with(db, model, worker(finder()))
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     (message,) = texts(model)
     assert "does not fit its schema" in message and "a: 'x' is not of type 'integer'" in message
     assert "b: 'b' is a required property" not in message and "'b' is a required property" in message
@@ -210,7 +210,7 @@ async def test_a_called_tool_keeps_the_timeout_the_cap_and_the_failure_as_text(d
     )
     result = await run_with(db, model, worker(finder(timeout_s=0.5, max_result_chars=100)))
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     timeout, big, boom = texts(model)
     assert "timed out after 0.5s" in timeout
     assert big.startswith("x" * 100) and "[truncated: 500 characters, showing the first 100]" in big
@@ -229,10 +229,10 @@ async def test_each_search_and_each_call_is_logged(db, caplog):
     caplog.set_level(logging.INFO)
     model = Scripted(script=[search("add"), call("fake_add", {"a": 1, "b": 1}), call("fake_add", "{", "c2"), done()])
     await run_with(db, model, worker(finder()))
-    (row,) = await db.list_runs()
+    (row,) = await db.list_attempts()
 
     log = caplog.text
-    assert f"tool_search agent_run_id={row.agent_run_id} keywords=['add'] hits=" in log
-    assert f"tool_call_via_search agent_run_id={row.agent_run_id} tool=fake_add status=ok" in log
+    assert f"tool_search attempt_id={row.attempt_id} keywords=['add'] hits=" in log
+    assert f"tool_call_via_search attempt_id={row.attempt_id} tool=fake_add status=ok" in log
     assert "tool_call_via_search" in log and "status=invalid" in log
     assert "mcp_call" in log  # the wrapper's own line, as for a direct call

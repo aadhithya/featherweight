@@ -1,13 +1,13 @@
 """Command line: from a folder of example documents to a new document, in one run.
 
-    python -m doclearn.cli FOLDER --category NAME [--fill manual|auto] [--out-dir runs] [-v]
+    python -m doclearn.cli FOLDER --category NAME [--fill manual|auto] [--out-dir out] [-v]
 
 It learns the template from the documents, shows what it learned (the tree, the template, the inputs, and how well the
 documents conform to the tree), then fills the form: `manual` opens the inputs in your editor (`$VISUAL`/`$EDITOR`; with
 none set it prints the path and waits for you to edit the file), `auto` has an agent invent a case and a story, which you
 can then accept, edit or redo. Last it generates the document. Without `--fill` it asks.
 
-The terminal shows high-level progress only; `-v` also shows every log line. Everything is saved in a run folder
+The terminal shows high-level progress only; `-v` also shows every log line. Everything is saved in an output folder
 `<out-dir>/<time>_<category>/`: the log, the learned tree, template, inputs and conformance (`learned/`), the form
 (`facts.json`), the story (`story.txt`), the document (`generated.md`) and what the terminal showed (`summary.md`).
 Needs GOOGLE_API_KEY in the environment. Results are also in the database (`FTW_DB_PATH`, default featherweight.db);
@@ -35,10 +35,10 @@ from doclearn.models import Document, FactsSchema, FieldValue
 from doclearn.pipeline import LearningResult, learn_document_tree
 from doclearn.report import GUIDANCE_KEY, form_file_content, overview, write_learned_files
 from doclearn.store import LearnedDocument, LearnedStore
-from featherweight import AgentRunner, JobContext, RunStatus, SqliteDatabase, default_db_path, job, run_job
+from featherweight import AgentRunner, JobContext, SqliteDatabase, Status, default_db_path, job, run_job
 
 DONE, FAILED, STOPPED = 0, 1, 2
-DEFAULT_OUT_DIR = "runs"
+DEFAULT_OUT_DIR = "out"
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s %(message)s"
 LOG_HANDLER_FLAG = "_doclearn_cli_handler"
 
@@ -123,17 +123,17 @@ def form_problems(schema: FactsSchema, facts: Mapping[str, str]) -> list[str]:
     return check_form(schema.fields, [FieldValue(name=n, value=v) for n, v in facts.items()])
 
 
-def make_run_dir(out_dir: Path, category: str, now: datetime | None = None) -> Path:
+def make_output_dir(out_dir: Path, category: str, now: datetime | None = None) -> Path:
     stamp = (now or datetime.now()).strftime("%Y%m%d-%H%M%S")
     folder = Path(out_dir) / f"{stamp}_{category}"
     folder.mkdir(parents=True, exist_ok=False)
     return folder
 
 
-def setup_run_logging(run_dir: Path, verbose: bool) -> Callable[[], None]:
-    """Log everything of `featherweight` and `doclearn` to `run.log`, and to the terminal too if `verbose`. Returns the function
+def setup_logging(output_dir: Path, verbose: bool) -> Callable[[], None]:
+    """Log everything of `featherweight` and `doclearn` to `doclearn.log`, and to the terminal too if `verbose`. Returns the function
     that removes the handlers again."""
-    handlers: list[logging.Handler] = [logging.FileHandler(run_dir / "run.log", encoding="utf-8")]
+    handlers: list[logging.Handler] = [logging.FileHandler(output_dir / "doclearn.log", encoding="utf-8")]
     if verbose:
         handlers.append(logging.StreamHandler(sys.stdout))
     loggers = [logging.getLogger("featherweight"), logging.getLogger("doclearn")]
@@ -183,7 +183,7 @@ async def learn(
     runner: AgentRunner, store: LearnedStore, documents: list[Document], category: str, console: Console
 ) -> tuple[LearnedDocument, LearningResult]:
     outcome = await run_job(runner, learn_job(store, console), LearnInput(documents=documents, category=category))
-    if outcome.status != RunStatus.SUCCESS or outcome.result is None:
+    if outcome.status != Status.SUCCESS or outcome.result is None:
         raise CliError(f"Learning failed: {outcome.error} (job {outcome.job_id}; the agent runs are in the database)")
     learned = await store.get(outcome.result.learned_id)
     assert learned is not None
@@ -253,7 +253,7 @@ async def auto_form(runner: AgentRunner, learned: LearnedDocument, console: Cons
     schema = learned.facts_schema
     while True:
         outcome = await run_job(runner, fill_job(console), FillInput(learned=learned))
-        if outcome.status != RunStatus.SUCCESS or outcome.result is None:
+        if outcome.status != Status.SUCCESS or outcome.result is None:
             raise CliError(f"Filling the form failed: {outcome.error} (job {outcome.job_id})")
         form = outcome.result
         while True:
@@ -273,7 +273,7 @@ async def generate(
     runner: AgentRunner, learned: LearnedDocument, form: FilledForm, console: Console
 ) -> GeneratedDocument:
     outcome = await run_job(runner, generate_job(console), GenerateInput(learned=learned, form=form))
-    if outcome.status != RunStatus.SUCCESS or outcome.result is None:
+    if outcome.status != Status.SUCCESS or outcome.result is None:
         raise CliError(f"Generation failed: {outcome.error} (job {outcome.job_id})")
     return outcome.result
 
@@ -307,12 +307,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("folder", type=Path, help="folder with the example documents (*.md)")
     parser.add_argument("--category", required=True, help="document category, e.g. project_proposals")
     parser.add_argument("--fill", choices=["manual", "auto"], help="how to fill the form; asked if not given")
-    parser.add_argument("--out-dir", type=Path, default=Path(DEFAULT_OUT_DIR), help="where the run folders go")
+    parser.add_argument("--out-dir", type=Path, default=Path(DEFAULT_OUT_DIR), help="where the output folders go")
     parser.add_argument("-v", "--verbose", action="store_true", help="also show every log line")
     return parser
 
 
-async def run(args: argparse.Namespace, console: Console, run_dir: Path) -> None:
+async def run(args: argparse.Namespace, console: Console, output_dir: Path) -> None:
     category = args.category
     documents = read_documents(args.folder)
     started = time.monotonic()
@@ -323,9 +323,9 @@ async def run(args: argparse.Namespace, console: Console, run_dir: Path) -> None
 
         learned, result = await learn(runner, store, documents, category, console)
         console.say(f"  ✓ Learned in {time.monotonic() - started:.0f}s\n")
-        write_learned_files(run_dir / "learned", learned, result)
+        write_learned_files(output_dir / "learned", learned, result)
         console.say(overview(learned, result))
-        console.say(f"\nSaved in {run_dir / 'learned'}\n")
+        console.say(f"\nSaved in {output_dir / 'learned'}\n")
 
         schema = learned.facts_schema
         mode = (
@@ -337,28 +337,28 @@ async def run(args: argparse.Namespace, console: Console, run_dir: Path) -> None
         )
         if mode == "q":
             raise Stopped
-        form_path = run_dir / "facts.json"
+        form_path = output_dir / "facts.json"
         if mode == "m":
             form = edit_form(console, form_path, schema, {}, "")
         else:
             form = await auto_form(runner, learned, console, form_path)
         form_path.write_text(form_file_content(schema, form.facts, form.story), encoding="utf-8")
-        (run_dir / "story.txt").write_text(form.story + "\n", encoding="utf-8")
+        (output_dir / "story.txt").write_text(form.story + "\n", encoding="utf-8")
 
         document = await generate(runner, learned, form, console)
-        report(console, document, run_dir / "generated.md")
-        console.say(f"\nRun folder: {run_dir}")
+        report(console, document, output_dir / "generated.md")
+        console.say(f"\nOutput folder: {output_dir}")
 
 
 def main(argv: Sequence[str] | None = None, console: Console | None = None) -> int:
     args = build_parser().parse_args(argv)
     console = console or Console()
-    run_dir: Path | None = None
+    output_dir: Path | None = None
     undo_logging = None
     try:
-        run_dir = make_run_dir(args.out_dir, args.category)
-        undo_logging = setup_run_logging(run_dir, args.verbose)
-        asyncio.run(run(args, console, run_dir))
+        output_dir = make_output_dir(args.out_dir, args.category)
+        undo_logging = setup_logging(output_dir, args.verbose)
+        asyncio.run(run(args, console, output_dir))
         return DONE
     except Stopped:
         console.say("Stopped before generating.")
@@ -369,8 +369,8 @@ def main(argv: Sequence[str] | None = None, console: Console | None = None) -> i
     finally:
         if undo_logging:
             undo_logging()
-        if run_dir is not None and console.said:
-            (run_dir / "summary.md").write_text("\n".join(console.said) + "\n", encoding="utf-8")
+        if output_dir is not None and console.said:
+            (output_dir / "summary.md").write_text("\n".join(console.said) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

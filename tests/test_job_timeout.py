@@ -10,7 +10,7 @@ from featherweight import JobWorker, job, run_job
 from featherweight.events import wait_for_job
 from featherweight.fingerprint import input_hash
 from featherweight.jobs import DEFAULT_JOB_TIMEOUT, Job, JobContext, as_job
-from featherweight.models import RunStatus
+from featherweight.models import Status
 from featherweight.queue import JobMessage
 from featherweight.testing import MemoryQueue, RecordingObserver
 
@@ -159,9 +159,9 @@ def test_the_timeout_is_not_part_of_the_job_hash():
 async def test_a_hung_job_fails_with_job_timeout_in_run_job(db):
     outcome = await run_job(runner(db), Hangs, In(text="hello"))
 
-    assert outcome.status is RunStatus.FAILED and "JobTimeout" in (outcome.error or "")
+    assert outcome.status is Status.FAILED and "JobTimeout" in (outcome.error or "")
     row = await db.get_job(outcome.job_id)
-    assert row is not None and row.status is RunStatus.FAILED
+    assert row is not None and row.status is Status.FAILED
     assert row.error_type == "JobTimeout" and row.error_hash is not None
     events = await db.list_job_events(outcome.job_id)
     assert [e.type for e in events] == ["queued", "running", "failed"]
@@ -171,20 +171,20 @@ async def test_a_hung_job_fails_with_job_timeout_in_run_job(db):
 async def test_a_job_that_finishes_in_time_is_unaffected(db):
     outcome = await run_job(runner(db), Quick, In(text="hi"))
 
-    assert outcome.status is RunStatus.SUCCESS and outcome.result == Out(shouted="HI")
+    assert outcome.status is Status.SUCCESS and outcome.result == Out(shouted="HI")
 
 
 async def test_no_timeout_never_times_out(db):
     outcome = await run_job(runner(db), Unlimited, In(text="hi"))
 
-    assert outcome.status is RunStatus.SUCCESS and outcome.result == Out(shouted="HI")
+    assert outcome.status is Status.SUCCESS and outcome.result == Out(shouted="HI")
 
 
 async def test_a_timeout_error_that_the_job_raises_itself_is_not_a_job_timeout(db):
     outcome = await run_job(runner(db), RaisesItsOwnTimeout, In(text="hi"))
 
     row = await db.get_job(outcome.job_id)
-    assert outcome.status is RunStatus.FAILED
+    assert outcome.status is Status.FAILED
     assert row is not None and row.error_type == "TimeoutError"
 
 
@@ -201,7 +201,7 @@ async def test_an_outside_cancellation_is_still_cancelled(db):
         await task
 
     row = await db.get_job(job_id)
-    assert row is not None and row.status is RunStatus.CANCELLED and row.error_type is None
+    assert row is not None and row.status is Status.CANCELLED and row.error_type is None
 
 
 async def test_the_observers_see_job_timeout(db):
@@ -210,7 +210,7 @@ async def test_the_observers_see_job_timeout(db):
     await run_job(runner(db, seen), Hangs, In(text="hello"))
 
     end = seen.records("job.finish")[0]
-    assert end.status is RunStatus.FAILED and end.error_type == "JobTimeout"
+    assert end.status is Status.FAILED and end.error_type == "JobTimeout"
 
 
 async def test_the_timeout_is_not_retried(db):
@@ -251,7 +251,7 @@ async def test_a_hung_job_fails_with_job_timeout_in_a_worker(db):
     job_id = await worker_runs(db, Hangs)
 
     row = await db.get_job(job_id)
-    assert row is not None and row.status is RunStatus.FAILED and row.error_type == "JobTimeout"
+    assert row is not None and row.status is Status.FAILED and row.error_type == "JobTimeout"
     assert [e.type for e in await db.list_job_events(job_id)] == ["queued", "running", "failed"]
 
 
@@ -259,15 +259,15 @@ async def test_a_job_in_a_worker_that_finishes_in_time_succeeds(db):
     job_id = await worker_runs(db, Quick)
 
     row = await db.get_job(job_id)
-    assert row is not None and row.status is RunStatus.SUCCESS
+    assert row is not None and row.status is Status.SUCCESS
 
 
 async def test_the_attempts_that_a_timeout_interrupts_end_cancelled(db):
     hanging = Reactive(respond=lambda text, call: structured_reply("EchoOutput", {"echoed": "x"}), delay_s=30)
     outcome = await run_job(runner_with(db, hanging), HangsInAnAgent, In(text="hello"))
 
-    assert outcome.status is RunStatus.FAILED
+    assert outcome.status is Status.FAILED
     row = await db.get_job(outcome.job_id)
     assert row is not None and row.error_type == "JobTimeout"
-    runs = await db.list_runs(job_id=outcome.job_id)
-    assert runs and all(r.status is RunStatus.CANCELLED for r in runs)
+    runs = await db.list_attempts(job_id=outcome.job_id)
+    assert runs and all(r.status is Status.CANCELLED for r in runs)

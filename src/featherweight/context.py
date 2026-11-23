@@ -16,7 +16,8 @@ class RunContext(Generic[IdentityT]):
     """What a tool can ask for with `runtime: ToolRuntime[RunContext[Teacher]]`: LangChain fills it in and hides it from the model."""
 
     job_id: str | None
-    agent_run_id: str  # the attempt that is running now
+    run_id: str  # the run that the tool is called in
+    attempt_id: str  # the attempt that is running now
     identity: IdentityT | None = None  # who the run is for, if the application gave one (docs/specs/identity.md)
 
 
@@ -27,13 +28,13 @@ CURRENT_IDENTITY: ContextVar[Any] = ContextVar("current_identity", default=None)
 
 # The attempt that is running in this task. Tools that are built once and shared by many attempts (the MCP tools) read
 # it to say, in the log, which attempt called them.
-CURRENT_AGENT_RUN_ID: ContextVar[str | None] = ContextVar("current_agent_run_id", default=None)
+CURRENT_ATTEMPT_ID: ContextVar[str | None] = ContextVar("current_attempt_id", default=None)
 
 # The job and the execution of it that this task runs, while a job runs (set by `execute_job`). A run records the execution that made it
 # from this, and not from the job's row: a worker that lost the job and has not noticed yet is still the execution it was.
 CURRENT_JOB_EXECUTION: ContextVar[tuple[str, int] | None] = ContextVar("current_job_execution", default=None)
 
-# True while a job that was started as a background job runs (set by `execute_job` from the job's `parent_agent_run_id`): what it
+# True while a job that was started as a background job runs (set by `execute_job` from the job's `parent_attempt_id`): what it
 # runs, inline sub-agents included, cannot start background jobs of its own.
 IN_BACKGROUND_JOB: ContextVar[bool] = ContextVar("in_background_job", default=False)
 

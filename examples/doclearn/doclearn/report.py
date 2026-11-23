@@ -2,7 +2,7 @@
 well the source documents conform to the tree. Pure functions from the learned objects to text, no model, no database.
 
 `describe_schema`, `describe_conformance` and `overview` take `full`: the terminal gets the short form, the files in
-the run folder the full one.
+the output folder the full one.
 """
 
 import json
@@ -120,7 +120,7 @@ def form_file_content(schema: FactsSchema, facts: Mapping[str, str] | None = Non
     return json.dumps(form, indent=2, ensure_ascii=False) + "\n"
 
 
-# the run folder
+# the output folder
 
 
 def write_learned_files(folder: Path, learned: LearnedDocument, result: LearningResult) -> None:

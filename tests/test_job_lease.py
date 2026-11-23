@@ -10,7 +10,7 @@ from featherweight import run_job
 from featherweight.db import JobLost, JobOwner
 from featherweight.fingerprint import input_hash
 from featherweight.jobs import Job, JobContext
-from featherweight.models import RunStatus
+from featherweight.models import Status
 from featherweight.queue import JobMessage
 from featherweight.testing import MemoryQueue, MemoryResultStore, RecordingObserver
 from featherweight.worker import JobWorker
@@ -72,7 +72,7 @@ async def until(condition, timeout=5.0):
 
 async def running(db, job_id):
     row = await db.get_job(job_id)
-    return row is not None and row.status is RunStatus.RUNNING
+    return row is not None and row.status is Status.RUNNING
 
 
 class Started:
@@ -101,7 +101,7 @@ async def test_a_job_that_a_worker_runs_has_its_worker_a_lease_and_one_execution
         row = await db.get_job(job_id)
         assert row.worker_id == "w1" and row.executions == 1 and row.lease_expires_at is not None
     row = await db.get_job(job_id)  # the worker stops: the job goes back to the queue, unowned
-    assert row.status is RunStatus.INIT and row.worker_id is None and row.lease_expires_at is None
+    assert row.status is Status.INIT and row.worker_id is None and row.lease_expires_at is None
     assert row.executions == 1, "going back to the queue keeps the count"
 
 
@@ -114,16 +114,13 @@ async def test_an_ended_job_has_no_lease_and_keeps_its_worker(db):
         await until(lambda: _final(db, job_id))
     row = await db.get_job(job_id)
     assert (
-        row.status is RunStatus.SUCCESS
-        and row.worker_id == "w1"
-        and row.lease_expires_at is None
-        and row.executions == 1
+        row.status is Status.SUCCESS and row.worker_id == "w1" and row.lease_expires_at is None and row.executions == 1
     )
 
 
 async def _final(db, job_id):
     row = await db.get_job(job_id)
-    return row is not None and row.status in (RunStatus.SUCCESS, RunStatus.FAILED, RunStatus.CANCELLED)
+    return row is not None and row.status in (Status.SUCCESS, Status.FAILED, Status.CANCELLED)
 
 
 async def test_a_job_run_in_process_has_an_owner_and_no_lease(db):
@@ -139,7 +136,7 @@ async def test_a_job_run_in_process_has_an_owner_and_no_lease(db):
     runner = runner_with(db, Reactive(respond=lambda *_: RuntimeError("no model"), delay_s=0))
     outcome = await run_job(runner, Quick, In(text="x"))
     row = await db.get_job(outcome.job_id)
-    assert outcome.status is RunStatus.SUCCESS
+    assert outcome.status is Status.SUCCESS
     assert row.worker_id.startswith("process-") and row.executions == 1 and row.lease_expires_at is None
 
 
@@ -158,11 +155,11 @@ async def test_the_heartbeat_keeps_a_job_longer_than_its_lease_and_its_message_a
         first = (await db.get_job(job_id)).lease_expires_at
         await asyncio.sleep(1.5)  # longer than the lease: without the heartbeat it would have expired
         row = await db.get_job(job_id)
-        assert row.status is RunStatus.RUNNING and row.lease_expires_at > first, "the job lease moved forward"
+        assert row.status is Status.RUNNING and row.lease_expires_at > first, "the job lease moved forward"
         assert await queue.receive(0.05) is None, "the message lease was extended too: nobody else is given the message"
         Hold.release["long"].set()
         await until(lambda: _final(db, job_id))
-    assert (await db.get_job(job_id)).status is RunStatus.SUCCESS
+    assert (await db.get_job(job_id)).status is Status.SUCCESS
     assert await queue.receive(0.4) is None, "acknowledged: it does not come back"
 
 
@@ -171,7 +168,7 @@ async def test_the_heartbeat_keeps_a_job_longer_than_its_lease_and_its_message_a
 
 async def take_over(db, job_id, new_worker="other"):
     """What a takeover will do, by hand: the job goes back to the queue and another worker starts it."""
-    await db.set_job_status(job_id, RunStatus.INIT)
+    await db.set_job_status(job_id, Status.INIT)
     assert await db.start_job(job_id, worker_id=new_worker, lease=60) is True
 
 
@@ -198,13 +195,13 @@ async def test_a_worker_that_lost_a_job_stops_it_and_writes_nothing_and_keeps_it
         await until(lambda: _final(db, kept))
 
         row = await db.get_job(lost)
-        assert row.status is RunStatus.RUNNING and row.worker_id == "other" and row.executions == 2, (
+        assert row.status is Status.RUNNING and row.worker_id == "other" and row.executions == 2, (
             "the new owner's row is untouched"
         )
         assert [e.type for e in await db.list_job_events(lost)] == ["queued", "running", "queued", "running"], (
             "the old worker wrote no event"
         )
-        assert (await db.get_job(kept)).status is RunStatus.SUCCESS, "the worker goes on with its other jobs"
+        assert (await db.get_job(kept)).status is Status.SUCCESS, "the worker goes on with its other jobs"
         assert (kept, 1) in acked and (lost, 1) not in acked, "the lost job's delivery was not acknowledged"
     ends = [end for end in observer.records("job.finish") if end.error_type == "JobLost"]
     assert len(ends) == 1, "the observers were told, for tracing: the job's scope ended with error type JobLost"
@@ -225,7 +222,7 @@ async def test_a_stalled_worker_that_wakes_up_after_a_takeover_writes_nothing_an
         Hold.release["slow"].set()  # the stalled job finishes
         await asyncio.sleep(0.3)
         row = await db.get_job(job_id)
-        assert row.status is RunStatus.RUNNING and row.worker_id == "other" and row.executions == 2
+        assert row.status is Status.RUNNING and row.worker_id == "other" and row.executions == 2
         assert [e.type for e in await db.list_job_events(job_id)] == ["queued", "running", "queued", "running"]
         key_hash = Hold.job_hash()
         from featherweight.results import ResultKey
@@ -240,10 +237,10 @@ async def test_every_conditional_write_is_refused_for_a_worker_that_does_not_own
     job_id = await db.create_job("lease")
     assert await db.start_job(job_id, worker_id="w1", lease=60)
     stale = JobOwner(worker_id="w1", executions=2)
-    for status in (RunStatus.SUCCESS, RunStatus.FAILED, RunStatus.CANCELLED, RunStatus.INIT):
+    for status in (Status.SUCCESS, Status.FAILED, Status.CANCELLED, Status.INIT):
         with pytest.raises(JobLost):
             await db.set_job_status(job_id, status, owner=stale)
-    assert (await db.get_job(job_id)).status is RunStatus.RUNNING
+    assert (await db.get_job(job_id)).status is Status.RUNNING
     assert await db.renew_job_leases("w1", {job_id: 2}, 60) == set()
 
 
@@ -253,7 +250,7 @@ async def test_a_requeued_job_is_started_again_as_the_next_execution(db):
     first = worker(db, queue, worker_id="w1")
     async with Started(first):
         await until(lambda: running(db, job_id))
-    assert (await db.get_job(job_id)).status is RunStatus.INIT  # the shutdown put it back
+    assert (await db.get_job(job_id)).status is Status.INIT  # the shutdown put it back
     async with Started(worker(db, queue, worker_id="w2")):
         await until(lambda: running(db, job_id))
         row = await db.get_job(job_id)

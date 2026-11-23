@@ -51,4 +51,4 @@ def test_a_whole_agent_can_be_written_with_the_alias_only():
         prompt: str = "Echo."
         model: ftw.ModelSettings = ftw.Claude(model="claude-haiku-5-5", effort="low", thinking="off")
 
-    assert Echo().model.provider == "anthropic" and ftw.RunStatus.SUCCESS.value == "SUCCESS"
+    assert Echo().model.provider == "anthropic" and ftw.Status.SUCCESS.value == "SUCCESS"

@@ -19,7 +19,7 @@ from featherweight.client import JobClient
 from featherweight.events import wait_for_job
 from featherweight.fingerprint import agent_hash
 from featherweight.model_settings import Gemini
-from featherweight.models import RunStatus
+from featherweight.models import Status
 from featherweight.queue import JobMessage, SqliteQueue
 from featherweight.testing import MemoryQueue, MemoryResultStore
 from featherweight.worker import JobWorker
@@ -117,7 +117,7 @@ async def test_one_agent_with_the_skills_of_each_department(db, monkeypatch):
     ns: dict[str, Any] = {"rows_of": lambda dept: rows[dept], "runner": runner}
     # the block ends with a run for the law department; the biology one is built the same way
     await run_block(block, ns)
-    assert ns["result"].status == RunStatus.SUCCESS
+    assert ns["result"].status == Status.SUCCESS
     bio = ns["for_department"]([Skill.from_markdown(rows["bio"][0]["skill_md"])])
     law = ns["law"]
     assert agent_hash(law()) != agent_hash(bio())  # two departments are two agents
@@ -152,7 +152,7 @@ async def test_agents_are_built_from_json_with_the_rules_of_the_builder(db, monk
     await run_block(build_block, ns)
 
     result = ns["result"]
-    assert result.status == RunStatus.SUCCESS and result.output.summary == "three"
+    assert result.status == Status.SUCCESS and result.output.summary == "three"
     build = ns["build"]
     agent = ns["Summariser"]()
     assert [s.name for s in agent.skills] == ["meeting-notes"] and [t.name for t in agent.tools] == ["word_count"]
@@ -189,7 +189,7 @@ async def test_agents_are_built_from_json_with_the_rules_of_the_builder(db, monk
     finally:
         await worker.stop(grace=1)
         await asyncio.wait_for(task, timeout=5)
-    assert row.status is RunStatus.SUCCESS  # the worker had `jobs=[]`: the lookup built the agent
+    assert row.status is Status.SUCCESS  # the worker had `jobs=[]`: the lookup built the agent
 
 
 # a queue that signs its messages
@@ -274,7 +274,7 @@ async def test_the_signing_queue_runs_a_job_for_a_client_and_a_worker_that_share
     finally:
         await worker.stop(grace=1)
         await asyncio.wait_for(task, timeout=5)
-    assert row.status is RunStatus.SUCCESS
+    assert row.status is Status.SUCCESS
 
 
 # a tool that gets a token for its identity
@@ -349,7 +349,7 @@ async def run_the_tool(db, monkeypatch, user_id: str, allowed: set[str]):
 async def test_the_tool_checks_the_identity_and_gets_a_token_at_each_call(db, monkeypatch):
     result, tokens, sent, texts = await run_the_tool(db, monkeypatch, "u1", {"u1"})
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     assert tokens.asked == [("u1", "mail.send"), ("u1", "mail.send")]  # at each call, for this user
     assert sent == [("token-for-u1", "a@x"), ("token-for-u1", "b@x")]
     assert texts == ["Sent.", "Sent."]
@@ -360,6 +360,6 @@ async def test_the_tool_refuses_in_text_when_the_user_may_not_and_asks_for_no_to
         db, monkeypatch, "u1", set()
     )  # the role was revoked since the job started
 
-    assert result.status == RunStatus.SUCCESS  # the run goes on
+    assert result.status == Status.SUCCESS  # the run goes on
     assert tokens.asked == [] and sent == []
     assert texts == ["Not allowed.", "Not allowed."]

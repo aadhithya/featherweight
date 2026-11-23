@@ -5,18 +5,18 @@ import asyncio
 import pytest
 from pydantic import ValidationError
 
-from featherweight.db import RunEnd, RunStart, default_db_path, new_id
-from featherweight.models import RunStatus
+from featherweight.db import AttemptFinish, AttemptRecord, default_db_path, new_id
+from featherweight.models import Status
 from featherweight.sqlite import SqliteDatabase
 from featherweight.testing import check_database
 
 HASH = "a" * 64
 
 
-def start(**changes) -> RunStart:
+def start(**changes) -> AttemptRecord:
     fields = dict(
-        agent_run_id=new_id(),
-        invocation_id="inv-1",
+        attempt_id=new_id(),
+        run_id="inv-1",
         attempt=1,
         agent_name="echo",
         agent_version="0.1.0",
@@ -29,7 +29,7 @@ def start(**changes) -> RunStart:
         settings={"model": "fake-model"},
         input_hash=HASH,
     )
-    return RunStart(**{**fields, **changes})
+    return AttemptRecord(**{**fields, **changes})
 
 
 async def test_the_sqlite_database_follows_the_contract(tmp_path):
@@ -40,10 +40,10 @@ async def test_data_survives_reopen(tmp_path):
     path = tmp_path / "persist.db"
     async with SqliteDatabase(path) as db1:
         job_id = await db1.create_job("learn")
-        run_id = await db1.create_run(start(job_id=job_id))
+        run_id = await db1.create_attempt(start(job_id=job_id))
     async with SqliteDatabase(path) as db2:
         job = await db2.get_job(job_id)
-        run = await db2.get_run(run_id)
+        run = await db2.get_attempt(run_id)
         assert job is not None and job.name == "learn"
         assert run is not None and run.agent_name == "echo"
 
@@ -86,13 +86,13 @@ async def test_foreign_keys_are_on(db):
     async with db.conn.execute("PRAGMA foreign_keys") as cur:
         assert (await cur.fetchone())[0] == 1
     with pytest.raises(Exception, match="FOREIGN KEY"):
-        await db.create_run(start(job_id="missing"))
+        await db.create_attempt(start(job_id="missing"))
 
 
-@pytest.mark.parametrize("status", [RunStatus.INIT, RunStatus.RUNNING])
+@pytest.mark.parametrize("status", [Status.INIT, Status.RUNNING])
 def test_a_run_ends_in_a_terminal_status(status):
     with pytest.raises(ValidationError, match="SUCCESS, FAILED or CANCELLED"):
-        RunEnd(status=status)
+        AttemptFinish(status=status)
 
 
 async def test_a_job_that_resumes_another_is_resumable_and_points_to_it(db):
@@ -111,9 +111,9 @@ async def test_a_write_that_fails_does_not_roll_back_the_writes_in_flight_beside
 
         async def fails() -> None:
             with pytest.raises(Exception, match="FOREIGN KEY"):
-                await db.create_run(_run("no-such-job", "bad"))
+                await db.create_attempt(_run("no-such-job", "bad"))
 
-        await asyncio.gather(*(fails() for _ in range(10)), db.set_job_status(job, RunStatus.RUNNING))
+        await asyncio.gather(*(fails() for _ in range(10)), db.set_job_status(job, Status.RUNNING))
         row = await db.get_job(job)
-        assert row is not None and row.status is RunStatus.RUNNING
+        assert row is not None and row.status is Status.RUNNING
         assert [e.type for e in await db.list_job_events(job)] == ["queued", "running"]

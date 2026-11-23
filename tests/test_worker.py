@@ -12,7 +12,7 @@ from featherweight.db import Database
 from featherweight.events import wait_for_job
 from featherweight.fingerprint import error_fields, input_hash
 from featherweight.jobs import Job, JobContext
-from featherweight.models import RunStatus
+from featherweight.models import Status
 from featherweight.queue import JobMessage, JobQueue, SqliteQueue
 from featherweight.results import ResultKey, SqliteResultStore
 from featherweight.sqlite import SqliteDatabase
@@ -146,7 +146,7 @@ async def test_a_job_runs_its_output_is_kept_and_its_message_is_gone(db, queue):
     async with Running(make(db, queue, [Shout], results=store)):
         row = await final(db, job_id)
 
-    assert row.status is RunStatus.SUCCESS and row.started_at is not None and row.completed_at is not None
+    assert row.status is Status.SUCCESS and row.started_at is not None and row.completed_at is not None
     key = ResultKey(job_id=job_id, agent_hash=Shout.job_hash(), input_hash=input_hash(In(text="hello")))
     assert await store.get(key) == {"shouted": "HELLO"}
     assert [e.type for e in await db.list_job_events(job_id)] == ["queued", "running", "succeeded"]
@@ -171,10 +171,10 @@ async def test_a_failed_job_is_failed_with_a_type_and_a_hash_and_is_not_retried(
             row = await final(db, job_id)
             await asyncio.sleep(0.2)  # a retry would show up now
 
-    assert row.status is RunStatus.FAILED
+    assert row.status is Status.FAILED
     assert (row.error_type, row.error_hash) == error_fields(RuntimeError("secret failure about pw"))
     assert "secret failure about pw" in caplog.text  # the text is in the log, not the run log
-    assert (await db.get_job(job_id)).status is RunStatus.FAILED
+    assert (await db.get_job(job_id)).status is Status.FAILED
     assert [e.type for e in await db.list_job_events(job_id)] == ["queued", "running", "failed"]
     assert await queue.receive(0.05) is None and store._results == {}
 
@@ -193,8 +193,8 @@ async def test_an_agent_can_be_run_as_a_job(db, queue):
     await queue.enqueue(JobMessage(job_id=job_id, job_name="echo", input={"text": "a"}))
     async with Running(make(db, queue, [Echo], runner=runner, results=store)):
         row = await final(db, job_id)
-    assert row.status is RunStatus.SUCCESS and as_job(Echo).name == "echo"
-    assert (await db.list_runs(job_id=job_id))[0].job_id == job_id  # the agent ran in the job
+    assert row.status is Status.SUCCESS and as_job(Echo).name == "echo"
+    assert (await db.list_attempts(job_id=job_id))[0].job_id == job_id  # the agent ran in the job
     key = ResultKey(job_id=job_id, agent_hash=agent_hash(Echo()), input_hash=input_hash(job_input))
     assert (await store.get(key) or {}).get("echoed") == "a"
 
@@ -217,7 +217,7 @@ async def test_a_job_that_runs_agents_through_the_context_carries_its_id(db, que
     job_id = await submit(db, queue, UsesAgents, "a")
     async with Running(make(db, queue, [UsesAgents], runner=runner, results=None)):
         await final(db, job_id)
-    assert [r.job_id for r in await db.list_runs()] == [job_id, job_id]
+    assert [r.job_id for r in await db.list_attempts()] == [job_id, job_id]
 
 
 # what the worker refuses
@@ -227,7 +227,7 @@ async def test_an_unknown_job_name_fails_the_job_and_acknowledges(db, queue):
     job_id = await submit(db, queue, Shout)
     async with Running(make(db, queue, [Boom])):
         row = await final(db, job_id)
-    assert row.status is RunStatus.FAILED and row.error_type == "UnknownJob"
+    assert row.status is Status.FAILED and row.error_type == "UnknownJob"
     assert await queue.receive(0.05) is None
 
 
@@ -236,7 +236,7 @@ async def test_an_input_that_does_not_fit_fails_the_job_and_acknowledges(db, que
     await queue.enqueue(JobMessage(job_id=job_id, job_name="shout", input={"wrong": 1}))
     async with Running(make(db, queue, [Shout])):
         row = await final(db, job_id)
-    assert row.status is RunStatus.FAILED and row.error_type == "InvalidJobInput"
+    assert row.status is Status.FAILED and row.error_type == "InvalidJobInput"
     assert await queue.receive(0.05) is None
 
 
@@ -244,7 +244,7 @@ async def test_an_output_that_is_not_the_output_model_fails_the_job(db, queue):
     job_id = await submit(db, queue, WrongOutput)
     async with Running(make(db, queue, [WrongOutput])):
         row = await final(db, job_id)
-    assert row.status is RunStatus.FAILED and row.error_type == "InvalidJobOutput"
+    assert row.status is Status.FAILED and row.error_type == "InvalidJobOutput"
 
 
 async def test_a_store_that_cannot_keep_the_output_fails_the_job(db, queue):
@@ -255,22 +255,22 @@ async def test_a_store_that_cannot_keep_the_output_fails_the_job(db, queue):
     job_id = await submit(db, queue, Shout)
     async with Running(make(db, queue, [Shout], results=Failing())):
         row = await final(db, job_id)
-    assert row.status is RunStatus.FAILED and row.error_type == "OSError"  # the output is the job's product
+    assert row.status is Status.FAILED and row.error_type == "OSError"  # the output is the job's product
 
 
 async def test_no_store_keeps_nothing_and_the_job_still_succeeds(db, queue):
     job_id = await submit(db, queue, Shout)
     async with Running(make(db, queue, [Shout], results=None)):
-        assert (await final(db, job_id)).status is RunStatus.SUCCESS
+        assert (await final(db, job_id)).status is Status.SUCCESS
 
 
 async def test_a_job_that_is_already_cancelled_is_skipped_and_acknowledged(db, queue):
     job_id = await submit(db, queue, Slow)
-    await db.set_job_status(job_id, RunStatus.CANCELLED)
+    await db.set_job_status(job_id, Status.CANCELLED)
     async with Running(make(db, queue, [Slow])):
         await asyncio.sleep(0.3)
     assert GATE.began == [] and await queue.receive(0.05) is None
-    assert (await db.get_job(job_id)).status is RunStatus.CANCELLED
+    assert (await db.get_job(job_id)).status is Status.CANCELLED
 
 
 async def test_a_job_asked_to_cancel_before_it_started_is_cancelled_not_run(db, queue):
@@ -278,7 +278,7 @@ async def test_a_job_asked_to_cancel_before_it_started_is_cancelled_not_run(db, 
     assert await db.request_job_cancel(job_id)
     async with Running(make(db, queue, [Slow])):
         row = await final(db, job_id)
-    assert row.status is RunStatus.CANCELLED and GATE.began == []
+    assert row.status is Status.CANCELLED and GATE.began == []
 
 
 async def test_a_job_cancelled_in_the_instant_before_the_worker_takes_it_is_not_run(db, queue, monkeypatch):
@@ -292,7 +292,7 @@ async def test_a_job_cancelled_in_the_instant_before_the_worker_takes_it_is_not_
     monkeypatch.setattr(db, "start_job", a_client_gets_in_first)
     async with Running(make(db, queue, [Slow])):
         row = await final(db, job_id)
-    assert row.status is RunStatus.CANCELLED and GATE.began == [] and await queue.receive(0.05) is None
+    assert row.status is Status.CANCELLED and GATE.began == [] and await queue.receive(0.05) is None
     assert [e.type for e in await db.list_job_events(job_id)] == ["queued", "cancelled"]  # it never ran
 
 
@@ -321,7 +321,7 @@ async def test_cancel_in_the_same_process_cancels_the_running_job_at_once(db, qu
         await asyncio.wait_for(GATE.started.wait(), timeout=5)
         assert worker.cancel(job_id) is True and worker.cancel("nope") is False
         row = await final(db, job_id)
-    assert row.status is RunStatus.CANCELLED
+    assert row.status is Status.CANCELLED
     assert [e.type for e in await db.list_job_events(job_id)] == ["queued", "running", "cancelled"]
     assert await queue.receive(0.05) is None  # acknowledged
 
@@ -335,7 +335,7 @@ async def test_cancel_from_another_process_is_found_by_the_poll(tmp_path):
             await asyncio.wait_for(GATE.started.wait(), timeout=5)
             assert await client_db.request_job_cancel(job_id) is True  # a client, with a connection of its own
             row = await final(worker_db, job_id)
-        assert row.status is RunStatus.CANCELLED
+        assert row.status is Status.CANCELLED
         assert "cancel_requested" in [e.type for e in await worker_db.list_job_events(job_id)]
 
 
@@ -349,7 +349,7 @@ async def test_it_never_runs_more_jobs_at_once_than_the_concurrency(db, queue):
         assert GATE.running == 2 and len(GATE.began) == 2  # the others wait on the queue
         GATE.release.set()
         rows = [await final(db, job_id) for job_id in ids]
-    assert all(r.status is RunStatus.SUCCESS for r in rows) and GATE.most == 2
+    assert all(r.status is Status.SUCCESS for r in rows) and GATE.most == 2
 
 
 # shutdown
@@ -366,7 +366,7 @@ async def test_stop_waits_for_a_job_that_finishes_within_the_grace(db, queue):
     GATE.release.set()
     await asyncio.wait_for(stopping, timeout=5)
     await asyncio.wait_for(task, timeout=5)
-    assert (await db.get_job(job_id)).status is RunStatus.SUCCESS
+    assert (await db.get_job(job_id)).status is Status.SUCCESS
 
 
 async def test_stop_cancels_a_job_that_outlasts_the_grace_and_returns_it_to_the_queue(db, queue):
@@ -378,7 +378,7 @@ async def test_stop_cancels_a_job_that_outlasts_the_grace_and_returns_it_to_the_
     await asyncio.wait_for(task, timeout=5)
 
     row = await db.get_job(job_id)
-    assert row is not None and row.status is RunStatus.INIT and row.started_at is None  # back in the queue
+    assert row is not None and row.status is Status.INIT and row.started_at is None  # back in the queue
     assert [e.type for e in await db.list_job_events(job_id)] == ["queued", "running", "queued"]
     again = await queue.receive(1.0)
     assert again is not None and again.message.job_id == job_id  # the message is receivable again
@@ -386,7 +386,7 @@ async def test_stop_cancels_a_job_that_outlasts_the_grace_and_returns_it_to_the_
     GATE.release.set()  # and another worker runs it from the start
     await queue.nack(again, requeue=True)
     async with Running(make(db, queue, [Slow])):
-        assert (await final(db, job_id)).status is RunStatus.SUCCESS
+        assert (await final(db, job_id)).status is Status.SUCCESS
 
 
 async def test_a_worker_whose_task_is_cancelled_returns_its_jobs_to_the_queue(db, queue):
@@ -397,7 +397,7 @@ async def test_a_worker_whose_task_is_cancelled_returns_its_jobs_to_the_queue(db
     task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await task
-    assert (await db.get_job(job_id)).status is RunStatus.INIT
+    assert (await db.get_job(job_id)).status is Status.INIT
     assert (await queue.receive(1.0)) is not None
 
 

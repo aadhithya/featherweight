@@ -89,7 +89,7 @@ Run it from a pipeline:
 ```python
 import asyncio
 
-from featherweight import AgentRunner, RunStatus, SqliteDatabase
+from featherweight import AgentRunner, Status, SqliteDatabase
 
 
 async def main():
@@ -97,7 +97,7 @@ async def main():
         job_id = await db.create_job("demo")  # runs of one pipeline share a job
         runner = AgentRunner(db)
         result = await runner.run(PeopleExtractor, ExtractInput(text="Anna Berger met Tom Okafor."), job_id=job_id)
-        if result.status == RunStatus.SUCCESS:
+        if result.status == Status.SUCCESS:
             print(result.output.people)
         else:
             print("failed:", result.error)  # a runtime failure is returned, not raised
@@ -111,11 +111,11 @@ asyncio.run(main())
 ## Rules that save you a round trip
 
 - **Import what you use:** `from featherweight import AgentBase, AgentRunner`, not `import featherweight as ftw` (a joke).
-- **A `job_id` is the job a run belongs to, not the run's id.** A job has many agent runs, and each has its own `agent_run_id`.
+- **A `job_id` is the job a run belongs to, not the run's id.** A job has many agent runs, and each has its own `attempt_id`.
 - **featherweight keeps metadata only** (status, tokens, timing, hashes). Inputs, outputs and results go to stores you provide
   (`ResultStore`, `Database`, `JobQueue` are interfaces you can implement), so never expect it to hold them.
 - **Pass the class to the runner, not an instance.** `runner.run(PeopleExtractor, input)`. The runner builds it.
-- **Check `result.status`.** It is a `RunStatus`, a string enum: `RunStatus.SUCCESS` or `RunStatus.FAILED`. A failed run
+- **Check `result.status`.** It is a `Status`, a string enum: `Status.SUCCESS` or `Status.FAILED`. A failed run
   returns `FAILED` and `result.error`. It does not raise. A wrong input type does raise, and that is a bug in your code.
   `run_job(runner, job, input)` runs a job class (`@job` declares one from a function) and returns a `JobOutcome` with `job_id`, `status`, `result` (the job's output model) and `error`.
 - **Two kinds of bad output.** A reply that breaks the schema (a wrong type, a value outside a `Literal`) goes back to the

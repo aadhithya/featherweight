@@ -64,9 +64,9 @@ the platforms read them as they are.
 | A tool call | `execute_tool {tool name}` | its attempt |
 | A step reused by a resumed job | `invoke_agent {agent name}`, with `ftw.reused` | the job |
 
-- A retry is a span of its own, a sibling of the attempt it follows. They share `ftw.invocation.id`, and the attempt that counted has
+- A retry is a span of its own, a sibling of the attempt it follows. They share `ftw.run.id`, and the attempt that counted has
   `ftw.attempt.final = true`. A rejected attempt ends with an error status and `error.type`: the type of the exception, and never its text.
-- A reused step has no model calls under it. `ftw.reused_from_agent_run_id` and `ftw.resumed_from` say where it came from, so you can
+- A reused step has no model calls under it. `ftw.reused_from_attempt_id` and `ftw.resumed_from` say where it came from, so you can
   find the original run.
 - The conventions' attributes are used for what they cover (the operation, the agent and its version, the model, the tokens, the finish
   reasons, the tool name and call id). **Ours are in the `ftw.` namespace:** the job's id, name, version and hash, the agent's hash, the

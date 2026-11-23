@@ -162,7 +162,7 @@ What can differ between two agents that share a server is on the agent's side. W
 
 ## Logging
 
-Each call logs `mcp_call agent_run_id=... server=... tool=... status=ok|error|timeout|unavailable ms=...`, and starting and
+Each call logs `mcp_call attempt_id=... server=... tool=... status=ok|error|timeout|unavailable ms=...`, and starting and
 stopping a server logs `mcp_open server=... transport=...` and `mcp_close server=...`. Arguments and results are not
 logged. No new table or column: the tools of an attempt are in the `attempt_started` line, and `tools_hash` is in the run log.
 

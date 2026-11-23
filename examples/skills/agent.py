@@ -27,9 +27,9 @@ from featherweight import (  # noqa: E402
     AgentRunner,
     Gemini,
     ModelSettings,
-    RunStatus,
     Skill,
     SqliteDatabase,
+    Status,
     default_db_path,
     setup_logging,
 )
@@ -96,7 +96,7 @@ async def main(requests: list[str]) -> int:
             result = await runner.run(
                 Assistant, AssistantInput(request=request), job_id=await db.create_job("skills-demo")
             )
-            if result.status == RunStatus.SUCCESS and result.output is not None:
+            if result.status == Status.SUCCESS and result.output is not None:
                 print(f"\n{result.output.answer}\n  ({result.input_tokens} tokens in, {result.output_tokens} out)")
             else:
                 failed += 1

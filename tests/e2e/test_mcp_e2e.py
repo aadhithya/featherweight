@@ -9,7 +9,7 @@ from typing import ClassVar
 
 from featherweight.mcp import StdioMCPServer
 from featherweight.model_settings import Gemini, ModelSettings
-from featherweight.models import AgentBase, AgentInput, AgentOutput, RunStatus
+from featherweight.models import AgentBase, AgentInput, AgentOutput, Status
 from featherweight.runner import AgentRunner
 
 SERVER = StdioMCPServer(
@@ -55,11 +55,11 @@ async def test_an_agent_finds_mcp_tools_by_search_and_calls_them(db):
     job_id = await db.create_job("mcp-discovery-e2e")
     result = await AgentRunner(db).run(Seeker, TaskInput(task=task), job_id=job_id)
 
-    assert result.status == RunStatus.SUCCESS, result.error
+    assert result.status == Status.SUCCESS, result.error
     out = result.output
     print(f"\n[output] {out}\n[tokens] in={result.input_tokens} out={result.output_tokens}")
     assert out.sum == 42 and out.access_code and "7421" in out.access_code
-    (row,) = await db.list_runs(job_id=job_id)
+    (row,) = await db.list_attempts(job_id=job_id)
     assert row.tool_names == ["search_tools", "call_tool"]  # the server's tools were never bound
 
 
@@ -71,11 +71,11 @@ async def test_an_agent_uses_mcp_tools_and_reads_what_they_return(db):
     job_id = await db.create_job("mcp-e2e")
     result = await AgentRunner(db).run(Helper, TaskInput(task=task), job_id=job_id)  # no `async with`: it is optional
 
-    assert result.status == RunStatus.SUCCESS, result.error
+    assert result.status == Status.SUCCESS, result.error
     out = result.output
     print(f"\n[output] {out}\n[tokens] in={result.input_tokens} out={result.output_tokens}")
     assert out.sum == 42
     assert out.colour and "red" in out.colour.lower()
     assert out.access_code and "7421" in out.access_code
-    (row,) = await db.list_runs(job_id=job_id)
+    (row,) = await db.list_attempts(job_id=job_id)
     assert sorted(row.tool_names) == ["fake_access_note", "fake_add", "fake_picture"]

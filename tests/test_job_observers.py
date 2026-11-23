@@ -12,7 +12,7 @@ from featherweight import JobClient, JobWorker, Observer, SqliteQueue, run_job
 from featherweight.events import wait_for_job
 from featherweight.fingerprint import input_hash
 from featherweight.jobs import Job, JobContext
-from featherweight.models import RunStatus
+from featherweight.models import Status
 from featherweight.observers import JobEnd, JobStart, JobSubmitted, Scope
 from featherweight.queue import JobMessage
 from featherweight.testing import MemoryQueue, MemoryResultStore, RecordingContentObserver, RecordingObserver
@@ -78,7 +78,7 @@ async def test_run_job_wraps_the_whole_job_and_finishes_it(db):
 
     outcome = await run_job(runner(db, seen), Shout, In(text="hello"))
 
-    assert outcome.status is RunStatus.SUCCESS
+    assert outcome.status is Status.SUCCESS
     names = seen.names()
     assert names[0] == "job.enter" and names[-2:] == ["job.finish", "job.exit"]
     assert "attempt.enter" in names and names.index("attempt.exit") < names.index(
@@ -98,8 +98,8 @@ async def test_run_job_wraps_the_whole_job_and_finishes_it(db):
         trace_context={},
         input=None,
     )
-    assert row is not None and row.status is RunStatus.SUCCESS
-    assert end == JobEnd(status=RunStatus.SUCCESS)  # no content for an observer that did not ask
+    assert row is not None and row.status is Status.SUCCESS
+    assert end == JobEnd(status=Status.SUCCESS)  # no content for an observer that did not ask
 
 
 async def test_a_worker_reports_the_same_job_as_run_job_does(db):
@@ -122,9 +122,9 @@ async def test_a_failed_job_ends_its_scope_with_the_error_type_and_content_only_
 
     outcome = await run_job(runner(db, plain, content), Boom, In(text="pw"))
 
-    assert outcome.status is RunStatus.FAILED
+    assert outcome.status is Status.FAILED
     (plain_start,), (plain_end,) = plain.records("job.enter"), plain.records("job.finish")
-    assert plain_end == JobEnd(status=RunStatus.FAILED, error_type="RuntimeError") and plain_start.input is None
+    assert plain_end == JobEnd(status=Status.FAILED, error_type="RuntimeError") and plain_start.input is None
     (content_start,), (content_end,) = content.records("job.enter"), content.records("job.finish")
     assert content_start.input == {"text": "pw"}
     assert content_end.error == "RuntimeError: secret failure about pw"
@@ -161,7 +161,7 @@ async def test_a_cancelled_job_ends_its_scope_as_cancelled(db):
     with pytest.raises(asyncio.CancelledError):
         await task
 
-    assert seen.records("job.finish")[0].status is RunStatus.CANCELLED
+    assert seen.records("job.finish")[0].status is Status.CANCELLED
     assert seen.names()[-1] == "job.exit"
 
 
@@ -178,7 +178,7 @@ async def test_a_resumed_job_tells_its_observer_what_it_resumes(db):
 async def test_no_observer_means_no_change(db):
     outcome = await run_job(runner(db), Shout, In(text="hello"))
 
-    assert outcome.status is RunStatus.SUCCESS and outcome.result == Out(shouted="HELLO")
+    assert outcome.status is Status.SUCCESS and outcome.result == Out(shouted="HELLO")
 
 
 # an observer never changes a job
@@ -204,7 +204,7 @@ class Breaks(Observer):
 
 async def test_an_observer_that_raises_changes_nothing_for_a_job_a_worker_or_a_client(db):
     outcome = await run_job(runner(db, Breaks()), Shout, In(text="hello"))
-    assert outcome.status is RunStatus.SUCCESS and outcome.result == Out(shouted="HELLO")
+    assert outcome.status is Status.SUCCESS and outcome.result == Out(shouted="HELLO")
 
     queue = MemoryQueue()
     client = JobClient(db, queue, MemoryResultStore(), observers=[Breaks()])
@@ -295,7 +295,7 @@ async def test_nothing_about_a_trace_is_stored_in_the_run_log(db):
 
     async with db.conn.execute("SELECT * FROM jobs") as cur:
         job_rows = [dict(r) for r in await cur.fetchall()]
-    async with db.conn.execute("SELECT * FROM agent_runs") as cur:
+    async with db.conn.execute("SELECT * FROM attempts") as cur:
         run_rows = [dict(r) for r in await cur.fetchall()]
     async with db.conn.execute("SELECT * FROM job_events") as cur:
         event_rows = [dict(r) for r in await cur.fetchall()]

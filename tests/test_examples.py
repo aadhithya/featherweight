@@ -13,7 +13,7 @@ from langchain_core.messages import HumanMessage
 from featherweight.client import JobClient
 from featherweight.jobs import run_job
 from featherweight.model_settings import ModelSettings
-from featherweight.models import AgentInput, AgentOutput, RunStatus
+from featherweight.models import AgentInput, AgentOutput, Status
 from featherweight.queue import SqliteQueue
 from featherweight.runner import AgentRunner
 from featherweight.sqlite import SqliteDatabase
@@ -105,19 +105,19 @@ async def test_the_resume_example_crashes_after_the_summaries_and_the_resumed_ru
     commits = example.COMMITS
 
     first = await run_job(runner, example.release_notes, example.Commits(commits=commits, crash=True), resumable=True)
-    assert first.status == RunStatus.FAILED and "simulated crash" in (first.error or "")
-    assert [r.agent_name for r in await db.list_runs(job_id=first.job_id)] == ["summariser"] * len(commits)
+    assert first.status == Status.FAILED and "simulated crash" in (first.error or "")
+    assert [r.agent_name for r in await db.list_attempts(job_id=first.job_id)] == ["summariser"] * len(commits)
 
     calls_before = sum(summaries.counts.values())
     second = await run_job(runner, example.release_notes, example.Commits(commits=commits), resume_from=first.job_id)
-    assert second.status == RunStatus.SUCCESS and second.result.notes == "The notes."
+    assert second.status == Status.SUCCESS and second.result.notes == "The notes."
     assert sum(summaries.counts.values()) == calls_before  # the summaries were not asked for again
     assert notes.calls == 1
-    rows = await db.list_runs(job_id=second.job_id)
-    reused = [r for r in rows if r.reused_from_agent_run_id]
+    rows = await db.list_attempts(job_id=second.job_id)
+    reused = [r for r in rows if r.reused_from_attempt_id]
     assert [r.agent_name for r in reused] == ["summariser"] * len(commits)
     assert all((r.input_tokens, r.output_tokens) == (0, 0) for r in reused)
-    assert [r.agent_name for r in rows if not r.reused_from_agent_run_id] == ["release_notes"]
+    assert [r.agent_name for r in rows if not r.reused_from_attempt_id] == ["release_notes"]
 
 
 # the chat examples: a CLI and a FastAPI app over one streaming agent. The model is a fake, and nothing leaves the process.
@@ -262,11 +262,11 @@ async def test_the_api_stops_a_response(db, monkeypatch):
         request = asyncio.create_task(http.post("/agui", json=body))
         await gate.reached.wait()
         await asyncio.sleep(0.03)
-        (row,) = await db.list_runs()
-        assert (await http.post(f"/stop/{row.agent_run_id}")).json() == {"stopped": True}
+        (row,) = await db.list_attempts()
+        assert (await http.post(f"/stop/{row.run_id}")).json() == {"stopped": True}
         events = sse((await request).text)
     assert events[-1]["outcome"]["type"] == "cancelled"
-    assert (await db.get_run(row.agent_run_id)).status is RunStatus.CANCELLED
+    assert (await db.get_attempt(row.attempt_id)).status is Status.CANCELLED
 
 
 # the result store example: no model, no key

@@ -12,7 +12,7 @@ from jsonschema import SchemaError
 from jsonschema.validators import validator_for
 from langchain_core.tools import BaseTool, tool
 
-from featherweight.context import CURRENT_AGENT_RUN_ID
+from featherweight.context import CURRENT_ATTEMPT_ID
 from featherweight.registry import DIRECT, ToolRegistry, input_schema
 from featherweight.search import tokens
 
@@ -32,7 +32,7 @@ def discovery_tools(registry: ToolRegistry) -> list[BaseTool]:
         if not any(tokens(keyword) for keyword in keywords):
             return "Give at least one keyword that describes what you need to do."
         hits = registry.search(keywords, MAX_HITS)
-        logger.info("tool_search agent_run_id=%s keywords=%s hits=%d", CURRENT_AGENT_RUN_ID.get(), keywords, len(hits))
+        logger.info("tool_search attempt_id=%s keywords=%s hits=%d", CURRENT_ATTEMPT_ID.get(), keywords, len(hits))
         if not hits:
             servers = ", ".join(sorted({entry.server for entry in registry.discoverable})) or "none"
             return f"No tool matches {keywords}. Try different or broader keywords. Servers you can search: {servers}."
@@ -83,7 +83,7 @@ def discovery_tools(registry: ToolRegistry) -> list[BaseTool]:
 
 
 def _logged(name: str, status: str, result: Any) -> Any:
-    logger.info("tool_call_via_search agent_run_id=%s tool=%s status=%s", CURRENT_AGENT_RUN_ID.get(), name, status)
+    logger.info("tool_call_via_search attempt_id=%s tool=%s status=%s", CURRENT_ATTEMPT_ID.get(), name, status)
     return result
 
 

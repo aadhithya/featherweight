@@ -6,7 +6,7 @@ belongs to the job, so they share its run log and its trace.
 ```python
 from pydantic import BaseModel
 
-from featherweight import AgentRunner, JobContext, RunStatus, SqliteDatabase, job, run_job
+from featherweight import AgentRunner, JobContext, Status, SqliteDatabase, job, run_job
 
 
 class Texts(BaseModel):
@@ -22,7 +22,7 @@ async def find_people(ctx: JobContext, input: Texts) -> People:
     results = await ctx.run_many(PeopleExtractor, [ExtractInput(text=t) for t in input.texts])
     people = []
     for result in results:
-        if result.status == RunStatus.SUCCESS:  # decide here what a failed run means: skip, stop, ask again
+        if result.status == Status.SUCCESS:  # decide here what a failed run means: skip, stop, ask again
             people.extend(result.output.people)
     return People(people=sorted(set(people)))
 

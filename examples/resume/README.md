@@ -47,7 +47,7 @@ Release notes: This release fixes a crash on unknown job IDs, adds a configurabl
 ```
 
 That is a real run (the notes are cut short here). Token counts vary a little between runs. Each reused row has
-`reused_from_agent_run_id` pointing at the row it came from, so the trace of the second job says where every result
+`reused_from_attempt_id` pointing at the row it came from, so the trace of the second job says where every result
 came from.
 
 ## Things to try

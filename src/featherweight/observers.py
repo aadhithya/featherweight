@@ -20,7 +20,7 @@ from langchain_core.callbacks import AsyncCallbackHandler, BaseCallbackHandler
 from pydantic import BaseModel, ConfigDict
 
 from featherweight.context import CURRENT_TOOL_CALL_ID
-from featherweight.models import RunStatus
+from featherweight.models import Status
 
 logger = logging.getLogger("featherweight")
 
@@ -54,7 +54,7 @@ class JobStart(_Record):
 class JobEnd(_Record):
     content_fields: ClassVar[tuple[str, ...]] = ("output", "error")
 
-    status: RunStatus
+    status: Status
     error_type: str | None = None
     output: dict[str, Any] | None = None
     error: str | None = None
@@ -70,22 +70,22 @@ class JobSubmitted(_Record):
     version: str | None = None
     job_hash: str | None = None
     input_hash: str | None = None
-    parent_agent_run_id: str | None = None  # a background job: the attempt that started it
+    parent_attempt_id: str | None = None  # a background job: the attempt that started it
     parent_tool_call_id: str | None = None  # ... and the tool call (`start_background`) it started it with
     input: dict[str, Any] | None = None
 
 
 class AttemptStart(_Record):
-    """One attempt of an agent begins: one per row of `agent_runs`."""
+    """One attempt of an agent begins: one per row of `attempts`."""
 
     content_fields: ClassVar[tuple[str, ...]] = ("input", "system_prompt")
 
-    agent_run_id: str
-    invocation_id: str
+    attempt_id: str
+    run_id: str
     attempt: int
     max_attempts: int
     job_id: str | None = None
-    parent_agent_run_id: str | None = None
+    parent_attempt_id: str | None = None
     parent_tool_call_id: str | None = None  # the tool call (of the parent attempt) that launched this agent
     depth: int = 1
     agent_name: str
@@ -102,7 +102,7 @@ class AttemptStart(_Record):
 class AttemptEnd(_Record):
     content_fields: ClassVar[tuple[str, ...]] = ("output", "error")
 
-    status: RunStatus
+    status: Status
     final: bool  # the attempt succeeded, or it was the last one allowed
     input_tokens: int = 0
     output_tokens: int = 0
@@ -113,14 +113,14 @@ class AttemptEnd(_Record):
     error: str | None = None
 
 
-class ReusedRun(_Record):
+class RunReused(_Record):
     """A step of a resumed job was answered from the result store: it is not an attempt, and has no model calls."""
 
     content_fields: ClassVar[tuple[str, ...]] = ("output",)
 
-    agent_run_id: str
-    invocation_id: str
-    reused_from_agent_run_id: str
+    attempt_id: str
+    run_id: str
+    reused_from_attempt_id: str
     resumed_from: str | None = None
     job_id: str | None = None
     agent_name: str
@@ -133,7 +133,7 @@ class ModelCallStart(_Record):
     content_fields: ClassVar[tuple[str, ...]] = ("messages",)
 
     call_id: str
-    agent_run_id: str  # the attempt that made it
+    attempt_id: str  # the attempt that made it
     provider: str
     model: str
     messages: list[dict[str, Any]] | None = None
@@ -143,7 +143,7 @@ class ModelCallEnd(_Record):
     content_fields: ClassVar[tuple[str, ...]] = ("output", "error")
 
     call_id: str
-    agent_run_id: str
+    attempt_id: str
     response_model: str | None = None
     finish_reasons: list[str] = []
     input_tokens: int | None = None
@@ -158,7 +158,7 @@ class ToolCallStart(_Record):
     content_fields: ClassVar[tuple[str, ...]] = ("arguments",)
 
     call_id: str  # the id the model gave the call: a launched agent's `parent_tool_call_id` is this
-    agent_run_id: str
+    attempt_id: str
     tool_name: str
     arguments: dict[str, Any] | None = None
 
@@ -167,7 +167,7 @@ class ToolCallEnd(_Record):
     content_fields: ClassVar[tuple[str, ...]] = ("result", "error")
 
     call_id: str
-    agent_run_id: str
+    attempt_id: str
     tool_name: str
     duration_ms: float = 0.0
     error_type: str | None = None
@@ -212,7 +212,7 @@ class Observer(ABC):  # noqa: B024  # the hooks are optional: every one has a de
     def attempt(self, start: AttemptStart) -> AbstractAsyncContextManager[Scope]:
         return _no_scope()
 
-    async def reused(self, run: ReusedRun) -> None:
+    async def reused(self, run: RunReused) -> None:
         return None
 
     async def model_call_started(self, call: ModelCallStart) -> None:
@@ -317,9 +317,9 @@ class Observers:
                 carrier.update(got)
         return carrier
 
-    def callbacks(self, agent_run_id: str, provider: str, model: str) -> list[BaseCallbackHandler]:
+    def callbacks(self, attempt_id: str, provider: str, model: str) -> list[BaseCallbackHandler]:
         """The LangChain callback handler for one attempt, or none when there is no observer."""
-        return [ObserverCallbacks(self, agent_run_id, provider, model)] if self else []
+        return [ObserverCallbacks(self, attempt_id, provider, model)] if self else []
 
 
 def _name(observer: Observer | None) -> str:
@@ -332,9 +332,9 @@ class ObserverCallbacks(AsyncCallbackHandler):
     run_inline = True  # in order, in the task that made the call
     raise_error = False
 
-    def __init__(self, observers: Observers, agent_run_id: str, provider: str, model: str):
+    def __init__(self, observers: Observers, attempt_id: str, provider: str, model: str):
         self._observers = observers
-        self._agent_run_id = agent_run_id
+        self._attempt_id = attempt_id
         self._provider = provider
         self._model = model
         self._started: dict[UUID, tuple[float, str, str]] = {}  # run id -> start time, call id, tool name
@@ -350,7 +350,7 @@ class ObserverCallbacks(AsyncCallbackHandler):
             "model_call_started",
             ModelCallStart(
                 call_id=call_id,
-                agent_run_id=self._agent_run_id,
+                attempt_id=self._attempt_id,
                 provider=self._provider,
                 model=self._model,
                 messages=content,
@@ -367,7 +367,7 @@ class ObserverCallbacks(AsyncCallbackHandler):
             "model_call_finished",
             ModelCallEnd(
                 call_id=call_id,
-                agent_run_id=self._agent_run_id,
+                attempt_id=self._attempt_id,
                 response_model=meta.get("model_name") or meta.get("model"),
                 finish_reasons=[str(reason)] if reason else [],
                 input_tokens=usage.get("input_tokens"),
@@ -383,7 +383,7 @@ class ObserverCallbacks(AsyncCallbackHandler):
             "model_call_finished",
             ModelCallEnd(
                 call_id=call_id,
-                agent_run_id=self._agent_run_id,
+                attempt_id=self._attempt_id,
                 duration_ms=(time.perf_counter() - started) * 1000,
                 error_type=type(error).__name__,
                 error=str(error) if self._observers.wants_content else None,
@@ -407,7 +407,7 @@ class ObserverCallbacks(AsyncCallbackHandler):
             "tool_call_started",
             ToolCallStart(
                 call_id=call_id,
-                agent_run_id=self._agent_run_id,
+                attempt_id=self._attempt_id,
                 tool_name=name,
                 arguments=(inputs if inputs is not None else {"input": input_str})
                 if self._observers.wants_content
@@ -428,7 +428,7 @@ class ObserverCallbacks(AsyncCallbackHandler):
             "tool_call_finished",
             ToolCallEnd(
                 call_id=call_id,
-                agent_run_id=self._agent_run_id,
+                attempt_id=self._attempt_id,
                 tool_name=name,
                 duration_ms=(time.perf_counter() - started) * 1000,
                 result=getattr(output, "content", output) if self._observers.wants_content else None,
@@ -442,7 +442,7 @@ class ObserverCallbacks(AsyncCallbackHandler):
             "tool_call_finished",
             ToolCallEnd(
                 call_id=call_id,
-                agent_run_id=self._agent_run_id,
+                attempt_id=self._attempt_id,
                 tool_name=name,
                 duration_ms=(time.perf_counter() - started) * 1000,
                 error_type=type(error).__name__,

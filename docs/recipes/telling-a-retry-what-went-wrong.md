@@ -10,7 +10,7 @@ class FillInput(AgentInput):
 
 result = await runner.run(Filler, FillInput(form=form), job_id=job_id)
 for _ in range(2):
-    if result.status == RunStatus.SUCCESS:
+    if result.status == Status.SUCCESS:
         break
     result = await runner.run(Filler, FillInput(form=form, problems=[result.error or ""]), job_id=job_id)
 ```

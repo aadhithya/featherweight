@@ -94,7 +94,7 @@ A pipeline that failed at step 2 is run again with `resume_from=<failed job>`, i
 (decided before it ran; otherwise nothing was kept and `create_job` raises). This is replay with memoised agent calls, not
 pausing: the pipeline's own code, loops and decisions run again, and the runner answers an agent run from the old job's
 kept results when it can ([runner](runner.md#resuming) has the rules). A job created with `resume_from` is resumable too. The new job's trace has every step: a reused step
-is a `SUCCESS` row with zero tokens and `reused_from_agent_run_id` pointing at the original, so the totals of the new job
+is a `SUCCESS` row with zero tokens and `reused_from_attempt_id` pointing at the original, so the totals of the new job
 count only the calls it made. The old job is not changed.
 
 The limits:
@@ -111,22 +111,22 @@ The limits:
 ## The run log
 
 The orchestration, and no data. `Database` is an abstract class (see the [persistence spec](persistence.md#the-database)), and `SqliteDatabase`
-(a file, `FTW_DB_PATH`, default `featherweight.db`) implements it for local development. Records go in (`RunStart`, `RunEnd`) and rows come out
-(`JobRow`, `AgentRunRow`) as frozen Pydantic models, so the same constraints hold for every implementation; timestamps are timezone-aware
+(a file, `FTW_DB_PATH`, default `featherweight.db`) implements it for local development. Records go in (`AttemptRecord`, `AttemptFinish`) and rows come out
+(`JobRow`, `AttemptRow`) as frozen Pydantic models, so the same constraints hold for every implementation; timestamps are timezone-aware
 `datetime`s. The tables are made by numbered migrations ([persistence](persistence.md#migrations)); a database from before migrations is refused
 (`SetupError`). There is **no input, output, message or error text in any table**, except the queue's message until it is acknowledged. The
 columns of every table, their types and constraints are in [the schema](persistence.md#the-schema). What they record:
 
 - **`jobs`:** one row per job. A job made without a job class has no `job_hash` and no `input_hash`.
 - **`job_events`:** one row for every change of a job's status, written in the same transaction as the change.
-- **`agent_runs`:** one row **per attempt**, so a retry is visible and a failed attempt keeps its error. `invocation_id` is shared by the
+- **`attempts`:** one row **per attempt**, so a retry is visible and a failed attempt keeps its error. `run_id` is shared by the
   attempts of one `run()` call. `agent_hash` covers the whole agent declaration, input and output schemas included ([agents](agents.md)).
   `system_prompt_hash` and `tools_hash` say what changed between two runs. `input_hash` and `output_hash` are of the canonical JSON (a streaming
   run: of the `ChatInput` and of its text). A failed attempt records the class of the exception and the hash of its message: the text can quote
   data, so it is in the logs and the result, never the log.
 
 `completed_at - started_at` is the run, and `started_at - created_at` the wait for a slot. A reused run, or one cancelled while queued, has no
-`started_at`. The whole launch tree of a job is one query on `parent_agent_run_id` and `depth`, and the indexes on the job, the invocation, the
+`started_at`. The whole launch tree of a job is one query on `parent_attempt_id` and `depth`, and the indexes on the job, the invocation, the
 parent and `(job_id, agent_hash, input_hash)` (the lookup for reuse) keep the queries cheap.
 
 ## Statuses
@@ -139,7 +139,7 @@ parent and `(job_id, agent_hash, input_hash)` (the lookup for reuse) keep the qu
 | `FAILED` | The pipeline raised, or was cancelled | The attempt failed |
 | `CANCELLED` | The task running the pipeline was cancelled (`run_job`), or the job was cancelled before it ran | The attempt was cancelled: the task that awaited it was cancelled, a launched agent whose parent was, or a [streaming](streaming.md) run that was stopped |
 
-`finish_run` accepts only a terminal status (`SUCCESS`, `FAILED` or `CANCELLED`).
+`finish_attempt` accepts only a terminal status (`SUCCESS`, `FAILED` or `CANCELLED`).
 
 ## Logging
 
@@ -148,7 +148,7 @@ argument, else `FTW_LOG_LEVEL`, else INFO. Calling it twice adds one handler. Th
 `logging.getLogger(__name__)`; entry points call `setup_logging`.
 
 The events: `db_connected`, `db_migrated`, `job_created`, `job_status`, `job_started`, `job_finished`, `job_failed`,
-`job_cancelled`, `run_created`, `run_running`, `run_finished`, `run_reused`, `run_reuse_rejected`, and the runner's lines ([runner](runner.md#logging)).
+`job_cancelled`, `attempt_created`, `attempt_running`, `attempt_finished`, `run_reused`, `run_reuse_rejected`, and the runner's lines ([runner](runner.md#logging)).
 Failures log at warning or error.
 
 ## Decisions

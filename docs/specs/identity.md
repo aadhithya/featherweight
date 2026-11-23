@@ -86,7 +86,7 @@ result = await runner.run(Summarise, summarise_input, identity=teacher)
 @dataclass
 class RunContext(Generic[IdentityT]):
     job_id: str | None
-    agent_run_id: str
+    attempt_id: str
     identity: IdentityT | None
 ```
 

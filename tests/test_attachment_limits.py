@@ -72,7 +72,7 @@ async def test_over_by_count_raises_before_a_run_exists(db):
     runner = runner_with(db, Streams(turns=[["hi"]]))
     with pytest.raises(ValueError, match=r"11 attachments, 1 over the 10 .*raise max_attachments"):
         runner.stream(Chat, chat([image() for _ in range(11)]))
-    assert await db.list_runs() == []
+    assert await db.list_attempts() == []
 
 
 async def test_over_by_bytes_raises_and_says_by_how_much(db):
@@ -82,7 +82,7 @@ async def test_over_by_bytes_raises_and_says_by_how_much(db):
     runner = runner_with(db, Streams(turns=[["hi"]]))
     with pytest.raises(ValueError, match=r"14 bytes, 4 over the 10 .*raise max_bytes"):
         runner.stream(Small, chat([image(14)]))
-    assert await db.list_runs() == []
+    assert await db.list_attempts() == []
 
 
 async def test_attachments_of_earlier_messages_count(db):
@@ -109,7 +109,7 @@ async def test_exactly_at_the_limits_passes(db):
     runner = runner_with(db, Streams(turns=[["hi"]]))
     run = runner.stream(Exact, chat([image(5)], [doc(5)]))
     assert [event async for event in run]
-    assert len(await db.list_runs()) == 1
+    assert len(await db.list_attempts()) == 1
 
 
 async def test_a_subclass_can_lower_the_limits(db):

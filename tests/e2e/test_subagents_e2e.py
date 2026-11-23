@@ -6,7 +6,7 @@ schema, launch it with the input as a JSON string and use what comes back. About
 from typing import ClassVar
 
 from featherweight.model_settings import Gemini, ModelSettings
-from featherweight.models import AgentBase, AgentInput, AgentOutput, RunStatus
+from featherweight.models import AgentBase, AgentInput, AgentOutput, Status
 from featherweight.runner import AgentRunner
 
 ARTICLE = (
@@ -62,13 +62,13 @@ async def test_an_agent_launches_another_agent_with_the_real_model(db):
 
     result = await AgentRunner(db).run(Reporter, ReporterInput(article=ARTICLE), job_id=job_id)
 
-    assert result.status == RunStatus.SUCCESS, result.error
+    assert result.status == Status.SUCCESS, result.error
     print(f"\n[reporter] {result.output.headline!r}\n[summary] {result.output.summary!r}")
-    rows = await db.list_runs(job_id=job_id)
+    rows = await db.list_attempts(job_id=job_id)
     print("[rows]", [(r.agent_name, r.depth, r.status.value, r.input_tokens, r.output_tokens) for r in rows])
     parent = next(r for r in rows if r.agent_name == "reporter")
-    children = [r for r in rows if r.agent_name == "summariser" and r.status == RunStatus.SUCCESS]
+    children = [r for r in rows if r.agent_name == "summariser" and r.status == Status.SUCCESS]
     assert children, "the reporter never launched the summariser"
-    assert children[0].parent_agent_run_id == parent.agent_run_id and children[0].depth == 2
+    assert children[0].parent_attempt_id == parent.attempt_id and children[0].depth == 2
     assert result.output.summary and result.output.headline
     assert children[0].output["summary"].strip() == result.output.summary.strip(), "the summary was not the child's"

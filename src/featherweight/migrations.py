@@ -205,6 +205,38 @@ POSTGRES_IDENTITY_HASH = "ALTER TABLE agent_runs ADD COLUMN identity_hash text;"
 SQLITE_QUEUE_IDENTITY = "ALTER TABLE job_queue ADD COLUMN identity TEXT;"
 POSTGRES_NOTHING = "SELECT 1;"
 
+# The run log's rows are attempts, and a run has an id of its own (docs/specs/units.md): the table, its columns and its indexes say so. The rows are kept.
+SQLITE_ATTEMPTS = """
+ALTER TABLE agent_runs RENAME TO attempts;
+ALTER TABLE attempts RENAME COLUMN agent_run_id TO attempt_id;
+ALTER TABLE attempts RENAME COLUMN invocation_id TO run_id;
+ALTER TABLE attempts RENAME COLUMN parent_agent_run_id TO parent_attempt_id;
+ALTER TABLE attempts RENAME COLUMN reused_from_agent_run_id TO reused_from_attempt_id;
+ALTER TABLE jobs RENAME COLUMN parent_agent_run_id TO parent_attempt_id;
+DROP INDEX idx_agent_runs_job;
+DROP INDEX idx_agent_runs_invocation;
+DROP INDEX idx_agent_runs_parent;
+DROP INDEX idx_agent_runs_reuse;
+CREATE INDEX idx_attempts_job ON attempts(job_id);
+CREATE INDEX idx_attempts_run ON attempts(run_id);
+CREATE INDEX idx_attempts_parent ON attempts(parent_attempt_id);
+CREATE INDEX idx_attempts_reuse ON attempts(job_id, agent_hash, input_hash);
+"""
+POSTGRES_ATTEMPTS = """
+ALTER TABLE agent_runs RENAME TO attempts;
+ALTER TABLE attempts RENAME COLUMN agent_run_id TO attempt_id;
+ALTER TABLE attempts RENAME COLUMN invocation_id TO run_id;
+ALTER TABLE attempts RENAME COLUMN parent_agent_run_id TO parent_attempt_id;
+ALTER TABLE attempts RENAME COLUMN reused_from_agent_run_id TO reused_from_attempt_id;
+ALTER TABLE jobs RENAME COLUMN parent_agent_run_id TO parent_attempt_id;
+ALTER INDEX idx_agent_runs_seq RENAME TO idx_attempts_seq;
+ALTER INDEX idx_agent_runs_job RENAME TO idx_attempts_job;
+ALTER INDEX idx_agent_runs_invocation RENAME TO idx_attempts_run;
+ALTER INDEX idx_agent_runs_parent RENAME TO idx_attempts_parent;
+ALTER INDEX idx_agent_runs_reuse RENAME TO idx_attempts_reuse;
+ALTER SEQUENCE IF EXISTS agent_runs_seq_seq RENAME TO attempts_seq_seq;
+"""
+
 MIGRATIONS: list[Migration] = [
     Migration(version=1, name="baseline", sql={"sqlite": SQLITE_BASELINE, "postgres": POSTGRES_BASELINE}),
     Migration(
@@ -213,4 +245,5 @@ MIGRATIONS: list[Migration] = [
         sql={"sqlite": SQLITE_IDENTITY_HASH, "postgres": POSTGRES_IDENTITY_HASH},
     ),
     Migration(version=3, name="queue_identity", sql={"sqlite": SQLITE_QUEUE_IDENTITY, "postgres": POSTGRES_NOTHING}),
+    Migration(version=4, name="attempts", sql={"sqlite": SQLITE_ATTEMPTS, "postgres": POSTGRES_ATTEMPTS}),
 ]

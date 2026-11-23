@@ -18,10 +18,10 @@ from fakes import (
 )
 from test_subagents import Parent, ParentInput
 
-from featherweight.db import RunEnd, RunStart
+from featherweight.db import AttemptFinish, AttemptRecord
 from featherweight.fingerprint import agent_hash, input_hash, output_hash, text_hash
 from featherweight.model_settings import ModelSettings
-from featherweight.models import RunStatus
+from featherweight.models import Status
 from featherweight.results import ResultKey, SqliteResultStore
 
 
@@ -49,7 +49,7 @@ def steps(runner, inputs, agent=Echo):
     async def pipeline(job_id):
         for text in inputs:
             result = await runner.run(agent, EchoInput(text=text), job_id=job_id)
-            if result.status == RunStatus.FAILED:
+            if result.status == Status.FAILED:
                 raise RuntimeError(result.error)
 
     return pipeline
@@ -63,33 +63,33 @@ async def run_steps(db, inputs, fake=None, agent=Echo, **kwargs):
 async def test_a_resumed_job_reuses_step_one_and_runs_the_steps_after_it(db):
     failing = model({"b"})
     failed = await run_steps(db, "abc", failing)
-    assert failed.status == RunStatus.FAILED and texts(failing) == ["a", "b"]
+    assert failed.status == Status.FAILED and texts(failing) == ["a", "b"]
 
     healthy = model()
     outcome = await run_steps(db, "abc", healthy, resume_from=failed.job_id)
 
-    assert outcome.status == RunStatus.SUCCESS
+    assert outcome.status == Status.SUCCESS
     assert texts(healthy) == ["b", "c"]  # "a" never reached the model
-    old = await db.list_runs(job_id=failed.job_id)
-    new = await db.list_runs(job_id=outcome.job_id)
-    assert [r.status for r in new] == [RunStatus.SUCCESS] * 3
-    assert new[0].reused_from_agent_run_id == old[0].agent_run_id and new[0].agent_run_id != old[0].agent_run_id
+    old = await db.list_attempts(job_id=failed.job_id)
+    new = await db.list_attempts(job_id=outcome.job_id)
+    assert [r.status for r in new] == [Status.SUCCESS] * 3
+    assert new[0].reused_from_attempt_id == old[0].attempt_id and new[0].attempt_id != old[0].attempt_id
     assert (new[0].input_tokens, new[0].output_tokens) == (0, 0)
     assert new[0].output_hash == old[0].output_hash == output_hash(EchoOutput(echoed="a"))
-    assert [r.reused_from_agent_run_id for r in new[1:]] == [None, None]
+    assert [r.reused_from_attempt_id for r in new[1:]] == [None, None]
     assert new[1].input_tokens == 5  # the steps that ran were counted
 
 
 async def test_the_new_job_records_resumed_from_and_the_old_job_is_unchanged(db):
     failed = await run_steps(db, "ab", model({"b"}))
     before = await db.get_job(failed.job_id)
-    before_runs = await db.list_runs(job_id=failed.job_id)
+    before_runs = await db.list_attempts(job_id=failed.job_id)
 
     outcome = await run_steps(db, "ab", resume_from=failed.job_id)
 
     assert (await db.get_job(outcome.job_id)).resumed_from == failed.job_id
     assert before.resumed_from is None and await db.get_job(failed.job_id) == before
-    assert await db.list_runs(job_id=failed.job_id) == before_runs
+    assert await db.list_attempts(job_id=failed.job_id) == before_runs
 
 
 async def test_a_reused_result_says_so_and_calls_no_model(db):
@@ -100,10 +100,10 @@ async def test_a_reused_result_says_so_and_calls_no_model(db):
 
     result = await runner.run(Echo, EchoInput(text="a"), job_id=job_id)
 
-    assert result.status == RunStatus.SUCCESS and result.reused is True
+    assert result.status == Status.SUCCESS and result.reused is True
     assert result.output == EchoOutput(echoed="a") and (result.input_tokens, result.output_tokens) == (0, 0)
     assert scripted.calls == 0
-    assert (await db.get_run(result.agent_run_id)).status == RunStatus.SUCCESS
+    assert (await db.get_attempt(result.attempt_id)).status == Status.SUCCESS
 
 
 async def test_a_reused_row_adds_nothing_to_the_job_totals(db):
@@ -111,7 +111,7 @@ async def test_a_reused_row_adds_nothing_to_the_job_totals(db):
     outcome = await run_steps(db, "a", resume_from=first.job_id)
 
     async with db.conn.execute(
-        "SELECT SUM(input_tokens), SUM(output_tokens) FROM agent_runs WHERE job_id = ?", (outcome.job_id,)
+        "SELECT SUM(input_tokens), SUM(output_tokens) FROM attempts WHERE job_id = ?", (outcome.job_id,)
     ) as cur:
         assert tuple(await cur.fetchone()) == (0, 0)
 
@@ -135,9 +135,9 @@ async def test_a_changed_prompt_version_or_model_setting_reruns_the_step(db, age
 
     outcome = await run_steps(db, "a", counting, agent, resume_from=first.job_id)
 
-    assert outcome.status == RunStatus.SUCCESS and texts(counting) == ["a"]
-    (row,) = await db.list_runs(job_id=outcome.job_id)
-    assert row.reused_from_agent_run_id is None
+    assert outcome.status == Status.SUCCESS and texts(counting) == ["a"]
+    (row,) = await db.list_attempts(job_id=outcome.job_id)
+    assert row.reused_from_attempt_id is None
 
 
 async def test_a_changed_input_reruns_the_step_and_an_unchanged_one_is_reused(db):
@@ -175,9 +175,9 @@ async def test_an_output_that_check_output_now_rejects_runs_the_agent(db, monkey
 
     outcome = await run_steps(db, "a", counting, Strict, resume_from=first.job_id)
 
-    assert outcome.status == RunStatus.SUCCESS and texts(counting) == ["a"]
-    (row,) = await db.list_runs(job_id=outcome.job_id)
-    assert row.reused_from_agent_run_id is None and row.output_hash == output_hash(EchoOutput(echoed="fresh"))
+    assert outcome.status == Status.SUCCESS and texts(counting) == ["a"]
+    (row,) = await db.list_attempts(job_id=outcome.job_id)
+    assert row.reused_from_attempt_id is None and row.output_hash == output_hash(EchoOutput(echoed="fresh"))
 
 
 async def test_an_output_that_no_longer_validates_runs_the_agent(db):
@@ -188,18 +188,18 @@ async def test_an_output_that_no_longer_validates_runs_the_agent(db):
 
     outcome = await run_steps(db, "a", counting, resume_from=first.job_id)
 
-    assert outcome.status == RunStatus.SUCCESS and texts(counting) == ["a"]
-    (row,) = await db.list_runs(job_id=outcome.job_id)
-    assert row.reused_from_agent_run_id is None and row.output_hash == output_hash(EchoOutput(echoed="a"))
+    assert outcome.status == Status.SUCCESS and texts(counting) == ["a"]
+    (row,) = await db.list_attempts(job_id=outcome.job_id)
+    assert row.reused_from_attempt_id is None and row.output_hash == output_hash(EchoOutput(echoed="a"))
 
 
 async def old_row(db, job_id, status):
     """A run of `Echo` on the text "a", as an earlier job would have left it, with its result kept."""
     input_ = EchoInput(text="a")
-    run_id = await db.create_run(
-        RunStart(
-            agent_run_id=f"{job_id}-{status}",
-            invocation_id="inv",
+    run_id = await db.create_attempt(
+        AttemptRecord(
+            attempt_id=f"{job_id}-{status}",
+            run_id="inv",
             attempt=1,
             job_id=job_id,
             agent_name="echo",
@@ -215,9 +215,9 @@ async def old_row(db, job_id, status):
         )
     )
     if status == "RUNNING":
-        await db.mark_run_running(run_id)
+        await db.start_attempt(run_id)
     elif status in ("SUCCESS", "FAILED"):
-        await db.finish_run(run_id, RunEnd(status=RunStatus(status), output_hash=text_hash("a")))
+        await db.finish_attempt(run_id, AttemptFinish(status=Status(status), output_hash=text_hash("a")))
     key = ResultKey(job_id=job_id, agent_hash=agent_hash(Echo()), input_hash=input_hash(input_))
     await SqliteResultStore(db).put(key, {"echoed": "a"})
 
@@ -231,8 +231,8 @@ async def test_a_row_that_did_not_succeed_is_never_reused(db, status):
     outcome = await run_steps(db, "a", counting, resume_from=old)
 
     assert texts(counting) == ["a"]
-    (row,) = await db.list_runs(job_id=outcome.job_id)
-    assert row.reused_from_agent_run_id is None
+    (row,) = await db.list_attempts(job_id=outcome.job_id)
+    assert row.reused_from_attempt_id is None
 
 
 async def test_a_helper_row_is_reused_when_it_succeeded(db):
@@ -251,7 +251,7 @@ async def test_run_many_with_one_failed_input_reruns_only_that_input(db):
 
     runner = runner_with(db, model({"b"}), max_attempts=1)
     failed = await run_pipeline(db, "p", lambda job_id: fan_out(runner, job_id), resumable=True)
-    assert [r.status for r in failed.result or []] == [RunStatus.SUCCESS, RunStatus.FAILED, RunStatus.SUCCESS]
+    assert [r.status for r in failed.result or []] == [Status.SUCCESS, Status.FAILED, Status.SUCCESS]
 
     healthy = model()
     runner = runner_with(db, healthy, max_attempts=1)
@@ -259,7 +259,7 @@ async def test_run_many_with_one_failed_input_reruns_only_that_input(db):
 
     assert texts(healthy) == ["b"]
     assert [r.reused for r in resumed.result or []] == [True, False, True]
-    assert all(r.status == RunStatus.SUCCESS for r in resumed.result or [])
+    assert all(r.status == Status.SUCCESS for r in resumed.result or [])
 
 
 async def test_identical_inputs_in_one_run_many_are_all_reused(db):
@@ -286,7 +286,7 @@ async def test_a_succeeded_parent_is_reused_whole_and_its_children_never_launch(
     runner = runner_with(db, Scripted(script=parent_script("x")), max_attempts=1)
     old = await db.create_job("p", resumable=True)
     first = await runner.run(Parent, ParentInput(task="go"), job_id=old)
-    assert first.status == RunStatus.SUCCESS and len(await db.list_runs(job_id=old)) == 2  # the parent and its child
+    assert first.status == Status.SUCCESS and len(await db.list_attempts(job_id=old)) == 2  # the parent and its child
 
     scripted = Scripted(script=[])
     runner = runner_with(db, scripted, max_attempts=1)
@@ -294,8 +294,8 @@ async def test_a_succeeded_parent_is_reused_whole_and_its_children_never_launch(
     second = await runner.run(Parent, ParentInput(task="go"), job_id=new)
 
     assert second.reused and second.output == first.output and scripted.calls == 0
-    (row,) = await db.list_runs(job_id=new)  # no row for the child
-    assert row.depth == 1 and row.reused_from_agent_run_id == first.agent_run_id
+    (row,) = await db.list_attempts(job_id=new)  # no row for the child
+    assert row.depth == 1 and row.reused_from_attempt_id == first.attempt_id
 
 
 async def test_a_failed_parent_reruns_and_its_child_is_not_looked_up(db):
@@ -303,7 +303,7 @@ async def test_a_failed_parent_reruns_and_its_child_is_not_looked_up(db):
     old = await db.create_job("p", resumable=True)
     await runner.run(Parent, ParentInput(task="go"), job_id=old)
     # Only the child (depth 2) is left as a SUCCESS row of the old job.
-    await db.conn.execute("UPDATE agent_runs SET status = 'FAILED' WHERE job_id = ? AND depth = 1", (old,))
+    await db.conn.execute("UPDATE attempts SET status = 'FAILED' WHERE job_id = ? AND depth = 1", (old,))
     await db.conn.commit()
 
     scripted = Scripted(script=parent_script("x"))
@@ -311,9 +311,9 @@ async def test_a_failed_parent_reruns_and_its_child_is_not_looked_up(db):
     new = await db.create_job("p", resume_from=old)
     result = await runner.run(Parent, ParentInput(task="go"), job_id=new)
 
-    assert result.status == RunStatus.SUCCESS and not result.reused
-    runs = await db.list_runs(job_id=new)
-    assert [(r.depth, r.reused_from_agent_run_id) for r in runs] == [(1, None), (2, None)]  # the child ran again
+    assert result.status == Status.SUCCESS and not result.reused
+    runs = await db.list_attempts(job_id=new)
+    assert [(r.depth, r.reused_from_attempt_id) for r in runs] == [(1, None), (2, None)]  # the child ran again
     assert scripted.calls == 3
 
 

@@ -16,7 +16,7 @@ from featherweight.events import job_events, wait_for_job
 from featherweight.fingerprint import error_fields, input_hash, text_hash
 from featherweight.identity import IdentitySpec
 from featherweight.jobs import Job, as_job
-from featherweight.models import AgentBase, RunStatus
+from featherweight.models import AgentBase, Status
 from featherweight.observers import JobSubmitted, Observer, Observers
 from featherweight.queue import DEAD_LETTERED, JobMessage, JobQueue
 from featherweight.results import ResultKey, ResultStore, SqliteResultStore
@@ -56,7 +56,7 @@ class JobClient:
         resumable: bool = False,
         resume_from: str | None = None,
         job_id: str | None = None,
-        parent_agent_run_id: str | None = None,
+        parent_attempt_id: str | None = None,
         parent_tool_call_id: str | None = None,
         identity: Any = None,
     ) -> str:
@@ -67,7 +67,7 @@ class JobClient:
         (the old job must have been `resumable`, or `ValueError` says nothing was kept). If the queue refuses the message, the
         job is marked `FAILED` and the error is raised.
 
-        `parent_agent_run_id` is set by a runner that starts the job as a background job: the attempt that started it. It is stored.
+        `parent_attempt_id` is set by a runner that starts the job as a background job: the attempt that started it. It is stored.
         `parent_tool_call_id` is the tool call that started it: it goes to the observers (so that a trace nests the job under
         the call) and is stored nowhere.
 
@@ -88,7 +88,7 @@ class JobClient:
             job_version=declared.version,
             job_hash=declared.job_hash(),
             input_hash=input_hash(input),
-            parent_agent_run_id=parent_agent_run_id,
+            parent_attempt_id=parent_attempt_id,
         )
         trace_context: dict[str, str] = {}
         if self._observers:  # nothing about a trace is stored: the carrier goes in the message and nowhere else
@@ -99,7 +99,7 @@ class JobClient:
                     version=declared.version,
                     job_hash=declared.job_hash(),
                     input_hash=input_hash(input),
-                    parent_agent_run_id=parent_agent_run_id,
+                    parent_attempt_id=parent_attempt_id,
                     parent_tool_call_id=parent_tool_call_id,
                     input=input.model_dump(mode="json") if self._observers.wants_content else None,
                 )
@@ -116,7 +116,7 @@ class JobClient:
             )
         except Exception as exc:
             error_type, error_hash = error_fields(exc)
-            await self.db.set_job_status(job_id, RunStatus.FAILED, error_type=error_type, error_hash=error_hash)
+            await self.db.set_job_status(job_id, Status.FAILED, error_type=error_type, error_hash=error_hash)
             logger.error("job_not_queued job_id=%s name=%s error_type=%s", job_id, declared.name, error_type)
             raise
         logger.info("job_submitted job_id=%s name=%s resume_from=%s", job_id, declared.name, resume_from)
@@ -150,12 +150,7 @@ class JobClient:
         there is none (the job is not `SUCCESS`, the store has nothing, or `results` is `None`). `LookupError` for a job that
         does not exist. It never reads our tables, which hold no results."""
         row = await self.status(job_id)
-        if (
-            row.status is not RunStatus.SUCCESS
-            or self.results is None
-            or row.job_hash is None
-            or row.input_hash is None
-        ):
+        if row.status is not Status.SUCCESS or self.results is None or row.job_hash is None or row.input_hash is None:
             return None
         stored: dict[str, Any] | None = await self.results.get(
             ResultKey(job_id=job_id, agent_hash=row.job_hash, input_hash=row.input_hash)

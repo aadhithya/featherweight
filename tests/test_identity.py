@@ -26,7 +26,7 @@ from featherweight.fingerprint import agent_hash
 from featherweight.identity import IdentitySpec
 from featherweight.jobs import JobContext, job, run_job
 from featherweight.model_settings import ModelSettings
-from featherweight.models import AgentBase, AgentInput, AgentOutput, RunStatus
+from featherweight.models import AgentBase, AgentInput, AgentOutput, Status
 from featherweight.streaming import ChatInput, StreamingAgent
 from featherweight.testing import MemoryResultStore
 
@@ -167,7 +167,7 @@ async def test_a_run_without_a_declared_type_has_no_identity_and_refuses_one(db)
     use_model(asks(), "asker")
     runner = runner_with(db, Scripted(script=[]))
     result = await runner.run(Asker, AskInput())
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     assert [identity for _, identity in SEEN] == [None, None, None]
     with pytest.raises(TypeError, match="no identity_type is declared"):
         await runner.run(Asker, AskInput(), identity=Teacher(user_id="a"))
@@ -181,7 +181,7 @@ async def test_a_declared_type_makes_the_identity_required_and_checked(db):
         await runner.run(Asker, AskInput(), identity=Student(user_id="a"))
     with pytest.raises(TypeError, match="every run needs identity="):
         await runner.run_many(Asker, [AskInput()])
-    assert await db.list_runs() == []  # nothing ran, and nothing was written
+    assert await db.list_attempts() == []  # nothing ran, and nothing was written
 
 
 async def test_a_union_with_none_allows_a_run_without_an_identity(db):
@@ -189,12 +189,12 @@ async def test_a_union_with_none_allows_a_run_without_an_identity(db):
     runner = runner_with(db, Scripted(script=[]), identity_type=Teacher | None)
     teacher = Teacher(user_id="a")
 
-    assert (await runner.run(Asker, AskInput())).status == RunStatus.SUCCESS
+    assert (await runner.run(Asker, AskInput())).status == Status.SUCCESS
     assert [identity for _, identity in SEEN] == [None, None, None]
 
     SEEN.clear()
     use_model(asks(), "asker")
-    assert (await runner.run(Asker, AskInput(), identity=teacher)).status == RunStatus.SUCCESS
+    assert (await runner.run(Asker, AskInput(), identity=teacher)).status == Status.SUCCESS
     assert [identity for _, identity in SEEN] == [teacher, teacher, teacher]
 
 
@@ -208,7 +208,7 @@ async def test_a_sync_tool_an_async_tool_and_a_shared_tool_all_see_the_identity_
 
     result = await runner.run(Asker, AskInput(), identity=teacher)
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     assert kinds() == ["sync", "async", "shared"]
     assert all(identity is teacher for _, identity in SEEN)  # the same object, in a process
 
@@ -228,7 +228,7 @@ async def test_two_runs_at_once_on_one_runner_do_not_mix_their_identities(db):
         runner.run(Asker, AskInput(text="two"), identity=second),
     )
 
-    assert [r.status for r in results] == [RunStatus.SUCCESS, RunStatus.SUCCESS]
+    assert [r.status for r in results] == [Status.SUCCESS, Status.SUCCESS]
     assert sorted(identity.user_id for _, identity in SEEN) == ["first", "second"]
     assert CURRENT_IDENTITY.get() is None  # and the caller's own context is left as it was
 
@@ -245,7 +245,7 @@ async def test_run_many_gives_every_input_the_same_identity(db):
 
     results = await runner.run_many(Asker, [AskInput(text=str(n)) for n in range(3)], identity=teacher)
 
-    assert all(r.status == RunStatus.SUCCESS for r in results)
+    assert all(r.status == Status.SUCCESS for r in results)
     assert len(SEEN) == 3 and all(identity is teacher for _, identity in SEEN)
 
 
@@ -263,7 +263,7 @@ class Boss(AgentBase):
     output_model: ClassVar[type[AgentOutput]] = AskOutput
 
 
-async def test_a_launched_agent_runs_with_the_identity_of_its_parent(db):
+async def test_a_launched_attempts_with_the_identity_of_its_parent(db):
     parent = Scripted(
         script=[
             tool_reply("launch_agent", {"agent_name": "asker", "input_json": "{}"}, "t-launch"),
@@ -276,7 +276,7 @@ async def test_a_launched_agent_runs_with_the_identity_of_its_parent(db):
 
     result = await runner.run(Boss, AskInput(), identity=teacher)
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     assert kinds() == ["sync", "async", "shared"]  # the child's tools
     assert all(identity is teacher for _, identity in SEEN)
 
@@ -309,7 +309,7 @@ async def test_an_agent_started_in_the_background_here_runs_with_the_identity_of
     result = await runner.run(Starter, AskInput(), identity=teacher)
     await asyncio.gather(*runner._background_tasks)
 
-    assert result.status == RunStatus.SUCCESS, result.error
+    assert result.status == Status.SUCCESS, result.error
     assert kinds() == ["sync", "async", "shared"]
     assert all(identity is teacher for _, identity in SEEN)
 
@@ -330,7 +330,7 @@ async def test_a_job_has_the_identity_it_was_run_for_and_so_does_every_agent_it_
 
     outcome = await run_job(runner, ask_for, AskInput(), identity=teacher)
 
-    assert outcome.status == RunStatus.SUCCESS and outcome.result.answer == "a:SUCCESS"
+    assert outcome.status == Status.SUCCESS and outcome.result.answer == "a:SUCCESS"
     assert all(identity is teacher for _, identity in SEEN)
 
 
@@ -384,9 +384,9 @@ async def test_an_identity_is_not_in_the_hash_the_prompt_the_messages_the_log_or
     with caplog.at_level(logging.DEBUG):
         result = await runner.run(Asker, AskInput(), identity=teacher)
 
-    assert result.status == RunStatus.SUCCESS
+    assert result.status == Status.SUCCESS
     for text in ("u-distinct-123", "t-distinct-456"):
         assert text not in repr(model.seen)  # not in anything the model saw
         assert text not in caplog.text
-        assert text not in repr(await db.list_runs())
+        assert text not in repr(await db.list_attempts())
         assert text not in repr(result)
