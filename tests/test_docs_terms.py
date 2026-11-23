@@ -22,11 +22,25 @@ RULED_OUT = [
     (r"\bFeatherweight\b", "featherweight (lowercase)"),
     (r"\bprincipal\b", "identity"),
     (r"\bnothing has been released\b", "(the first release is out)"),
+    (r"\binvocations?\b", "run"),
+    (r"\b(?:an?|each|every|one) agent runs?\b", "run"),
 ]
 # where a ruled-out name is used on purpose
 ALLOWED = {
+    "docs/specs/units.md": {
+        r"\binvocations?\b",
+        r"\b(?:an?|each|every|one) agent runs?\b",
+    },  # it retires them and says what they were
+    "docs/book/07-reference/03-the-glossary.md": {
+        r"\binvocations?\b",
+        r"\b(?:an?|each|every|one) agent runs?\b",
+    },  # it lists them as ruled out
     "docs/specs/tools-and-store.md": {r"\brun stores?\b"},  # it recounts that the run store was removed
-    "docs/migration.md": {r"\brun stores?\b"},  # it says what to do about the removal
+    "docs/migration.md": {
+        r"\brun stores?\b",
+        r"\binvocations?\b",
+        r"\b(?:an?|each|every|one) agent runs?\b",
+    },  # it says what to do about the removal and the renames
 }
 
 PROTECTED = re.compile(r"(```.*?```|~~~.*?~~~|`[^`\n]*`|\]\([^)]*\)|<!--.*?-->|<https?://[^>]+>|https?://\S+)", re.S)

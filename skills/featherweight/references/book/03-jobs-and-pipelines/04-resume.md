@@ -83,7 +83,7 @@ second run
 
 - **`resumable=True`** is decided before the job runs: it keeps the output of each step in the result store, so that a later job can use it. A job that did
   not keep them cannot be resumed.
-- **`resume_from=first.job_id`** starts a **new job** that points to the failed one. The agent runs that already succeeded, with the same agent and the same
+- **`resume_from=first.job_id`** starts a **new job** that points to the failed one. The runs that already succeeded, with the same agent and the same
   input, are answered from the kept results: no model call, no tokens. The failed job stays as a record.
 - **The code between the agents must give the same inputs each time**, which is why the digest is sorted with plain, deterministic Python. If the code took
   another path, the inputs would differ and the agents would run again.

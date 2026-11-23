@@ -111,7 +111,7 @@ asyncio.run(main())
 ## Rules that save you a round trip
 
 - **Import what you use:** `from featherweight import AgentBase, AgentRunner`, not `import featherweight as ftw` (a joke).
-- **A `job_id` is the job a run belongs to, not the run's id.** A job has many agent runs, and each has its own `attempt_id`.
+- **A `job_id` is the job a run belongs to, not the run's id.** A job has many runs; a run has a `run_id`, and each of its attempts an `attempt_id`.
 - **featherweight keeps metadata only** (status, tokens, timing, hashes). Inputs, outputs and results go to stores you provide
   (`ResultStore`, `Database`, `JobQueue` are interfaces you can implement), so never expect it to hold them.
 - **Pass the class to the runner, not an instance.** `runner.run(PeopleExtractor, input)`. The runner builds it.
@@ -121,7 +121,7 @@ asyncio.run(main())
 - **Two kinds of bad output.** A reply that breaks the schema (a wrong type, a value outside a `Literal`) goes back to the
   model within the same attempt. A rejection by `check_output` fails the attempt, and the runner retries it, up to 3
   attempts. Use a `Literal` or validator for rules on the output alone, `check_output` for rules about the input too.
-- **Resuming a failed job:** `run_job(runner, job, input, resume_from=old_job_id)` makes a new job. Agent runs that
+- **Resuming a failed job:** `run_job(runner, job, input, resume_from=old_job_id)` makes a new job. Runs that
   already succeeded with the same agent and input are reused (`result.reused`, zero tokens); the rest run. The code
   between agents must be deterministic, state kept in memory is not rebuilt, and only top-level runs are reused
   (see `references/agents.md`).

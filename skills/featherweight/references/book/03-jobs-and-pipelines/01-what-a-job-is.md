@@ -70,11 +70,11 @@ SUCCESS ['Checkout was down', 'Sign-in trouble', 'Search was slow', 'Batch was l
 **What to notice**
 
 - **A job is a function with a typed input and a typed output.** `@job` turns it into a class with a name, a version and the two models, and `run_job` runs it
-  and returns an outcome: `status`, `result` (the output model) and `error`. A job that fails is an outcome, not an exception, as for an agent run.
-- **`ctx.run` and `ctx.run_many` run agents in the job.** They share the job's id, so the agent runs are recorded under it (the next chapter).
+  and returns an outcome: `status`, `result` (the output model) and `error`. A job that fails is an outcome, not an exception, as for a run.
+- **`ctx.run` and `ctx.run_many` run agents in the job.** They share the job's id, so the runs are recorded under it (the next chapter).
 - **The pipeline is plain Python.** `summarise_all` reads files and collects results with a list comprehension: no graph, no special syntax.
 - **`SqliteDatabase(":memory:")`** keeps the run log in memory: a quick try with no file, gone when the program ends.
-- **When to use a job.** Use one when the work is something you want to name, follow, run again or hand to someone else: it spans several agent runs, an API
+- **When to use a job.** Use one when the work is something you want to name, follow, run again or hand to someone else: it spans several runs, an API
   triggers it, or it can fail halfway and should pick up again. A single agent call in a script needs no job: `runner.run` is enough.
 - **What a job gives you that a function does not.** A name and a version, so a change is visible; a status, events and a run log you can read; its output in
   a store you choose; resume after a failure; and the same job on a worker, with no rewrite.

@@ -67,7 +67,7 @@ events: ['queued', 'running', 'succeeded']
 - **The job row** has its name, its status and its version. Reading it is `db.get_job(job_id)`.
 - **Events** are the history of the job's status, one for each change: `queued`, `running`, then `succeeded` or `failed`. The database writes each event in the
   same step as the change, so they cannot disagree. A client in another process follows them as a stream (Part 5).
-- **The run log** (`db.list_attempts(job_id=...)`) has one row for each attempt of each agent run in the job: status, model, tokens, time and hashes.
+- **The run log** (`db.list_attempts(job_id=...)`) has one row for each attempt of each run in the job: status, model, tokens, time and hashes.
 - **Metadata and nothing else.** No report, no summary and no error text is in any of it: the framework stores metadata, and you bring the storage.
 
 > **Why metadata.** What went through the job is yours, and so is how it is kept. See [the rule](https://github.com/aadhithya/featherweight/blob/main/docs/specs/persistence.md#the-rule) and
