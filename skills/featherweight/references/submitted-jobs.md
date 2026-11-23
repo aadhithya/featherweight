@@ -12,6 +12,7 @@ Spec: [Submitted jobs](https://github.com/aadhithya/featherweight/blob/main/docs
 - [The model](#the-model)
 - [Defining a job](#defining-a-job)
 - [Submitting and following](#submitting-and-following)
+- [Who the job is for: the identity](#who-the-job-is-for-the-identity)
 - [Cancelling](#cancelling)
 - [Events and SSE](#events-and-sse)
 - [Running a worker](#running-a-worker)
@@ -73,6 +74,26 @@ print(await client.result(shout, job_id))  # Shouted(shouted='HELLO'), read from
 The same job runs in your process with `run_job(runner, shout, Text(text="hello"))`: it writes the same row, events and result, and
 returns the outcome. `result` is `None` until the job succeeded. `wait(job_id, timeout)` polls the database until the job is final: fine in
 a script or a test, but a web handler should return the job id and let the caller follow `events`.
+
+## Who the job is for: the identity
+
+A tool on a worker can act for the user who started the job, as a tool in your process can ([who is asking](agents.md#who-is-asking-the-identity-of-a-run)).
+`submit` takes `identity=`, the message carries it as JSON, and the worker rebuilds it with its own `identity_type`:
+
+```python
+runner = AgentRunner(db, identity_type=Teacher)
+worker = JobWorker(db, queue, runner, jobs=[shout], identity_type=Teacher)
+client = JobClient(db, queue, identity_type=Teacher)  # optional: it only checks the identity before a job is made
+
+job_id = await client.submit(shout, Text(text="hello"), identity=Teacher(user_id="u1", tenant="uni"))
+```
+
+- **The worker's type is the authority.** A message without an identity, when the worker's type does not allow `None`, fails its job (`InvalidJobIdentity`),
+  and so does an identity that does not fit the type, or one when the worker declares no type. The job is not run, and it is not retried. The error names the fields, never the values.
+- **Fields marked `exclude=True` are not sent,** so a value that exists only in your process stays there. The worker's copy is equal to the original without them.
+- **A job that an agent starts in the background on a worker** (a runner with `background=JobClient`) is submitted with the identity of its parent.
+- **It is data in the queue message,** until the message is acknowledged: the queue is trusted, so keep the identity small and keep secrets out of it, and secure the queue the way you secure the
+  input. A tool on a worker gets a credential from the identity with its own code; featherweight has no provider for it. The [identity spec](https://github.com/aadhithya/featherweight/blob/main/docs/specs/identity.md) has the rules and what is yours.
 
 ## Cancelling
 
@@ -158,8 +179,8 @@ delivered again to another receiver, and its `Delivery.delivery_count` is higher
 How many times a message may be delivered is your broker's policy, with its own dead-letter queue. The kit asks that a message can be delivered at
 least three times. `SqliteQueue(db, lease=60, max_deliveries=3)` is the one we ship: after `max_deliveries` it marks the message `dead`.
 
-A message also carries a `trace_context` (a small mapping of strings, empty unless the client has an observer that gives one): carry it
-unchanged, and the kit checks that you do.
+A message also carries a `trace_context` (a small mapping of strings, empty unless the client has an observer that gives one) and an `identity` (a JSON mapping, or `None`: [who the job is for](#who-the-job-is-for-the-identity)): carry both
+unchanged, and the kit checks that you do. A queue that drops the identity fails the kit.
 
 A dead-letter queue is yours to configure on your queue: a message that is `nack`ed without `requeue` is yours to keep or drop.
 

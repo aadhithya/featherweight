@@ -162,4 +162,4 @@ async def test_a_database_from_before_the_column_is_migrated_and_its_runs_have_n
         row = await db.get_run("old-run")
         assert row is not None and row.identity_hash is None  # a run from before the column had no identity
         async with db.conn.execute("SELECT version, name FROM schema_migrations ORDER BY version") as cur:
-            assert [tuple(r) for r in await cur.fetchall()][-1] == (2, "identity_hash")
+            assert (2, "identity_hash") in [tuple(r) for r in await cur.fetchall()]

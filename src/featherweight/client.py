@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from featherweight.db import Database, JobEvent, JobRow
 from featherweight.events import job_events, wait_for_job
 from featherweight.fingerprint import error_fields, input_hash, text_hash
+from featherweight.identity import IdentitySpec
 from featherweight.jobs import Job, as_job
 from featherweight.models import AgentBase, RunStatus
 from featherweight.observers import JobSubmitted, Observer, Observers
@@ -35,8 +36,10 @@ class JobClient:
         queue: JobQueue,
         results: ResultStore | None | Literal["default"] = "default",
         observers: Sequence[Observer] = (),
+        identity_type: Any = None,
     ) -> None:
         self.db = db
+        self._identity = IdentitySpec(identity_type)  # optional here: the worker's declared type is the authority
         self.queue = queue
         self._observers = Observers(observers)  # heard on `submit`: the carrier they return travels in the message
         self.results: ResultStore | None = (
@@ -55,6 +58,7 @@ class JobClient:
         job_id: str | None = None,
         parent_agent_run_id: str | None = None,
         parent_tool_call_id: str | None = None,
+        identity: Any = None,
     ) -> str:
         """Create the job and put it on the queue; returns its id. `job` is a `Job` class, or a plain (non-streaming) agent
         class. The input must be an instance of the job's input model (`TypeError` otherwise).
@@ -65,10 +69,17 @@ class JobClient:
 
         `parent_agent_run_id` is set by a runner that starts the job as a background agent: the attempt that started it. It is stored.
         `parent_tool_call_id` is the tool call that started it: it goes to the observers (so that a trace nests the job under
-        the call) and is stored nowhere."""
+        the call) and is stored nowhere.
+
+        `identity` is who the job is for. It goes in the message as JSON, and the worker rebuilds it with its own `identity_type`; it is
+        stored nowhere. With an `identity_type` the client checks it first (`TypeError`); without one it accepts any Pydantic model."""
         declared = as_job(job)
         if not isinstance(input, declared.input_model):
             raise TypeError(f"{declared.name} expects a {declared.input_model.__name__}, got {type(input).__name__}")
+        if self._identity.declared_type:
+            self._identity.check(identity)
+        elif identity is not None and not isinstance(identity, BaseModel):
+            raise TypeError(f"identity must be a Pydantic model, got {type(identity).__name__}")
         job_id = await self.db.create_job(
             declared.name,
             job_id,
@@ -100,6 +111,7 @@ class JobClient:
                     job_name=declared.name,
                     input=input.model_dump(mode="json"),
                     trace_context=trace_context,
+                    identity=self._identity.dump(identity),
                 )
             )
         except Exception as exc:

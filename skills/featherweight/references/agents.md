@@ -222,7 +222,7 @@ result = await runner.run(Mailer, MailerInput(...), identity=Teacher(user_id="u1
 - Code that cannot take `runtime` (a tool shared by many attempts, such as an MCP tool) reads `CURRENT_IDENTITY` from `featherweight.context`.
 - **It is carried, not used.** It is never shown to the model, never part of the agent's hash, never logged and never stored. Keep it small, and keep secrets out of it:
   a tool gets a credential from the identity with your own code. Checking what the identity may do is the tool's job.
-- A job that is submitted to a worker does not carry the identity yet ([#196](https://github.com/aadhithya/featherweight/issues/196)).
+- A job that is submitted to a worker carries it in the queue message, and the worker rebuilds it ([submitted jobs](submitted-jobs.md#who-the-job-is-for-the-identity)).
 - **Resuming a job reuses a step only for the same identity** ([resuming a job](#resuming-a-job)): a change in who the run is for may be a change in what it may do, so the old result is not relied on. Whether a person may resume a job at all is your check.
 
 The [identity spec](https://github.com/aadhithya/featherweight/blob/main/docs/specs/identity.md) has the rules and what stays the application's.
