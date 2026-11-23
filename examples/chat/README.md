@@ -1,4 +1,4 @@
-# A streaming chat agent
+# A streaming streaming agent
 
 One agent, a support chat for an online shop, and two ways to talk to it. It uses `claude-haiku-5-5`, the smallest Claude
 model, with thinking off, so a conversation costs next to nothing. It needs `ANTHROPIC_API_KEY` in `.env`.

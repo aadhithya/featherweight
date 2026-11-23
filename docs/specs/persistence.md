@@ -64,7 +64,7 @@ A hash says that something changed without saying what it was, so it can stand w
 
 **`agent_hash` and the schemas.** (Done in #59.) Before it, `agent_hash` left out `input_model` and `output_model`, which are class attributes and
 not instance fields, so a changed output model does not change the hash. That is an oversight: the declaration includes them. Their
-JSON schemas are added, and every hash changes (nothing has been released). `check_output` is code and cannot be hashed: `version`
+JSON schemas are added, and every hash changed (this was before the first release). `check_output` is code and cannot be hashed: `version`
 is its signal, and a reused output is checked against it again.
 
 ## Errors
@@ -125,9 +125,9 @@ applied in order by `connect()`, each in a transaction, and recorded in `schema_
 sqlite-only patching of added columns is gone. A later change is a new migration with the SQL of each dialect, and a migration is
 never edited once released. Migration 2, `identity_hash`, adds `agent_runs.identity_hash` (`NULL` for every run from before it).
 
-**One baseline migration** creates the final schema. Nothing has been released and the database can be destroyed, so no data is
-carried over: an old database is **not read**. One that has `agent_runs` but no `schema_migrations` raises `SetupError` ("this
-database is from before migrations: delete it and run again").
+**The baseline migration** creates the schema of the first release, and is never edited. It carried nothing over from the database that came before
+migrations existed, which was never released: that one is **not read**. A database that has `agent_runs` but no `schema_migrations` raises `SetupError`
+("this database is from before migrations: delete it and run again").
 
 **Concurrent first connects.** Processes that connect to a fresh database at the same moment (an API and workers started together) must not
 race on the schema and the tables. On Postgres, `connect()` takes a session advisory lock, keyed on the schema (`pg_advisory_lock` on a hash of
@@ -187,7 +187,7 @@ about the same: the change is in what the table holds. **Audited and kept:** `ag
 | `resumed_from` | `text` null, foreign key `jobs` | The job this one resumes |
 | `job_hash`, `input_hash` | `text` null | A submitted job: the hash of its declaration and of its input. `NULL` for a job made without a job class |
 | `cancel_requested` | `boolean` / `integer` not null, default false | A running job that was asked to stop |
-| `parent_agent_run_id` | `text` null | The attempt that started this job as a [background agent](background-agents.md#the-tool). `NULL` for any other job |
+| `parent_agent_run_id` | `text` null | The attempt that started this job as a [background job](background-agents.md#the-tool). `NULL` for any other job |
 | `worker_id`, `lease_expires_at` | `text` null, `timestamptz` / `text` null | The worker that runs the job (the last one, once it ended), and when its lease ends (`NULL` while queued, when final, and for a job run in your process). Renewed in place; Postgres uses its own clock |
 | `executions` | `integer` not null, default 0, `>= 0` | How many times a worker started the job; 1 for the first, one more each time it is started again |
 | `error_type`, `error_hash` | `text` null | Set for `FAILED` |
@@ -294,7 +294,7 @@ that must route by tenant can do so from the job id of its keys, or be one per t
   kit checks behaviour, which neither a protocol nor an abstract class can.
 - **A result store only for sqlite, opt-in per job,** keyed by `(job, agent hash, input hash)`, with the result copied forward.
 - **A retry is a new job** that points to the old one; resuming from a job that was not resumable is an error.
-- **One baseline migration, no carry-over:** nothing has been released.
+- **One baseline migration, no carry-over from before it:** the database that came before migrations was never released.
 - **Native types on Postgres,** text on sqlite; the conversion is each implementation's job, and the rows are `datetime`s.
 - **`psycopg` 3, own schema, hand-rolled migrations.**
 - **Logs and the streaming `RUN_ERROR` keep the full error text:** a deployment keeps logs only if it wants to, and the client deals

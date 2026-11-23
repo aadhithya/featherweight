@@ -11,7 +11,7 @@
 
 **An opinionated agent harness. Pydantic is the spec. Everything else follows.**
 
-An agent is a typed class. Its input, output, tools, skills and subagents are declared right there and enforced, not hoped for.
+An agent is a typed class. Its input, output, tools, skills and sub-agents are declared right there and enforced, not hoped for.
 The boilerplate every agent project ends up writing (retries, limits, failures, tracing, delegation, workers, resume) is already
 written. You write the pipeline. That's the part that's yours.
 
@@ -43,7 +43,8 @@ We test the providers and tools featherweight ships with. Other LangChain integr
 | **Typed, declared, enforced** | An agent is a class. What goes in and what comes out is a schema. A bad declaration fails when it is written, a bad answer is caught and retried before your code ever sees it. |
 | **Least privilege** | Everything is an allow-list. A capability an agent has is one the developer gave it, on purpose. |
 | **Plain Python, failures as values** | Order, loops and branching are `if` and `for`: no graph, no workflow engine. A failed run hands you the error and a status, not an exception. |
-| **Agents that delegate** | Subagents on a leash, only the ones allowed, only so deep. Or background agents: one starts another and goes on, and the result comes back when it is ready. |
+| **Agents that delegate** | Sub-agents on a leash, only the ones allowed, only so deep. Or background jobs: one starts another and goes on, and the result comes back when it is ready. |
+| **Acts for someone** | A typed identity reaches your tools, in your process and on workers, and never the model. What it may do is your tools' decision: you bring authentication and authorization. |
 | **Resume instead of rerun** | A pipeline that dies halfway picks up where it stopped, without paying for the steps that worked. |
 | **Workers, and a lost worker is fine** | Submit a job from your API, run it on workers, follow it live, cancel it. Lose a worker mid-job and another takes over. |
 | **Streams to your UI** | Chat answers and job status stream over standard protocols (AG-UI, the Vercel AI SDK, SSE), so a browser can listen as is. |

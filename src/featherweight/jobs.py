@@ -1,7 +1,7 @@
 """Jobs: a `Job` is a declared class, run in your process by `run_job` or on a worker by name, by the same code (`execute_job`).
 
 A `Job` has a name, a version, an input model and an output model (Pydantic), and `async run(ctx, input)`. A plain agent can
-be a job too (`as_job`). A job is what a client submits to a queue and a job worker runs (see docs/specs/submitted-jobs.md).
+be a job too (`as_job`). A job is what a client submits to a queue and a worker runs (see docs/specs/submitted-jobs.md).
 """
 
 import asyncio
@@ -63,7 +63,7 @@ class JobContext(BaseModel):
 
 class Job(ABC):
     """A job, declared as a class, like an agent. Subclass it, set `name`, `version`, `input_model` and `output_model`, and write
-    `run`. A job worker is given the classes it can run, and runs one by its name.
+    `run`. A worker is given the classes it can run, and runs one by its name.
 
     The checks are made when the class is defined: a missing or odd name or version, or a model that is not Pydantic, or a
     `timeout` that is not a positive number or `None`, is an error then, not when a job arrives. A class that has not written
@@ -240,7 +240,7 @@ async def execute_job(
     identity: Any = None,
 ) -> JobOutcome[BaseModel]:
     """Run a job that has been started (its row is `RUNNING`), keep its result and set its final status. This is the one function
-    that runs a job, for `run_job` (in your process) and for the job worker, so that the two cannot differ: the same row, hashes,
+    that runs a job, for `run_job` (in your process) and for the worker, so that the two cannot differ: the same row, hashes,
     events, result, and the same calls to the runner's observers.
 
     A job that raises is a `FAILED` outcome, not an exception (the error type and hash go to the run log, the text to the log and
@@ -257,7 +257,7 @@ async def execute_job(
     observers = runner._observers
     scope: Entered | None = None
     row = await runner.db.get_job(job_id)
-    in_background = row is not None and row.parent_agent_run_id is not None  # started as a background agent
+    in_background = row is not None and row.parent_agent_run_id is not None  # started as a background job
     if observers:
         scope = await observers.enter(
             "job",
@@ -275,7 +275,7 @@ async def execute_job(
             ),
         )
     try:
-        token = IN_BACKGROUND_JOB.set(True) if in_background else None  # what it runs cannot start background agents
+        token = IN_BACKGROUND_JOB.set(True) if in_background else None  # what it runs cannot start background jobs
         try:
             outcome, error_type = await _execute(runner, job, job_id, job_input, results, on_cancel, owner, identity)
         finally:
@@ -403,7 +403,7 @@ async def run_job(
     `asyncio.create_task(run_job(runner, job, input, job_id=job_id))`. A job that was cancelled (or started) before it could
     start is not run: the outcome has the status it has and no result.
 
-    `trace_context` is the carrier of the caller's trace (W3C `traceparent`), for a runner that starts a job as a background agent:
+    `trace_context` is the carrier of the caller's trace (W3C `traceparent`), for a runner that starts a job as a background job:
     the job's span then joins that trace. It is empty otherwise.
 
     `identity` is who the job is for. It is checked against the runner's `identity_type` (a `TypeError` when it is missing, of the

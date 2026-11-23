@@ -14,7 +14,7 @@ not supported, tests.
 | [Submitted jobs](submitted-jobs.md) | A job as a declared class, `JobQueue`, `JobClient`, `JobWorker`, cancelling, job events and SSE |
 | [Identity](identity.md) | Who a run is for: a typed identity the application passes, how tools read it, how it crosses the queue, and the identity hash for resuming; what stays the application's |
 | [Observers and OpenTelemetry](observability.md) | The `Observer` class and what it receives, `OTelObserver` and the GenAI conventions, spans for jobs, attempts, model calls and tool calls, evaluation |
-| [Background agents](background-agents.md) | A job exposed to an agent as a tool, here or on a worker, getting its result back, events, how long a child lives |
+| [Background jobs](background-agents.md) | A job exposed to an agent as a tool, here or on a worker, getting its result back, events, how long a child lives |
 | [Streaming agents](streaming.md) | `StreamingAgent`, `runner.stream()`, AG-UI events, thoughts, stopping a response, messages, the AG-UI and Vercel adapters |
 | [Attachments](attachments.md) | Images, documents, audio and video in a chat message: what a client can send, what the model gets, limits, failures |
 | [Skills](skills.md) | The skill model, loading, how an agent reads a skill, the Agent Skills specification |
@@ -36,7 +36,7 @@ A change goes in the spec of the thing it changes, and not in the spec of the ep
 | [Persistence](persistence.md) | The metadata-only rule, hashes, the `Database` class, the schema of every table, migrations, the result store, Postgres, tenants |
 | [Identity](identity.md) | The identity of a run: declaring and passing it, `RunContext.identity`, who inherits it, its field in the queue message, `identity_hash`, the developer's responsibilities |
 | [Observers and OpenTelemetry](observability.md) | The `Observer` class and its records, `OTelObserver`, the GenAI mapping, your own spans, evaluation |
-| [Background agents](background-agents.md) | `background_jobs`, `start_background`, where a child runs, the result message, the events, how long a child lives |
+| [Background jobs](background-agents.md) | `background_jobs`, `start_background`, where a child runs, the result message, the events, how long a child lives |
 | [Streaming agents](streaming.md) | `StreamingAgent`, `runner.stream()`, the events, the adapters |
 | [Attachments](attachments.md) | The parts a user message may carry, how they reach the model, the limits on them |
 | [Tools and the registry](tools-and-store.md), [MCP tools](mcp-tools.md), [tool discovery](tool-discovery.md), [skills](skills.md) | What their names say |

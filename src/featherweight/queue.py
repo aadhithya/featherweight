@@ -1,4 +1,4 @@
-"""The queue that connects a client to a job worker, as an abstract class.
+"""The queue that connects a client to a worker, as an abstract class.
 
 featherweight passes what the user gives to a job: the input travels in the message (as JSON, or as a reference inside it).
 `SqliteQueue` is our only product implementation, for local development; how jobs travel in a deployment (Redis, SQS, a

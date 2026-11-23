@@ -120,7 +120,7 @@ application.
 - **Nesting:** a job holds the attempts of its pipeline; an attempt holds its model calls and tool calls; a tool that launches
   an agent holds that agent's attempt. The parent of an attempt comes from the tool call that launched it
   (`parent_tool_call_id`) or else from `parent_agent_run_id`, and not only from the current span, because a launched agent runs
-  in another task. Retries are siblings that share `ftw.invocation.id`. The job of a [background agent](background-agents.md#events) is under the tool call that started it: the `submitted` hook is told the tool call (`JobSubmitted.parent_agent_run_id` and `parent_tool_call_id`, which are for observers and stored nowhere), and `OTelObserver` gives the carrier of that call's span.
+  in another task. Retries are siblings that share `ftw.invocation.id`. The job of a [background job](background-agents.md#events) is under the tool call that started it: the `submitted` hook is told the tool call (`JobSubmitted.parent_agent_run_id` and `parent_tool_call_id`, which are for observers and stored nowhere), and `OTelObserver` gives the carrier of that call's span.
 - **Attributes from the conventions:** `gen_ai.operation.name` (`invoke_workflow`, `invoke_agent`, `chat`, `execute_tool`),
   `gen_ai.agent.name` (an agent's name, and a job's name: the conventions call it the name of "the GenAI agent or workflow"),
   `gen_ai.agent.version`, `gen_ai.agent.description`, `gen_ai.request.model`, `gen_ai.tool.name`, `gen_ai.tool.call.id`,

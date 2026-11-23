@@ -1,7 +1,7 @@
 # A pipeline of two agents
 
 A pipeline is a job: a function with a typed input and output. Order and branching are plain Python. Every agent it runs with `ctx`
-belongs to the job, so they share the run store and the trace.
+belongs to the job, so they share its run log and its trace.
 
 ```python
 from pydantic import BaseModel

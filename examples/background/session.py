@@ -1,4 +1,4 @@
-"""A chat agent that starts a background agent and goes on talking, and a session that wakes it when the work is done.
+"""A streaming agent that starts a background job and goes on talking, and a session that wakes it when the work is done.
 
     python examples/background/session.py
 
@@ -42,7 +42,7 @@ class Note(AgentOutput):
 
 
 class Researcher(AgentBase):
-    """The background agent: it takes a while, and the chat does not wait for it."""
+    """The background job: it takes a while, and the chat does not wait for it."""
 
     name: str = "researcher"
     description: str = "Writes a short research note on a topic"

@@ -13,7 +13,7 @@ comes out, retries what fails, and records what happened. You write the part tha
 - **Abilities.** Tools, MCP servers, skills and sub-agents, declared on the agent.
 - **Jobs.** A pipeline is a job: a declared class that runs in your process or on a worker, with a status, events and a result.
 - **Chat.** A streaming agent, for a browser or a terminal.
-- **Background agents.** An agent starts another agent and goes on.
+- **Background jobs.** An agent starts another agent and goes on.
 - **Traces.** OpenTelemetry spans for jobs, attempts, model calls and tool calls.
 
 ## What it is not

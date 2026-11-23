@@ -1,4 +1,4 @@
-"""Background agents: the declaration and its checks, the prompt, the tool, and the child as a job (here, and on a worker)."""
+"""Background jobs: the declaration and its checks, the prompt, the tool, and the child as a job (here, and on a worker)."""
 
 import asyncio
 import json
@@ -398,7 +398,7 @@ async def test_a_streaming_agent_with_background_jobs_is_refused_the_same_way(db
         runner.stream(Chat, ChatInput.model_validate({"messages": [{"id": "m1", "role": "user", "content": "hi"}]}))
 
 
-# a child inside a background job cannot start background agents
+# a child inside a background job cannot start background jobs
 
 
 async def test_what_a_background_job_runs_cannot_start_background_jobs(db):

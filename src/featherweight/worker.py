@@ -1,4 +1,4 @@
-"""The job worker: the process that runs submitted jobs.
+"""The worker: the process that runs submitted jobs.
 
 It receives messages from a queue, runs the job each one names, writes the output through the user's result store, and records
 the outcome in the run log. It holds no state of its own beyond the tasks it is running: everything else is the database, the

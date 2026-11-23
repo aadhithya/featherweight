@@ -1,4 +1,4 @@
-"""A job worker, as a process of its own.
+"""A worker, as a process of its own.
 
     python examples/jobs/worker.py
 

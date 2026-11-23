@@ -33,8 +33,8 @@ CURRENT_AGENT_RUN_ID: ContextVar[str | None] = ContextVar("current_agent_run_id"
 # from this, and not from the job's row: a worker that lost the job and has not noticed yet is still the execution it was.
 CURRENT_JOB_EXECUTION: ContextVar[tuple[str, int] | None] = ContextVar("current_job_execution", default=None)
 
-# True while a job that was started as a background agent runs (set by `execute_job` from the job's `parent_agent_run_id`): what it
-# runs, inline sub-agents included, cannot start background agents of its own.
+# True while a job that was started as a background job runs (set by `execute_job` from the job's `parent_agent_run_id`): what it
+# runs, inline sub-agents included, cannot start background jobs of its own.
 IN_BACKGROUND_JOB: ContextVar[bool] = ContextVar("in_background_job", default=False)
 
 # The tool call that is running in this task, while observers listen: the callback of the attempt sets it, so that an agent launched by

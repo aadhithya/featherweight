@@ -99,5 +99,5 @@ Next: an agent that starts another agent and goes on.
 <!-- nav:bottom -->
 ---
 
-[← Submit and a worker](01-submit-and-a-worker.md) · [Part 5: In production](../README.md#part-5-in-production) · [Background agents →](03-background-agents.md)
+[← Submit and a worker](01-submit-and-a-worker.md) · [Part 5: In production](../README.md#part-5-in-production) · [Background jobs →](03-background-agents.md)
 <!-- /nav:bottom -->

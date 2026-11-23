@@ -31,7 +31,7 @@ skills/               the skill that teaches a coding agent to build with feathe
 tests/                the harness's tests; tests/e2e uses the real model
 ```
 
-`python3 scripts/build_skill.py` copies the guides and the book into the skill and builds its abridged recipes from `docs/recipes`, and `python3 scripts/build_book.py` writes the book's navigation and checks its code listings ([the style](book/STYLE.md)). The tests check the skill, and the commit hook and CI check the book.
+The docs use the words of [the glossary](book/07-reference/03-the-glossary.md): `tests/test_docs_terms.py` fails when a page uses a name that the glossary rules out (say `sub-agent`, not `subagent`; `background job`, not `background agent`; `worker`, not `job worker`). `python3 scripts/build_skill.py` copies the guides and the book into the skill and builds its abridged recipes from `docs/recipes`, and `python3 scripts/build_book.py` writes the book's navigation and checks its code listings ([the style](book/STYLE.md)). The tests check the skill, and the commit hook and CI check the book.
 
 ## Contributing
 

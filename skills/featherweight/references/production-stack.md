@@ -62,6 +62,10 @@ async with PostgresDatabase(os.environ["DATABASE_URL"]) as db:
     await JobWorker(db, queue, runner, jobs=[summarise], results=results).run()
 ```
 
+If your tools act for a user, declare the same `identity_type` on the runner, the client and the worker, and pass `identity=` to `submit`: the identity travels in the queue message, so keep it small and keep
+secrets out of it, and secure the queue as you secure the input ([who is asking](agents.md#who-is-asking-the-identity-of-a-run)). If users define their own agents, a worker finds them with `jobs_lookup`
+([jobs that are not declared in code](submitted-jobs.md#jobs-that-are-not-declared-in-code)).
+
 ## Before you rely on it
 
 - **Check what you wrote.** Each piece you implement has a conformance kit in `featherweight.testing`: `check_queue`, `check_result_store`

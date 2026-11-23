@@ -33,7 +33,7 @@ A subclass of `AgentBase`. The runner instantiates it (`agent_cls()`), so a subc
 | `recursion_limit` | `int`, 25, at least 1 | Passed to langgraph. Stops a runaway tool loop inside one run; a run that hits it fails |
 | `allow_user_questions`, `raise_conflicts` | `bool`, `False` | Each only adds a sentence to the prompt. Neither is enforced |
 | `subagents` | `list[type]`, empty | Agent classes this agent may launch ([runner](runner.md#launching-agents)) |
-| `background_jobs` | `list[type]`, empty | Agent or job classes this agent may start in the background ([background agents](background-agents.md#the-tool)) |
+| `background_jobs` | `list[type]`, empty | Agent or job classes this agent may start in the background ([background jobs](background-agents.md#the-tool)) |
 | `skills` | `list[Skill]`, empty | Skills this agent can read ([skills](skills.md)) |
 | `mcp_servers` | `list[StdioMCPServer \| HttpMCPServer]`, empty | MCP servers whose tools this agent may use ([MCP tools](mcp-tools.md)) |
 | `input_model`, `output_model` | `ClassVar`, `AgentInput` and `AgentOutput` | The agent's contract |
@@ -47,7 +47,7 @@ Each of these raises a `ValidationError` (a programming error, not a failed run)
 - `subagents`: every entry is an `AgentBase` subclass; none is the agent's own class; the names of the sub-agents are
   distinct.
 - `background_jobs`: every entry is a non-streaming agent class or a `Job` class; none is the agent's own class; the names are
-  distinct; an agent may be in `subagents` too, to be run inline or in the background (the model chooses); an agent that is in a `background_jobs` list does not declare its own ([background agents](background-agents.md#the-tool)).
+  distinct; an agent may be in `subagents` too, to be run inline or in the background (the model chooses); an agent that is in a `background_jobs` list does not declare its own ([background jobs](background-agents.md#the-tool)).
 - `skills`: the names are distinct.
 - `mcp_servers`: the names are distinct. Each server model checks itself too (name format, timeouts, caps).
 - `tools`: the names are distinct, and none is `launch_agent`, `get_agent_schema`, `get_skill`, `search_tools` or `call_tool`, which the runner uses

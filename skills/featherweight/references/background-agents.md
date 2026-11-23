@@ -1,13 +1,13 @@
 <!-- Copied from docs/background-agents.md by scripts/build_skill.py. Edit the original, not this file. -->
 
-# Background agents
+# Background jobs
 
 [![docs for](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Faadhithya%2Ffeatherweight%2Fmain%2Fpyproject.toml&query=%24.project.version&label=docs%20for&color=blue)](https://pypi.org/project/featherweight/)
 
 An agent hands work to another agent and **goes on**. A launched sub-agent ([launching agents](launching-agents.md)) blocks its parent until it
-returns. A background agent does not: the agent starts it, gets a job id at once, and the result comes back when it is ready.
+returns. A background job does not: the agent starts it, gets a job id at once, and the result comes back when it is ready.
 
-Spec: [Background agents](https://github.com/aadhithya/featherweight/blob/main/docs/specs/background-agents.md). Example: `examples/background` (a session that wakes itself).
+Spec: [Background jobs](https://github.com/aadhithya/featherweight/blob/main/docs/specs/background-agents.md). Example: `examples/background` (a session that wakes itself).
 
 - [How it works](#how-it-works)
 - [Declaring it](#declaring-it)
@@ -21,7 +21,7 @@ Spec: [Background agents](https://github.com/aadhithya/featherweight/blob/main/d
 
 ## How it works
 
-A background agent is **a job that is exposed to an agent as a tool**. It has a job id, events, a result in your store, and it can be cancelled,
+A background job is **a job that is exposed to an agent as a tool**. It has a job id, events, a result in your store, and it can be cancelled,
 as any [job](submitted-jobs.md). featherweight wakes nothing: it emits events, and your application decides what to do with them. The model
 never polls.
 
@@ -35,12 +35,12 @@ class Researcher(AgentBase):
     background_jobs = [WebSearcher, Summariser]  # agent classes, or job classes
 ```
 
-- **An agent class in `background_jobs` runs as a job:** it gets a job of its own, with an id, a status, events and a result. (The field was called `background_agents` before 0.2; the tool is still `start_background`.)
+- **An agent class in `background_jobs` runs as a job:** it gets a job of its own, with an id, a status, events and a result. (The field was called `background_agents` in 0.1; the tool is still `start_background`.)
 - The model gets one more tool, `start_background(agent_name, input_json)`. It returns at once with `{"status": "STARTED", "agent": ..., "job_id": ...}`,
   and, like `launch_agent`, it never raises into the parent's run: a wrong name, an input that does not fit or the limit gives a sentence the model can read.
 - An agent may be in `subagents` too. Then the model chooses, per call, between `launch_agent` (it waits and gets the output) and `start_background`
   (it goes on). The prompt describes each agent once, as inline, background or either.
-- A streaming agent cannot be a background agent. A background agent cannot start background agents.
+- A streaming agent cannot be a background job. A background job cannot start background jobs.
 
 ## Where it runs
 
@@ -116,10 +116,10 @@ The type of a data part depends on the version of the SDK (check how it types `o
 ## Limits
 
 - **Live children:** `AgentRunner(max_background=3)` is the most children one attempt of one agent may have running. A start over the limit is refused with a sentence.
-- A background agent is a job of its own, so `max_depth` and `max_launches` count within it.
+- A background job is a job of its own, so `max_depth` and `max_launches` count within it.
 
 ## What is not here
 
 - **A session that wakes itself.** It is not part of the framework: it is a small class in your application (the example has one, about 40 lines).
-- Arbitrary statuses streamed by a background agent ("searching 3 of 5 sources"), a tool for the model to wait for or poll a child, a durable inbox,
-  and background agents that start background agents.
+- Arbitrary statuses streamed by a background job ("searching 3 of 5 sources"), a tool for the model to wait for or poll a child, a durable inbox,
+  and background jobs that start background jobs.

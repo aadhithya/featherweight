@@ -44,8 +44,7 @@ Other types (`docs`, `refactor`, `test`, `ci`, `chore`, `build`) never start a r
 appear in the changelog when a release is made, and `test`, `ci`, `chore` and `build` do not. The changelog is written from
 the commit messages, so write them as you want them read. Commits that are not in this form are ignored.
 
-The first release is `0.1.0`: nothing has been released before, and the manifest starts at `0.0.0`. Its changelog lists
-everything since the repository was opened.
+The first release was `0.1.0`: the manifest started at `0.0.0`, and its changelog lists everything since the repository was opened.
 
 ## The token
 

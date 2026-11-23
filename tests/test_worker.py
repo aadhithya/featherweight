@@ -1,4 +1,4 @@
-"""The job worker: what it does with each message, cancel, shutdown and concurrency. Fake models only."""
+"""The worker: what it does with each message, cancel, shutdown and concurrency. Fake models only."""
 
 import asyncio
 import json
