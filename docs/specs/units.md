@@ -2,7 +2,7 @@
 
 Status: designed, not built. It is [epic #215](https://github.com/aadhithya/featherweight/issues/215): this spec ([#216](https://github.com/aadhithya/featherweight/issues/216)),
 the code ([#217](https://github.com/aadhithya/featherweight/issues/217)), the docs ([#218](https://github.com/aadhithya/featherweight/issues/218)), the migration document
-([#219](https://github.com/aadhithya/featherweight/issues/219)) and the decisions left open ([#220](https://github.com/aadhithya/featherweight/issues/220)). When a part is
+([#219](https://github.com/aadhithya/featherweight/issues/219)) and the decisions ([#220](https://github.com/aadhithya/featherweight/issues/220), decided, built with the code). When a part is
 built, this page says so.
 
 It owns the words for the units that featherweight does work in, and the names that those words give to ids, tables, columns, spans and log lines. The other specs use them and
@@ -18,7 +18,8 @@ link here: [the runner](runner.md) (attempts and retries), [jobs and tracing](jo
 - [What does not change](#what-does-not-change)
 - [The database migration](#the-database-migration)
 - [Decisions](#decisions)
-- [Open decisions](#open-decisions)
+- [Decided by the owner](#decided-by-the-owner-2026-11-24)
+- [Proposed with them](#proposed-with-them-for-the-same-reason-names-that-should-not-change-again)
 - [Tests](#tests)
 - [The work](#the-work)
 
@@ -87,17 +88,19 @@ every log line, span attribute and observer field; every setting; and every page
 | `AgentResult.agent_run_id` | `AgentResult.attempt_id` | The id of the last attempt. `AgentResult` also gets `run_id`. |
 | `RunContext.agent_run_id` | `RunContext.attempt_id` | The attempt that is running. `RunContext` also gets `run_id`. The class keeps its name. |
 | `CURRENT_AGENT_RUN_ID` | `CURRENT_ATTEMPT_ID` | The context variable (and the string of its name). |
-| `AgentRunRow` | `AttemptRow` | In `featherweight.db`. |
-| `RunStart`, `RunEnd` | `AttemptRecord`, `AttemptFinish` (proposed: see the open decisions) | In `featherweight.db`: what a `Database` is given to create and to finish an attempt. |
-| `Database.create_run`, `finish_run`, `get_run`, `list_runs`, `mark_run_running` | `create_attempt`, `finish_attempt`, `get_attempt`, `list_attempts`, `mark_attempt_running` | A `Database` you wrote renames them too. |
+| `AgentRunRow` | `AttemptRow` | In `featherweight.db`, and exported from `featherweight`. |
+| `RunStart`, `RunEnd` | `AttemptRecord`, `AttemptFinish` | In `featherweight.db`, and exported from `featherweight`: what a `Database` is given to create and to finish an attempt. Decided. |
+| `Database.create_run`, `mark_run_running`, `finish_run`, `get_run`, `list_runs` | `create_attempt`, `start_attempt`, `finish_attempt`, `get_attempt`, `list_attempts` | A `Database` you wrote renames them too. |
 | `Database.list_runs(invocation_id=)` | `list_attempts(run_id=)` | |
 | `Database.find_reusable_run` | `find_reusable_attempt` | It returns the attempt row of a step that finished. |
 | `JobRow.parent_agent_run_id`, `AttemptRow.parent_agent_run_id` | `parent_attempt_id` | The attempt that launched the agent, or started the job. |
 | `AttemptRow.reused_from_agent_run_id` | `reused_from_attempt_id` | |
 | `AttemptRow.invocation_id` | `run_id` | |
 | `AgentRunFailed` (in `featherweight.jobs`) | `RunFailed` | Raised by a job made from an agent whose run failed. |
+| `RunStatus` | `Status` | The status of a job, an attempt and a result. Decided. |
+| `ReusedRun` (observer record) | `RunReused` | Proposed. |
+| `AgentRunner(max_background=)` | `max_background_jobs` | Proposed. |
 | `StreamingRun.run_id` | `StreamingRun.run_id` (unchanged name) | Now really a run id; `runner.cancel(run_id)` takes it. |
-| `ReusedRun` (observer record) | `ReusedRun` (unchanged) | A run that was reused. Its fields follow the table below. |
 
 **The database** ([migration 4](#the-database-migration))
 
@@ -144,7 +147,6 @@ Unchanged: `attempt_started`, `run_reused`, `run_reuse_rejected`, `stream_starte
 - AG-UI's own words and classes (`RUN_STARTED`, `RunStartedEvent`, `RunAgentInput`): they are the protocol's, and they agree with ours: a run is one call of an agent.
 - `execute_job` (it runs one execution of a job), `execute_tool`, `AgentRunner`, `StreamingRun`, `run`, `run_many`, `run_job`, `JobContext.run`.
 - `max_attempts`, `attempts`, `attempt` (the number), `executions`, `job_execution`, `depth`, `step`.
-- `RunStatus`, until the [open decision](#open-decisions) is made.
 
 ## The database migration
 
@@ -175,16 +177,27 @@ attempt) and checks that they come back under the new names.
 - **One setting is renamed too** (`MAX_CONCURRENT_AGENT_RUNS`), because it counts attempts, and a setting that is wrong about its unit is the same mistake as an id.
 - **No aliases** (0.x): the old names are removed, and [the migration document](../migration.md) lists each with what to write instead.
 
-## Open decisions
+## Decided by the owner (2026-11-24)
 
-Proposed here, for the owner to decide in the review of this spec ([#220](https://github.com/aadhithya/featherweight/issues/220)):
+- **`RunStatus` is `Status`.** It is the status of a job, an attempt and a result, none of them a run in these words. It is exported as `Status` (and the module-level uses follow), with the same members:
+  `INIT`, `RUNNING`, `SUCCESS`, `FAILED` and `CANCELLED`.
+- **The database record classes are `AttemptRecord` and `AttemptFinish`** (they were `RunStart` and `RunEnd`), because `featherweight.observers` has `AttemptStart` and `AttemptEnd`, which are something else
+  (what an observer hears). A person who writes a `Database` does not meet two classes of one name.
+- **The verb `run_job` stays,** with the rule above that the verb "run" starts anything and the noun "a run" is one call of an agent.
+- **The doclearn example's run folder is the output folder.**
 
-- **`RunStatus`** is the status of a job, an attempt and a result: none of them a run in these words. Proposed: `Status`. It is the most visible rename for users (`RunStatus.SUCCESS` is in every
-  example), so it needs an explicit yes. If no, this spec and the glossary say that it is the one deliberate exception, and that the word is a status, not a run's.
-- **The database record classes.** `RunStart` and `RunEnd` are attempt records, and `featherweight.observers` has `AttemptStart` and `AttemptEnd`, which are something else (what an observer
-  hears). Proposed: `AttemptRecord` and `AttemptFinish`, so that a person who writes a `Database` does not meet two classes of one name.
-- **The verb `run_job`.** "Run a job" starts an execution, not a run. Proposed: it stays, with the rule above that the verb "run" starts anything and the noun "a run" is one call of an agent.
-  The alternative is `start_job`, so that not even the verb clashes with the noun.
+## Proposed with them, for the same reason (names that should not change again)
+
+A scan of the public names, after the renames above, found three that are not parallel to their neighbours. They are in the rename tables, and the review of this spec is where to say no.
+
+| Today | After | Why |
+|---|---|---|
+| `ReusedRun` (observer record) | `RunReused` | The other records of an event are `<Unit><Event>`: `JobSubmitted`, `JobStart`, `AttemptEnd`. |
+| `Database.mark_run_running` | `Database.start_attempt` | A job's `start_job` and an attempt's start are the same step, and the lifecycle reads `create_attempt`, `start_attempt`, `finish_attempt`. |
+| `AgentRunner(max_background=)`, `DEFAULT_MAX_BACKGROUND` | `max_background_jobs`, `DEFAULT_MAX_BACKGROUND_JOBS` | The other limits name what they count: `max_launches`, `max_depth`, `max_concurrent`; and the field is `background_jobs`. |
+
+**Considered, and left as they are:** `AgentResult` (the result of a run) and `JobOutcome` (the outcome of a job) use two words for two similar things, and `outcome.result` holds what `result.output` holds. They are the two types
+that users meet most, the difference between a result and an outcome is a real one (a job can be `CANCELLED`, an agent's result is a value), and renaming them would change every example for a gain that is small.
 
 ## Tests
 
@@ -203,4 +216,4 @@ Proposed here, for the owner to decide in the review of this spec ([#220](https:
 | [#217](https://github.com/aadhithya/featherweight/issues/217) | The code: the database, the runner, the observers, the events, the logs and the spans (migration 4) |
 | [#218](https://github.com/aadhithya/featherweight/issues/218) | The docs |
 | [#219](https://github.com/aadhithya/featherweight/issues/219) | The migration document, and its reference in the skill |
-| [#220](https://github.com/aadhithya/featherweight/issues/220) | The decisions left open |
+| [#220](https://github.com/aadhithya/featherweight/issues/220) | The decisions (made 2026-11-24): `Status`, the record class names, `run_job`; built with the code |

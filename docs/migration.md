@@ -73,25 +73,26 @@ Each word now names one unit ([the spec](specs/units.md)): a **run** is one call
 | `runtime.context.agent_run_id` (in a tool) | `runtime.context.attempt_id` (and `run_id`) |
 | `CURRENT_AGENT_RUN_ID` | `CURRENT_ATTEMPT_ID` |
 | `db.list_runs(job_id=..., invocation_id=...)` | `db.list_attempts(job_id=..., run_id=...)` |
-| `db.get_run`, `create_run`, `finish_run`, `mark_run_running` | `db.get_attempt`, `create_attempt`, `finish_attempt`, `mark_attempt_running` |
+| `db.get_run`, `create_run`, `mark_run_running`, `finish_run` | `db.get_attempt`, `create_attempt`, `start_attempt`, `finish_attempt` |
 | `db.find_reusable_run(job_id, agent_hash, input_hash, identity_hash)` | `db.find_reusable_attempt(...)` |
 | `AgentRunRow` | `AttemptRow` |
-| `RunStart`, `RunEnd` (in `featherweight.db`) | `AttemptRecord`, `AttemptFinish` (to be confirmed) |
+| `RunStart`, `RunEnd` (in `featherweight.db`, and exported from `featherweight`) | `AttemptRecord`, `AttemptFinish` |
 | `row.agent_run_id`, `row.parent_agent_run_id`, `row.reused_from_agent_run_id`, `row.invocation_id` | `row.attempt_id`, `row.parent_attempt_id`, `row.reused_from_attempt_id`, `row.run_id` |
 | `job_row.parent_agent_run_id` | `job_row.parent_attempt_id` |
 | the same fields of the observers' records | `attempt_id`, `run_id`, `parent_attempt_id`, `reused_from_attempt_id` |
 | `AgentRunFailed` | `RunFailed` |
+| `RunStatus` | `Status` (same members: `INIT`, `RUNNING`, `SUCCESS`, `FAILED`, `CANCELLED`) |
+| `ReusedRun` (observer record) | `RunReused` |
+| `AgentRunner(max_background=...)` | `AgentRunner(max_background_jobs=...)` |
 
 **SQL**, if you query the run log yourself: the table `agent_runs` is `attempts`; the columns `agent_run_id`, `invocation_id`, `parent_agent_run_id` (also in `jobs`) and `reused_from_agent_run_id` are `attempt_id`, `run_id`, `parent_attempt_id` and `reused_from_attempt_id`.
 The database is migrated for you: [see below](#your-database-upgrades-by-itself).
-
-`RunStatus` is [still to be decided](https://github.com/aadhithya/featherweight/issues/220): this page is updated with the answer.
 
 Check: the old names are gone from your code (`git grep -n "agent_run_id\|invocation_id\|list_runs\|AgentRunRow"` is empty), and your tests pass.
 
 ## A `Database` you wrote
 
-- Your methods are renamed as in the table above (`create_attempt`, `finish_attempt`, `get_attempt`, `list_attempts`, `mark_attempt_running`, `find_reusable_attempt`), and the records and rows too.
+- Your methods are renamed as in the table above (`create_attempt`, `start_attempt`, `finish_attempt`, `get_attempt`, `list_attempts`, `find_reusable_attempt`), and the records and rows too.
 - `find_reusable_attempt` takes `identity_hash` ([who is asking](agents.md#who-is-asking-the-identity-of-a-run)): a step is reused only when the old attempt's `identity_hash` equals the new one, and `None` matches only `None`. The attempt record has an `identity_hash` field.
 - Your schema has the table `attempts` with the renamed columns and a nullable `identity_hash` column.
 - Run `testing.check_database` against it, which checks all of this.
@@ -143,7 +144,7 @@ You are changing a project that uses featherweight 0.1 to the next release. Work
 1. **Find the uses.** From the project root, run these and read every hit (`rg` or `git grep -n`):
 
    ```
-   rg -n "RunStore|store_get|store_set|background_agents|agent_run_id|invocation_id|AgentRunRow|AgentRunFailed|list_runs|get_run|create_run|finish_run|mark_run_running|find_reusable_run|agent_runs|MAX_CONCURRENT_AGENT_RUNS|ftw\.run\.id|ftw\.invocation\.id|reused_from_agent_run_id|\binvocation_(started|finished)\b"
+   rg -n "RunStore|store_get|store_set|background_agents|agent_run_id|invocation_id|AgentRunRow|AgentRunFailed|RunStatus|ReusedRun|RunStart|RunEnd|max_background=|list_runs|get_run|create_run|finish_run|mark_run_running|find_reusable_run|agent_runs|MAX_CONCURRENT_AGENT_RUNS|ftw\.run\.id|ftw\.invocation\.id|reused_from_agent_run_id|\binvocation_(started|finished)\b"
    ```
 
 2. **Remove what is gone,** by hand: the run store ([the first section](#the-run-store-is-gone)). It has no replacement; ask the owner where the state should live if the code relied on it across agents.
@@ -158,16 +159,19 @@ You are changing a project that uses featherweight 0.1 to the next release. Work
    | 5 | `invocation_id` | `run_id` | code and SQL |
    | 6 | `AgentRunRow` | `AttemptRow` | code |
    | 7 | `AgentRunFailed` | `RunFailed` | code |
-   | 8 | `list_runs`, `get_run`, `create_run`, `finish_run`, `mark_run_running`, `find_reusable_run` | `list_attempts`, `get_attempt`, `create_attempt`, `finish_attempt`, `mark_attempt_running`, `find_reusable_attempt` | calls on a database object, and a `Database` you implement |
+   | 8 | `list_runs`, `get_run`, `create_run`, `finish_run`, `mark_run_running`, `find_reusable_run` | `list_attempts`, `get_attempt`, `create_attempt`, `finish_attempt`, `start_attempt`, `find_reusable_attempt` | calls on a database object, and a `Database` you implement |
    | 9 | `agent_runs` | `attempts` | SQL |
    | 10 | `background_agents` | `background_jobs` | code, docs and prompts |
    | 11 | `MAX_CONCURRENT_AGENT_RUNS` | `MAX_CONCURRENT_ATTEMPTS` | deployment files, `.env`, docs |
+   | 11b | `RunStatus` | `Status` | code (the import and every use) |
+   | 11c | `ReusedRun` | `RunReused` | code that implements an observer |
+   | 11d | `max_background=` | `max_background_jobs=` | `AgentRunner(...)` calls |
    | 12 | `ftw.run.id` | `ftw.attempt.id` | span queries, dashboards, alerts: **before row 13** |
    | 13 | `ftw.invocation.id` | `ftw.run.id` | span queries, dashboards, alerts |
    | 14 | `ftw.reused_from_agent_run_id` | `ftw.reused_from_attempt_id` | span queries |
    | 15 | the log lines `run_created`, `run_running`, `run_finished` | `attempt_created`, `attempt_running`, `attempt_finished` | log queries and alerts: **before row 16** |
    | 16 | `invocation_started`, `invocation_finished` | `run_started`, `run_finished` | log queries and alerts |
 
-4. **Ask the owner** about: a `Database` or a queue the project implements (change them as the two sections above say, then run the kits); dashboards, alerts and log queries that are not in the repository; and `RunStatus` if this page says it changed.
+4. **Ask the owner** about: a `Database` or a queue the project implements (change them as the two sections above say, then run the kits), and dashboards, alerts and log queries that are not in the repository.
 5. **Check.** Run the rename search from step 1 again: it must return nothing outside this page. Run the project's tests. If the project has a database that matters, test the upgrade on a copy. Then run `git diff --stat` and read it: every change should be one of the rows above.
 6. **Do not** rename a variable that happens to be called `run_id` or `attempt_id` in the project's own code, and do not touch the OpenTelemetry span names.
