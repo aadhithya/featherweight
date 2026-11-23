@@ -187,7 +187,7 @@ class Starter(AgentBase):
     version: str = "1"
     prompt: str = "Start it."
     model: ModelSettings = FakeSettings()
-    background_agents: list[type] = [WhoAmI]
+    background_jobs: list[type] = [WhoAmI]
     input_model: ClassVar[type[AgentInput]] = StarterInput
     output_model: ClassVar[type[AgentOutput]] = StarterOutput
 

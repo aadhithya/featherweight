@@ -139,7 +139,7 @@ asyncio.run(main())
   search by default; `discover=False` binds a small server's tools directly.
 - **Sub-agents:** `subagents=[OtherAgent]`, classes on an allow-list. Depth and breadth are limited (3 and 10).
 - **Skills:** `skills=[Skill.from_directory(path)]`, Agent Skills format. The agent reads them when it decides to.
-- **Capabilities are allow-lists:** `tools`, `mcp_servers`, `skills`, `subagents` and `background_agents` are what the developer gave the agent, on purpose.
+- **Capabilities are allow-lists:** `tools`, `mcp_servers`, `skills`, `subagents` and `background_jobs` are what the developer gave the agent, on purpose.
 - **Check what the model returned in code.** Validators and `check_output` have the last word. The model proposes.
 
 ## Tests and cost
@@ -168,7 +168,7 @@ The guides are the reference for one subject each (the book above is the way to 
 | Submit a job to a queue and run it in a worker: `JobClient`, `JobWorker`, `JobQueue`, cancelling, events and SSE | `references/submitted-jobs.md` |
 | See what jobs and agents do: observers, `OTelObserver` (OpenTelemetry spans for jobs, attempts, model calls and tool calls), content, your own spans, evaluation | `references/observability.md` |
 | Deploy it: what to use where (Postgres, your own queue and result store). A suggestion only: follow the user's own stack | `references/production-stack.md` |
-| An agent that starts another agent and goes on: `background_agents`, `start_background`, the result message, events, a chat in the browser | `references/background-agents.md` |
+| An agent that starts another agent and goes on: `background_jobs`, `start_background`, the result message, events, a chat in the browser | `references/background-agents.md` |
 | See a whole pipeline of several agents | `references/example-pipeline.md` |
 
 The full specs, which say what each part does and why, are in `docs/specs` of the repository, and runnable examples are in

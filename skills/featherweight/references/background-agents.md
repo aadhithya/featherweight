@@ -32,9 +32,10 @@ from featherweight import AgentBase
 
 
 class Researcher(AgentBase):
-    background_agents = [WebSearcher, Summariser]  # agent classes, or job classes
+    background_jobs = [WebSearcher, Summariser]  # agent classes, or job classes
 ```
 
+- **An agent class in `background_jobs` runs as a job:** it gets a job of its own, with an id, a status, events and a result. (The field was called `background_agents` before 0.2; the tool is still `start_background`.)
 - The model gets one more tool, `start_background(agent_name, input_json)`. It returns at once with `{"status": "STARTED", "agent": ..., "job_id": ...}`,
   and, like `launch_agent`, it never raises into the parent's run: a wrong name, an input that does not fit or the limit gives a sentence the model can read.
 - An agent may be in `subagents` too. Then the model chooses, per call, between `launch_agent` (it waits and gets the output) and `start_background`
@@ -53,7 +54,7 @@ runner = AgentRunner(
 ```
 
 Either way the child has the same job row, events and result. On a worker, the worker must list the child's job in its `jobs`. The runner needs a
-**result store** to read the result from (`results=`, or the client's): an agent with `background_agents` on a runner without one is a `SetupError`, before any model call.
+**result store** to read the result from (`results=`, or the client's): an agent with `background_jobs` on a runner without one is a `SetupError`, before any model call.
 
 ## Getting the result back
 

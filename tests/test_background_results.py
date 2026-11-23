@@ -7,7 +7,7 @@ import time
 import pytest
 from fakes import FakeSettings, Scripted, Streams, runner_with, tool_call_chunk, tool_reply, use_model
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
-from test_background_agents import (
+from test_background_jobs import (
     CHILD_ARGS,
     PARENT_INPUT,
     Child,
@@ -293,7 +293,7 @@ class ChatParent(StreamingAgent):
     version: str = "1"
     prompt: str = "You are a chat agent."
     model: ModelSettings = FakeSettings()
-    background_agents: list[type] = [Child]
+    background_jobs: list[type] = [Child]
 
 
 def say(text: str) -> ChatInput:

@@ -126,7 +126,7 @@ class AgentBase(BaseModel):
     # Agents (or job classes) this agent may start in the background: the runner gives it `start_background`, which returns at once
     # with the id of a job of its own. An agent may be in both lists: the model then chooses between `launch_agent` and
     # `start_background` for it. See docs/specs/background-agents.md.
-    background_agents: list[type] = Field(default_factory=list)
+    background_jobs: list[type] = Field(default_factory=list)
     # Skills this agent can read (see featherweight/skills.py). Their names and descriptions are in the prompt; the
     # runner gives the agent `get_skill` to read the instructions when one applies.
     skills: list[Skill] = Field(default_factory=list)
@@ -152,7 +152,7 @@ class AgentBase(BaseModel):
             names.append(sub().name)  # ty: ignore[missing-argument]  # a subclass supplies the defaults
         if len(set(names)) != len(names):
             raise ValueError(f"subagents of {self.name} have duplicate names: {names}")
-        self._check_background_agents()
+        self._check_background_jobs()
         skill_names = [skill.name for skill in self.skills]
         if len(set(skill_names)) != len(skill_names):
             raise ValueError(f"skills of {self.name} have duplicate names: {skill_names}")
@@ -167,35 +167,35 @@ class AgentBase(BaseModel):
             raise ValueError(f"tools of {self.name} have duplicate names: {tool_names}")
         return self
 
-    def _check_background_agents(self) -> None:
+    def _check_background_jobs(self) -> None:
         from featherweight.jobs import Job  # a job class is declared in jobs.py, which imports this module
 
         names = []
-        for entry in self.background_agents:
+        for entry in self.background_jobs:
             if not (isinstance(entry, type) and issubclass(entry, AgentBase | Job)):
-                raise ValueError(f"background_agents must be agent or Job classes, got {entry!r}")
+                raise ValueError(f"background_jobs must be agent or Job classes, got {entry!r}")
             if issubclass(entry, AgentBase):
                 if entry.streaming:
                     raise ValueError(
-                        f"{self.name} lists {entry.__name__} in background_agents: a streaming agent streams to a person "
+                        f"{self.name} lists {entry.__name__} in background_jobs: a streaming agent streams to a person "
                         "and cannot be a job"
                     )
                 if entry is type(self):
                     raise ValueError(
-                        f"{self.name} lists itself in background_agents: an agent can only start other agents"
+                        f"{self.name} lists itself in background_jobs: an agent can only start other agents"
                     )
-                if entry().background_agents:  # ty: ignore[missing-argument]  # a subclass supplies the defaults
+                if entry().background_jobs:  # ty: ignore[missing-argument]  # a subclass supplies the defaults
                     raise ValueError(
-                        f"{self.name} lists {entry.__name__} in background_agents, and it has background_agents of its own: "
+                        f"{self.name} lists {entry.__name__} in background_jobs, and it has background_jobs of its own: "
                         "a background agent cannot start background agents"
                     )
             names.append(entry_name(entry))
         if len(set(names)) != len(names):
-            raise ValueError(f"background_agents of {self.name} have duplicate names: {names}")
+            raise ValueError(f"background_jobs of {self.name} have duplicate names: {names}")
 
     def background_entry(self, name: str) -> type | None:
-        """The agent or job class called `name` in `background_agents`, or None."""
-        for entry in self.background_agents:
+        """The agent or job class called `name` in `background_jobs`, or None."""
+        for entry in self.background_jobs:
             if entry_name(entry) == name:
                 return entry
         return None
@@ -266,11 +266,11 @@ class AgentBase(BaseModel):
         no launch tool), the prompt also lists the agents it may launch, by name and description. Their input
         schemas are not in the prompt: the agent asks for them with `get_agent_schema`.
 
-        With `background_agents` (and unless `can_background` is False) each agent is listed once, in a group: the ones to
+        With `background_jobs` (and unless `can_background` is False) each agent is listed once, in a group: the ones to
         launch and wait for, the ones to start in the background, and the ones that can be either.
         """
         parts = self._leading_prompt_parts()
-        background = self.background_agents if can_background else []
+        background = self.background_jobs if can_background else []
         if background:
             parts.append(self._agents_prompt(self.subagents if can_launch else [], background))
         elif self.subagents and can_launch:

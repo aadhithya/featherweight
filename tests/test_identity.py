@@ -287,7 +287,7 @@ class Starter(AgentBase):
     version: str = "1"
     prompt: str = "Start the asker."
     model: ModelSettings = FakeSettings()
-    background_agents: list[type] = [Asker]
+    background_jobs: list[type] = [Asker]
     input_model: ClassVar[type[AgentInput]] = AskInput
     output_model: ClassVar[type[AgentOutput]] = AskOutput
 

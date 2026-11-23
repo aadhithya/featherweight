@@ -368,7 +368,7 @@ async def test_the_background_example_wakes_the_chat_with_the_result_when_the_re
 
     class FakeAssistant(session.Assistant):
         model: ModelSettings = FakeSettings(key="assistant")
-        background_agents: list[type] = [FakeResearcher]
+        background_jobs: list[type] = [FakeResearcher]
 
     monkeypatch.setattr(session, "Assistant", FakeAssistant)
     start = tool_call_chunk(

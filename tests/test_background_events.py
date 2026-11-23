@@ -55,7 +55,7 @@ class Chat(StreamingAgent):
     version: str = "1"
     prompt: str = "You are a helpful chat agent."
     model: ModelSettings = FakeSettings()
-    background_agents: list[type] = [quick, slow]
+    background_jobs: list[type] = [quick, slow]
 
 
 def say(text: str = "go") -> ChatInput:
@@ -241,7 +241,7 @@ class Worker(AgentBase):
     version: str = "1"
     prompt: str = "Do the task."
     model: ModelSettings = FakeSettings()
-    background_agents: list[type] = [slow]
+    background_jobs: list[type] = [slow]
     input_model: ClassVar[type[AgentInput]] = ChildInput
     output_model: ClassVar[type[AgentOutput]] = ChildOutput
 
@@ -312,7 +312,7 @@ async def test_the_job_of_a_child_that_runs_here_is_under_the_tool_call(db, resu
 
     class Quick(Worker):
         name: str = "quicker"
-        background_agents: list[type] = [quick]
+        background_jobs: list[type] = [quick]
 
     runner = runner_with(db, model, results=results, observers=[observer])
     await runner.run(Quick, ChildInput(topic="x"))
@@ -341,7 +341,7 @@ async def test_the_job_of_a_child_on_a_worker_is_under_the_tool_call(db, results
 
     class Quick(Worker):
         name: str = "quicker"
-        background_agents: list[type] = [quick]
+        background_jobs: list[type] = [quick]
 
     try:
         runner = runner_with(db, model, results=results, observers=[observer], background=client)

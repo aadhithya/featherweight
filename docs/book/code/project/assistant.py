@@ -33,4 +33,4 @@ class IncidentAssistant(StreamingAgent):  # a streaming agent answers in a chat:
         "its note arrives in a later message, and then you tell the user what it says."
     )
     model: ModelSettings = MODEL
-    background_agents: list[type] = [RootCauseResearcher]  # not `subagents`: the chat goes on, and does not wait for it
+    background_jobs: list[type] = [RootCauseResearcher]  # not `subagents`: the chat goes on, and does not wait for it

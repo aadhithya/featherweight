@@ -266,7 +266,7 @@ class AgentRunner:
 
         `max_background` is the most children one attempt of one agent may have running in the background at one time (default 3).
         A child runs in this process, as a job of its own, unless `background` is a `JobClient`: then it is submitted to the
-        queue and a worker runs it (the worker must list the child's job). Agents with `background_agents` need a result store.
+        queue and a worker runs it (the worker must list the child's job). Agents with `background_jobs` need a result store.
 
         `results` is where the outputs that resuming a job reads back are kept (a `ResultStore`), for the jobs created
         `resumable=True`. With a `SqliteDatabase` the default is a sqlite store in the same file; with any other database there is
@@ -676,7 +676,7 @@ class AgentRunner:
     def _can_background(agent: AgentBase) -> bool:
         """Whether `agent` may start background agents here: it declares some, and this is not itself a background job (what
         a background job runs, inline sub-agents included, cannot start more)."""
-        return bool(agent.background_agents) and not IN_BACKGROUND_JOB.get()
+        return bool(agent.background_jobs) and not IN_BACKGROUND_JOB.get()
 
     @staticmethod
     def _runner_tool_names(agent: AgentBase, can_launch: bool) -> list[str]:
@@ -1197,7 +1197,7 @@ class AgentRunner:
         with_background = self._can_background(agent)
         allowed = ", ".join(sub().name for sub in agent.subagents)
         usable = ", ".join(
-            dict.fromkeys([*(sub().name for sub in agent.subagents), *(entry_name(e) for e in agent.background_agents)])
+            dict.fromkeys([*(sub().name for sub in agent.subagents), *(entry_name(e) for e in agent.background_jobs)])
         )
 
         def unknown(name: str) -> str:
@@ -1280,7 +1280,7 @@ class AgentRunner:
             schema (see `get_agent_schema`)."""
             entry = agent.background_entry(agent_name)
             if entry is None:
-                names = ", ".join(entry_name(e) for e in agent.background_agents)
+                names = ", ".join(entry_name(e) for e in agent.background_jobs)
                 return f"'{agent_name}' is not an agent you can start in the background. You can start: {names}."
             assert children is not None  # the tool is only built for an agent that can start background agents
             if await children.live() >= self.max_background:
