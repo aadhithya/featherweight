@@ -20,7 +20,7 @@ retries and limits, and jobs run in your process or on workers. Pydantic is the 
 - Rules a schema cannot say go in `check_output`: raise to reject, and the runner retries.
 - Capabilities are allow-lists: `tools`, `mcp_servers`, `skills`, `subagents` and `background_agents` are what the developer gave the agent.
 - The framework stores metadata only (status, tokens, timing, hashes). Results and inputs go to stores you provide.
-- Never call a real model in tests: use a fake model (see [`skills/featherweight/references/recipes.md`](skills/featherweight/references/recipes.md)).
+- Never call a real model in tests: use a fake model (see [`docs/recipes/testing-with-a-fake-model.md`](docs/recipes/testing-with-a-fake-model.md)).
   A real call costs money: ask first, use the smallest model.
 
 ## Working on this repository

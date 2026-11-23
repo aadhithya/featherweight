@@ -1,6 +1,8 @@
+<!-- Built from docs/recipes by scripts/build_skill.py. Edit the pages there, not this file. -->
+
 # Recipes
 
-Patterns for building with `featherweight`. Each snippet is complete enough to adapt. The agent definitions are in `SKILL.md`.
+Patterns for building with `featherweight`. Each snippet is complete enough to adapt. The agent definitions are in `SKILL.md`. This is an abridged copy: each recipe links to its full page.
 
 ## A pipeline of two agents
 
@@ -38,7 +40,9 @@ async def main():
 ```
 
 `run_job` creates the job, runs it and records `SUCCESS` or `FAILED`. A job that raises comes back as a failed outcome, not an
-exception. The same job can be submitted to a queue and run by a worker (`references/submitted-jobs.md`).
+exception. The same job can be submitted to a queue and run by a worker ([submitted jobs](submitted-jobs.md)).
+
+[The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/a-pipeline-of-two-agents.md)
 
 ## Resuming a failed job
 
@@ -52,6 +56,8 @@ outcome = await run_job(runner, find_people, texts, resume_from=first.job_id)
 
 Agent runs that succeeded with the same agent and input are answered from the kept results (`result.reused`, zero tokens). Keep
 the code between agents deterministic (no clock, no `random`), and do not rely on the run store for a resume.
+
+[The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/resuming-a-failed-job.md)
 
 ## Telling a retry what went wrong
 
@@ -70,12 +76,14 @@ for _ in range(2):
     result = await runner.run(Filler, FillInput(form=form, problems=[result.error or ""]), job_id=job_id)
 ```
 
+[The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/telling-a-retry-what-went-wrong.md)
+
 ## Testing with a fake model
 
 No test makes a real model call. A fake is **model settings**, like a real provider: a `ModelSettings` subclass whose
 `build()` returns a fake chat model. The test runs the same agent with its `model` replaced by the fake settings, and the
 runner takes the path it takes in production, `agent.model.build()`. The structured reply is a tool call named after the
-output class. This is a whole test file for the agent in `SKILL.md` (saved as `app.py`). Tests need
+output class. This is a whole test file for the agent of [Getting started](https://github.com/aadhithya/featherweight/blob/main/docs/getting-started.md) (saved as `app.py`). Tests need
 `asyncio_mode = auto` (in `pyproject.toml`, `[tool.pytest.ini_options]`) or `pytest -o asyncio_mode=auto`, and
 `pytest-asyncio`.
 
@@ -164,6 +172,8 @@ A schema violation (a wrong type, a value outside a `Literal`) is sent back to t
 the same attempt. A rejection by `check_output` fails the attempt, and the runner retries it, up to `max_attempts`. Use
 a `Literal` or a validator for rules on the output alone, and `check_output` for rules between the input and the output.
 
+[The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/testing-with-a-fake-model.md)
+
 ## An agent with an MCP server
 
 ```python
@@ -188,6 +198,8 @@ class RepoReader(AgentBase):
 `async with AgentRunner(db) as runner:` keeps the server connections open between runs and closes them at the end. It is
 optional.
 
+[The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/an-agent-with-an-mcp-server.md)
+
 ## An agent that launches another
 
 ```python
@@ -198,6 +210,8 @@ class Editor(AgentBase):
     prompt: str = "Write a headline. Ask the summariser for a summary first."
     subagents: list[type] = [Summariser]  # classes: the only agents this one may launch
 ```
+
+[The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/an-agent-that-launches-another.md)
 
 ## A chat agent that streams
 
@@ -226,8 +240,10 @@ finally:
 ```
 
 `runner.cancel(run.run_id)` stops it. `featherweight.adapters.vercel` does the same for `useChat`. A chat in the terminal is
-`examples/chat/cli.py`, and the same agent behind FastAPI is `examples/chat/api.py`; `references/streaming.md` has the details. Test it with a fake streaming chat model: the
+`examples/chat/cli.py`, and the same agent behind FastAPI is `examples/chat/api.py`; [the streaming guide](streaming.md) has the details. Test it with a fake streaming chat model: the
 `Streams` double in the repository's `tests/fakes.py` shows how.
+
+[The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/a-chat-agent-that-streams.md)
 
 ## A result store of your own
 
@@ -250,6 +266,8 @@ runner = AgentRunner(db, results=MyStore())
 
 The first job has to be created `resumable=True`. `examples/results/store.py` is a whole store (a JSON file per result).
 
+[The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/a-result-store-of-your-own.md)
+
 ## A job that a worker runs
 
 ```python
@@ -268,7 +286,9 @@ print(await client.result(shout, job_id))
 ```
 
 Run as many workers as you like: a worker that dies loses its lease, and another takes the job over (`executions` + 1; a resumable job reuses its finished steps).
-A job must be safe to run twice, and `@job(timeout=...)` (600 s by default) stops one that hangs. `references/submitted-jobs.md` has cancelling, shutdown, leases and writing your own queue. `examples/jobs` runs it, and `takeover.py` kills a worker mid-job.
+A job must be safe to run twice, and `@job(timeout=...)` (600 s by default) stops one that hangs. [the submitted jobs guide](submitted-jobs.md) has cancelling, shutdown, leases and writing your own queue. `examples/jobs` runs it, and `takeover.py` kills a worker mid-job.
+
+[The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/a-job-that-a-worker-runs.md)
 
 ## Traces for jobs and agents
 
@@ -282,7 +302,9 @@ runner = AgentRunner(
 
 A job becomes `invoke_workflow`, each attempt `invoke_agent`, with `chat` and `execute_tool` spans under it, in the GenAI conventions.
 Content is off unless `OTelObserver(capture_content=True)`. Your own spans use the OpenTelemetry API and nest under the job.
-`references/observability.md` has the rest, and `examples/observability` runs it.
+[the observability guide](observability.md) has the rest, and `examples/observability` runs it.
+
+[The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/traces-for-jobs-and-agents.md)
 
 ## An agent that starts another and goes on
 
@@ -297,7 +319,9 @@ message = await runner.background_message(job_id)  # a user message with the chi
 ```
 
 While the parent runs, a finished child's result is added before the next model call. A chat turn does not wait: follow `background_started` and
-`background_finished` on its stream, or the child's job events, and start the next turn yourself. `references/background-agents.md` has the rest.
+`background_finished` on its stream, or the child's job events, and start the next turn yourself. [the background agents guide](background-agents.md) has the rest.
+
+[The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/an-agent-that-starts-another-and-goes-on.md)
 
 ## A different provider
 
@@ -311,3 +335,5 @@ class Triager(AgentBase):
 ```
 
 `pip install "featherweight[anthropic]"` and set `ANTHROPIC_API_KEY`.
+
+[The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/a-different-provider.md)
