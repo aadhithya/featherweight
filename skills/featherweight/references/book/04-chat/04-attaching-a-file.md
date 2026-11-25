@@ -89,4 +89,6 @@ The payments team owns the integration with the payment provider.
 > **Why bytes only.** How a file is fetched, scanned and stored is your application's decision, and a URL that a user chose is not one a framework should open for you. See
 > [attachments](../../streaming.md#attachments) and [the spec](https://github.com/aadhithya/featherweight/blob/main/docs/specs/attachments.md).
 
+**Not a chat?** Attachments are a feature of the chat. An agent that a job runs, and a job that waits in a queue, do not carry files, on purpose: they pass a **reference** (an id for a file that you keep in your own store), and a tool fetches the file and checks who is asking. See [files for an agent or a job](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/files-for-an-agent-or-a-job.md).
+
 Next: Part 5 puts the assistant on workers, with background research and traces.

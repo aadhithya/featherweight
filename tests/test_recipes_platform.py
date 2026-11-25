@@ -2,6 +2,7 @@
 
 import ast
 import asyncio
+import base64
 import inspect
 import logging
 import re
@@ -508,3 +509,134 @@ async def test_the_tool_refuses_in_text_when_the_user_may_not_and_asks_for_no_to
     assert result.status == Status.SUCCESS  # the run goes on
     assert tokens.asked == [] and sent == []
     assert texts == ["Not allowed.", "Not allowed."]
+
+
+# files for an agent or a job: pass a reference
+
+
+class Files:
+    """The application's own store: what the recipe calls `files`."""
+
+    def __init__(self) -> None:
+        self.stored: dict[str, tuple[bytes, str]] = {}
+        self.fetched: list[str] = []
+
+    async def put(self, document_id: str, file: tuple[bytes, str]) -> None:
+        self.stored[document_id] = file
+
+    async def text(self, document_id: str) -> str:
+        self.fetched.append(document_id)
+        return self.stored[document_id][0].decode()
+
+    async def read(self, document_id: str) -> tuple[bytes, str]:
+        self.fetched.append(document_id)
+        return self.stored[document_id]
+
+
+class Readers:
+    """The application's own rules: what the recipe calls `directory`."""
+
+    def __init__(self, allowed: dict[str, set[str]]) -> None:
+        self.allowed = allowed
+
+    async def may_read(self, user_id: str, document_id: str) -> bool:
+        return document_id in self.allowed.get(user_id, set())
+
+
+async def run_the_reference_recipe(
+    db,
+    monkeypatch,
+    script: list,
+    files: Files,
+    readers: Readers,
+    document_id="doc-7",
+    served: tuple[bytes, str] = (b"Roll back the release.", "text/plain"),
+):
+    tools_block, job_block = blocks("files-for-an-agent-or-a-job.md")
+    download_calls: list[str] = []
+
+    async def download(url: str) -> tuple[bytes, str]:
+        download_calls.append(url)
+        return served
+
+    ns: dict[str, Any] = {"files": files, "directory": readers, "download": download, "db": db}
+    await run_block(tools_block, ns)
+    fake = fake_model(monkeypatch, script)
+    runner_with(db, fake)
+    code = job_block.replace(
+        'Download(document_id="doc-7", url="https://...")', f'Download(document_id="{document_id}", url="https://x/f")'
+    )
+    await run_block(code, ns)
+    return ns["outcome"], fake, download_calls
+
+
+def seen_by_the_model(fake: Scripted) -> tuple[str, list]:
+    """The first message of the run, and the results of the tools that the model was given at its last call."""
+    first = next(m.content for m in fake.seen[0] if m.type == "human")
+    return first, [m.content for m in fake.seen[-1] if isinstance(m, ToolMessage)]
+
+
+async def test_the_pipeline_stores_the_file_and_the_agent_gets_only_the_reference(db, monkeypatch):
+    files = Files()
+    script = [
+        tool_reply("read_document", {"document_id": "doc-7"}, "t1"),
+        structured_reply("ReportOutput", {"summary": "Roll back."}),
+    ]
+    outcome, fake, downloads = await run_the_reference_recipe(
+        db, monkeypatch, script, files, Readers({"u1": {"doc-7"}})
+    )
+
+    assert outcome.status == Status.SUCCESS and outcome.result.summary == "Roll back."
+    assert (
+        downloads == ["https://x/f"] and files.stored["doc-7"][0] == b"Roll back the release."
+    )  # the pipeline fetched and kept it
+    first, results = seen_by_the_model(fake)
+    assert "doc-7" in first and "Roll back" not in first  # the model is told the reference, and never the file
+    assert results == ["Roll back the release."]  # the text came from the tool
+
+
+async def test_the_tool_checks_that_the_identity_may_read_the_reference_the_model_chose(db, monkeypatch):
+    files = Files()
+    script = [
+        tool_reply("read_document", {"document_id": "doc-9"}, "t1"),  # the model asks for another one
+        structured_reply("ReportOutput", {"summary": "none"}),
+    ]
+    await files.put("doc-9", (b"someone else's file", "text/plain"))
+    outcome, fake, _ = await run_the_reference_recipe(db, monkeypatch, script, files, Readers({"u1": {"doc-7"}}))
+
+    assert outcome.status == Status.SUCCESS
+    _, results = seen_by_the_model(fake)
+    assert results == ["Not allowed."] and "doc-9" not in files.fetched  # refused before the store was asked
+
+
+async def test_a_tool_can_hand_an_image_or_a_pdf_to_the_model_as_content_blocks(db, monkeypatch):
+    files = Files()
+    scan = b"\x89PNG fake scan"
+    await files.put("form-2", (b"%PDF-1.7 fake form", "application/pdf"))  # already in the store
+    script = [
+        tool_reply("show_document", {"document_id": "scan-1"}, "t1"),
+        tool_reply("show_document", {"document_id": "form-2"}, "t2"),
+        structured_reply("ReportOutput", {"summary": "seen"}),
+    ]
+    readers = Readers({"u1": {"scan-1", "form-2"}})
+    outcome, fake, _ = await run_the_reference_recipe(
+        db, monkeypatch, script, files, readers, document_id="scan-1", served=(scan, "image/png")
+    )  # the pipeline downloads the scan and keeps it
+
+    assert outcome.status == Status.SUCCESS
+    _, results = seen_by_the_model(fake)
+    assert results[0] == [
+        {"type": "text", "text": "The document scan-1."},
+        {"type": "image", "base64": base64.b64encode(scan).decode(), "mime_type": "image/png"},
+    ]
+    assert results[1][1]["type"] == "file" and results[1][1]["mime_type"] == "application/pdf"  # a PDF is a file block
+
+
+def test_the_input_of_the_job_and_of_the_agent_hold_a_reference_and_no_bytes():
+    tools_block, job_block = blocks("files-for-an-agent-or-a-job.md")
+    ns: dict[str, Any] = {"files": Files(), "directory": Readers({}), "db": None}
+    asyncio.run(run_block(tools_block + job_block.split("runner = AgentRunner(")[0], ns))
+    for model in (ns["Download"], ns["ReportInput"]):
+        for field in model.model_fields.values():
+            assert field.annotation is str  # a reference or a url: never bytes, never a list of files
+    assert ns["summarise_a_download"].input_model is ns["Download"]

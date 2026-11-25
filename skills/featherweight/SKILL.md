@@ -158,13 +158,13 @@ The guides are the reference for one subject each (the book above is the way to 
 | The task | Read |
 |---|---|
 | Define and run an agent, results, retries, checks, tools, who is asking, configuration | `references/agents.md` |
-| Patterns: a pipeline, feeding errors back, a fake model for tests, a second agent; and for a platform where users define skills or agents: a skill from a database or S3, agents built from JSON, a queue that signs messages, a tool that acts for the signed-in user (`identity`) | `references/recipes.md` |
+| Patterns: a pipeline, feeding errors back, a fake model for tests, a second agent; and for a platform where users define skills or agents: a skill from a database or S3, agents built from JSON, a queue that signs messages, a tool that acts for the signed-in user (`identity`), files for an agent or a job (pass a reference, and a tool fetches it) | `references/recipes.md` |
 | Pick a model or provider, effort, add GPT-5.x or Ollama | `references/models.md` |
 | An agent that launches other agents | `references/launching-agents.md` |
 | Use an MCP server, discovery, secrets, failures | `references/mcp.md` |
 | Give an agent skills | `references/skills.md` |
 | A streaming agent for chat its answer: `StreamingAgent`, `runner.stream()`, AG-UI and Vercel adapters, stopping, keeping the conversation | `references/streaming.md` |
-| Attach images, PDFs, audio or video to a chat message: what is accepted, the limits, and a dated snapshot of what Anthropic, Google, OpenAI and Ollama accept | `references/streaming.md` (Attachments), `references/attachments-providers.md` |
+| Attach images, PDFs, audio or video to a chat message: what is accepted, the limits, and a dated snapshot of what Anthropic, Google, OpenAI and Ollama accept. Files are for a chat only: an agent or a job gets a reference, and a tool fetches the file (`references/recipes.md`) | `references/streaming.md` (Attachments), `references/attachments-providers.md` |
 | What the run log holds, a result store of your own, choosing a database, migrations, tenants | `references/persistence.md` |
 | Declare a job (`@job`), run it with `run_job`, follow its events, resume a failed one (`resumable=True`, `resume_from`) | `references/jobs.md` |
 | Submit a job to a queue and run it in a worker: `JobClient`, `JobWorker`, `JobQueue`, cancelling, events and SSE | `references/submitted-jobs.md` |

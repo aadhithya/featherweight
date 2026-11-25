@@ -97,7 +97,7 @@ either limit raises [`AttachmentLimitError`](#failures) before any run exists.
 | OpenAI | 1,500 images; none stated for files | 512 MB of images; **50 MB for all files together** |
 
 The default count is **10**, a design choice, not a provider's limit: every provider accepts more (the lowest is Anthropic's 100 images), but a chat
-that takes 100 files in one go is a different job, with its own pipeline (batch, jobs, a store). 10 is also what the Gemini **app** allows.
+that takes 100 files in one go is a different job: a pipeline that keeps the files in a store and passes references ([below](#files-for-agents-and-jobs)). 10 is also what the Gemini **app** allows.
 An application that needs more raises `max_attachments`. For size the pages disagree: the lowest figure on any of them is Google's 20 MB, the next is OpenAI's 50 MB
 for files. Base64 makes data a third larger, so 15 MiB of decoded bytes is **exactly 20 MiB on the wire**: that lowest figure and no more (and
 over it, if "20 MB" is read as 20 million bytes). It is under every other figure. The default is the cautious one: Google has since raised its
@@ -121,8 +121,31 @@ result.**
 - **A result:** everything the provider says no to (a type the model cannot read, a file that is too large for it, too many pages).
   The turn ends `FAILED` with the provider's error, an error event is sent, and **nothing is retried**, as for any streaming agent.
 
+## Files for agents and jobs
+
+Attachments are a feature of the chat. **By design, an agent does not pass binary data to another agent, and a job does not carry it:** not to a launched
+agent, not to a background job, not to an agent wrapped in a job (`as_job`), and an agent that a pipeline runs has no field that takes a file either. Their
+input is JSON that a model or a queue carries. A model cannot write bytes; a queue message, the job store, the input hash and the traces would all carry
+them; and the run log keeps no content. The other frameworks work the same way (checked 2026-11-25): Claude Code's sub-agents get only the prompt string,
+Pydantic AI's delegation passes text and shared dependencies, OpenAI's `Agent.as_tool` takes text or structured parameters, and Google ADK and LangChain Deep
+Agents share named files that are loaded on demand. So there is no `attachments` field on `AgentInput` and no argument of the runner for it, and none is planned.
+
+**What to do instead: pass references.** Keep the file in a store that you manage (a database, a disk, S3) and put its **reference**, an id or a name, in the
+input of the job or the agent. A tool fetches it:
+
+- The input says **what** to work on, the identity says **who** may read it ([identity](identity.md)), and the tool does both the fetch and the check. The model
+  sees the reference, and may pass another one: the tool checks that the identity may read the one it was given.
+- The tool returns **the text** of the file, which every provider takes, or **an image or a file block**, which reaches the model as it is and is read where the
+  provider accepts it ([what was verified](#findings)).
+- A pipeline that downloads a file stores it, and passes the reference on to the agent. That is one more step, for a case that is rare.
+- A resume reuses a step for the same input and the same identity, so for the same reference, **even if the file behind it changed** ([resuming](jobs.md#resuming-a-job)).
+  Put a version or a hash in the reference when that matters.
+
+[A recipe](../recipes/files-for-an-agent-or-a-job.md) shows it, with a test.
+
 ## Decisions
 
+- **Attachments are for a chat; agents and jobs pass references.** A file does not travel between agents, or through a queue. See [above](#files-for-agents-and-jobs).
 - **Transport only.** No capability checks, no conversion, no fetching, no uploads. The application knows its model and its users.
 - **`data` only.** Safe by construction, and the one source that every provider's package accepts.
 - **One form of base64, and an error that says which mistake.** Strict and predictable: what `b64encode` and `btoa` give. A lenient reader
@@ -140,7 +163,8 @@ result.**
 - **Fetching URLs,** uploading to a provider's store, and `file_id` sources: the application's.
 - **Converting** a PDF into page images, resizing, transcribing or OCR, for a model that cannot read the original.
 - **Checking** that a model can read a type, or the provider's own limits (pages, pixels, duration).
-- **Attachments on an assistant or tool message,** and in sub-agents' inputs.
+- **Attachments on an assistant or tool message,** and in the input of an agent or a job: a launched agent, a background job, an agent wrapped in a job, or one that a
+  pipeline runs. They pass references ([above](#files-for-agents-and-jobs)).
 - **Stored attachments.** The application keeps them, as it keeps the conversation.
 
 ## Findings
@@ -165,6 +189,14 @@ Checked while writing this (2026-11-22):
   through Anthropic and Chat Completions, although Chat Completions takes only PDFs. This is the packages' behaviour on the dates above and it changes.
 - **Observers:** an observer that captures content (`capture_content=True`, and OpenTelemetry with content capture on) is given the attachment bytes with
   the rest of the messages. That is the documented opt-in. By default no event, run log row, observer record or span holds any of it.
+- **What a provider returns or logs** is the provider's: featherweight puts no attachment bytes in an event or a log line, and **guarantees nothing about what a
+  provider's endpoint puts in its error text or keeps in its own logs**. The text of a failure is passed on as it is, to the client (`RUN_ERROR`) and to the
+  application's log; the run log keeps only the error's type and a hash of its text.
+- **A file returned by a tool** (2026-11-25, real calls, the smallest model of each provider, one small file each: a 200 px JPEG and a one-page PDF). A tool that
+  returns `[text block, image or file block]` reaches the model as a list of content blocks, unchanged, and the model **read** both files with Anthropic
+  (`claude-haiku-5-5`), Google (`gemini-3.5-flash-lite`) and OpenAI (`gpt-6-luna`, on the Responses API, the only one that featherweight's `OpenAI` settings
+  build). Google's Gemma (`gemma-4-26b-a4b-it`) did not call the tool: it answers at once when an agent has a reply schema, so nothing is known for it. This is
+  one run each, a snapshot and not a promise: text is the result that every provider takes, and media is for a provider that you have tried.
 - **The body of a request** carries each attachment as base64 inside the JSON, a third larger than the file, and every turn sends the whole conversation again. A
   server or a proxy in front of the application often has a lower limit on a body, and a body over it never reaches featherweight: the guide says so, and that
   `max_bytes` is the agent's policy and not the server's.

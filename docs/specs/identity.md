@@ -193,6 +193,8 @@ These stay the application's, on purpose, and the guides, the book and the recip
 - **Check who owns a job before `resume_from`.** The identity hash makes a resume reuse only steps of the same identity, and does not decide who may resume a job or read
   its result: that is a check the application makes with its own records of who started which job.
 - **If you pass a `job_id` to `run`, `run_many` or `stream` yourself,** pass the same identity every time: a job is for one identity.
+- **An identity says who, not what.** A file or a record that a run works on is a **reference** in the input, and the tool checks that the identity may read it
+  ([files for agents and jobs](attachments.md#files-for-agents-and-jobs)). A resource in the identity would make "a job for this identity" differ per file.
 - **Keep it small,** and keep secrets out of it. Do not change an identity after a run has it.
 - **Do not let users declare stdio MCP servers.** A `StdioMCPServer` runs a command on your server. An application that builds agents from what users write allows only
   `HttpMCPServer`, or servers from a list it controls.
