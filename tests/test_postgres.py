@@ -311,11 +311,52 @@ async def test_a_database_from_before_the_attempts_rename_keeps_its_rows_under_t
                    'SUCCESS', now())""",
             (digest, digest, digest, digest),
         )
+        columns = "(agent_run_id, invocation_id, attempt, depth, agent_name, agent_version, agent_hash, system_prompt_hash, tools_hash, provider, model_name, reasoning, settings, input_hash, status, created_at"
+        rest = "'echo', '1', %s, %s, %s, 'fake', 'fake-model', 'low', '{}', %s, 'SUCCESS', now()"
+        await conn.execute(  # a launched agent: its attempt has a parent
+            f"INSERT INTO agent_runs {columns}, parent_agent_run_id) VALUES ('old-child', 'old-run-2', 1, 2, {rest}, 'old-attempt')",
+            (digest, digest, digest, digest),
+        )
+        await conn.execute(  # a step that a resume answered: its attempt names the one it reused
+            f"INSERT INTO agent_runs {columns}, reused_from_agent_run_id) VALUES ('old-reused', 'old-run-3', 1, 1, {rest}, 'old-attempt')",
+            (digest, digest, digest, digest),
+        )
+        await conn.execute(
+            "INSERT INTO jobs (job_id, name, status, created_at, parent_agent_run_id) VALUES ('old-job', 'bg', 'INIT', now(), 'old-attempt')"
+        )
     async with PostgresDatabase(URL, schema=schema) as db:
         row = await db.get_attempt("old-attempt")
+        child, reused, job = (
+            await db.get_attempt("old-child"),
+            await db.get_attempt("old-reused"),
+            await db.get_job("old-job"),
+        )
     assert row is not None and row.run_id == "old-run" and row.attempt == 2
+    assert child is not None and child.parent_attempt_id == "old-attempt" and child.depth == 2
+    assert reused is not None and reused.reused_from_attempt_id == "old-attempt"
+    assert job is not None and job.parent_attempt_id == "old-attempt"  # a job that an attempt started
     tables = {
         r["table_name"]
         for r in await query(schema, "SELECT table_name FROM information_schema.tables WHERE table_schema = %s", schema)
     }
     assert "attempts" in tables and "agent_runs" not in tables
+
+
+@needs_postgres
+async def test_the_constraints_and_the_indexes_of_attempts_do_not_carry_the_retired_table_name(schema):
+    async with PostgresDatabase(URL, schema=schema):
+        pass
+    names = [
+        r["name"]
+        for r in await query(
+            schema,
+            "SELECT conname AS name FROM pg_constraint WHERE connamespace = %s::regnamespace "
+            "UNION SELECT indexname FROM pg_indexes WHERE schemaname = %s "
+            "UNION SELECT sequencename FROM pg_sequences WHERE schemaname = %s",
+            schema,
+            schema,
+            schema,
+        )
+    ]
+    assert names and not [n for n in names if "agent_run" in n], names
+    assert {"attempts_pkey", "attempts_status_check", "attempts_job_id_fkey"} <= set(names)

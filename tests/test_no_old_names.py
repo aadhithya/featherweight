@@ -23,8 +23,13 @@ OWNERS = {
     "tests/test_docs_terms.py",
     "tests/test_no_old_names.py",
 }
-# Pages that say what was retired.
-PAGES = {"docs/specs/units.md", "docs/migration.md", "docs/book/07-reference/03-the-glossary.md"}
+# Pages that say what was retired, or renamed by a migration.
+PAGES = {
+    "docs/specs/units.md",
+    "docs/specs/persistence.md",  # the migrations: it says what each one renamed
+    "docs/migration.md",
+    "docs/book/07-reference/03-the-glossary.md",
+}
 
 
 def files(folder: str, pattern: str):
