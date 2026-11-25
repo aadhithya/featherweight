@@ -2,7 +2,7 @@
 
 Status: implemented, in [epic #190](https://github.com/aadhithya/featherweight/issues/190): the runner and the tools ([#195](https://github.com/aadhithya/featherweight/issues/195): `identity_type`, `identity=`, `RunContext.identity`, `CURRENT_IDENTITY`, `JobContext.identity` and the inheritance), the identity hash ([#197](https://github.com/aadhithya/featherweight/issues/197): the `identity_hash` column, `fingerprint.identity_hash` and the reuse check) the queue and the worker ([#196](https://github.com/aadhithya/featherweight/issues/196): the `identity` field of the message, `JobClient(identity_type=)` and `submit(identity=)`, `JobWorker(identity_type=)`, `InvalidJobIdentity`, the migration of the sqlite queue table, and the kit's check), `Skill.aread` ([#198](https://github.com/aadhithya/featherweight/issues/198)) and `jobs_lookup` ([#199](https://github.com/aadhithya/featherweight/issues/199)), which [skills](skills.md) and [submitted jobs](submitted-jobs.md) own. The guides are [who is asking](../agents.md#who-is-asking-the-identity-of-a-run) and [the identity across the queue](../submitted-jobs.md#who-the-job-is-for-the-identity).
 
-It builds on [the runner](runner.md), [tools and the registry](tools-and-store.md), [submitted jobs](submitted-jobs.md) and [persistence](persistence.md),
+It builds on [the runner](runner.md), [tools and the registry](tools.md), [submitted jobs](submitted-jobs.md) and [persistence](persistence.md),
 and adds a few lines to each. What it owns is the identity itself.
 
 - [Goal](#goal)
@@ -114,7 +114,7 @@ class RunContext(Generic[IdentityT]):
 `run_id` and `attempt_id` are the units of [the units spec](units.md): a run is one call of an agent, and an attempt is one try of it.
 
 A tool declares `runtime: ToolRuntime[RunContext[Teacher]]` and reads `runtime.context.identity`. LangChain fills the parameter in and hides it from the model, so
-the model never passes it and cannot see it ([tools and the registry](tools-and-store.md#the-run-context)). A tool that does not declare `runtime` cannot see it.
+the model never passes it and cannot see it ([tools and the registry](tools.md#the-run-context)). A tool that does not declare `runtime` cannot see it.
 
 - **The shared (MCP) tools** cannot take a `RunContext`, because one tool object serves many attempts. The runner sets a context variable around each attempt,
   as it does for the attempt's id, and code that cannot take `runtime` reads it: `CURRENT_IDENTITY`.

@@ -29,7 +29,7 @@ A subclass of `AgentBase`. The runner instantiates it (`agent_cls()`), so a subc
 |---|---|---|
 | `name`, `description`, `version`, `prompt` | `str`, required | `name` and `version` are recorded on every attempt. `description` is what a parent's model reads before it launches this agent |
 | `model` | `ModelSettings`, `Gemini()` | Which model runs the agent and how hard it thinks. A setting the model does not accept fails when the agent is built ([models](models.md)) |
-| `tools` | `list[BaseTool]`, empty | Only these are bound to the model, besides the tools the runner adds ([tools and the registry](tools-and-store.md)) |
+| `tools` | `list[BaseTool]`, empty | Only these are bound to the model, besides the tools the runner adds ([tools and the registry](tools.md)) |
 | `recursion_limit` | `int`, 25, at least 1 | Passed to langgraph. Stops a runaway tool loop inside one run; a run that hits it fails |
 | `allow_user_questions`, `raise_conflicts` | `bool`, `False` | Each only adds a sentence to the prompt. Neither is enforced |
 | `subagents` | `list[type]`, empty | Agent classes this agent may launch ([runner](runner.md#launching-agents)) |

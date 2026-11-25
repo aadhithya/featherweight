@@ -101,7 +101,7 @@ SUCCESS gemini-3.5-flash-lite open_questions=[] title='Nightly batch was late' s
 - **Ready-made tools** (`calculate`, `current_datetime`, `days_between`, `add_to_date`) are in `featherweight.tools`: see [the tools guide](../../agents.md#tools).
 
 > **Why a list on the class.** The tools are part of what the agent is, and the run log keeps a hash of them, so a change shows. See
-> [tools on an agent](../../specs/tools-and-store.md#tools-on-an-agent).
+> [tools on an agent](../../specs/tools.md#tools-on-an-agent).
 
 Next: tools that live in another process.
 

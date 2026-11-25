@@ -54,7 +54,7 @@ or finding out why it behaves as it does.
 | Guide | Covers | Its spec |
 |---|---|---|
 | [Getting started](getting-started.md) | Installing it, a first agent, running it, the examples | |
-| [Agents](agents.md) | Defining and running an agent, results, retries, output checks, tools, who is asking, configuration | [Agents](specs/agents.md), [the runner](specs/runner.md), [tools and the store](specs/tools-and-store.md) |
+| [Agents](agents.md) | Defining and running an agent, results, retries, output checks, tools, who is asking, configuration | [Agents](specs/agents.md), [the runner](specs/runner.md), [tools and the registry](specs/tools.md) |
 | [Models and providers](models.md) | `Gemini`, `Gemma`, `Claude`, `OpenAI`, what is checked, adding a model or a provider | [Models](specs/models.md) |
 | [Launching agents](launching-agents.md) | The `subagents` allow-list, the two tools, depth and breadth, concurrency, tracing | [The runner](specs/runner.md#launching-agents) |
 | [MCP tools](mcp.md) | Declaring servers, connections, what the model gets, failures, finding tools by search | [MCP tools](specs/mcp-tools.md), [tool discovery](specs/tool-discovery.md) |

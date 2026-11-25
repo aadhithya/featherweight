@@ -61,6 +61,8 @@ class Researcher(AgentBase):
     background_jobs = [WebSearcher, Summariser]
 ```
 
+There is no alias for the old name, and it is not ignored: a class that still declares a field `background_agents` is refused when it is declared (`TypeError`, which names `background_jobs`).
+
 There is no alias. The tool `start_background` and the events `background_started` and `background_finished` keep their names. **The agent's hash does not change**, so a resume of a job made before the upgrade still reuses its steps.
 Search: `background_agents`. Check: `git grep -n background_agents` is empty.
 

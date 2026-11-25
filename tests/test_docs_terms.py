@@ -38,7 +38,7 @@ ALLOWED = {
         r"\binvocations?\b",
         r"\b(?:an?|each|every|one) agent runs?\b",
     },  # it lists them as ruled out
-    "docs/specs/tools-and-store.md": {r"\brun stores?\b"},  # it recounts that the run store was removed
+    "docs/specs/tools.md": {r"\brun stores?\b"},  # it recounts that the run store was removed
     "docs/migration.md": {
         r"\brun stores?\b",
         r"\binvocations?\b",

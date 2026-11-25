@@ -10,7 +10,7 @@ not supported, tests.
 | [Agents](agents.md) | The agent definition, what is checked when it is built, input and output, the system prompt |
 | [Agent runner](runner.md) | Running, results, attempts and retries, concurrency, **launching agents**, limits |
 | [Models and providers](models.md) | `ModelSettings`: Gemini, Gemma, Claude and OpenAI, the catalog, temperature, extending it, tokens |
-| [Tools and the registry](tools-and-store.md) | Tools on an agent, the tool registry, the ready-made tools, the run context |
+| [Tools and the registry](tools.md) | Tools on an agent, the tool registry, the ready-made tools, the run context |
 | [MCP tools](mcp-tools.md) | MCP servers: declaring, connections, failures, what the model gets |
 | [Tool discovery](tool-discovery.md) | Finding MCP tools by keyword: `discover`, `search_tools`, `call_tool`, matching |
 | [Skills](skills.md) | The skill model, loading, how an agent reads a skill, the Agent Skills specification |
@@ -34,7 +34,7 @@ A change goes in the spec of the thing it changes, and not in the spec of the ep
 | [Agents](agents.md) | The agent definition, what is checked when it is built, input and output, the system prompt |
 | [Agent runner](runner.md) | Running an agent: results, attempts and retries, concurrency, launching agents, how a step is resumed, when observers are called |
 | [Models and providers](models.md) | `ModelSettings`, the catalog, what is checked per provider, tokens |
-| [Tools and the registry](tools-and-store.md), [MCP tools](mcp-tools.md), [tool discovery](tool-discovery.md), [skills](skills.md) | What their names say |
+| [Tools and the registry](tools.md), [MCP tools](mcp-tools.md), [tool discovery](tool-discovery.md), [skills](skills.md) | What their names say |
 | [Identity](identity.md) | The identity of a run: declaring and passing it, `RunContext.identity`, who inherits it, its field in the queue message, `identity_hash`, the developer's responsibilities |
 | [Streaming agents](streaming.md) | `StreamingAgent`, `runner.stream()`, the events, the adapters |
 | [Attachments](attachments.md) | The parts a user message may carry, how they reach the model, the limits on them |
