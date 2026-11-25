@@ -8,6 +8,7 @@ LangChain messages, and they hold what the model needs on the next request (tool
 import base64
 import binascii
 import json
+import re
 import uuid
 from collections.abc import Sequence
 from typing import Any
@@ -67,6 +68,39 @@ _MEDIA_BLOCKS = {"image": "image", "audio": "audio", "video": "video", "document
 _MEDIA_PARTS = {block: part for part, block in _MEDIA_BLOCKS.items()}
 
 
+_CHUNK = 64 * 1024  # characters checked at a time: a multiple of 4, so that every chunk is whole groups of base64
+_WHITESPACE = re.compile(r"\s")
+_URL_SAFE = re.compile(r"[-_]")
+_ALPHABET = re.compile(r"[A-Za-z0-9+/]*={0,2}")
+
+
+def _why_not_base64(value: str, error: Exception) -> str:
+    """The likely cause of data that is not base64, for the person who sent it. Never quotes the data."""
+    if value.startswith("data:"):
+        return "it is a data: URL. Send only the part after the comma"
+    if _WHITESPACE.search(value):
+        return "it has line breaks or spaces. Send it in one line (base64.b64encode gives that; base64.encodebytes does not)"
+    if _URL_SAFE.search(value):
+        return "it uses the URL-safe alphabet ('-' or '_'). Send the standard one ('+' and '/')"
+    if len(value) % 4 and _ALPHABET.fullmatch(value):
+        return "it is not padded: its length must be a multiple of 4 (add '=')"
+    if "=" in value.rstrip("="):
+        return "it has '=' padding before its end: padding may only end the data"
+    if not _ALPHABET.fullmatch(value):
+        return "it has characters outside the base64 alphabet (A-Z, a-z, 0-9, '+' and '/', padded with '=')"
+    return str(error)
+
+
+def _check_base64(value: str) -> None:
+    """Raises `binascii.Error` unless `value` is what `base64.b64decode(value, validate=True)` accepts. It decodes one chunk at a
+    time and drops it, so no copy of the whole attachment is made. Padding may end the last chunk only."""
+    for start in range(0, len(value), _CHUNK):
+        chunk = value[start : start + _CHUNK]
+        if start + _CHUNK < len(value) and "=" in chunk:
+            raise binascii.Error("Excess data after padding")
+        base64.b64decode(chunk, validate=True)
+
+
 def _media_block(part: Any, where: str) -> dict[str, Any]:
     """A media part of a user message as a LangChain content block. Only inline data is accepted: featherweight fetches
     nothing, so an application that wants a URL downloads it and sends the bytes."""
@@ -79,10 +113,16 @@ def _media_block(part: Any, where: str) -> dict[str, Any]:
         )
     if not source.mime_type:
         raise ValueError(f"{where} is {kind} content without a mime type")
+    if not source.value:
+        raise ValueError(
+            f"{where} is {kind} content with no data: an empty attachment is refused, send a file that has bytes"
+        )
     try:
-        base64.b64decode(source.value, validate=True)
+        _check_base64(source.value)
     except (binascii.Error, ValueError) as exc:
-        raise ValueError(f"{where} is {kind} content whose data is not base64: {exc}") from exc
+        raise ValueError(
+            f"{where} is {kind} content whose data is not base64: {_why_not_base64(source.value, exc)}"
+        ) from exc
     block: dict[str, Any] = {"type": _MEDIA_BLOCKS[kind], "base64": source.value, "mime_type": source.mime_type}
     filename = (part.metadata or {}).get("filename") if isinstance(part.metadata, dict) else None
     if kind == "document" and filename:
