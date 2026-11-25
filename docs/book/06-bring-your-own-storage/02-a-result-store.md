@@ -68,6 +68,10 @@ It needs no model and no key. Use it with `AgentRunner(db, results=FileResultSto
 
 > **Why** featherweight keeps no results itself: they are your data, and how they are stored is your call. See [the result store](../../specs/persistence.md#the-result-store).
 
+**Also possible**
+
+- [A result store of your own](../../recipes/a-result-store-of-your-own.md), as a recipe.
+
 <!-- nav:bottom -->
 ---
 

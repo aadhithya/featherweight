@@ -86,4 +86,8 @@ The models of a provider are in its class: `docker compose run --rm --no-deps bo
 
 > **Why a setting.** The model is part of what the agent is, so it is declared and checked like the rest. See [the model spec](https://github.com/aadhithya/featherweight/blob/main/docs/specs/models.md).
 
+**Also possible**
+
+- Another model or provider: [a different provider](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/a-different-provider.md).
+
 Next: [Part 2](../02-abilities/01-tools.md) gives the assistant abilities.

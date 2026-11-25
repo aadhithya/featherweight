@@ -96,4 +96,9 @@ succeeded
 > **Why the same job.** The job id is what the client holds: its events, its cancel and its result are all keyed by it, so a takeover keeps it. See
 > [several workers](https://github.com/aadhithya/featherweight/blob/main/docs/specs/submitted-jobs.md#several-workers) and [the guide](../../submitted-jobs.md#several-workers).
 
+**Also possible**
+
+- Every setting you can tune, and its `FTW_` variable: [Configuration](https://github.com/aadhithya/featherweight/blob/main/docs/specs/configuration.md).
+- What to use where in production: [a production stack](../../production-stack.md).
+
 Next: an agent that starts another agent and goes on.

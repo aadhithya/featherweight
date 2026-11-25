@@ -24,6 +24,7 @@ the same list by task.
 | Know what each provider accepts as an attachment | [Attachments by provider](../../attachments-providers.md) |
 | Copy a short pattern for one job: a fake model for tests, a worker, a signed queue, agents built from JSON | [Recipes](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/README.md) |
 | Install it and run a first agent in a few minutes | [Getting started](https://github.com/aadhithya/featherweight/blob/main/docs/getting-started.md) |
+| Move to a newer version, and see what changed | [Migration](../../migration.md) |
 | Work on featherweight itself, or make a release | [Development](https://github.com/aadhithya/featherweight/blob/main/docs/development.md), [Releasing](https://github.com/aadhithya/featherweight/blob/main/docs/releasing.md) |
 
 > **Why** the guides stay: a book is for learning in order, and a guide is for finding one answer fast. Each fact is written in one place, and the book links to it.

@@ -84,3 +84,68 @@ def test_result_rejects_non_terminal_status(status):
 def test_declarations_are_frozen(declaration, field):
     with pytest.raises(ValidationError):
         setattr(declaration, field, "other")
+
+
+# an agent class built from data is checked as strictly as one written with `class` (docs/specs/agents.md)
+
+
+def _tool(name: str):
+    from langchain_core.tools import tool
+
+    @tool(name)
+    def a_tool() -> str:
+        """A tool."""
+        return name
+
+    return a_tool
+
+
+def _written(given: list):
+    class Written(AgentBase):
+        name: str = "x"
+        description: str = "d"
+        version: str = "1"
+        prompt: str = "p"
+        tools: list = given
+
+    return Written
+
+
+def _built(given: list):
+    from pydantic import create_model
+
+    return create_model(
+        "Built",
+        __base__=AgentBase,
+        name=(str, "x"),
+        description=(str, "d"),
+        version=(str, "1"),
+        prompt=(str, "p"),
+        tools=(list, given),
+    )
+
+
+def _refusal(make, tools, **kwargs) -> str:
+    with pytest.raises(ValidationError) as refused:
+        make(tools)(**kwargs)
+    return "; ".join(error["msg"] for error in refused.value.errors())
+
+
+@pytest.mark.parametrize(
+    ("tools", "kwargs", "says"),
+    [
+        ([_tool("same"), _tool("same")], {}, "duplicate names"),
+        ([_tool("start_background")], {}, "start_background"),
+        ([_tool("get_skill")], {}, "get_skill"),
+        ([], {"recursion_limit": 0}, "greater than or equal to 1"),
+    ],
+    ids=["duplicate tool names", "a runner's tool name", "the skill tool's name", "recursion limit out of range"],
+)
+def test_a_class_built_from_data_is_refused_as_one_written_by_hand_is(tools, kwargs, says):
+    by_hand = _refusal(_written, tools, **kwargs)
+    from_data = _refusal(_built, tools, **kwargs)
+    assert says in by_hand and by_hand.replace("Written", "X") == from_data.replace("Built", "X")
+
+
+def test_a_class_built_from_data_that_is_well_formed_is_accepted_as_one_written_by_hand_is():
+    assert _written([_tool("a"), _tool("b")])().name == _built([_tool("a"), _tool("b")])().name == "x"

@@ -79,6 +79,10 @@ attempt 1: SUCCESS, gemini-3.5-flash-lite, tokens=312+96, 2210 ms, input_hash=2d
 > **Why only metadata.** What went through the agent is yours, and so is how it is kept. See [the rule](../../specs/persistence.md#the-rule)
 > and [the run log](../../persistence.md#what-the-run-log-holds).
 
+**Also possible**
+
+- Log what the runner does: `setup_logging()` and `FTW_LOG_LEVEL`, in [Configuration](../../agents.md#configuration).
+
 Next: a rule the schema cannot say.
 
 <!-- nav:bottom -->

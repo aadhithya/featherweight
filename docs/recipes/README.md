@@ -1,6 +1,6 @@
 # Recipes
 
-Short, complete patterns to adapt, for building with featherweight. They use the agent of [Getting started](../getting-started.md) (`PeopleExtractor`). The guides say how each part works, and the specs say what it does and why; a recipe puts a few parts together for one job.
+Short, complete patterns to adapt, for building with featherweight. Each one says what it is for and runs as written; what is yours (a store, a directory, a web handler) is named in its code, and a recipe that uses the agent of [Getting started](../getting-started.md) says so. The tests run all of them. The guides say how each part works, and the specs say what it does and why; a recipe puts a few parts together for one job.
 
 | I want to | Recipe |
 |---|---|

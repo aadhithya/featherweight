@@ -77,4 +77,8 @@ attempt 2: SUCCESS
 > **Why it works this way.** Each attempt is a row, so a failure can be diagnosed from the log. See
 > [attempts and retries](https://github.com/aadhithya/featherweight/blob/main/docs/specs/runner.md#attempts-and-retries) and [checking the output](../../agents.md#checking-the-output).
 
+**Also possible**
+
+- Tell the next attempt what went wrong: [a retry that knows the last error](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/telling-a-retry-what-went-wrong.md).
+
 Next: choose the model.

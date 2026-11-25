@@ -3,6 +3,7 @@
 The agent is written once, and each department's skills are data: build the agent class for the request, with that department's skills.
 
 ```python
+# yours: rows_of (reads the skills of a department from your database) and runner (an AgentRunner)
 from typing import ClassVar
 
 from pydantic import Field, create_model

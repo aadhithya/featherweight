@@ -94,4 +94,8 @@ second run
 > **Why a new job.** A resume is you running a job that ended again, so it is its own job with its own trace. See
 > [resuming a job](https://github.com/aadhithya/featherweight/blob/main/docs/specs/jobs.md#resuming-a-job) and [the resume example](https://github.com/aadhithya/featherweight/blob/main/examples/resume/README.md).
 
+**Also possible**
+
+- [Resuming a failed job](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/resuming-a-failed-job.md), as a recipe.
+
 Next: the assistant talks. Part 4 makes it a chat.

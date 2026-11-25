@@ -92,4 +92,9 @@ docker compose run --rm --no-deps book python 5-1/submit.py     # terminal 2
 > **Why a queue and a database.** Nothing connects the two sides directly, so either can restart or move without the other. featherweight ships a sqlite queue for local
 > work; in production the queue is yours. The database is shared too: `SqliteDatabase` on one machine, and `PostgresDatabase`, which ships in the package, across machines ([Part 6](../06-bring-your-own-storage/01-postgres.md)). See [submitted jobs](https://github.com/aadhithya/featherweight/blob/main/docs/specs/submitted-jobs.md#the-principle) and [the guide](../../submitted-jobs.md).
 
+**Also possible**
+
+- A worker can find a job that is not in its code: [`jobs_lookup`](https://github.com/aadhithya/featherweight/blob/main/docs/specs/submitted-jobs.md#jobs-that-are-not-declared-in-code).
+- [A job that a worker runs](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/a-job-that-a-worker-runs.md), as a recipe.
+
 Next: more than one worker, and a worker that dies.

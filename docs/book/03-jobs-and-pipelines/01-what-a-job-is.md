@@ -84,6 +84,11 @@ SUCCESS ['Checkout was down', 'Sign-in trouble', 'Search was slow', 'Batch was l
 > **Why a class.** A declared job has a name, a version and typed models, so the same job can be run here (`run_job`) or on a worker (Part 5), and be told
 > apart when it changes. See [the philosophy](../00-start-here/03-philosophy.md), [the job](../../specs/submitted-jobs.md#the-job), [running a job class](../../specs/jobs.md#running-a-job-class) and [the guide](../../submitted-jobs.md).
 
+**Also possible**
+
+- An agent is a job too: pass it to `run_job` or `submit` as it is. See [the jobs guide](../../jobs.md).
+- [A pipeline of two agents](../../recipes/a-pipeline-of-two-agents.md), in plain Python.
+
 Next: what the run recorded.
 
 <!-- nav:bottom -->

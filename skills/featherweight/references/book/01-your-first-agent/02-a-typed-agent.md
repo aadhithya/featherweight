@@ -56,6 +56,7 @@ incident_summariser 1
   `AgentOutput` carries, and does not have to invent an answer to pass the check.
 - **The class is checked when it is built.** `IncidentSummariser()` refuses a malformed agent (a model that does not exist, a `recursion_limit` out of
   range, duplicate tool names) before any model is involved.
+- **A class can also be built from data** (a file, a database row): the runner sees a class either way. See [agents built from JSON](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/agents-built-from-json.md).
 - `name`, `description` and `version` identify the agent in the run log: change the version when the prompt or the behaviour changes.
 
 > **Why typed.** Pydantic is the spec: what goes in and what comes out is a schema, enforced, and not a convention. See

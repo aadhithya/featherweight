@@ -62,6 +62,7 @@ class HmacQueue(JobQueue):
 Check it like any queue, with the kit, and give the client and the worker the wrapper, with the same key:
 
 ```python
+# yours: db (the database), runner (an AgentRunner) and key (a secret from your vault)
 from featherweight import JobClient, JobWorker, testing
 from featherweight.queue import SqliteQueue
 from featherweight.testing import MemoryQueue

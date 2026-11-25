@@ -135,6 +135,11 @@ SUCCESS gemini-3.5-flash-lite open_questions=['What was the cause?'] title='Sign
 > **Why a skill and not a longer prompt.** A rubric in the prompt costs tokens in every run, even the ones that do not need it. See
 > [how an agent uses a skill](../../specs/skills.md#how-an-agent-uses-a-skill).
 
+**Also possible**
+
+- A skill kept in a database or S3, read when the agent asks: [the recipe](../../recipes/a-skill-from-a-database-or-s3.md).
+- One agent, the skills of whoever is asking: [a skill for each department](../../recipes/a-skill-for-each-department.md).
+
 Next: handing part of the work to another agent.
 
 <!-- nav:bottom -->

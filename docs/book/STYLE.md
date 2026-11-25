@@ -9,7 +9,8 @@ One page, for whoever writes a chapter. Every chapter has the same shape and the
 3. **Run it.** The one command, and what the reader should see.
 4. **What to notice.** A few bullets: the parts that matter, and nothing else.
 5. **Why.** A box of two or three lines when a choice needs its reason, linking to the spec. Never retell the spec.
-6. **Next.** One line to the next chapter (the tool writes the links; this is the thought).
+6. **Also possible.** Optional. One to three bullets, each one phrase (under about 20 words) and one link to a guide section or a recipe, for what the chapter does not teach and the reader may want: "you can also...". No new facts: link, do not retell. The book is simple on purpose, and this is how it says that more is possible, and where to look.
+7. **Next.** One line to the next chapter (the tool writes the links; this is the thought).
 
 A chapter is one or two screens. If it grows, split it. The first heading is the title in `SUMMARY.md`, exactly.
 

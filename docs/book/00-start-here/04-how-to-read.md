@@ -19,6 +19,11 @@ In order, or through [the map](02-the-map.md): go straight to what you want to b
 
 When you need an exact rule, the guides and the specs are the reference ([Part 7](../07-reference/01-the-guides.md)).
 
+**Also possible**
+
+- Upgrading from an earlier version? See the [migration guide](../../migration.md).
+- Short patterns to copy: the [recipes](../../recipes/README.md).
+
 <!-- nav:bottom -->
 ---
 

@@ -96,6 +96,10 @@ second run
 > **Why a new job.** A resume is you running a job that ended again, so it is its own job with its own trace. See
 > [resuming a job](../../specs/jobs.md#resuming-a-job) and [the resume example](../../../examples/resume/README.md).
 
+**Also possible**
+
+- [Resuming a failed job](../../recipes/resuming-a-failed-job.md), as a recipe.
+
 Next: the assistant talks. Part 4 makes it a chat.
 
 <!-- nav:bottom -->

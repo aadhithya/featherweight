@@ -103,6 +103,11 @@ The researcher says: something like the cause named in the note.
 > **Why a message, not a tool result.** The tool call already returned ("started"), and providers reject a second result for it. The result arrives as new information, as a user message.
 > See [background jobs](../../specs/background-jobs.md#getting-the-result-back) and [the guide](../../background-jobs.md).
 
+**Also possible**
+
+- A chat that starts background work: [the guide](../../background-jobs.md#a-chat-in-the-browser).
+- [An agent that starts another and goes on](../../recipes/an-agent-that-starts-another-and-goes-on.md), as a recipe.
+
 Next: see what all of it did.
 
 <!-- nav:bottom -->

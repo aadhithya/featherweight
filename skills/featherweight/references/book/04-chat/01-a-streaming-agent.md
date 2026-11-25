@@ -92,4 +92,8 @@ A new release of the payment form sent a field the provider rejects, so every pa
 
 To send the assistant a file with a question, see [Attaching a file](04-attaching-a-file.md).
 
+**Also possible**
+
+- Show the model's thoughts: `show_thoughts`, in [Thoughts](../../streaming.md#thoughts).
+
 Next: the same agent, for a browser.

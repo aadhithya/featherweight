@@ -88,4 +88,9 @@ returns `Not allowed.`, and the model says it could not open it.
 
 > **Why carry and not enforce.** Authentication, what a user may do and where credentials live differ in every application, so featherweight hands a typed identity to the tools and leaves the rest to you. See [identity](https://github.com/aadhithya/featherweight/blob/main/docs/specs/identity.md) and [the guide](../../agents.md#who-is-asking-the-identity-of-a-run).
 
+**Also possible**
+
+- [A tool that gets a token for its identity](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/a-tool-that-gets-a-token-for-its-identity.md).
+- Files are passed as references, not carried: [files for an agent or a job](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/files-for-an-agent-or-a-job.md).
+
 Next: bring your own storage.

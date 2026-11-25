@@ -74,6 +74,10 @@ SUCCESS attempts=1 tokens=312+96
 > **Why a value.** A pipeline decides what a failure means. See [the philosophy](../00-start-here/03-philosophy.md) and
 > [the result](../../specs/runner.md#the-result).
 
+**Also possible**
+
+- Test an agent without a real model: [a fake model](../../recipes/testing-with-a-fake-model.md).
+
 Next: what the run log recorded.
 
 <!-- nav:bottom -->

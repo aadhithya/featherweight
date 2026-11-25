@@ -65,3 +65,7 @@ It needs no model and no key. Use it with `AgentRunner(db, results=FileResultSto
 - The store never sees featherweight's tables: it holds only the outputs you decided to keep.
 
 > **Why** featherweight keeps no results itself: they are your data, and how they are stored is your call. See [the result store](https://github.com/aadhithya/featherweight/blob/main/docs/specs/persistence.md#the-result-store).
+
+**Also possible**
+
+- [A result store of your own](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/a-result-store-of-your-own.md), as a recipe.
