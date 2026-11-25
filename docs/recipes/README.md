@@ -14,6 +14,7 @@ Short, complete patterns to adapt, for building with featherweight. Each one say
 | [A result store of your own](a-result-store-of-your-own.md) | Keep job results where you decide, and check the store with the kit |
 | [A job that a worker runs](a-job-that-a-worker-runs.md) | Submit a job, run it on a worker, and follow it |
 | [Traces for jobs and agents](traces-for-jobs-and-agents.md) | OpenTelemetry spans for jobs, attempts, model calls and tool calls |
+| [Giving a sub-agent context](giving-a-sub-agent-context.md) | Let the parent write a summary of what it knows into the sub-agent's input |
 | [An agent that starts another and goes on](an-agent-that-starts-another-and-goes-on.md) | A background job whose result comes back later |
 | [A different provider](a-different-provider.md) | Use another model or provider |
 | [A skill from a database or S3](a-skill-from-a-database-or-s3.md) | Keep a skill's text in your own storage, and read it when the agent asks |

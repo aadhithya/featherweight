@@ -6,7 +6,7 @@ uses the agent of Getting started says so in a comment, and the agent is read fr
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 from fakes import Streams, structured_reply, tool_reply
@@ -17,7 +17,7 @@ from mcp_helpers import fake as fake_mcp_server
 from test_recipes_platform import RECIPES, blocks, run_block
 
 import featherweight
-from featherweight import AgentRunner, Claude, Gemini, OpenAI
+from featherweight import AgentBase, AgentInput, AgentOutput, AgentRunner, Claude, Gemini, ModelSettings, OpenAI
 
 GETTING_STARTED = Path(__file__).parent.parent / "docs" / "getting-started.md"
 
@@ -113,6 +113,120 @@ async def test_an_editor_launches_the_summariser_it_may_launch(recipes, capsys):
         "Write a headline": 2,
         "Summarise the topic": 1,
     }  # the editor, the summariser, the editor again
+
+
+# giving a sub-agent context
+
+SUMMARY = "Shipped on Friday after the payment bug was fixed. Keep it short."
+
+
+def launch_the_drafter(context: str, call_id: str = "c1"):
+    input_json = json.dumps({"task": "Draft a thank-you note", "context": context})
+    return tool_reply("launch_agent", {"agent_name": "drafter", "input_json": input_json}, call_id)
+
+
+def tool_texts(model, key: str) -> list[str]:
+    """The text of the tool results that the agent with this key was shown, in the order of the calls."""
+    seen: list[str] = []
+    for messages in model.seen:
+        if key in " ".join(str(m.content) for m in messages if m.type == "system"):
+            for m in messages:
+                if m.type == "tool" and m.content not in seen:
+                    seen.append(m.content)
+    return seen
+
+
+def the_input_of(model, key: str) -> dict:
+    """The input (JSON) that the agent with this key was given, from its first call."""
+    messages = next(m for m in model.seen if key in " ".join(str(x.content) for x in m if x.type == "system"))
+    return json.loads([m.content for m in messages if isinstance(m, HumanMessage)][-1])
+
+
+async def test_the_parent_writes_a_summary_in_the_childs_input_and_was_told_what_the_field_is_for(recipes, capsys):
+    model = recipes(
+        PerAgent(
+            scripts={
+                "Ask the drafter for a draft": [
+                    tool_reply("get_agent_schema", {"agent_name": "drafter"}, "g1"),
+                    launch_the_drafter(SUMMARY),
+                    structured_reply("Reply", {"reply": "Thanks, team."}),
+                ],
+                "Draft the text for the task": [structured_reply("Draft", {"draft": "Thanks for Friday."})],
+            }
+        )
+    )
+    await run_recipe("giving-a-sub-agent-context.md")
+
+    assert "Thanks, team." in capsys.readouterr().out
+    schema, *_ = tool_texts(model, "Ask the drafter for a draft")
+    assert "What you know that this task needs" in schema  # the description of the field is what the parent is shown
+    assert the_input_of(model, "Draft the text for the task") == {"task": "Draft a thank-you note", "context": SUMMARY}
+
+
+async def test_a_context_that_is_too_long_goes_back_to_the_parent_which_sends_a_shorter_one(recipes, capsys):
+    model = recipes(
+        PerAgent(
+            scripts={
+                "Ask the drafter for a draft": [
+                    launch_the_drafter("x" * 500, "c1"),
+                    launch_the_drafter(SUMMARY, "c2"),
+                    structured_reply("Reply", {"reply": "Thanks, team."}),
+                ],
+                "Draft the text for the task": [structured_reply("Draft", {"draft": "Thanks for Friday."})],
+            }
+        )
+    )
+    await run_recipe("giving-a-sub-agent-context.md")
+
+    first, second, *_ = tool_texts(model, "Ask the drafter for a draft")
+    assert "is not valid" in first and "at most 400 characters" in first and "try again" in first
+    assert model.calls["Draft the text for the task"] == 1  # the child ran once, with the short one
+    assert json.loads(second)["status"] == "SUCCESS" and the_input_of(model, "Draft the text")["context"] == SUMMARY
+
+
+async def test_the_same_field_works_for_a_background_job(recipes, tmp_path, capsys):
+    from featherweight import SqliteDatabase, default_db_path
+
+    model = recipes(
+        PerAgent(
+            scripts={
+                "Start the drafter in the background": [
+                    tool_reply(
+                        "start_background",
+                        {
+                            "agent_name": "drafter",
+                            "input_json": json.dumps({"task": "Draft a note", "context": SUMMARY}),
+                        },
+                        "s1",
+                    ),
+                    structured_reply("Reply", {"reply": "Started."}),
+                    structured_reply("Reply", {"reply": "Done."}),  # once the result has been added
+                ],
+                "Draft the text for the task": [structured_reply("Draft", {"draft": "Thanks for Friday."})],
+            }
+        )
+    )
+    ns: dict[str, Any] = {}
+    await run_block("\n".join(blocks("giving-a-sub-agent-context.md")), ns)
+
+    class Backgrounder(AgentBase):
+        name: str = "backgrounder"
+        description: str = "Starts the drafter in the background"
+        version: str = "0.1.0"
+        prompt: str = "Start the drafter in the background, and go on."
+        model: ModelSettings = Gemini()
+        background_jobs: list[type] = [ns["Drafter"]]
+        input_model: ClassVar[type[AgentInput]] = ns["Request"]
+        output_model: ClassVar[type[AgentOutput]] = ns["Reply"]
+
+    async with SqliteDatabase(default_db_path()) as db, AgentRunner(db) as runner:
+        job_id = await db.create_job("background")
+        result = await runner.run(Backgrounder, ns["Request"](request="Thank the team."), job_id=job_id)
+
+    assert result.status.value == "SUCCESS" and model.calls["Draft the text for the task"] == 1
+    assert (
+        the_input_of(model, "Draft the text for the task")["context"] == SUMMARY
+    )  # the job got the parent's summary too
 
 
 # a different provider

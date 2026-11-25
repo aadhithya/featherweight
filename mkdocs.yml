@@ -100,6 +100,7 @@ nav:
       - recipes/testing-with-a-fake-model.md
       - recipes/an-agent-with-an-mcp-server.md
       - recipes/an-agent-that-launches-another.md
+      - recipes/giving-a-sub-agent-context.md
       - recipes/a-chat-agent-that-streams.md
       - recipes/a-result-store-of-your-own.md
       - recipes/a-job-that-a-worker-runs.md
