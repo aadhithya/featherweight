@@ -152,6 +152,8 @@ async def test_a_turn_streams_text_in_order(db):
     started, finished = events[0], events[-1]
     assert isinstance(started, RunStartedEvent) and isinstance(finished, RunFinishedEvent)
     assert started.run_id == finished.run_id == run.run_id
+    (row,) = await db.list_attempts()  # the row of the run: its run, and its one attempt, are two ids
+    assert (row.run_id, row.attempt_id) == (run.run_id, run.attempt_id) and row.run_id != row.attempt_id
     assert started.thread_id == "t-1"
     assert finished.outcome.type == "success"
     assert (run.status, run.error) == (Status.SUCCESS, None)

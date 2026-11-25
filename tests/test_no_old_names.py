@@ -21,6 +21,7 @@ OWNERS = {
     "tests/test_postgres.py",
     "tests/test_identity_hash.py",
     "tests/test_docs_terms.py",
+    "tests/test_log_lines.py",  # it checks that no line carries a retired key
     "tests/test_no_old_names.py",
 }
 # Pages that say what was retired, or renamed by a migration.

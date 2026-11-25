@@ -75,7 +75,7 @@ answered from the log.
   finished. A store that fails does not fail the run (`result_not_kept` is logged). A reused run copies its result to the
   new job.
 - **The reused run.** It writes one `SUCCESS` row in the new job, with a new `attempt_id`, zero tokens, the stored
-  output and `reused_from_attempt_id`. It logs `run_reused attempt_id=... reused_from=...`, calls no model, builds no
+  output and `reused_from_attempt_id`. It logs `run_reused run_id=... attempt_id=... reused_from_attempt_id=...`, calls no model, builds no
   MCP connection and takes no slot. The result has `reused=True`, zero tokens and `attempts=1`.
 - **`run_many`** resumes per input, since each input is one `run` call.
 - **Not covered.** The determinism of the caller's code between agents (the caller's responsibility, not checked), state
