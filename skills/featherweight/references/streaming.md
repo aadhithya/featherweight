@@ -88,12 +88,12 @@ The events are already AG-UI's, so the adapter (`featherweight.adapters.agui`) i
 | `parse_request(body)` | The JSON body of an AG-UI request (a dict, text or bytes) as a `ChatInput`. `threadId` is kept. The client's `tools`, `state`, `context` and `forwardedProps` are **ignored** (the agent has its own tools); sending tools logs a warning |
 | `encode(run)` | The events of a run as server-sent events, one string each. Leaving the loop early stops the run |
 | `CONTENT_TYPE`, `HEADERS` | `text/event-stream`, and headers that stop the stream being cached or buffered |
-| `BadRequest` | What `parse_request` raises (a `ValueError`) for a body that is not JSON, is not an AG-UI request, or has a message a `ChatInput` refuses (`system`, `developer`, a last message that is not the user's). The message says what is wrong |
+| `BadRequest` | What `parse_request` raises (a `ValueError`) for a body that is not JSON, is not an AG-UI request, or has a message a `ChatInput` refuses (`system`, `developer`, a last message that is not the user's). The message says what is wrong. `AttachmentLimitError` is a `BadRequest` too (see [Attachments](#attachments)): `runner.stream()` raises it, and a handler for it can answer 413 |
 
 With Starlette (FastAPI is the same):
 
 ```python
-from featherweight import BadRequest
+from featherweight import AttachmentLimitError, BadRequest
 from featherweight.adapters import agui
 from starlette.responses import JSONResponse, StreamingResponse
 
@@ -101,9 +101,11 @@ from starlette.responses import JSONResponse, StreamingResponse
 async def chat(request):
     try:
         chat_input = agui.parse_request(await request.body())
+        run = runner.stream(Support, chat_input)  # raises AttachmentLimitError over the agent's attachment limits
+    except AttachmentLimitError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=413)
     except BadRequest as exc:
         return JSONResponse({"error": str(exc)}, status_code=422)
-    run = runner.stream(Support, chat_input)
     return StreamingResponse(agui.encode(run), media_type=agui.CONTENT_TYPE, headers=agui.HEADERS)
 ```
 
@@ -135,7 +137,7 @@ chat_input = ChatInput(messages=[UserMessage(id="1", content=[TextInputContent(t
 
 - **Only inline data.** A part's `source` must be `data`: base64 bytes with a `mime_type`, in the form that `base64.b64encode` (Python) and `btoa` (JavaScript) give: standard alphabet, padded, in one line, with no `data:` prefix. A wrong form is refused when the `ChatInput` is built, and the error says the likely mistake (a `data:` URL from a browser's `FileReader`, line breaks, the URL-safe alphabet, missing padding). An empty attachment is refused too. A `url` source is refused, because `featherweight` fetches nothing: your application downloads and checks the file, and sends the bytes. A file you uploaded to a provider (a `file_id`) is not an AG-UI source: build the LangChain message yourself.
 - **Round trip.** `ChatInput.from_langchain` and `to_agui` turn the blocks into parts again, so a stored conversation keeps its attachments.
-- **Limits.** Every turn resends the whole conversation, so the limits count the attachments of **all** messages. They are set on the agent; the defaults are 10 attachments and 15 MB of decoded data:
+- **Limits.** Every turn resends the whole conversation, so the limits count the attachments of **all** messages. They are set on the agent; the defaults are 10 attachments and 15 MiB of decoded data (`max_attachments = 0` turns attachments off for that agent):
 
   ```python
   class Support(StreamingAgent):
@@ -143,8 +145,8 @@ chat_input = ChatInput(messages=[UserMessage(id="1", content=[TextInputContent(t
       max_bytes = 30 * 1024 * 1024
   ```
 
-  Over the limit, `runner.stream()` raises a `ValueError` before any run exists. For 100 files at once, use a [job](submitted-jobs.md).
-- **Errors.** A wrong input is raised (a URL, bad base64, an empty attachment, no mime type, over a limit). What the provider refuses (a type the model cannot read, a file too big for it) is a failed turn: a `RUN_ERROR` event and a `FAILED` row, not retried.
+  Over a limit, `runner.stream()` raises an `AttachmentLimitError` before any run exists. It is a `BadRequest` (so a `ValueError`): a web application answers it with a 413, and the other bad requests with a 422, as the examples above do. For 100 files at once, use a [job](submitted-jobs.md).
+- **Errors.** A wrong input is raised (a URL, bad base64, an empty attachment, no mime type, over a limit: an `AttachmentLimitError`). What the provider refuses (a type the model cannot read, a file too big for it) is a failed turn: a `RUN_ERROR` event and a `FAILED` row, not retried.
 - **No checks.** `featherweight` does not know what a model can read. [What the providers accept](attachments-providers.md) is a dated snapshot; read the providers' own pages before you design around a type or a size.
 - **The Vercel AI SDK** sends an attachment as a `file` part with a `data:` URL, which is read. Any other URL is refused with a `BadRequest`.
 - **Not logged.** The run log, the events and the default observers hold no attachment. An observer that captures content (`capture_content=True`, or OpenTelemetry with content capture on) gets the bytes with the other messages: leave it off, or filter, if attachments are private.
@@ -189,7 +191,7 @@ Any store that takes LangChain messages works: a `BaseChatMessageHistory`, or a 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
-from featherweight import BadRequest
+from featherweight import AttachmentLimitError, BadRequest
 from featherweight.adapters import vercel
 
 app = FastAPI()
@@ -199,9 +201,12 @@ app = FastAPI()
 async def chat(request: Request):
     try:
         chat_input = vercel.parse_request(await request.json())
+        run = runner.stream(Support, chat_input)  # raises AttachmentLimitError over the agent's attachment limits
+    except AttachmentLimitError as exc:
+        raise HTTPException(413, str(exc))
     except BadRequest as exc:
         raise HTTPException(422, str(exc))
-    return StreamingResponse(vercel.encode(runner.stream(Support, chat_input)), headers=vercel.HEADERS)
+    return StreamingResponse(vercel.encode(run), headers=vercel.HEADERS)
 ```
 
 - **The request.** `useChat` posts `{"id": ..., "messages": [UIMessage, ...]}`. `id` becomes the `thread_id`. A UIMessage's

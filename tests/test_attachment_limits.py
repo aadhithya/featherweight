@@ -13,6 +13,7 @@ from ag_ui.core import (
 )
 from fakes import FakeSettings, Streams, runner_with
 
+from featherweight import AttachmentLimitError, BadRequest
 from featherweight.messages import count_attachments, decoded_size
 from featherweight.model_settings import ModelSettings
 from featherweight.streaming import ChatInput, StreamingAgent
@@ -70,7 +71,7 @@ def test_count_attachments_ignores_text_and_plain_messages():
 
 async def test_over_by_count_raises_before_a_run_exists(db):
     runner = runner_with(db, Streams(turns=[["hi"]]))
-    with pytest.raises(ValueError, match=r"11 attachments, 1 over the 10 .*raise max_attachments"):
+    with pytest.raises(AttachmentLimitError, match=r"11 attachments, 1 over the 10 .*raise max_attachments"):
         runner.stream(Chat, chat([image() for _ in range(11)]))
     assert await db.list_attempts() == []
 
@@ -80,7 +81,7 @@ async def test_over_by_bytes_raises_and_says_by_how_much(db):
         max_bytes = 10
 
     runner = runner_with(db, Streams(turns=[["hi"]]))
-    with pytest.raises(ValueError, match=r"14 bytes, 4 over the 10 .*raise max_bytes"):
+    with pytest.raises(AttachmentLimitError, match=r"14 bytes, 4 over the 10 .*raise max_bytes"):
         runner.stream(Small, chat([image(14)]))
     assert await db.list_attempts() == []
 
@@ -142,7 +143,45 @@ def test_the_defaults():
     assert StreamingAgent.max_bytes == 15 * 1024 * 1024
 
 
-@pytest.mark.parametrize("attribute, value", [("max_attachments", -1), ("max_bytes", 1.5), ("max_bytes", "10")])
+@pytest.mark.parametrize(
+    "attribute, value", [("max_attachments", -1), ("max_bytes", 1.5), ("max_bytes", "10"), ("max_attachments", True)]
+)
 def test_a_bad_limit_is_refused_when_the_class_is_declared(attribute, value):
     with pytest.raises(TypeError, match=attribute):
         type("Bad", (Chat,), {attribute: value})
+
+
+# the error that an application can answer
+
+
+def test_the_limit_error_is_a_bad_request_and_a_value_error():
+    assert issubclass(AttachmentLimitError, BadRequest) and issubclass(AttachmentLimitError, ValueError)
+    assert not issubclass(BadRequest, AttachmentLimitError)  # a handler for the subclass does not catch the others
+
+
+def test_bad_request_is_one_class_whichever_way_it_is_imported():
+    import featherweight.adapters as adapters
+    import featherweight.adapters.errors as adapters_errors
+    import featherweight.errors as errors
+
+    assert errors.BadRequest is adapters.BadRequest is adapters_errors.BadRequest is BadRequest
+    assert errors.AttachmentLimitError is AttachmentLimitError
+
+
+async def test_a_limit_of_0_turns_attachments_off_and_text_still_passes(db):
+    class NoFiles(Chat):
+        max_attachments = 0
+
+    runner = runner_with(db, Streams(turns=[["hi"]]))
+    with pytest.raises(AttachmentLimitError, match="1 attachments, 1 over the 0 "):
+        runner.stream(NoFiles, chat([image()]))
+    assert [event async for event in runner.stream(NoFiles, chat(last_text="only text"))]
+
+
+async def test_a_limit_of_0_bytes_refuses_every_attachment(db):
+    class NoBytes(Chat):
+        max_bytes = 0
+
+    runner = runner_with(db, Streams(turns=[["hi"]]))
+    with pytest.raises(AttachmentLimitError, match="3 bytes, 3 over the 0 "):
+        runner.stream(NoBytes, chat([image(3)]))

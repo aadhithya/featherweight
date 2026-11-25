@@ -86,7 +86,8 @@ _EXPORTS = {
     "SqliteQueue": "queue",
     "RunContext": "context",
     "SetupError": "errors",
-    "BadRequest": "adapters.errors",
+    "BadRequest": "errors",
+    "AttachmentLimitError": "errors",
     "setup_logging": "log",
 }
 _SUBMODULES = {
@@ -128,7 +129,6 @@ if TYPE_CHECKING:  # for editors and type checkers: the same names, imported
     from featherweight import sse as sse
     from featherweight.adapters import agui as agui
     from featherweight.adapters import vercel as vercel
-    from featherweight.adapters.errors import BadRequest as BadRequest
     from featherweight.client import JobClient as JobClient
     from featherweight.context import RunContext as RunContext
     from featherweight.db import AttemptFinish as AttemptFinish
@@ -140,6 +140,8 @@ if TYPE_CHECKING:  # for editors and type checkers: the same names, imported
     from featherweight.db import JobOwner as JobOwner
     from featherweight.db import JobRow as JobRow
     from featherweight.db import default_db_path as default_db_path
+    from featherweight.errors import AttachmentLimitError as AttachmentLimitError
+    from featherweight.errors import BadRequest as BadRequest
     from featherweight.errors import SetupError as SetupError
     from featherweight.events import job_events as job_events
     from featherweight.events import wait_for_job as wait_for_job

@@ -56,6 +56,7 @@ A setting that applies to a whole deployment is set where a deployment is config
 
 - **How long this call waits** is an argument of the call: `JobClient.wait(timeout)`, `JobQueue.receive(timeout)`, `JobWorker.stop(grace)`.
 - **A timeout that belongs to a typed definition** differs per job or per server, so it is in the definition: a job's `timeout`, an MCP server's `timeout_s`.
+- **The attachment limits** (`max_attachments`, `max_bytes`) are class attributes of the streaming agent: they differ per agent, so they are in the definition ([attachments](attachments.md#limits)). There is no variable for them and no runner argument.
 - **A runner's own behaviour in code:** `max_attempts` and `retry_delay_s` stay arguments of `AgentRunner`.
 - **`MemoryQueue(lease=)`** (in `featherweight.testing`, for tests) is an argument: [the queue kit](submitted-jobs.md#the-queue) builds queues with `make_queue(lease)`, and a queue that someone else writes reads its own setting.
 

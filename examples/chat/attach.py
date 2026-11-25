@@ -43,7 +43,7 @@ class Reader(StreamingAgent):
     version: str = "1"
     prompt: str = "You answer questions about the file the user attaches. Answer in a few sentences."
     model: ModelSettings = Claude(model="claude-haiku-5-5", effort="low", thinking="off", max_output_tokens=1000)
-    max_attachments = 1  # the application's limits: one file per question here (the default is 10, and 15 MB)
+    max_attachments = 1  # the application's limits: one file per question here (the default is 10, and 15 MiB)
 
 
 PARTS = {

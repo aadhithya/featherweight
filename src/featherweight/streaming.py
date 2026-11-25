@@ -15,6 +15,7 @@ from langchain_core.messages import BaseMessage
 from pydantic import Field, model_validator
 
 from featherweight.db import new_id
+from featherweight.errors import AttachmentLimitError
 from featherweight.messages import count_attachments, to_agui, to_langchain
 from featherweight.models import AgentBase, AgentInput, Status
 
@@ -81,16 +82,17 @@ class StreamingAgent(AgentBase):
 
     @classmethod
     def check_attachments(cls, chat_input: "ChatInput") -> None:
-        """Raises `ValueError` when the conversation has more attachments, or more bytes of them, than this agent allows."""
+        """Raises `AttachmentLimitError` (a `BadRequest`, so a `ValueError`) when the conversation has more attachments, or more bytes
+        of them, than this agent allows."""
         count, size = count_attachments(chat_input.messages)
         if count > cls.max_attachments:
-            raise ValueError(
+            raise AttachmentLimitError(
                 f"The conversation has {count} attachments, {count - cls.max_attachments} over the {cls.max_attachments} "
                 f"{cls.__name__} allows (all the messages count, not only the last). The application can raise "
                 f"max_attachments on the agent."
             )
         if size > cls.max_bytes:
-            raise ValueError(
+            raise AttachmentLimitError(
                 f"The attachments of the conversation are {size} bytes, {size - cls.max_bytes} over the {cls.max_bytes} "
                 f"{cls.__name__} allows (decoded size, all the messages count). The application can raise max_bytes "
                 f"on the agent."

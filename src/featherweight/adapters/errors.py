@@ -1,5 +1,6 @@
-"""The error of an adapter that is given a request it cannot read."""
+"""The error of an adapter that is given a request it cannot read. It is defined in `featherweight.errors` (the streaming module raises
+a subclass of it and cannot import this package); it is exported here too, where it always was."""
 
+from featherweight.errors import BadRequest as BadRequest
 
-class BadRequest(ValueError):
-    """A client's request is not valid. A web framework can answer it with a 4xx (422): the message says what is wrong."""
+__all__ = ["BadRequest"]
