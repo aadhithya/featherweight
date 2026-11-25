@@ -94,7 +94,7 @@ not write every abstract method cannot be built.
 | `take_over_job(job_id, worker_id, lease)` | Taking a job whose lease expired: one transaction, a `lost` event and then a `running` event, `executions` + 1, a new lease; False if the lease is live. Where the database has a clock, it decides ([several workers](submitted-jobs.md#several-workers)) |
 | `create_attempt(AttemptRecord)`, `start_attempt(...)`, `finish_attempt(AttemptFinish)`, `get_attempt(...)`, `list_attempts(...)` | Runs |
 | `job_has_other_identity(job_id, identity_hash)` | Whether the job has a run whose identity hash differs from this one (`None` differs from any hash, and the reverse): the check that a job is for one identity ([identity](identity.md#declaring-and-passing-it)) |
-| `find_reusable_attempt(job_id, agent_hash, input_hash, identity_hash, before_execution=None)` | The run of a job that succeeded with this agent, input and identity (an empty `identity_hash` matches only an empty one): metadata only. With `before_execution`, only runs of an earlier execution of the job (a takeover looks in its own job) |
+| `find_reusable_attempt(job_id, agent_hash, input_hash, identity_hash, before_execution=None)` | The run of a job that succeeded with this agent, input and identity (`NULL`, no identity, matches only `NULL`): metadata only. With `before_execution`, only runs of an earlier execution of the job (a takeover looks in its own job) |
 
 **Typed in, typed out.** `create_attempt` and `finish_attempt` take frozen Pydantic records (`AttemptRecord`, `AttemptFinish`), and the methods return
 Pydantic rows (`JobRow`, `AttemptRow`). Statuses, hash formats and non-negative numbers are checked once, in the model, whichever

@@ -7,12 +7,14 @@ import sqlite3
 from typing import Any, ClassVar
 
 import pytest
-from fakes import FakeSettings, Scripted, runner_with, structured_reply, tool_reply
+from fakes import Echo, EchoInput, FakeSettings, Scripted, runner_with, structured_reply, tool_reply
 from langchain_core.messages import ToolMessage
 from pydantic import BaseModel, Field
+from test_resume import model, texts
 from test_worker import In, Out, Running, final, make
 
 from featherweight.client import JobClient
+from featherweight.fingerprint import identity_hash
 from featherweight.jobs import Job, JobContext
 from featherweight.migrations import MIGRATIONS
 from featherweight.model_settings import ModelSettings
@@ -280,6 +282,61 @@ async def test_a_client_without_a_declared_type_takes_any_model_and_nothing_else
     await client.submit(WhoAmI, In(text="x"), identity=Teacher(user_id="a"))
     delivery = await queue.receive(1.0)
     assert delivery is not None and delivery.message.identity == {"user_id": "a", "tenant": "uni"}
+
+
+# a job that failed on a worker, and is resumed on a worker
+
+
+class Letters(Job):
+    """One agent step for each letter of the text, and it fails at the first step that fails."""
+
+    name = "letters"
+    version = "1"
+    input_model = In
+    output_model = Out
+
+    async def run(self, ctx: JobContext, input: In) -> Out:
+        for letter in input.text:
+            result = await ctx.run(Echo, EchoInput(text=letter))
+            if result.status == Status.FAILED:
+                raise RuntimeError(result.error)
+        return Out(shouted=input.text)
+
+
+@pytest.mark.parametrize(
+    "resumed_for,reused",
+    [
+        (Teacher(user_id="a"), True),
+        (Teacher(user_id="b"), False),  # another identity: its permissions may differ
+        (Twin(user_id="a"), False),  # the same data, and another kind of identity
+    ],
+    ids=["the same identity", "another identity", "another kind with the same data"],
+)
+async def test_a_job_that_failed_on_a_worker_is_resumed_on_a_worker_and_reuses_a_step_for_the_same_identity_only(
+    db, queue, resumed_for, reused
+):
+    both = Teacher | Twin
+    results = MemoryResultStore()
+    client = await client_for(db, queue, identity_type=both)
+
+    async def on_a_worker(job_id: str, fake) -> Status:
+        runner = runner_with(db, fake, max_attempts=1, identity_type=both, results=results)
+        worker = make(db, queue, [Letters], runner=runner, identity_type=both, results=results)
+        async with Running(worker):
+            return (await final(db, job_id)).status
+
+    broken = model({"b"})
+    first = await client.submit(Letters, In(text="abc"), resumable=True, identity=Teacher(user_id="a"))
+    assert await on_a_worker(first, broken) == Status.FAILED  # step "a" finished, "b" failed
+
+    healthy = model()
+    again = await client.submit(Letters, In(text="abc"), resume_from=first, identity=resumed_for)
+    assert await on_a_worker(again, healthy) == Status.SUCCESS
+
+    assert texts(healthy) == (["b", "c"] if reused else ["a", "b", "c"])  # "a" did not reach the model again, or it did
+    new = await db.list_attempts(job_id=again)
+    assert (new[0].reused_from_attempt_id is not None) is reused
+    assert {r.identity_hash for r in new} == {identity_hash(resumed_for)}
 
 
 # a background job on a worker

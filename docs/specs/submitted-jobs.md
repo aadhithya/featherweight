@@ -186,14 +186,14 @@ A worker is given its jobs when it starts. A platform where users define their o
 built into classes when they are needed, has jobs that a worker could not have been given. `jobs_lookup` is how the worker finds them.
 
 ```python
-async def jobs_lookup(name: str, job_hash: str, identity: Any | None) -> type[Job] | type[AgentBase] | None: ...
+async def jobs_lookup(name: str, job_hash: str | None, identity: Any | None) -> type[Job] | type[AgentBase] | None: ...
 
 
 worker = JobWorker(db, queue, runner, jobs=[Summarise], jobs_lookup=jobs_lookup)
 ```
 
 - **It is a fallback.** The worker looks the job name up in `jobs` first. If `jobs` has the name, `jobs_lookup` is **not called**, so
-  declaring jobs in code behaves exactly as without it. Only for a name `jobs` does not have does the worker call `jobs_lookup(name, job_hash)`.
+  declaring jobs in code behaves exactly as without it. Only for a name `jobs` does not have does the worker call `jobs_lookup(name, job_hash, identity)`.
   `jobs` may be empty.
 - **What it gets:** the name from the message, the `job_hash` recorded at submit, and **the identity** the worker rebuilt from the message (`None` if there is none). A lookup that
   does not need the identity ignores it; one that does can scope what it searches (by tenant, say).
