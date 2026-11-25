@@ -7,9 +7,6 @@ request**, and merging that pull request is the approval.
 
 Only the release pull request is a manual step. Merging it is how you choose when a release is made.
 
-0. **Refresh the provider snapshot.** [`attachments-providers.md`](attachments-providers.md) says what the model providers accept as
-   attachments, as of a date. Providers change it often: read their pages again (the links are in the file), update what changed,
-   and set the date at the top to the day of the commit. We do not maintain it between releases, and the page says so.
 1. **Run the workflow.** In GitHub, Actions, `release`, Run workflow (or `gh workflow run release`). It reads the commit
    messages since the last release and opens, or updates, **one release pull request**. The pull request changes the
    version in `pyproject.toml`, `__version__` in `src/featherweight/__init__.py`, `version` in `.claude-plugin/plugin.json` and the manifest,
