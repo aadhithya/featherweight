@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import sqlite3
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -26,10 +27,28 @@ from featherweight.db import (
     now,
 )
 from featherweight.errors import SetupError
-from featherweight.migrations import MIGRATIONS
+from featherweight.migrations import MIGRATIONS, Migration
 from featherweight.models import Status
 
 logger = logging.getLogger(__name__)
+
+BUSY_TIMEOUT = 30.0  # seconds that a connection waits for another one's write lock, for a migration among others
+
+
+def statements(script: str) -> list[str]:
+    """The statements of a migration, one by one, so that they can run in a transaction that was begun by hand."""
+    found, current = [], ""
+    *parts, last = script.split(";")
+    for part in parts:
+        current += part + ";"
+        if sqlite3.complete_statement(current):  # a `;` inside a quote or a trigger body does not end one
+            found.append(current.strip())
+            current = ""
+    rest = (current + last).strip()
+    if any(line.strip() and not line.strip().startswith("--") for line in rest.splitlines()):
+        found.append(rest)  # what follows the last `;`, unless it is only blank lines and comments
+    return found
+
 
 DIALECT = "sqlite"
 
@@ -68,7 +87,7 @@ class SqliteDatabase(Database):
     async def connect(self) -> None:
         if not self.in_memory:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = await aiosqlite.connect(":memory:" if self.in_memory else self.path)
+        self._conn = await aiosqlite.connect(":memory:" if self.in_memory else self.path, timeout=BUSY_TIMEOUT)
         self._conn.row_factory = aiosqlite.Row
         await self._conn.execute("PRAGMA foreign_keys = ON")
         try:
@@ -96,20 +115,31 @@ class SqliteDatabase(Database):
         async with self.conn.execute("SELECT version FROM schema_migrations") as cur:
             applied = {row["version"] for row in await cur.fetchall()}
         for migration in sorted(MIGRATIONS, key=lambda m: m.version):
-            if migration.version in applied:
-                continue
-            script = (
-                f"BEGIN;\n{migration.sql[DIALECT]}\n"
-                f"INSERT INTO schema_migrations VALUES ({migration.version}, '{migration.name}', '{now().isoformat()}');\n"
-                "COMMIT;"
-            )
-            try:
-                await self.conn.executescript(script)
-            except BaseException:
-                with contextlib.suppress(Exception):
+            if migration.version not in applied:  # a database that is up to date takes no lock at all
+                await self._apply(migration)
+
+    async def _apply(self, migration: Migration) -> None:
+        """One migration, in one transaction that holds the write lock from its first statement. Processes that connect at once
+        wait for the lock, and the one that gets it after another has applied this migration finds it done and does nothing."""
+        await self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            async with self.conn.execute(
+                "SELECT 1 FROM schema_migrations WHERE version = ?", (migration.version,)
+            ) as cur:
+                if await cur.fetchone() is not None:
                     await self.conn.execute("ROLLBACK")
-                raise
-            logger.info("db_migrated version=%d name=%s", migration.version, migration.name)
+                    return
+            for statement in statements(migration.sql[DIALECT]):
+                await self.conn.execute(statement)
+            await self.conn.execute(
+                "INSERT INTO schema_migrations VALUES (?, ?, ?)", (migration.version, migration.name, now().isoformat())
+            )
+            await self.conn.execute("COMMIT")
+        except BaseException:
+            with contextlib.suppress(Exception):
+                await self.conn.execute("ROLLBACK")
+            raise
+        logger.info("db_migrated version=%d name=%s", migration.version, migration.name)
 
     async def close(self) -> None:
         if self._conn is not None:

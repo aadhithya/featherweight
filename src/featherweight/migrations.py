@@ -241,6 +241,22 @@ ALTER INDEX idx_agent_runs_reuse RENAME TO idx_attempts_reuse;
 ALTER SEQUENCE IF EXISTS agent_runs_seq_seq RENAME TO attempts_seq_seq;
 """
 
+# `ALTER TABLE ... RENAME` does not rename the constraints of a table in Postgres: after migration 4 those of `attempts` were still called `agent_runs_...`,
+# and an error from the database showed the word that the units spec retired (docs/specs/units.md). Sqlite has nothing to rename: its automatic index followed the table.
+_ATTEMPT_CONSTRAINTS = (
+    "attempt_check",
+    "depth_check",
+    "input_tokens_check",
+    "job_id_fkey",
+    "latency_ms_check",
+    "output_tokens_check",
+    "pkey",
+    "status_check",
+)
+POSTGRES_ATTEMPT_CONSTRAINTS = "\n".join(
+    f"ALTER TABLE attempts RENAME CONSTRAINT agent_runs_{name} TO attempts_{name};" for name in _ATTEMPT_CONSTRAINTS
+)
+
 MIGRATIONS: list[Migration] = [
     Migration(version=1, name="baseline", sql={"sqlite": SQLITE_BASELINE, "postgres": POSTGRES_BASELINE}),
     Migration(
@@ -254,5 +270,10 @@ MIGRATIONS: list[Migration] = [
         version=5,
         name="queue_identity_kind",
         sql={"sqlite": SQLITE_QUEUE_IDENTITY_KIND, "postgres": POSTGRES_NOTHING},
+    ),
+    Migration(
+        version=6,
+        name="attempt_constraints",
+        sql={"sqlite": POSTGRES_NOTHING, "postgres": POSTGRES_ATTEMPT_CONSTRAINTS},
     ),
 ]

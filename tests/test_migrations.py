@@ -1,5 +1,6 @@
 """The migrations, the schema, and the promise that no table holds data. Fake models only."""
 
+import asyncio
 import hashlib
 import sqlite3
 
@@ -281,6 +282,19 @@ async def test_a_database_from_before_the_attempts_rename_keeps_its_rows_under_t
            VALUES ('old-attempt', 'old-run', 2, 1, 'echo', '1', ?, ?, ?, 'fake', 'fake-model', 'low', '{}', ?, 'SUCCESS', '2026-11-20T00:00:00')""",
         (digest, digest, digest, digest),
     )
+    columns = "(agent_run_id, invocation_id, attempt, depth, agent_name, agent_version, agent_hash, system_prompt_hash, tools_hash, provider, model_name, reasoning, settings, input_hash, status, created_at"
+    rest = "'echo', '1', ?, ?, ?, 'fake', 'fake-model', 'low', '{}', ?, 'SUCCESS', '2026-11-20T00:00:00'"
+    conn.execute(  # a launched agent: its attempt has a parent
+        f"INSERT INTO agent_runs {columns}, parent_agent_run_id) VALUES ('old-child', 'old-run-2', 1, 2, {rest}, 'old-attempt')",
+        (digest, digest, digest, digest),
+    )
+    conn.execute(  # a step that a resume answered: its attempt names the one it reused
+        f"INSERT INTO agent_runs {columns}, reused_from_agent_run_id) VALUES ('old-reused', 'old-run-3', 1, 1, {rest}, 'old-attempt')",
+        (digest, digest, digest, digest),
+    )
+    conn.execute(
+        "INSERT INTO jobs (job_id, name, status, created_at, parent_agent_run_id) VALUES ('old-job', 'bg', 'INIT', '2026-11-20T00:00:00', 'old-attempt')"
+    )
     conn.commit()
     conn.close()
 
@@ -289,8 +303,54 @@ async def test_a_database_from_before_the_attempts_rename_keeps_its_rows_under_t
         assert (
             row is not None and row.run_id == "old-run" and row.attempt == 2
         )  # what was an invocation id is the run id
+        child, reused = await db.get_attempt("old-child"), await db.get_attempt("old-reused")
+        assert child is not None and child.parent_attempt_id == "old-attempt" and child.depth == 2
+        assert reused is not None and reused.reused_from_attempt_id == "old-attempt"
+        job = await db.get_job("old-job")
+        assert job is not None and job.parent_attempt_id == "old-attempt"  # a job that an attempt started
         async with db.conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'") as cur:
             tables = {r[0] for r in await cur.fetchall()}
         assert "attempts" in tables and "agent_runs" not in tables
         async with db.conn.execute("SELECT version, name FROM schema_migrations ORDER BY version") as cur:
             assert (4, "attempts") in [tuple(r) for r in await cur.fetchall()]
+
+
+# processes that connect at once
+
+
+@pytest.mark.parametrize("from_version", [0, 3], ids=["a new file", "a file at version 3"])
+async def test_connections_that_open_one_file_at_once_all_succeed_and_it_ends_at_the_last_version(
+    tmp_path, monkeypatch, from_version
+):
+    for trial in range(6):  # a race: some trials may get lucky
+        path = tmp_path / f"race-{trial}.db"
+        if from_version:
+            monkeypatch.setattr("featherweight.sqlite.MIGRATIONS", MIGRATIONS[:from_version])
+            async with SqliteDatabase(path):
+                pass
+            monkeypatch.undo()
+
+        dbs = [SqliteDatabase(path) for _ in range(8)]  # each has its own thread and its own connection
+        results = await asyncio.gather(*(db.connect() for db in dbs), return_exceptions=True)
+        failed = [r for r in results if isinstance(r, BaseException)]
+        for db in dbs:
+            await db.close()
+
+        assert not failed, f"trial {trial}: {failed[0]!r}"
+        conn = sqlite3.connect(path)
+        assert [r[0] for r in conn.execute("SELECT version FROM schema_migrations ORDER BY version")] == [
+            m.version for m in MIGRATIONS
+        ]
+        conn.close()
+
+
+def test_a_migration_is_split_into_its_statements():
+    from featherweight.sqlite import statements
+
+    assert statements("CREATE TABLE a (x INTEGER); CREATE TABLE b (y TEXT DEFAULT ';');\n-- the end\n") == [
+        "CREATE TABLE a (x INTEGER);",
+        "CREATE TABLE b (y TEXT DEFAULT ';');",
+    ]
+    assert statements("SELECT 1") == ["SELECT 1"]
+    trigger = "CREATE TRIGGER t AFTER INSERT ON a BEGIN UPDATE a SET x = 1; END;"
+    assert statements(trigger + " SELECT 2;") == [trigger, "SELECT 2;"]

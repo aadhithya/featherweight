@@ -111,6 +111,7 @@ every log line, span attribute and observer field; every setting; and every page
 | `parent_agent_run_id` (in `agent_runs` and in `jobs`) | `parent_attempt_id` |
 | `reused_from_agent_run_id` | `reused_from_attempt_id` |
 | indexes `idx_agent_runs_job`, `_invocation`, `_parent`, `_reuse`, `_seq` | `idx_attempts_job`, `_run`, `_parent`, `_reuse`, `_seq` |
+| Postgres constraints `agent_runs_pkey`, `_job_id_fkey`, `_attempt_check`, `_depth_check`, `_input_tokens_check`, `_latency_ms_check`, `_output_tokens_check`, `_status_check` | `attempts_pkey`, `attempts_job_id_fkey`, ... (migration 6: Postgres does not rename them with the table) |
 
 **Observers' records** (`featherweight.observers`): in `AttemptStart`, `AttemptEnd`, `ReusedRun` and the tool and model records, `agent_run_id` becomes `attempt_id` and
 `invocation_id` becomes `run_id`; in `ReusedRun`, `reused_from_agent_run_id` becomes `reused_from_attempt_id`; in `JobSubmitted`, `parent_agent_run_id` becomes `parent_attempt_id`.

@@ -129,6 +129,7 @@ The span **names** do not change (`invoke_workflow`, `invoke_agent`, `chat`, `ex
 | 3, `queue_identity` | Adds the column of the identity to the sqlite queue table. |
 | 4, `attempts` | Renames the table and the columns of the run log ([the spec](https://github.com/aadhithya/featherweight/blob/main/docs/specs/units.md#the-database-migration)). |
 | 5, `queue_identity_kind` | Adds the column of the identity's kind to the sqlite queue table. A message that is queued with an identity when it is applied has no kind, and its job fails (`InvalidJobIdentity`). |
+| 6, `attempt_constraints` | Renames the Postgres constraints of `attempts` (`agent_runs_pkey` and the others) to `attempts_...`. Nothing on sqlite. |
 
 Take a copy of a database that matters before you connect to it with the new version, as you would for any upgrade. There is no way back: a database that was migrated cannot be opened by 0.1.
 

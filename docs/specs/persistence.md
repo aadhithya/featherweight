@@ -124,7 +124,7 @@ contract against any implementation. Our two pass it.
 The schema is made by **hand-rolled, numbered, dialect-aware migrations**: a list of `Migration(version, name, sqlite, postgres)`,
 applied in order by `connect()`, each in a transaction, and recorded in `schema_migrations` (`version`, `name`, `applied_at`). The
 sqlite-only patching of added columns is gone. A later change is a new migration with the SQL of each dialect, and a migration is
-never edited once released. Migration 2, `identity_hash`, adds `attempts.identity_hash` (`NULL` for every run from before it). Migration 3, `queue_identity`, adds `job_queue.identity`; migration 5, `queue_identity_kind`, adds `job_queue.identity_kind`.
+never edited once released. Migration 2, `identity_hash`, adds `attempts.identity_hash` (`NULL` for every run from before it). Migration 3, `queue_identity`, adds `job_queue.identity`; migration 5, `queue_identity_kind`, adds `job_queue.identity_kind`. Migration 6, `attempt_constraints`, renames the Postgres constraints of `attempts` from `agent_runs_...` to `attempts_...` (`ALTER TABLE ... RENAME` does not), and does nothing on sqlite. The migrations are not squashed into one baseline: each says what changed, and when.
 
 **The baseline migration** creates the schema of the first release, and is never edited. It carried nothing over from the database that came before
 migrations existed, which was never released: that one is **not read**. A database that has `attempts` but no `schema_migrations` raises `SetupError`
@@ -133,8 +133,9 @@ migrations existed, which was never released: that one is **not read**. A databa
 **Concurrent first connects.** Processes that connect to a fresh database at the same moment (an API and workers started together) must not
 race on the schema and the tables. On Postgres, `connect()` takes a session advisory lock, keyed on the schema (`pg_advisory_lock` on a hash of
 `featherweight:<schema>`), around creating the schema and applying the migrations, and releases it after: one connection makes the tables, and
-the others wait and then find them applied. Different schemas do not block each other. sqlite needs nothing: its file locking is enough (checked
-with six processes on one fresh file).
+the others wait and then find them applied. Different schemas do not block each other. **sqlite takes the write lock for each migration** (`BEGIN IMMEDIATE`), reads what is applied inside it, and skips a migration that another process
+applied while it waited: its file locking alone is not enough, because each process reads the applied versions first, and with several migrations a late process would run an old one on a schema that another had already
+changed (found with eight processes on one fresh file, five trials: `no such table: agent_runs`). A database that is up to date takes no lock. A connection waits for another's lock up to 30 seconds.
 
 ## The schema
 
