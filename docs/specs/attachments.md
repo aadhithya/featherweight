@@ -14,8 +14,8 @@ Status: implemented, in [epic #170](https://github.com/aadhithya/featherweight/i
 
 ## Goal
 
-A person in a chat attaches an image, a PDF, a recording or a video to a message, and the model reads it. Today `ChatInput` refuses
-every part that is not text ([streaming](streaming.md#messages-and-keeping-the-conversation)).
+A person in a chat attaches an image, a PDF, a recording or a video to a message, and the model reads it. A user message of a
+`ChatInput` carries them next to its text ([streaming](streaming.md#messages-and-keeping-the-conversation)).
 
 **featherweight is the transport.** It takes what the client sent and hands it to the LangChain model underneath, in LangChain's
 provider-independent content blocks. It does not check what the model can read, it does not download, upload, convert, resize or
@@ -37,6 +37,22 @@ depends on the provider: `langchain-google-genai` downloads an `http(s)` URL in 
 the bytes as a `data` source. We offer no hook for that: how to fetch safely is the application's decision.
 
 The legacy `binary` part of AG-UI 0.x is retired in 1.0 and is not supported.
+
+**What `data` is.** Standard base64 (the alphabet of RFC 4648, section 4), padded, in one line, with no `data:` prefix: what Python's
+`base64.b64encode` and JavaScript's `btoa` give, and nothing else. It is checked when the `ChatInput` is built, so a wrong one is raised
+before a run exists. These are refused, and the error names the likely cause (it never quotes the data):
+
+| What was sent | Why it is refused | The way out |
+|---|---|---|
+| a `data:image/png;base64,...` URL (what a browser's `FileReader.readAsDataURL` gives) | it is a URL, not base64 | send only the part after the comma |
+| line breaks or spaces (Python's `base64.encodebytes` wraps every 76 characters) | not one line | send it in one line |
+| `-` or `_` | the URL-safe alphabet | send the standard alphabet (`+` and `/`) |
+| a length that is not a multiple of 4 | no padding | pad it with `=` |
+| any other character, or `=` before the end | not the base64 alphabet, or padding in the middle | the error says which of the two |
+| an empty value | **an empty attachment is refused:** there is nothing to send, and the provider would say no after a run exists | send a file with bytes in it, or no attachment |
+
+The check decodes the value in chunks of 64 KB and drops each one, so the memory it needs does not grow with the size of the attachment.
+The limits of the agent ([below](#limits)) are checked later, from the length of the text, without decoding.
 
 ## What the model is given
 
@@ -92,8 +108,8 @@ pages, pixels and the type of each file, and says so in its error.
 Consistent with the rest of featherweight: **a thing that is wrong with the input is raised; a thing that goes wrong in the run is a
 result.**
 
-- **Raised, before any run exists:** a `url` source; a part type that is not supported; data that is not base64; a missing mime type;
-  more attachments or bytes than the agent allows. Nothing is started, and nothing is written to the run log.
+- **Raised, before any run exists:** a `url` source; a part type that is not supported; data that is not base64; an empty attachment; a
+  missing mime type; more attachments or bytes than the agent allows. Nothing is started, and nothing is written to the run log.
 - **A result:** everything the provider says no to (a type the model cannot read, a file that is too large for it, too many pages).
   The turn ends `FAILED` with the provider's error, an error event is sent, and **nothing is retried**, as for any streaming agent.
 
@@ -101,6 +117,12 @@ result.**
 
 - **Transport only.** No capability checks, no conversion, no fetching, no uploads. The application knows its model and its users.
 - **`data` only.** Safe by construction, and the one source that every provider's package accepts.
+- **One form of base64, and an error that says which mistake.** Strict and predictable: what `b64encode` and `btoa` give. A lenient reader
+  (taking a `data:` prefix, line breaks, the URL-safe alphabet) would guess, and the size of an attachment is counted from its length. The
+  error says what the likely mistake is, so the developer does not have to find out.
+- **An empty attachment is refused,** as a wrong input is raised and not left to fail in the run.
+- **Validate without a decoded copy.** The input is built before the agent's limits are known, so it cannot refuse a conversation that is too
+  large first; what it can do is not to hold a second copy of every attachment while it checks.
 - **All four media types.** They map in the same way, so supporting two and refusing two would add code and not remove any.
 - **Limits are on the agent,** with defaults at the highest value all three big providers accept, so that most applications need no setting.
 - **The run log keeps no content.** It holds no message text today, and holds no attachment now: not the bytes, not the name.
@@ -147,8 +169,12 @@ Checked while writing this (2026-11-22):
 Never a real model, and no network.
 
 - **The conversion:** each part type to its block and back; the order of parts; `filename`; a message with only attachments.
-- **Refusals:** a `url` source, bad base64, a missing mime type, an unsupported part, a limit that is exceeded by count, by bytes, and by
-  the attachments of earlier messages; the agent's own limits over the defaults.
+- **Refusals:** a `url` source, bad base64 (each of the mistakes of the table above, with its message), an empty attachment, a missing mime
+  type, an unsupported part, a limit that is exceeded by count, by bytes, and by the attachments of earlier messages; the agent's own limits
+  over the defaults.
+- **The check agrees with Python's:** over many generated strings, and at the edges of the chunks, it accepts what `base64.b64decode(...,
+  validate=True)` accepts and refuses what it refuses (an empty value apart).
+- **Memory:** checking a large attachment does not allocate a decoded copy of it (the peak is measured).
 - **The provider's side, offline:** build the request that each of the three packages would send for each block, and check its shape
   without sending it.
 - **A fake model** that fails on a block: the run is `FAILED`, the error event is sent, and there is no retry.

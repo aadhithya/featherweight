@@ -131,7 +131,7 @@ pdf = DocumentInputContent(
 chat_input = ChatInput(messages=[UserMessage(id="1", content=[TextInputContent(text="Summarise this."), pdf])])
 ```
 
-- **Only inline data.** A part's `source` must be `data`: base64 bytes with a `mime_type`. A `url` source is refused, because `featherweight` fetches nothing: your application downloads and checks the file, and sends the bytes. A file you uploaded to a provider (a `file_id`) is not an AG-UI source: build the LangChain message yourself.
+- **Only inline data.** A part's `source` must be `data`: base64 bytes with a `mime_type`, in the form that `base64.b64encode` (Python) and `btoa` (JavaScript) give: standard alphabet, padded, in one line, with no `data:` prefix. A wrong form is refused when the `ChatInput` is built, and the error says the likely mistake (a `data:` URL from a browser's `FileReader`, line breaks, the URL-safe alphabet, missing padding). An empty attachment is refused too. A `url` source is refused, because `featherweight` fetches nothing: your application downloads and checks the file, and sends the bytes. A file you uploaded to a provider (a `file_id`) is not an AG-UI source: build the LangChain message yourself.
 - **Round trip.** `ChatInput.from_langchain` and `to_agui` turn the blocks into parts again, so a stored conversation keeps its attachments.
 - **Limits.** Every turn resends the whole conversation, so the limits count the attachments of **all** messages. They are set on the agent; the defaults are 10 attachments and 15 MB of decoded data:
 
@@ -142,7 +142,7 @@ chat_input = ChatInput(messages=[UserMessage(id="1", content=[TextInputContent(t
   ```
 
   Over the limit, `runner.stream()` raises a `ValueError` before any run exists. For 100 files at once, use a [job](submitted-jobs.md).
-- **Errors.** A wrong input is raised (a URL, bad base64, no mime type, over a limit). What the provider refuses (a type the model cannot read, a file too big for it) is a failed turn: a `RUN_ERROR` event and a `FAILED` row, not retried.
+- **Errors.** A wrong input is raised (a URL, bad base64, an empty attachment, no mime type, over a limit). What the provider refuses (a type the model cannot read, a file too big for it) is a failed turn: a `RUN_ERROR` event and a `FAILED` row, not retried.
 - **No checks.** `featherweight` does not know what a model can read. [What the providers accept](attachments-providers.md) is a dated snapshot; read the providers' own pages before you design around a type or a size.
 - **The Vercel AI SDK** sends an attachment as a `file` part with a `data:` URL, which is read. Any other URL is refused with a `BadRequest`.
 - **Not logged.** The run log, the events and the default observers hold no attachment. An observer that captures content (`capture_content=True`, or OpenTelemetry with content capture on) gets the bytes with the other messages: leave it off, or filter, if attachments are private.
