@@ -27,6 +27,7 @@ from featherweight.identity import IdentitySpec
 from featherweight.jobs import JobContext, job, run_job
 from featherweight.model_settings import ModelSettings
 from featherweight.models import AgentBase, AgentInput, AgentOutput, Status
+from featherweight.runner import _Slot
 from featherweight.streaming import ChatInput, StreamingAgent
 from featherweight.testing import MemoryResultStore
 
@@ -436,6 +437,119 @@ async def test_a_streamed_run_has_the_identity_too_and_checks_it_when_it_is_aske
 
     assert events[-1].type.value == "RUN_FINISHED"
     assert [kind for kind, _ in SEEN] == ["async"] and SEEN[0][1] is teacher
+
+
+# a job is for one identity
+
+
+async def run_in(runner, db, job_id, identity, *, many=False):
+    use_model(asks(), "asker")
+    if many:
+        return await runner.run_many(Asker, [AskInput()], job_id=job_id, identity=identity)
+    return await runner.run(Asker, AskInput(), job_id=job_id, identity=identity)
+
+
+async def test_a_run_for_another_identity_is_refused_before_anything_is_written(db):
+    runner = runner_with(db, Scripted(script=[]), identity_type=Teacher | None)
+    job_id = await db.create_job("pipeline")
+    await run_in(runner, db, job_id, Teacher(user_id="u-distinct-1"))
+    written, seen = len(await db.list_attempts()), len(SEEN)
+
+    with pytest.raises(ValueError, match="a job is for one identity") as raised:
+        await run_in(runner, db, job_id, Teacher(user_id="u-distinct-2"))
+
+    assert "u-distinct" not in str(raised.value)  # the text names no identity value
+    assert len(await db.list_attempts()) == written and len(SEEN) == seen  # nothing was written, and no tool ran
+
+
+async def test_the_same_identity_twice_in_one_job_is_fine(db):
+    runner = runner_with(db, Scripted(script=[]), identity_type=Teacher)
+    job_id = await db.create_job("pipeline")
+    for _ in range(2):
+        assert (await run_in(runner, db, job_id, Teacher(user_id="a"))).status == Status.SUCCESS
+
+
+@pytest.mark.parametrize(
+    "first,second",
+    [
+        (Teacher(user_id="a"), None),
+        (None, Teacher(user_id="a")),
+        (Teacher(user_id="a"), Twin(user_id="a")),  # the same data, and another kind of identity
+    ],
+    ids=["an identity, then none", "none, then an identity", "two kinds with the same data"],
+)
+async def test_an_identity_none_and_a_kind_of_identity_are_each_another_identity(db, first, second):
+    runner = runner_with(db, Scripted(script=[]), identity_type=Teacher | Twin | None)
+    job_id = await db.create_job("pipeline")
+    await run_in(runner, db, job_id, first)
+
+    with pytest.raises(ValueError, match="a job is for one identity"):
+        await run_in(runner, db, job_id, second)
+
+
+async def test_runs_with_no_job_are_not_checked(db):
+    runner = runner_with(db, Scripted(script=[]), identity_type=Teacher)
+    for user in ("a", "b"):
+        assert (await run_in(runner, db, None, Teacher(user_id=user))).status == Status.SUCCESS
+
+
+async def test_run_many_checks_the_identity_and_the_job_once_at_the_call_also_for_no_inputs(db, caplog):
+    runner = runner_with(db, Scripted(script=[]), identity_type=Teacher)
+    job_id = await db.create_job("pipeline")
+    await run_in(runner, db, job_id, Teacher(user_id="a"))
+
+    with caplog.at_level(logging.INFO):
+        with pytest.raises(TypeError, match="every run needs identity="):
+            await runner.run_many(Asker, [])
+        with pytest.raises(TypeError, match="identity must be a Teacher"):
+            await runner.run_many(Asker, [AskInput(), AskInput()], identity=Student(user_id="a"))
+        with pytest.raises(ValueError, match="a job is for one identity"):
+            await runner.run_many(Asker, [], job_id=job_id, identity=Teacher(user_id="b"))
+        with pytest.raises(ValueError, match="a job is for one identity"):
+            await runner.run_many(Asker, [AskInput()], job_id=job_id, identity=Teacher(user_id="b"))
+
+    assert "fan_out_started" not in caplog.text  # refused before the first log line
+    assert await runner.run_many(Asker, [], identity=Teacher(user_id="a")) == []  # a good call with no inputs is fine
+
+
+async def test_a_streamed_run_for_another_identity_is_refused_when_the_loop_starts_and_writes_nothing(db):
+    runner = runner_with(db, Streams(turns=[["ok"]]), identity_type=Teacher)
+    job_id = await db.create_job("chat")
+    await run_in(runner, db, job_id, Teacher(user_id="a"))
+    written = len(await db.list_attempts())
+
+    run = runner.stream(Chat, say("hi"), job_id=job_id, identity=Teacher(user_id="b"))  # nothing is raised at the call
+    with pytest.raises(ValueError, match="a job is for one identity"):
+        _ = [event async for event in run]
+
+    assert len(await db.list_attempts()) == written
+
+
+# one source for the identity of a background child
+
+
+class Both(AgentBase):
+    name: str = "both"
+    description: str = "Launches and starts"
+    version: str = "1"
+    prompt: str = "Launch or start."
+    model: ModelSettings = FakeSettings()
+    subagents: list[type] = [Asker]
+    background_jobs: list[type] = [Asker]
+    input_model: ClassVar[type[AgentInput]] = AskInput
+    output_model: ClassVar[type[AgentOutput]] = AskOutput
+
+
+async def test_the_tools_the_model_sees_for_launching_have_no_identity_to_set(db):
+    runner = runner_with(db, Scripted(script=[]), identity_type=Teacher, results=MemoryResultStore())
+    context = RunContext(job_id=None, run_id="r", attempt_id="a", identity=Teacher(user_id="a"))
+    tools = {t.name: t for t in runner._launch_tools(Both(), context, _Slot(asyncio.Semaphore(1)), depth=1)}
+
+    assert set(tools) == {"launch_agent", "start_background", "get_agent_schema"}
+    # the model fills these and nothing else: "the model cannot set, change or drop it"
+    assert set(tools["launch_agent"].args) == {"agent_name", "input_json"}
+    assert set(tools["start_background"].args) == {"agent_name", "input_json"}
+    assert set(tools["get_agent_schema"].args) == {"agent_name"}
 
 
 # what it never touches

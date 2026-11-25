@@ -150,6 +150,29 @@ async def _check_identity_hash(db: Database) -> None:
     )
 
 
+async def _check_one_identity_per_job(db: Database) -> None:
+    """A job is for one identity: `job_has_other_identity` says whether the job has a run with another one, and `None` is another."""
+    a, b = _hash("one identity: a"), _hash("one identity: b")
+    empty = await db.create_job("one-identity-empty")
+    assert await db.job_has_other_identity(empty, a) is False, "a job with no runs has no other identity"
+    assert await db.job_has_other_identity(empty, None) is False
+    assert await db.job_has_other_identity("no-such-job", a) is False, "and neither does a job that does not exist"
+
+    for n, (first, same, other) in enumerate([(a, a, b), (a, a, None), (None, None, a)]):
+        job_id = await db.create_job("one-identity")
+        await db.create_attempt(_run(job_id, f"one-identity-{n}", identity_hash=first))
+        assert await db.job_has_other_identity(job_id, same) is False, (
+            "the identity of the job's own runs is not another"
+        )
+        assert await db.job_has_other_identity(job_id, other) is True, "any other identity is, and so is none"
+    failed = await db.create_job("one-identity-failed")
+    await db.create_attempt(_run(failed, "one-failed", identity_hash=a))
+    await db.finish_attempt("one-failed", AttemptFinish(status=Status.FAILED))
+    assert await db.job_has_other_identity(failed, b) is True, (
+        "a run that did not succeed counts: the job was for its identity"
+    )
+
+
 async def _check_taking_a_job(db: Database) -> None:
     """Taking a queued job and cancelling it are compare-and-set steps: exactly one of them wins."""
     taken = await db.create_job("take")
@@ -581,6 +604,7 @@ async def check_database(make_db: Callable[[], Database]) -> None:
         )
 
         await _check_identity_hash(db)
+        await _check_one_identity_per_job(db)
 
         await _check_job_events(db)
 

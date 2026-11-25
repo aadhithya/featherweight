@@ -481,6 +481,12 @@ class SqliteDatabase(Database):
             row = await cur.fetchone()
         return self._run(row) if row else None
 
+    async def job_has_other_identity(self, job_id: str, identity_hash: str | None) -> bool:
+        async with self.conn.execute(
+            "SELECT 1 FROM attempts WHERE job_id = ? AND identity_hash IS NOT ? LIMIT 1", (job_id, identity_hash)
+        ) as cur:
+            return await cur.fetchone() is not None
+
     async def find_reusable_attempt(
         self,
         job_id: str,

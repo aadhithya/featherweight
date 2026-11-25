@@ -4,7 +4,7 @@ A tool acts for the user whose identity the run has. featherweight carries the i
 
 ```python
 from langchain.tools import ToolRuntime, tool
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from featherweight import AgentRunner, RunContext
 
@@ -12,6 +12,7 @@ from featherweight import AgentRunner, RunContext
 class Teacher(BaseModel):
     user_id: str
     tenant: str
+    jwt: str | None = Field(None, exclude=True)  # only in the process that has it: not sent, so None on a worker
 
 
 def send_email_tool(tokens, directory):
@@ -25,7 +26,9 @@ def send_email_tool(tokens, directory):
             who.user_id, "send_email"
         ):  # re-checked now: the identity is a snapshot
             return "Not allowed."
-        token = await tokens.access_token(who.user_id, scope="mail.send")  # at each call: a long job outlives a token
+        token = who.jwt or await tokens.access_token(
+            who.user_id, scope="mail.send"
+        )  # at each call: a long job outlives a token
         await mail_api.send(token, to, subject, body)
         return "Sent."
 
@@ -47,7 +50,7 @@ How `tokens.access_token(user_id, scope)` gets a token is your application's. Th
 For an MCP server the token must be one **issued for that server**: the MCP authorization rules forbid passing on the token your own API was given.
 
 - **Why re-check.** The identity was captured when the job was submitted. A queued job can run later, after a role changed or a user left: for a sensitive action, ask your application by user id.
-- **Keep secrets out of the identity.** It sits in the queue message until the job is acknowledged. A field marked `exclude=True` is not sent, for a value that exists only in the submitting process.
+- **Keep secrets out of the identity.** It sits in the queue message until the job is acknowledged. A field marked `exclude=True` is not sent, for a value that exists only in the submitting process: it needs a default, and on a worker the tool sees the default and asks by user id, as above.
 - **Ask for the token at each call** and let your provider cache it: a long job outlives a token. If it fails, return text (`"Could not get a token."`), as any failure of a tool.
 - The rules and what stays yours: [identity](../specs/identity.md#the-developers-responsibilities).
 <!-- /skill:omit -->

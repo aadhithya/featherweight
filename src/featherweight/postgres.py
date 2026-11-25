@@ -453,6 +453,13 @@ class PostgresDatabase(Database):
         row = await cur.fetchone()
         return AttemptRow(**row) if row else None
 
+    async def job_has_other_identity(self, job_id: str, identity_hash: str | None) -> bool:
+        cur = await self.conn.execute(
+            "SELECT 1 FROM attempts WHERE job_id = %s AND identity_hash IS DISTINCT FROM %s LIMIT 1",
+            (job_id, identity_hash),
+        )
+        return await cur.fetchone() is not None
+
     async def find_reusable_attempt(
         self,
         job_id: str,
