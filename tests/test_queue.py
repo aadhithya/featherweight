@@ -1,11 +1,18 @@
 """The job queue: the contract against both queues, and what is particular to sqlite. No model is called."""
 
 import pytest
+from fakes import settings
 from pydantic import ValidationError
 
 from featherweight.queue import Delivery, JobMessage, JobQueue, SqliteQueue
 from featherweight.sqlite import SqliteDatabase
 from featherweight.testing import MemoryQueue, check_queue
+
+
+def sqlite_queue(db, lease: float = 60.0, max_deliveries: int = 3) -> SqliteQueue:
+    """A `SqliteQueue` whose settings (`FTW_QUEUE_LEASE`, `FTW_QUEUE_MAX_DELIVERIES`) are these while it is built."""
+    with settings(queue_lease=lease, queue_max_deliveries=max_deliveries):
+        return SqliteQueue(db)
 
 
 def message(n: int) -> JobMessage:
@@ -16,7 +23,7 @@ async def test_the_sqlite_queue_follows_the_contract(db):
     async def fresh(lease: float) -> SqliteQueue:
         await db.conn.execute("DELETE FROM job_queue")
         await db.conn.commit()
-        return SqliteQueue(db, lease=lease)
+        return sqlite_queue(db, lease=lease)
 
     await check_queue(fresh)
 
@@ -76,10 +83,10 @@ async def test_the_messages_survive_a_reopen_of_the_file(tmp_path):
 async def test_a_message_whose_receiver_went_away_is_delivered_again_after_its_lease(tmp_path):
     async with SqliteDatabase(tmp_path / "q.db") as db:
         await SqliteQueue(db).enqueue(message(1))
-        claimed = await SqliteQueue(db, lease=0.3).receive(0.5)
+        claimed = await sqlite_queue(db, lease=0.3).receive(0.5)
         assert claimed is not None and claimed.delivery_count == 1
     async with SqliteDatabase(tmp_path / "q.db") as db:
-        queue = SqliteQueue(db, lease=0.3)
+        queue = sqlite_queue(db, lease=0.3)
         assert await queue.receive(0.05) is None  # nobody else is given it while the lease lasts
         again = await queue.receive(2.0)  # its receiver is gone: the lease ends, and it comes back
         assert again is not None and again.message == message(1) and again.delivery_count == 2
@@ -93,7 +100,7 @@ async def test_a_message_whose_receiver_went_away_is_delivered_again_after_its_l
 
 
 async def test_extend_renews_the_lease_in_the_table(db):
-    queue = SqliteQueue(db, lease=5)
+    queue = sqlite_queue(db, lease=5)
     await queue.enqueue(message(1))
     delivery = await queue.receive(0.5)
     assert delivery is not None
@@ -107,7 +114,7 @@ async def test_extend_renews_the_lease_in_the_table(db):
 
 
 async def test_a_message_delivered_max_deliveries_times_is_marked_dead_and_not_delivered(db, caplog):
-    queue = SqliteQueue(db, lease=0.1, max_deliveries=3)
+    queue = sqlite_queue(db, lease=0.1, max_deliveries=3)
     await queue.enqueue(message(1))
     counts = []
     for _ in range(3):  # the receiver of job-1 goes quiet every time
@@ -127,7 +134,7 @@ async def test_a_message_delivered_max_deliveries_times_is_marked_dead_and_not_d
 
 
 async def test_a_nack_with_requeue_does_not_count_against_max_deliveries(db):
-    queue = SqliteQueue(db, lease=5, max_deliveries=1)
+    queue = sqlite_queue(db, lease=5, max_deliveries=1)
     await queue.enqueue(message(1))
     first = await queue.receive(0.5)
     assert first is not None
@@ -137,10 +144,10 @@ async def test_a_nack_with_requeue_does_not_count_against_max_deliveries(db):
 
 
 async def test_the_lease_and_the_limit_are_checked(db):
-    with pytest.raises(ValueError, match="lease"):
-        SqliteQueue(db, lease=0)
-    with pytest.raises(ValueError, match="max_deliveries"):
-        SqliteQueue(db, max_deliveries=0)
+    with pytest.raises(ValueError, match="FTW_QUEUE_LEASE"):
+        sqlite_queue(db, lease=0)
+    with pytest.raises(ValueError, match="FTW_QUEUE_MAX_DELIVERIES"):
+        sqlite_queue(db, max_deliveries=0)
     with pytest.raises(ValueError, match="lease"):
         MemoryQueue(lease=-1)
 

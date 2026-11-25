@@ -33,7 +33,7 @@ lines too (`agent_launch ...` for each launch), run `FTW_LOG_LEVEL=INFO make exa
 
 - Ask for a headline in French, and then without a language: the editor launches the translator only when it is needed.
 - Remove `Translator` from `subagents` and ask for French: the editor cannot launch it, so it has to cope without.
-- Run with `MAX_AGENT_DEPTH=1`: launching is off, the editor gets no launch tools, and has to write the summary itself.
+- Run with `FTW_MAX_AGENT_DEPTH=1`: launching is off, the editor gets no launch tools, and has to write the summary itself.
 
 ## Where to look
 

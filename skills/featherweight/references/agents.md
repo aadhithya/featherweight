@@ -106,7 +106,7 @@ async with SqliteDatabase("featherweight.db") as db:
 |---|---|---|
 | `max_attempts` | 3 | Attempts per run |
 | `retry_delay_s` | 1.0 | Wait between attempts, without holding a concurrency slot |
-| `max_concurrent` | `MAX_CONCURRENT_ATTEMPTS`, else 10 | Model attempts running at once |
+| `max_concurrent` | `FTW_MAX_CONCURRENT_ATTEMPTS`, else 10 | Model attempts running at once |
 | `max_depth`, `max_launches` | 3, 10 | See [launching-agents.md](launching-agents.md) |
 
 The runner has no argument for choosing the model: an agent's own `model` settings decide it. To run an agent on a fake in
@@ -240,13 +240,26 @@ The [identity spec](https://github.com/aadhithya/featherweight/blob/main/docs/sp
 
 ## Configuration
 
-| Variable | Default | |
-|---|---|---|
-| `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | | The key of the provider the agent's `model` uses. See [models.md](models.md) |
-| `MAX_CONCURRENT_ATTEMPTS` | 10 | Model attempts running at once, per runner. A queued attempt shows as `INIT` until it gets a slot |
-| `MAX_AGENT_DEPTH` | 3 | Most agents in one chain of launches |
-| `MAX_AGENT_LAUNCHES` | 10 | Most launches per attempt of one agent |
-| `FTW_DB_PATH` | `featherweight.db` | The sqlite file |
-| `FTW_LOG_LEVEL` | `INFO` | Used by `setup_logging()` |
+Every environment variable of featherweight starts with `FTW_`. A few settings can also be passed in code, while you try something out: the argument wins over the variable, and the variable over the default.
+The rest are environment only: they tune a deployment, and nobody sets them for one worker. A value is read when the runner or the worker is built; one that is not a positive number raises `ValueError` that names the variable.
+There is no way to switch a timeout off: set a very large one.
 
-The three limits can also be set on `AgentRunner`; an argument wins over the variable. A value below 1 is refused.
+| Variable | Default | Argument | |
+|---|---|---|---|
+| `GOOGLE_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | | | The key of the provider the agent's `model` uses. See [models.md](models.md) |
+| `FTW_MAX_CONCURRENT_ATTEMPTS` | 10 | `AgentRunner(max_concurrent=)` | Model attempts running at once, per runner. A queued attempt shows as `INIT` until it gets a slot |
+| `FTW_MAX_AGENT_DEPTH` | 3 | `AgentRunner(max_depth=)` | Most agents in one chain of launches. 1 turns launching off |
+| `FTW_MAX_AGENT_LAUNCHES` | 10 | `AgentRunner(max_launches=)` | Most launches per attempt of one agent |
+| `FTW_MAX_BACKGROUND_JOBS` | 3 | `AgentRunner(max_background_jobs=)` | Most children one attempt may have running in the background |
+| `FTW_WORKER_CONCURRENCY` | 10 | `JobWorker(concurrency=)` | Jobs one worker runs at once |
+| `FTW_OBSERVER_TIMEOUT` | 1 s | | How long an observer hook may take before the runner goes on |
+| `FTW_WORKER_RECEIVE_TIMEOUT` | 1 s | | How long a worker waits for a message before it looks again whether it is stopping |
+| `FTW_WORKER_CANCEL_POLL` | 1 s | | How often a worker asks whether a job it runs was cancelled in another process |
+| `FTW_JOB_LEASE` | 60 s | | How long a worker holds a job without renewing it, before another may take it over |
+| `FTW_HEARTBEAT` | a third of the job's lease | | How often a worker renews the leases of its jobs and of their messages |
+| `FTW_QUEUE_LEASE` | 60 s | | How long a received message stays invisible to other receivers (`SqliteQueue`) |
+| `FTW_QUEUE_MAX_DELIVERIES` | 3 | | How many times `SqliteQueue` delivers a message before it marks it `dead` |
+| `FTW_DB_PATH` | `featherweight.db` | the path given to `SqliteDatabase` | The sqlite file |
+| `FTW_LOG_LEVEL` | `INFO` | the level given to `setup_logging()` | Used by `setup_logging()` |
+
+`max_attempts` and `retry_delay_s` are arguments of `AgentRunner` only. The rule, and what is not configuration, is in [the configuration spec](https://github.com/aadhithya/featherweight/blob/main/docs/specs/configuration.md).

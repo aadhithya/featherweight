@@ -11,6 +11,7 @@ import pytest
 import pytest_asyncio
 from fakes import MODELS
 
+from featherweight import config
 from featherweight.log import setup_logging
 from featherweight.sqlite import SqliteDatabase
 
@@ -38,8 +39,10 @@ def no_real_llm_calls(request, monkeypatch):
     MODELS.clear()  # a test registers its own fake models (tests/fakes.py)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    for name in ("MAX_CONCURRENT_AGENT_RUNS", "MAX_AGENT_DEPTH", "MAX_AGENT_LAUNCHES"):
-        monkeypatch.delenv(name, raising=False)  # tests start from the defaults
+    for setting in config.SETTINGS:
+        monkeypatch.delenv(setting.name, raising=False)  # tests start from the defaults...
+    monkeypatch.setenv(config.WORKER_RECEIVE_TIMEOUT.name, "0.05")  # ...except that a worker in a test looks at once
+    monkeypatch.setenv(config.WORKER_CANCEL_POLL.name, "0.05")
 
 
 @pytest.fixture(autouse=True)

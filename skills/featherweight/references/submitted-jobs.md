@@ -121,8 +121,8 @@ await worker.stop(grace=30)
 - It runs only the jobs you list (and the ones your `jobs_lookup` finds, [below](#jobs-that-are-not-declared-in-code)); a message for another name fails that job.
 - It never retries a failed job. If the job was `resumable`, you resume it with a new job ([Persistence](persistence.md)).
 - The result is written to your result store, keyed by the job id, the job hash and the input hash. If it cannot be written, the job fails.
-- While it runs jobs, the worker holds a **lease** on each (`JobWorker(lease=60)`, in seconds) and renews it, and the queue's lease of the message, every third of
-  it (`heartbeat=`). A worker that finds a job taken from it stops that job at once and writes nothing more to it. A job must be safe to run twice.
+- While it runs jobs, the worker holds a **lease** on each (`FTW_JOB_LEASE`, 60 seconds) and renews it, and the queue's lease of the message, every third of
+  it (`FTW_HEARTBEAT`). A worker that finds a job taken from it stops that job at once and writes nothing more to it. A job must be safe to run twice.
 - On `stop`, the worker takes no new messages, waits up to `grace` seconds, then cancels what is left, puts those messages back on the queue and
   sets those jobs back to `INIT`, so they run again.
 
@@ -171,7 +171,7 @@ several, share one database (`PostgresDatabase` ships in the package) and use a 
   to run twice**, because what its own code already did (a mail sent, an API called) is not undone.
 - **A job that hangs.** The heartbeat only shows that a worker is alive. Each job has a `timeout` (`@job(timeout=...)`, 600 seconds by default, `None` for no limit):
   when it passes, the job is cancelled and fails with error type `JobTimeout`. It is not retried; you resume it.
-- **How often a message may come back** is your queue's policy. `SqliteQueue(db, lease=60, max_deliveries=3)` marks a message `dead` after three deliveries and
+- **How often a message may come back** is your queue's policy. `SqliteQueue` marks a message `dead` after `FTW_QUEUE_MAX_DELIVERIES` (3) deliveries and
   fails its job (`DeadLettered`). If your own queue dead-letters a message, call `client.fail(job_id)` from its dead-letter handler to end the job.
 
 `examples/jobs/takeover.py` does it: it kills a worker with SIGKILL in the middle of a job, and another one takes the job over (`make example-takeover`).
@@ -192,7 +192,7 @@ delivered again to another receiver, and its `Delivery.delivery_count` is higher
 (`extend` is `ChangeMessageVisibility`, and the delivery count is `ApproximateReceiveCount`); on a Redis stream it is the pending list
 (`XAUTOCLAIM` takes a message over, `extend` is a `XCLAIM` of your own entry to reset its idle time, and the delivery counter is in `XPENDING`).
 How many times a message may be delivered is your broker's policy, with its own dead-letter queue. The kit asks that a message can be delivered at
-least three times. `SqliteQueue(db, lease=60, max_deliveries=3)` is the one we ship: after `max_deliveries` it marks the message `dead`.
+least three times. `SqliteQueue(db)` is the one we ship (`FTW_QUEUE_LEASE`, `FTW_QUEUE_MAX_DELIVERIES`): after that many deliveries it marks the message `dead`.
 
 A message also carries a `trace_context` (a small mapping of strings, empty unless the client has an observer that gives one) and an `identity` (a JSON mapping, or `None`) and its `identity_kind` (a string, or `None`: [who the job is for](#who-the-job-is-for-the-identity)): carry them
 unchanged, and the kit checks that you do. A queue that drops the identity or its kind fails the kit.

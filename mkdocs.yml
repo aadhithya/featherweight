@@ -149,4 +149,5 @@ nav:
       - specs/submitted-jobs.md
       - specs/background-jobs.md
       - specs/observability.md
+      - specs/configuration.md
   - API reference: []

@@ -19,5 +19,6 @@ in the spec that owns it, and the others link to it. [The table of who owns what
 | What is in a span, and which attribute names are used? | [Observers and OpenTelemetry](https://github.com/aadhithya/featherweight/blob/main/docs/specs/observability.md) |
 | How does the runner retry, limit and launch agents? | [The agent runner](https://github.com/aadhithya/featherweight/blob/main/docs/specs/runner.md) |
 | Who is a run for, and what does featherweight do and not do with that? | [Identity](https://github.com/aadhithya/featherweight/blob/main/docs/specs/identity.md) |
+| Which environment variables are there, and which settings can I pass in code? | [Configuration](https://github.com/aadhithya/featherweight/blob/main/docs/specs/configuration.md) |
 
 > **Why** the book does not restate them: a fact written twice is soon written two ways.

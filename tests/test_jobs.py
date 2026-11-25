@@ -229,7 +229,7 @@ async def test_run_job_and_a_worker_leave_the_same_row_hashes_events_and_result(
         queue = SqliteQueue(db)
         client = JobClient(db, queue)
         job_id = await client.submit(shout, Text(text="same"))
-        worker = JobWorker(db, queue, runner, jobs=[shout], receive_timeout=0.05)
+        worker = JobWorker(db, queue, runner, jobs=[shout])
         running = asyncio.create_task(worker.run())
         row = await client.wait(job_id, timeout=5)
         await worker.stop(grace=1)

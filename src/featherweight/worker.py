@@ -12,6 +12,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ValidationError
 
+from featherweight import config
 from featherweight.db import FINAL, Database, JobLost, JobOwner, JobRow, new_id
 from featherweight.fingerprint import error_fields
 from featherweight.identity import IdentitySpec
@@ -51,11 +52,14 @@ class JobWorker:
     """`JobWorker(db, queue, runner, jobs, results)`: `jobs` are the `Job` classes (or plain agent classes) it can run, by name.
 
     `results` is where the output of a job is written (a `ResultStore`; the default is a sqlite store in the run log's file
-    for a `SqliteDatabase`, and none for another database; `None` keeps nothing). `concurrency` is how many jobs run at once.
+    for a `SqliteDatabase`, and none for another database; `None` keeps nothing). `concurrency` is how many jobs run at once
+    (`FTW_WORKER_CONCURRENCY`, else 10).
 
-    `lease` is how long, in seconds, the worker's claim on a job lasts without being renewed (60 by default). While it runs
-    jobs, the worker renews the lease of each, and `extend`s the queue's lease of its message, every `heartbeat` seconds (a third of
-    the lease by default). A worker that lost a job (another one took it over) stops it and writes nothing more to it.
+    The job's lease is how long, in seconds, the worker's claim on a job lasts without being renewed (`FTW_JOB_LEASE`, 60 by default).
+    While it runs jobs, the worker renews the lease of each, and `extend`s the queue's lease of its message, every `FTW_HEARTBEAT`
+    seconds (a third of the lease by default). A worker that lost a job (another one took it over) stops it and writes nothing more
+    to it. How long it waits for a message and how often it asks about cancellations are `FTW_WORKER_RECEIVE_TIMEOUT` and
+    `FTW_WORKER_CANCEL_POLL` (docs/specs/configuration.md): the settings that are not `concurrency` have no argument.
     `worker_id` names the worker in `jobs.worker_id` (a new id by default).
 
     `identity_type` is the type of the identity of a run (docs/specs/identity.md): the worker rebuilds the identity of a message with it and
@@ -81,19 +85,11 @@ class JobWorker:
         jobs: Sequence[type[Job] | type[AgentBase]],
         results: ResultStore | None | Literal["default"] = "default",
         *,
-        concurrency: int = 10,
-        receive_timeout: float = 1.0,
-        cancel_poll: float = 1.0,
-        lease: float = 60.0,
-        heartbeat: float | None = None,
+        concurrency: int | None = None,
         worker_id: str | None = None,
         identity_type: Any = None,
         jobs_lookup: JobsLookup | None = None,
     ):
-        if concurrency < 1:
-            raise ValueError("concurrency must be at least 1")
-        if lease <= 0 or (heartbeat is not None and heartbeat <= 0):
-            raise ValueError("lease and heartbeat must be positive")
         self.db = db
         self.queue = queue
         self.runner = runner
@@ -102,11 +98,12 @@ class JobWorker:
             if not isinstance(results, str)
             else (SqliteResultStore(db) if isinstance(db, SqliteDatabase) else None)
         )
-        self.concurrency = concurrency
-        self.receive_timeout = receive_timeout
-        self.cancel_poll = cancel_poll
-        self.lease = lease
-        self.heartbeat = heartbeat if heartbeat is not None else lease / 3
+        self.concurrency = int(config.WORKER_CONCURRENCY.read(concurrency) or 0)
+        self.receive_timeout = float(config.WORKER_RECEIVE_TIMEOUT.read() or 0)
+        self.cancel_poll = float(config.WORKER_CANCEL_POLL.read() or 0)
+        self.lease = float(config.JOB_LEASE.read() or 0)
+        heartbeat = config.HEARTBEAT.read()
+        self.heartbeat = float(heartbeat) if heartbeat is not None else self.lease / 3
         self.worker_id = worker_id or f"worker-{new_id()}"
         self._identity = IdentitySpec(identity_type)  # what a message's identity is rebuilt as (docs/specs/identity.md)
         self._jobs_lookup = jobs_lookup
@@ -126,6 +123,15 @@ class JobWorker:
         self._grace = 30.0
         self._running = False
         self._stopped = asyncio.Event()
+        logger.info(
+            "worker_configured worker_id=%s concurrency=%d receive_timeout=%s cancel_poll=%s lease=%s heartbeat=%s",
+            self.worker_id,
+            self.concurrency,
+            self.receive_timeout,
+            self.cancel_poll,
+            self.lease,
+            self.heartbeat,
+        )
         if not runner.identity.accepts(
             self._identity
         ):  # every job that runs an agent would fail at its first `ctx.run`

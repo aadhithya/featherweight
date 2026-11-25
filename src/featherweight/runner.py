@@ -4,7 +4,6 @@ import asyncio
 import hashlib
 import json
 import logging
-import os
 import time
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, Literal
@@ -26,6 +25,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMe
 from langchain_core.tools import BaseTool, tool
 from pydantic import ValidationError
 
+from featherweight import config
 from featherweight.background import BackgroundChildren, BackgroundResults, background_result_message
 from featherweight.context import (
     CURRENT_ATTEMPT_ID,
@@ -75,17 +75,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-ENV_MAX_CONCURRENT = "MAX_CONCURRENT_ATTEMPTS"
-DEFAULT_MAX_CONCURRENT = 10
-# How far agents may launch agents: the most agents in one chain (A launches B launches C is 3), and the most launches
-# one attempt of one agent may make. A depth of 1 turns launching off.
-ENV_MAX_DEPTH = "MAX_AGENT_DEPTH"
-DEFAULT_MAX_DEPTH = 3
-ENV_MAX_LAUNCHES = "MAX_AGENT_LAUNCHES"
-DEFAULT_MAX_LAUNCHES = 10
-# The most children one attempt of one agent may have running in the background at one time.
-DEFAULT_MAX_BACKGROUND_JOBS = 3
-
 MAX_ERROR_CHARS = 2000
 
 
@@ -107,34 +96,6 @@ def is_non_retryable(exc: BaseException) -> bool:
                 return True
         current = current.__cause__
     return False
-
-
-def _positive_int_from_env(name: str, default: int) -> int:
-    raw = os.environ.get(name, "").strip()
-    if not raw:
-        return default
-    try:
-        value = int(raw)
-    except ValueError:
-        raise ValueError(f"{name} must be an integer, got {raw!r}") from None
-    if value < 1:
-        raise ValueError(f"{name} must be at least 1, got {value}")
-    return value
-
-
-def max_concurrent_from_env() -> int:
-    """The concurrency limit from `MAX_CONCURRENT_ATTEMPTS`, or the default when unset."""
-    return _positive_int_from_env(ENV_MAX_CONCURRENT, DEFAULT_MAX_CONCURRENT)
-
-
-def max_depth_from_env() -> int:
-    """The launch depth limit from `MAX_AGENT_DEPTH`, or the default when unset."""
-    return _positive_int_from_env(ENV_MAX_DEPTH, DEFAULT_MAX_DEPTH)
-
-
-def max_launches_from_env() -> int:
-    """The launches one attempt may make, from `MAX_AGENT_LAUNCHES`, or the default when unset."""
-    return _positive_int_from_env(ENV_MAX_LAUNCHES, DEFAULT_MAX_LAUNCHES)
 
 
 def _format_error(exc: BaseException) -> str:
@@ -254,18 +215,17 @@ class AgentRunner:
         background: "JobClient | None" = None,
         results: ResultStore | None | Literal["default"] = "default",
         observers: Sequence[Observer] = (),
-        observer_timeout: float = 1.0,
         identity_type: Any = None,
     ):
         """`max_concurrent` caps how many attempts (model calls) run at once across this runner. Default:
-        `MAX_CONCURRENT_ATTEMPTS` from the environment, else 10.
+        `FTW_MAX_CONCURRENT_ATTEMPTS` from the environment, else 10.
 
         `max_depth` is the most agents in one chain of launches, the first agent included (A launches B launches C is
-        3). Default: `MAX_AGENT_DEPTH`, else 3. At 1 no agent can launch another. `max_launches` is the most launches
-        one attempt of one agent may make. Default: `MAX_AGENT_LAUNCHES`, else 10.
+        3). Default: `FTW_MAX_AGENT_DEPTH`, else 3. At 1 no agent can launch another. `max_launches` is the most launches
+        one attempt of one agent may make. Default: `FTW_MAX_AGENT_LAUNCHES`, else 10.
 
-        `max_background_jobs` is the most children one attempt of one agent may have running in the background at one time (default 3).
-        A child runs in this process, as a job of its own, unless `background` is a `JobClient`: then it is submitted to the
+        `max_background_jobs` is the most children one attempt of one agent may have running in the background at one time
+        (`FTW_MAX_BACKGROUND_JOBS`, else 3). A child runs in this process, as a job of its own, unless `background` is a `JobClient`: then it is submitted to the
         queue and a worker runs it (the worker must list the child's job). Agents with `background_jobs` need a result store.
 
         `results` is where the outputs that resuming a job reads back are kept (a `ResultStore`), for the jobs created
@@ -273,7 +233,9 @@ class AgentRunner:
         no default, so pass your own. `None` keeps nothing, and then a job that resumes another is a `SetupError`.
 
         `observers` hear what the runner does (`featherweight.observers`): they are called inline, each with a timeout of
-        `observer_timeout` seconds, and what they raise is logged and ignored, so they never change or fail a run.
+        `FTW_OBSERVER_TIMEOUT` seconds (1 by default), and what they raise is logged and ignored, so they never change or fail a run.
+
+        The settings that come from the environment are read here, once (docs/specs/configuration.md).
 
         `identity_type` is the type of the identity of a run (a Pydantic model: who the run is for, for the tools; docs/specs/identity.md).
         A declared type makes `identity=` required on `run`, `run_many`, `stream` and `run_job`; a union with `None`
@@ -281,22 +243,11 @@ class AgentRunner:
         """
         if max_attempts < 1:
             raise ValueError("max_attempts must be at least 1")
-        if max_concurrent is None:
-            max_concurrent = max_concurrent_from_env()
-        elif max_concurrent < 1:
-            raise ValueError("max_concurrent must be at least 1")
-        for name, value in (
-            ("max_depth", max_depth),
-            ("max_launches", max_launches),
-            ("max_background_jobs", max_background_jobs),
-        ):
-            if value is not None and value < 1:
-                raise ValueError(f"{name} must be at least 1")
-        self.max_depth = max_depth if max_depth is not None else max_depth_from_env()
-        self.max_launches = max_launches if max_launches is not None else max_launches_from_env()
-        self.max_background_jobs = (
-            max_background_jobs if max_background_jobs is not None else DEFAULT_MAX_BACKGROUND_JOBS
-        )
+        max_concurrent = int(config.MAX_CONCURRENT_ATTEMPTS.read(max_concurrent) or 0)
+        self.max_depth = int(config.MAX_AGENT_DEPTH.read(max_depth) or 0)
+        self.max_launches = int(config.MAX_AGENT_LAUNCHES.read(max_launches) or 0)
+        self.max_background_jobs = int(config.MAX_BACKGROUND_JOBS.read(max_background_jobs) or 0)
+        observer_timeout = float(config.OBSERVER_TIMEOUT.read() or 0)
         self.background = background
         self._background_tasks: set[asyncio.Task[Any]] = (
             set()
@@ -318,6 +269,14 @@ class AgentRunner:
         self.retry_delay_s = retry_delay_s
         self.identity = IdentitySpec(identity_type)
         self._observers = Observers(observers, observer_timeout)
+        logger.info(
+            "runner_configured max_concurrent=%d max_depth=%d max_launches=%d max_background_jobs=%d observer_timeout=%s",
+            max_concurrent,
+            self.max_depth,
+            self.max_launches,
+            self.max_background_jobs,
+            observer_timeout,
+        )
         self._keep_open = False  # True inside `async with`: MCP servers stay up between runs
         self._mcp: MCPConnections | None = None  # created when a run first needs an MCP server
         self._streams: dict[str, StreamingRun] = {}  # the streaming runs going on now, by run id, for `cancel()`

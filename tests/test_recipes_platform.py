@@ -267,7 +267,7 @@ async def test_the_signing_queue_runs_a_job_for_a_client_and_a_worker_that_share
 
     job_id = await db.create_job("shout", job_hash=Shout.job_hash())
     await queue.enqueue(JobMessage(job_id=job_id, job_name="shout", input={"text": "hi"}))
-    worker = JobWorker(db, queue, AgentRunner(db), jobs=[Shout], results=MemoryResultStore(), receive_timeout=0.05)
+    worker = JobWorker(db, queue, AgentRunner(db), jobs=[Shout], results=MemoryResultStore())
     task = asyncio.create_task(worker.run())
     try:
         row = await wait_for_job(db, job_id, timeout=5)

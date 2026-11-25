@@ -237,7 +237,7 @@ async def worker_runs(db, job: type[Job], text="hello") -> str:
     job_input = In(text=text)
     job_id = await db.create_job(job.name, job_hash=job.job_hash(), input_hash=input_hash(job_input))
     await queue.enqueue(JobMessage(job_id=job_id, job_name=job.name, input=job_input.model_dump(mode="json")))
-    worker = JobWorker(db, queue, runner(db), [job], receive_timeout=0.05, cancel_poll=0.05)
+    worker = JobWorker(db, queue, runner(db), [job])
     task = asyncio.create_task(worker.run())
     try:
         await wait_for_job(db, job_id, timeout=5)

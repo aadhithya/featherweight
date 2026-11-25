@@ -247,7 +247,7 @@ async def test_a_child_on_a_worker_is_waited_for_too(db):
     results = MemoryResultStore()
     use_model(Delayed(script=[child_done("far away")], delay_s=0.2), "child")
     client = JobClient(db, queue, results)
-    worker = JobWorker(db, queue, AgentRunner(db, results=results), jobs=[Child], results=results, receive_timeout=0.05)
+    worker = JobWorker(db, queue, AgentRunner(db, results=results), jobs=[Child], results=results)
     running = asyncio.create_task(worker.run())
     try:
         model = Scripted(script=[start_child(), parent_done("early"), parent_done("late")])
@@ -269,7 +269,7 @@ async def test_the_message_of_a_child_on_a_worker_is_built_from_the_clients_stor
     results = MemoryResultStore()
     use_model(Scripted(script=[child_done("here")]), "child")
     client = JobClient(db, queue, results)
-    worker = JobWorker(db, queue, AgentRunner(db, results=results), jobs=[Child], results=results, receive_timeout=0.05)
+    worker = JobWorker(db, queue, AgentRunner(db, results=results), jobs=[Child], results=results)
     running = asyncio.create_task(worker.run())
     try:
         model = Scripted(script=[start_child(), parent_done(), parent_done()])

@@ -92,21 +92,21 @@ A launched agent runs with the identity of its parent ([who is asking](agents.md
 
 | Limit | Default | Set with | |
 |---|---|---|---|
-| Depth | 3 | `MAX_AGENT_DEPTH`, or `AgentRunner(max_depth=...)` | The most agents in one chain, the first one included. 3 means A launches B launches C, and C cannot launch |
-| Breadth | 10 | `MAX_AGENT_LAUNCHES`, or `AgentRunner(max_launches=...)` | The most launches one attempt of one agent may make |
+| Depth | 3 | `FTW_MAX_AGENT_DEPTH`, or `AgentRunner(max_depth=...)` | The most agents in one chain, the first one included. 3 means A launches B launches C, and C cannot launch |
+| Breadth | 10 | `FTW_MAX_AGENT_LAUNCHES`, or `AgentRunner(max_launches=...)` | The most launches one attempt of one agent may make |
 
 - A depth of 1 turns launching off.
 - **At the depth limit** an agent is given no launch tools and no mention of them in its prompt. The tool also refuses
   a call made anyway.
 - **Invalid launches do not count** against the breadth limit; only launches that ran do.
 - The breadth limit is per attempt of one agent, not per job, so a tree is bounded but can be wide: with the defaults, up
-  to 1 + 10 + 100 = 111 agents in one tree, before retries. Lower `MAX_AGENT_LAUNCHES` or `MAX_AGENT_DEPTH` if that is
+  to 1 + 10 + 100 = 111 agents in one tree, before retries. Lower `FTW_MAX_AGENT_LAUNCHES` or `FTW_MAX_AGENT_DEPTH` if that is
   too many for your budget.
 - These are different from `recursion_limit` on an agent, which only bounds the steps of one run's own tool loop.
 
 ## Concurrency
 
-Every attempt holds one concurrency slot while it runs (`MAX_CONCURRENT_ATTEMPTS`). A parent waiting for its child
+Every attempt holds one concurrency slot while it runs (`FTW_MAX_CONCURRENT_ATTEMPTS`). A parent waiting for its child
 would hold a slot the child needs, and with enough waiting parents nothing could finish. So **a parent gives up its
 slot while its launches run, and takes one again when the last of them is done**, also when it launched several at
 once. The limit on model calls at one time still holds, because a waiting parent is not calling the model.

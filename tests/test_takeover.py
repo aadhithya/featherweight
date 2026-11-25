@@ -4,7 +4,7 @@ import asyncio
 import json
 
 import pytest
-from fakes import Echo, EchoInput, Reactive, runner_with, structured_reply
+from fakes import Echo, EchoInput, Reactive, runner_with, settings, structured_reply
 from pydantic import BaseModel
 
 from featherweight import JobClient
@@ -84,11 +84,10 @@ async def submit(db, queue, text="abc", resumable=True, identity=None):
     return job_id
 
 
-def worker(db, queue, fake, identity_type=None, **kwargs):
-    kwargs.setdefault("receive_timeout", 0.05)
-    kwargs.setdefault("cancel_poll", 0.05)
+def worker(db, queue, fake, identity_type=None, lease=None, heartbeat=None, **kwargs):
     runner = runner_with(db, fake, max_attempts=1, identity_type=identity_type)
-    return JobWorker(db, queue, runner, [Steps], identity_type=identity_type, **kwargs)
+    with settings(**{k: v for k, v in (("job_lease", lease), ("heartbeat", heartbeat)) if v is not None}):
+        return JobWorker(db, queue, runner, [Steps], identity_type=identity_type, **kwargs)
 
 
 async def until(condition, timeout=5.0):
@@ -138,7 +137,12 @@ async def _idle(w: JobWorker):
 # the takeover
 
 
-@pytest.mark.parametrize("make_queue", [lambda db: MemoryQueue(lease=0.3), lambda db: SqliteQueue(db, lease=0.3)])
+def sqlite_queue(db, lease, max_deliveries=3):
+    with settings(queue_lease=lease, queue_max_deliveries=max_deliveries):
+        return SqliteQueue(db)
+
+
+@pytest.mark.parametrize("make_queue", [lambda db: MemoryQueue(lease=0.3), lambda db: sqlite_queue(db, 0.3)])
 async def test_a_job_whose_worker_stalled_is_taken_over_by_another_as_its_second_execution(db, make_queue):
     queue = make_queue(db)
     job_id, (row, events, _) = await lost_and_taken_over(db, queue, model())
@@ -263,7 +267,7 @@ async def test_fail_ends_a_job_that_has_not_started_and_leaves_a_final_one(db):
 
 
 async def test_a_message_that_the_sqlite_queue_gave_up_on_fails_its_job(db):
-    queue = SqliteQueue(db, lease=0.05, max_deliveries=1)
+    queue = sqlite_queue(db, 0.05, max_deliveries=1)
     job_id = await db.create_job("p")
     await queue.enqueue(JobMessage(job_id=job_id, job_name="p", input={}))
     first = await queue.receive(1)
@@ -277,7 +281,7 @@ async def test_a_message_that_the_sqlite_queue_gave_up_on_fails_its_job(db):
 
 
 async def test_a_message_that_was_given_up_on_while_its_worker_was_lost_fails_the_running_job(db):
-    queue = SqliteQueue(db, lease=0.05, max_deliveries=1)
+    queue = sqlite_queue(db, 0.05, max_deliveries=1)
     job_id = await db.create_job("p")
     assert await db.start_job(job_id, worker_id="w1", lease=0.05) is True  # the worker died on its only delivery
     await queue.enqueue(JobMessage(job_id=job_id, job_name="p", input={}))

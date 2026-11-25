@@ -1,6 +1,7 @@
 """Chapter 5-2: kill a worker in the middle of a job, and another worker takes the job over."""
 
 import asyncio
+import os
 import subprocess
 import sys
 import tempfile
@@ -11,6 +12,9 @@ from pydantic import BaseModel
 from featherweight import AgentRunner, JobClient, JobContext, JobWorker, SqliteDatabase, SqliteQueue, job
 
 LEASE = 1.0  # seconds: short, so that this takes seconds. The default is 60.
+os.environ["FTW_JOB_LEASE"] = os.environ["FTW_QUEUE_LEASE"] = str(
+    LEASE
+)  # settings are environment variables: a worker process inherits them
 
 
 class Nap(BaseModel):
@@ -29,14 +33,14 @@ async def nap(ctx: JobContext, input: Nap) -> Rested:  # a stand-in for a long j
 
 async def worker(path: str) -> None:
     async with SqliteDatabase(path) as db:
-        queue = SqliteQueue(db, lease=LEASE)
-        await JobWorker(db, queue, AgentRunner(db), jobs=[nap], lease=LEASE).run()
+        queue = SqliteQueue(db)
+        await JobWorker(db, queue, AgentRunner(db), jobs=[nap]).run()
 
 
 async def main() -> None:
     path = str(Path(tempfile.mkdtemp()) / "workers.db")
     async with SqliteDatabase(path) as db:
-        client = JobClient(db, SqliteQueue(db, lease=LEASE))
+        client = JobClient(db, SqliteQueue(db))
         a = subprocess.Popen([sys.executable, __file__, "worker", path])  # worker A, a process of its own
         job_id = await client.submit(nap, Nap(seconds=2))
         b = None

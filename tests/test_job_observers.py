@@ -60,7 +60,7 @@ async def worker_runs(db, queue, run, job, message_text="hello"):
     job_input = In(text=message_text)
     job_id = await db.create_job(job.name, job_hash=job.job_hash(), input_hash=input_hash(job_input))
     await queue.enqueue(JobMessage(job_id=job_id, job_name=job.name, input=job_input.model_dump(mode="json")))
-    worker = JobWorker(db, queue, run, [job], receive_timeout=0.05, cancel_poll=0.05)
+    worker = JobWorker(db, queue, run, [job])
     task = asyncio.create_task(worker.run())
     try:
         await wait_for_job(db, job_id, timeout=5)
@@ -232,7 +232,7 @@ async def test_the_carrier_of_a_clients_observer_travels_in_the_message_and_reac
     assert (submitted.job_id, submitted.name, submitted.version) == (job_id, "shout", "3")
     assert submitted.job_hash == Shout.job_hash() and submitted.input is None  # no content: it was not asked for
 
-    worker = JobWorker(db, queue, runner(db, worker_side), [Shout], receive_timeout=0.05, cancel_poll=0.05)
+    worker = JobWorker(db, queue, runner(db, worker_side), [Shout])
     task = asyncio.create_task(worker.run())
     try:
         await wait_for_job(db, job_id, timeout=5)
@@ -285,7 +285,7 @@ async def test_nothing_about_a_trace_is_stored_in_the_run_log(db):
     queue = SqliteQueue(db)
     client = JobClient(db, queue, MemoryResultStore(), observers=[seen])
     job_id = await client.submit(Shout, In(text="hello"))
-    worker = JobWorker(db, queue, runner(db), [Shout], receive_timeout=0.05, cancel_poll=0.05)
+    worker = JobWorker(db, queue, runner(db), [Shout])
     task = asyncio.create_task(worker.run())
     try:
         await wait_for_job(db, job_id, timeout=5)

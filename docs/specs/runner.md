@@ -106,7 +106,7 @@ and it does not hold a concurrency slot.
 
 ## Concurrency
 
-A semaphore of `max_concurrent` slots (default 10) bounds the attempts that run at once on one runner, across every
+A semaphore of `max_concurrent` slots (`FTW_MAX_CONCURRENT_ATTEMPTS`, default 10) bounds the attempts that run at once on one runner, across every
 agent. A queued attempt shows as `INIT` until it holds a slot. The slot is released between attempts.
 
 ## Launching agents
@@ -179,11 +179,13 @@ keeps servers up between runs and stops them at the end. A runner with no MCP ag
 |---|---|---|---|
 | `max_attempts` | | 3 | At least 1 |
 | `retry_delay_s` | | 1.0 | |
-| `max_concurrent` | `MAX_CONCURRENT_ATTEMPTS` | 10 | At least 1 |
-| `max_depth` | `MAX_AGENT_DEPTH` | 3 | At least 1 |
-| `max_launches` | `MAX_AGENT_LAUNCHES` | 10 | At least 1 |
+| `max_concurrent` | `FTW_MAX_CONCURRENT_ATTEMPTS` | 10 | At least 1 |
+| `max_depth` | `FTW_MAX_AGENT_DEPTH` | 3 | At least 1 |
+| `max_launches` | `FTW_MAX_AGENT_LAUNCHES` | 10 | At least 1 |
+| `max_background_jobs` | `FTW_MAX_BACKGROUND_JOBS` | 3 | At least 1 |
 
-An argument wins over the variable. A value below 1, or an environment variable that is not an integer, raises. The key of the provider (`GOOGLE_API_KEY`, `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`)
+An argument wins over the variable. A value below 1, or an environment variable that is not an integer, raises, and names the variable. The settings of the runner that have no argument, such as the timeout of an observer, and
+the rule for all of them, are in [configuration](configuration.md). The key of the provider (`GOOGLE_API_KEY`, `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`)
 is needed for the real model. A missing key is a setup error: the run fails at once, without retries.
 
 ## Logging
@@ -198,7 +200,7 @@ is needed for the real model. A missing key is a setup error: the run fails at o
 **Built** ([#92](https://github.com/aadhithya/featherweight/issues/92) and [#93](https://github.com/aadhithya/featherweight/issues/93)). What an observer is, and what it receives, is in
 [observers and OpenTelemetry](observability.md). What the runner does:
 
-- **Where they are set.** `AgentRunner(db, observers=[...], observer_timeout=1.0)`. A worker runs its jobs with its runner, so a job run by `run_job` and a job
+- **Where they are set.** `AgentRunner(db, observers=[...])`; the timeout is `FTW_OBSERVER_TIMEOUT` (1 second). A worker runs its jobs with its runner, so a job run by `run_job` and a job
   run by a worker call the same observers, and nothing is reported twice.
 - **When it calls them.** Around each attempt (from the moment it holds a slot and runs, until its row is finished; a streamed run: from its row to
   its end), when a step is reused ([resuming](#resuming): an event, not an attempt), and for each model call and tool call of an attempt. A
