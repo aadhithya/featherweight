@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 MAX_ERROR_CHARS = 2000
-JOB_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]*$")
+JOB_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]*$")  # use `fullmatch`: `$` also matches before a trailing newline
 
 DEFAULT_JOB_TIMEOUT = 600.0  # seconds: ten minutes
 
@@ -81,7 +81,7 @@ class Job(ABC):
         if getattr(cls.run, "__isabstractmethod__", False):  # a base for other jobs, not a job
             return
         name, version = getattr(cls, "name", None), getattr(cls, "version", None)
-        if not isinstance(name, str) or not JOB_NAME.match(name):
+        if not isinstance(name, str) or not JOB_NAME.fullmatch(name):
             raise TypeError(
                 f"{cls.__name__}.name must be a string of letters, digits, '_', '.' or '-', starting with a letter"
             )

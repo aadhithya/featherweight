@@ -16,7 +16,7 @@ from featherweight import config
 from featherweight.db import FINAL, Database, JobLost, JobOwner, JobRow, new_id
 from featherweight.fingerprint import error_fields
 from featherweight.identity import IdentitySpec
-from featherweight.jobs import Job, as_job, execute_job
+from featherweight.jobs import JOB_NAME, Job, as_job, execute_job
 from featherweight.models import AgentBase, Status
 from featherweight.queue import Delivery, JobQueue
 from featherweight.results import ResultStore, SqliteResultStore
@@ -104,6 +104,7 @@ class JobWorker:
         self.lease = float(config.JOB_LEASE.read() or 0)
         heartbeat = config.HEARTBEAT.read()
         self.heartbeat = float(heartbeat) if heartbeat is not None else self.lease / 3
+        self.jobs_lookup_timeout = float(config.JOBS_LOOKUP_TIMEOUT.read() or 0)
         self.worker_id = worker_id or f"worker-{new_id()}"
         self._identity = IdentitySpec(identity_type)  # what a message's identity is rebuilt as (docs/specs/identity.md)
         self._jobs_lookup = jobs_lookup
@@ -124,13 +125,15 @@ class JobWorker:
         self._running = False
         self._stopped = asyncio.Event()
         logger.info(
-            "worker_configured worker_id=%s concurrency=%d receive_timeout=%s cancel_poll=%s lease=%s heartbeat=%s",
+            "worker_configured worker_id=%s concurrency=%d receive_timeout=%s cancel_poll=%s lease=%s heartbeat=%s "
+            "jobs_lookup_timeout=%s",
             self.worker_id,
             self.concurrency,
             self.receive_timeout,
             self.cancel_poll,
             self.lease,
             self.heartbeat,
+            self.jobs_lookup_timeout,
         )
         if not runner.identity.accepts(
             self._identity
@@ -247,6 +250,15 @@ class JobWorker:
         except ValueError as exc:
             await self._fail(row.job_id, InvalidJobIdentity(str(exc)), delivery)
             return
+        if not JOB_NAME.fullmatch(
+            message.job_name
+        ):  # not from `submit`: the lookup is application code, and gets no string that is not a name
+            await self._fail(
+                row.job_id,
+                UnknownJob("The name of the job is not a job name: a letter, then letters, digits, '_', '.' and '-'"),
+                delivery,
+            )
+            return
         job = self._jobs.get(message.job_name)
         if job is None and self._jobs_lookup is not None:  # a name `jobs` does not have: ask the application
             try:
@@ -290,9 +302,13 @@ class JobWorker:
     async def _lookup(self, name: str, job_hash: str | None, identity: Any) -> "type[Job] | None":
         """Ask `jobs_lookup` for a job it was given nothing about, and check the answer before anything runs."""
         assert self._jobs_lookup is not None
+        limit = asyncio.timeout(self.jobs_lookup_timeout)
         try:
-            found = await self._jobs_lookup(name, job_hash, identity)
+            async with limit:
+                found = await self._jobs_lookup(name, job_hash, identity)
         except Exception as exc:
+            if limit.expired():  # the lookup was cancelled by the timeout, not by an error of its own
+                raise JobLookupError(f"jobs_lookup took longer than {self.jobs_lookup_timeout:g} seconds") from exc
             raise JobLookupError(f"jobs_lookup raised {type(exc).__name__}: {exc}") from exc
         if found is None:
             return None
