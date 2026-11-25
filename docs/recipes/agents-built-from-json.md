@@ -65,7 +65,9 @@ On a worker, the agent does not exist in the code that started it. `jobs_lookup`
 from featherweight import JobWorker
 
 
-async def jobs_lookup(name: str, job_hash: str | None, identity):
+async def jobs_lookup(
+    name: str, job_hash: str | None, identity: Teacher
+):  # the worker declares `Teacher`, so it is never None
     definition = await definitions.get(identity.tenant, name)  # your storage; the identity scopes the search
     return build(definition) if definition else None
 
@@ -78,6 +80,7 @@ worker = JobWorker(db, queue, runner, jobs=[], jobs_lookup=jobs_lookup, identity
 - **Your rules are in `build`:** a catalog of tools (a name the user picked is looked up, never imported), a list of models, no user skills, a mandatory skill. featherweight has no builder and no spec format on purpose.
 - **Do not let users declare MCP servers of the stdio kind:** `StdioMCPServer` runs a command on your server. Allow `HttpMCPServer`, or servers from a list you control.
 - **The name is the job's key on a worker,** so it is yours to keep unique in what the lookup searches and stable ([names](../specs/identity.md#the-developers-responsibilities)). It must match `[A-Za-z][A-Za-z0-9_.-]*`.
+- **The lookup has a timeout** (`FTW_JOBS_LOOKUP_TIMEOUT`, 15 seconds): one that hangs fails its job, and must be safe to cancel. **A name that is not a job name never reaches it.**
 - **The worker checks the answer:** the name must be the one asked for, and the job's hash must be the one recorded when the job was submitted, so an agent edited while its job waited is not run as the new definition
   ([jobs that are not declared in code](../submitted-jobs.md#jobs-that-are-not-declared-in-code)). The identity scopes the search; whether this user may run this agent is your check, before `submit`.
 <!-- /skill:omit -->

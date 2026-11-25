@@ -1,10 +1,12 @@
 """`jobs_lookup`: the worker's fallback for jobs that are not declared in code. Fake models only."""
 
+import asyncio
 import logging
+import time
 from typing import Any
 
 import pytest
-from fakes import Echo, Reactive, respond, runner_with
+from fakes import Echo, Reactive, respond, runner_with, settings
 from pydantic import BaseModel
 from test_worker import In, Out, Running, Shout, final, make, submit
 
@@ -135,6 +137,83 @@ async def test_a_message_whose_identity_does_not_fit_fails_before_the_lookup_is_
     assert lookup.calls == []  # the application's code was not asked about a message that cannot run
     assert await queue.receive(0.05) is None  # and the message is acknowledged
     assert "secret-value-123" not in caplog.text
+
+
+# the timeout
+
+
+class Slow:
+    """A `jobs_lookup` that waits `seconds`, or that raises."""
+
+    def __init__(self, seconds: float = 0.0, raises: BaseException | None = None):
+        self.seconds, self.raises, self.calls = seconds, raises, 0
+
+    async def __call__(self, name, job_hash, identity):
+        self.calls += 1
+        await asyncio.sleep(self.seconds)
+        if self.raises is not None:
+            raise self.raises
+        return Shout if name == "shout" else None
+
+
+async def test_a_lookup_that_takes_too_long_fails_its_job_and_the_worker_goes_on(db, queue):
+    lookup = Slow(seconds=30)
+    stuck = await enqueue(db, queue, "other", Shout.job_hash())  # a name `jobs` does not have: the lookup is asked
+    known = await submit(db, queue, Shout)  # queued behind it, and in `jobs`
+
+    with settings(jobs_lookup_timeout=0.2):
+        worker = make(db, queue, [Shout], jobs_lookup=lookup)
+    started = time.perf_counter()
+    async with Running(worker):
+        stuck_row, known_row = await final(db, stuck), await final(db, known)
+
+    assert stuck_row.status is Status.FAILED and stuck_row.error_type == "JobLookupError"
+    assert known_row.status is Status.SUCCESS  # it waited for the timeout, not for the lookup
+    assert time.perf_counter() - started < 5
+    assert lookup.calls == 1  # not asked again
+    assert await queue.receive(0.05) is None  # and the message is acknowledged: it is not retried
+
+
+async def test_a_lookup_that_raises_a_timeout_of_its_own_is_one_that_raised(db, queue, caplog):
+    job_id = await enqueue(db, queue, "other", Shout.job_hash())
+
+    async with Running(make(db, queue, [], jobs_lookup=Slow(raises=TimeoutError("the bucket did not answer")))):
+        row = await final(db, job_id)
+
+    assert row.status is Status.FAILED and row.error_type == "JobLookupError"
+    assert "took longer" not in caplog.text and "raised TimeoutError" in caplog.text
+
+
+def test_the_lookup_timeout_is_15_seconds_unless_the_variable_says_otherwise(db, monkeypatch):
+    assert make(db, MemoryQueue(), []).jobs_lookup_timeout == 15.0
+    monkeypatch.setenv("FTW_JOBS_LOOKUP_TIMEOUT", "2.5")
+    assert make(db, MemoryQueue(), []).jobs_lookup_timeout == 2.5
+    monkeypatch.setenv("FTW_JOBS_LOOKUP_TIMEOUT", "0")  # there is no way to switch it off
+    with pytest.raises(ValueError, match="FTW_JOBS_LOOKUP_TIMEOUT"):
+        make(db, MemoryQueue(), [])
+
+
+# the name
+
+
+@pytest.mark.parametrize("name", ["shout\n", "a/b", "9x", "", "x y", "..", "é"])
+def test_a_job_class_cannot_have_a_name_that_is_not_a_name_not_even_with_a_newline_at_the_end(name):
+    with pytest.raises(TypeError, match="name must be a string"):
+        type("Bad", (Shout,), {"name": name})
+
+
+@pytest.mark.parametrize("name", ["../../other-tenant/agent", "a/b", "..", "", "9lives", "has space", "x" * 50 + "\n"])
+async def test_a_message_whose_job_name_is_not_a_name_fails_without_the_lookup_being_asked(db, queue, caplog, name):
+    lookup = Lookup({name: Shout})  # it would answer for it
+    job_id = await enqueue(db, queue, name, Shout.job_hash())
+
+    async with Running(make(db, queue, [Shout], jobs_lookup=lookup)):
+        row = await final(db, job_id)
+
+    assert row.status is Status.FAILED and row.error_type == "UnknownJob"
+    assert lookup.calls == []
+    assert await queue.receive(0.05) is None
+    assert name.strip() == "" or name not in caplog.text  # the text names the rule, not the value
 
 
 async def test_the_worker_caches_nothing(db, queue):

@@ -130,7 +130,7 @@ A worker is given its jobs when it starts. If your users define their own agents
 cannot have been given them. `jobs_lookup` is a **fallback** for those: `jobs` is tried first, and the lookup is called only for a name `jobs` does not have.
 
 ```python
-async def jobs_lookup(name: str, job_hash: str | None, identity: Teacher | None):
+async def jobs_lookup(name: str, job_hash: str | None, identity: Teacher):  # the worker declares `Teacher`: never None
     definition = await my_agents.get(identity.tenant, name)  # your storage; the identity can scope the search
     return build_agent(definition) if definition else None  # an agent class or a Job class; None: unknown
 
@@ -146,8 +146,10 @@ worker = JobWorker(
   `None` is `UnknownJob`; a lookup that raises, or returns something that is not a job, fails the job with `JobLookupError`. The worker never retries a job, so a lookup that can fail for a
   transient reason retries inside itself.
 - The worker caches nothing. The hash is made from the content, so you may cache what you built by `(name, job_hash)`.
+- **The lookup has a timeout:** `FTW_JOBS_LOOKUP_TIMEOUT` seconds (15 by default). It runs inline in the worker's receive loop, so one that hangs would stop the worker taking messages; past the limit it is cancelled
+  (so it must be safe to cancel) and the job is `FAILED` with `JobLookupError`. There is no way to switch it off: set a large value.
 - **Names are yours.** A job's name is a string you choose, unique in what your lookup searches (with the identity, unique within a tenant is enough) and stable: a rename breaks the jobs queued
-  under the old name. It must match `[A-Za-z][A-Za-z0-9_.-]*`.
+  under the old name. It must match `[A-Za-z][A-Za-z0-9_.-]*`, and the worker fails a job whose name does not (`UnknownJob`) without asking your lookup.
 - On the client side nothing changes: `submit` takes the class that you built from the same definition.
 
 The [spec](specs/submitted-jobs.md#jobs-that-are-not-declared-in-code) has the rules. It is not a registry: where definitions live, who may define one and which tools a user may pick are your application's.

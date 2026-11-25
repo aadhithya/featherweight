@@ -208,12 +208,19 @@ worker = JobWorker(db, queue, runner, jobs=[Summarise], jobs_lookup=jobs_lookup)
     says which), and the message is acknowledged. The worker **rebuilds the identity first**, because the lookup receives it, so a message whose identity does not fit fails
     before the lookup is asked. **A failed job is not retried by the worker** (as always), so a lookup that can fail for a transient reason
     (a database that is briefly away) retries inside itself.
+  - **A lookup that takes too long fails the job.** The lookup runs inline in the worker's receive loop, so a lookup that hangs (a database or an object store that does not answer) would stop the worker
+    from taking any message. It has a timeout, `FTW_JOBS_LOOKUP_TIMEOUT` seconds (15 by default; [configuration](configuration.md)), read when the worker is built and with no argument and no way to switch it off.
+    When it passes, the lookup is cancelled and the job is `FAILED` with `JobLookupError` ("jobs_lookup took longer than N seconds"), the message is acknowledged and the worker goes on to the next one. So a lookup must be safe to cancel,
+    and a message behind a slow lookup waits at most the timeout. A lookup that raises a `TimeoutError` of its own is reported as one that raised, not as one that was too slow.
+  - **The name is checked first.** A message whose job name does not match the pattern below is not a job: it is `FAILED` with `UnknownJob` (the text names the rule, not the value), the message is acknowledged, and neither `jobs` nor
+    `jobs_lookup` is asked. The pattern is only checked when a `Job` class is made, so a message that did not come from `submit` (a forged one, a client of another version or language) could otherwise hand the application's lookup any string, such
+    as `../../other-tenant/agent`, before the application has had a chance to validate it. The queue is trusted, so this is a safeguard and not a boundary.
 - **`job_hash`** is the hash of the job's declaration: for an agent, the whole of its declaration (its prompt, model settings, tools,
   sub-agents, skills, MCP servers, the system prompt and the schemas of its input and output); for a `Job` class, its name, its version and
   the schemas of its input and output (not the code of `run`: bump `version` when that changes). A lookup may ignore it, and then a job queued
   before an edit fails, which is safe. A lookup that keeps saved versions of a definition uses it to load the exact one. It is made from the
   content, so a lookup may cache what it built by `(name, job_hash)` without it going stale. The worker caches nothing.
-- **Names are the application's.** The name is the job's key: a worker runs a job by it, and a name must match `^[A-Za-z][A-Za-z0-9_.-]*$` (a letter first, then letters, digits, `_`, `.` and
+- **Names are the application's.** The name is the job's key: a worker runs a job by it, and the worker refuses a name that does not (see above). A name must match, whole, `^[A-Za-z][A-Za-z0-9_.-]*$` (a newline at the end does not) (a letter first, then letters, digits, `_`, `.` and
   `-`). It is a plain string that the application chooses: unique in what its lookup searches (with the identity, unique within a tenant is enough), and stable, because a rename breaks the jobs
   queued under the old name and changes the agent's hash. An agent's `name` is also what a model sees when it launches the agent as a sub-agent and what the run log shows, so a readable name
   and a unique one pull apart: an application that needs ids in the name can use them (`agent-7f3a...`), and one that wants readable names keeps them unique per tenant. featherweight
@@ -388,6 +395,9 @@ No live model call. Fake models, `MemoryQueue`, the dict result store.
 - **`jobs_lookup`:** it is not called for a name `jobs` has; a name `jobs` lacks is looked up, and the class it returns runs (an agent class too);
   `None` is `UnknownJob`; a lookup that returns another name, a job whose hash is not the one recorded at submit, and a lookup that raises each
   fail the job with `JobLookupError` and do not run it; a lookup that ignores the hash runs a job whose definition did not change; an empty `jobs`; the identity reaches the lookup.
+- **The timeout and the name:** a lookup that sleeps past a short timeout fails the job with `JobLookupError`, is not asked again, its message is acknowledged and the next job runs (also one that is in `jobs`); a lookup that raises its
+  own `TimeoutError` is a lookup that raised; unset, the timeout is 15 seconds, and a bad value is a `ValueError` that names the variable; a name with `/`, with `..`, empty or starting with a digit fails with `UnknownJob`
+  without the lookup being asked, and the text does not hold the name.
 - **The identity** ([the spec](identity.md#tests)): a job submitted with an identity whose tool reads it on a worker; a message without one for a worker whose type does not allow `None`, and one
   that does not validate, one whose kind the type does not have, and one with no kind, fail the job without running it; a worker whose type its runner does not accept is refused when it is built; `check_queue` and the identity and its kind.
 - **The client and the worker:** submit, status, wait, result; a failing enqueue; every cancel case, in the same process and from

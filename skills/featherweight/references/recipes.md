@@ -475,7 +475,9 @@ On a worker, the agent does not exist in the code that started it. `jobs_lookup`
 from featherweight import JobWorker
 
 
-async def jobs_lookup(name: str, job_hash: str | None, identity):
+async def jobs_lookup(
+    name: str, job_hash: str | None, identity: Teacher
+):  # the worker declares `Teacher`, so it is never None
     definition = await definitions.get(identity.tenant, name)  # your storage; the identity scopes the search
     return build(definition) if definition else None
 

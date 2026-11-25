@@ -72,6 +72,8 @@ HEARTBEAT = _seconds("FTW_HEARTBEAT", None, "How often a worker renews its lease
 QUEUE_LEASE = _seconds("FTW_QUEUE_LEASE", 60.0, "How long a received message stays invisible to other receivers")
 QUEUE_MAX_DELIVERIES = _count("FTW_QUEUE_MAX_DELIVERIES", 3, "Deliveries of a message before SqliteQueue marks it dead")
 
+JOBS_LOOKUP_TIMEOUT = _seconds("FTW_JOBS_LOOKUP_TIMEOUT", 15.0, "How long jobs_lookup may take")
+
 SETTINGS: tuple[Setting, ...] = (
     MAX_CONCURRENT_ATTEMPTS,
     MAX_AGENT_DEPTH,
@@ -85,4 +87,5 @@ SETTINGS: tuple[Setting, ...] = (
     HEARTBEAT,
     QUEUE_LEASE,
     QUEUE_MAX_DELIVERIES,
+    JOBS_LOOKUP_TIMEOUT,
 )
