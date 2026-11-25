@@ -12,6 +12,7 @@ featherweight does not check any of this: it passes attachments to the model and
 - [Google (Gemini API)](#google-gemini-api)
 - [OpenAI](#openai)
 - [Ollama](#ollama)
+- [A file returned by a tool](#a-file-returned-by-a-tool)
 - [How we read it](#how-we-read-it)
 
 ## At a glance
@@ -80,6 +81,21 @@ Page: [vision](https://docs.ollama.com/capabilities/vision).
 - **Models:** vision models only. A model without vision refuses the field.
 - **PDFs, audio, video, a count of images:** not stated. The usual workaround is to turn each PDF page into an image first.
 - featherweight has no Ollama provider, and `langchain-ollama` was not read.
+
+## A file returned by a tool
+
+An agent or a job does not carry files ([attachments](https://github.com/aadhithya/featherweight/blob/main/docs/specs/attachments.md#files-for-agents-and-jobs)): it gets a reference, and a tool fetches the file. A tool can return the text of the
+file, which every provider takes, or an image or a file block. **Checked once on 2026-11-25** (real calls, the smallest model of each provider in featherweight's settings,
+one small file each: a 200 px JPEG and a one-page PDF; the model had to answer from the file):
+
+| Provider (model) | Image returned by a tool | PDF returned by a tool |
+|---|---|---|
+| Anthropic (`claude-haiku-5-5`) | read | read |
+| Google, Gemini (`gemini-3.5-flash-lite`) | read | read |
+| OpenAI (`gpt-6-luna`, Responses API) | read | read |
+| Google, Gemma (`gemma-4-26b-a4b-it`) | not known: it did not call the tool | not known |
+
+It is a snapshot from one run each, with the same warning as the rest of this page: try your provider, your model and your type of file. OpenAI's Chat Completions API was not tried (featherweight's `OpenAI` settings build the Responses API). [The recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/files-for-an-agent-or-a-job.md) shows the tool.
 
 ## What the LangChain packages do with it
 

@@ -111,6 +111,7 @@ nav:
       - recipes/agents-built-from-json.md
       - recipes/a-queue-that-signs-its-messages.md
       - recipes/a-tool-that-gets-a-token-for-its-identity.md
+      - recipes/files-for-an-agent-or-a-job.md
   - Guides:
       - documentation.md
       - getting-started.md

@@ -143,13 +143,13 @@ chat_input = ChatInput(messages=[UserMessage(id="1", content=[TextInputContent(t
       max_bytes = 30 * 1024 * 1024
   ```
 
-  Over a limit, `runner.stream()` raises an `AttachmentLimitError` before any run exists. It is a `BadRequest` (so a `ValueError`): a web application answers it with a 413, and the other bad requests with a 422, as the examples above do. For 100 files at once, use a [job](submitted-jobs.md).
+  Over a limit, `runner.stream()` raises an `AttachmentLimitError` before any run exists. It is a `BadRequest` (so a `ValueError`): a web application answers it with a 413, and the other bad requests with a 422, as the examples above do. Files do not travel between agents, or through a job's queue: for files that are not in a chat, keep them in your own store and pass [a reference](recipes/files-for-an-agent-or-a-job.md).
 
   **The server's body limit comes first.** Both adapters take an attachment as base64 inside the JSON body, a third larger than the file (the default 15 MiB is about 20 MiB of body), and every turn sends the whole conversation again. A web server or a proxy in front of your application often has a lower limit on the body of a request: a body over it never reaches `featherweight`, and the person gets the server's refusal and none of these messages. `max_bytes` is the agent's policy: set the server's limit above `max_bytes` x 4/3 plus the text.
 - **Errors.** A wrong input is raised (a URL, bad base64, an empty attachment, no mime type, over a limit: an `AttachmentLimitError`). What the provider refuses (a type the model cannot read, a file too big for it) is a failed turn: a `RUN_ERROR` event and a `FAILED` row, not retried.
 - **No checks.** `featherweight` does not know what a model can read. [What the providers accept](attachments-providers.md) is a dated snapshot; read the providers' own pages before you design around a type or a size.
 - **The Vercel AI SDK** sends an attachment as a `file` part with a `data:` URL, which is read. Any other URL is refused with a `BadRequest`.
-- **Not logged.** The run log, the events and the default observers hold no attachment. An observer that captures content (`capture_content=True`, or OpenTelemetry with content capture on) gets the bytes with the other messages: leave it off, or filter, if attachments are private.
+- **Not logged.** The run log, the events and the default observers hold no attachment. An observer that captures content (`capture_content=True`, or OpenTelemetry with content capture on) gets the bytes with the other messages: leave it off, or filter, if attachments are private. `featherweight` puts no attachment bytes in an event or a log line, and guarantees nothing about what a provider's endpoint puts in its error text or keeps in its own logs: the text of a failure is passed on as it is.
 - **Some providers drop or refuse a type** without warning (Anthropic raises for audio and video; OpenAI's Responses API silently drops audio). The [provider page](attachments-providers.md#what-the-langchain-packages-do-with-it) has the table.
 
 Details and decisions: [the attachments spec](specs/attachments.md).

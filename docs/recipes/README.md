@@ -21,5 +21,6 @@ Short, complete patterns to adapt, for building with featherweight. They use the
 | [Agents built from JSON, with your own rules](agents-built-from-json.md) | Let users define agents from a catalog you control, and run them on workers |
 | [A queue that signs its messages](a-queue-that-signs-its-messages.md) | Wrap any queue with an HMAC signature, and check it with the kit |
 | [A tool that gets a token for its identity](a-tool-that-gets-a-token-for-its-identity.md) | Act for the signed-in user: check, then get a credential at each call |
+| [Files for an agent or a job: pass a reference](files-for-an-agent-or-a-job.md) | Keep the file in your store, pass its reference, and let a tool fetch it and check the identity |
 
 The skill for coding agents carries an abridged copy of these pages, built from them by `scripts/build_skill.py`, so edit the pages here.

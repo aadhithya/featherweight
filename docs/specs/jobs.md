@@ -105,6 +105,8 @@ The limits:
 - **State kept in memory is not used for resumption**; the result store is. A reused step does not run, so what it kept in memory is not rebuilt.
 - **Side effects** of tools in the failed job are not undone or repeated. An agent that failed halfway runs whole.
 - **Rows from before `agent_hash`** existed are never reused. Neither are `FAILED`, `INIT` and `RUNNING` rows.
+- **A reference stands for the file behind it.** A step is reused for the same input and identity, so for the same reference even if the file it points to has changed.
+  When that matters, put a version or a hash in the reference ([files for agents and jobs](attachments.md#files-for-agents-and-jobs)).
 - **Depth 1 only.** Sub-agent runs are not looked up. A parent that succeeded is reused whole; one that failed runs again
   with its children. Child reuse is not included.
 
