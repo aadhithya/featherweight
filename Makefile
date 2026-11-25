@@ -46,7 +46,8 @@ DOCS_PORT ?= 8001
 DOCS_RUN = docker compose run --rm --no-deps -u $$(id -u):$$(id -g) -e HOME=/tmp featherweight
 
 docs:
-	docker compose run --rm --no-deps -p $(DOCS_PORT):8000 -u $$(id -u):$$(id -g) -e HOME=/tmp featherweight mkdocs serve -a 0.0.0.0:8000
+	@echo "The documentation: http://localhost:$(DOCS_PORT)"
+	docker compose run --rm --no-deps -p $(DOCS_PORT):$(DOCS_PORT) -u $$(id -u):$$(id -g) -e HOME=/tmp featherweight mkdocs serve -a 0.0.0.0:$(DOCS_PORT)
 
 docs-build:
 	$(DOCS_RUN) mkdocs build --strict
