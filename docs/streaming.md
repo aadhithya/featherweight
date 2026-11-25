@@ -144,6 +144,8 @@ chat_input = ChatInput(messages=[UserMessage(id="1", content=[TextInputContent(t
   ```
 
   Over a limit, `runner.stream()` raises an `AttachmentLimitError` before any run exists. It is a `BadRequest` (so a `ValueError`): a web application answers it with a 413, and the other bad requests with a 422, as the examples above do. For 100 files at once, use a [job](submitted-jobs.md).
+
+  **The server's body limit comes first.** Both adapters take an attachment as base64 inside the JSON body, a third larger than the file (the default 15 MiB is about 20 MiB of body), and every turn sends the whole conversation again. A web server or a proxy in front of your application often has a lower limit on the body of a request: a body over it never reaches `featherweight`, and the person gets the server's refusal and none of these messages. `max_bytes` is the agent's policy: set the server's limit above `max_bytes` x 4/3 plus the text.
 - **Errors.** A wrong input is raised (a URL, bad base64, an empty attachment, no mime type, over a limit: an `AttachmentLimitError`). What the provider refuses (a type the model cannot read, a file too big for it) is a failed turn: a `RUN_ERROR` event and a `FAILED` row, not retried.
 - **No checks.** `featherweight` does not know what a model can read. [What the providers accept](attachments-providers.md) is a dated snapshot; read the providers' own pages before you design around a type or a size.
 - **The Vercel AI SDK** sends an attachment as a `file` part with a `data:` URL, which is read. Any other URL is refused with a `BadRequest`.
@@ -209,8 +211,8 @@ async def chat(request: Request):
 
 - **The request.** `useChat` posts `{"id": ..., "messages": [UIMessage, ...]}`. `id` becomes the `thread_id`. A UIMessage's
   text parts are joined; an assistant message with tool parts becomes what the model saw (the assistant message with its tool
-  calls, then the tool results, then the next step's message), and its reasoning parts become reasoning messages. Files,
-  sources and `data-*` parts are ignored. The same rules as any `ChatInput`: no `system` message, and the last message is the
+  calls, then the tool results, then the next step's message), and its reasoning parts become reasoning messages. A user message's
+  `file` parts are read as [attachments](#attachments); in an assistant message, files, sources and `data-*` parts are ignored. The same rules as any `ChatInput`: no `system` message, and the last message is the
   user's. `parse_request` raises `BadRequest` (a `ValueError`, also raised by the AG-UI adapter) for a body it cannot use, with the reason.
 - **The response.** Each AG-UI event becomes the part that the protocol page shows:
 

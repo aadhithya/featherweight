@@ -139,6 +139,80 @@ def test_a_vercel_file_with_bad_base64_is_refused():
         vercel.parse_request(vercel_body(file_part("data:image/png;base64,@@@not base64@@@")))
 
 
+# the words of a refusal: the same in both adapters, and nothing of pydantic's path
+
+
+def refusal(adapter, body) -> str:
+    with pytest.raises(BadRequest) as refused:
+        adapter.parse_request(body)
+    return str(refused.value)
+
+
+def test_a_url_source_is_refused_in_one_line_that_names_the_part_and_the_way_out():
+    url = {"type": "image", "source": {"type": "url", "value": "https://example.com/a.png", "mimeType": "image/png"}}
+    assert refusal(agui, agui_body(url)) == (
+        "messages[0].content[0] is image content that is not inline data (url source): "
+        "download the file and send its bytes as a data source"
+    )
+
+
+def test_bad_base64_is_worded_alike_by_both_adapters():
+    wrapped = base64.encodebytes(b"x" * 100).decode()
+    by_agui = refusal(
+        agui, agui_body({"type": "image", "source": {"type": "data", "value": wrapped, "mimeType": "image/png"}})
+    )
+    by_vercel = refusal(vercel, vercel_body(file_part(f"data:image/png;base64,{wrapped}")))
+    assert by_agui == by_vercel
+    assert by_agui.startswith(
+        "messages[0].content[0] is image content whose data is not base64: it has line breaks or spaces"
+    )
+
+
+def test_the_vercel_adapter_words_a_link_and_a_missing_media_type_in_one_line_too():
+    assert refusal(vercel, vercel_body(file_part("https://example.com/a.png"))) == (
+        "messages[0] has a file that is not a data: URL: send the bytes, not a link"
+    )
+    assert (
+        refusal(vercel, vercel_body(file_part("data:;base64,AAAA", media="")))
+        == "messages[0] has a file with no mediaType"
+    )
+
+
+def test_a_missing_mime_type_names_the_field_and_not_every_branch_of_the_union():
+    body = agui_body({"type": "image", "source": {"type": "data", "value": PNG}})
+    assert (
+        refusal(agui, body)
+        == "The body is not an AG-UI request: messages[0].content[0].source.mimeType: Field required"
+    )
+
+
+def test_a_part_without_its_text_names_the_field_and_a_field_that_is_spelled_like_a_tag_stays():
+    assert refusal(agui, agui_body({"type": "text"})) == (
+        "The body is not an AG-UI request: messages[0].content[0].text: Field required"
+    )
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        agui_body({"type": "image", "source": {"type": "url", "value": "https://x/a.png", "mimeType": "image/png"}}),
+        agui_body({"type": "image", "source": {"type": "data", "value": "@@@", "mimeType": "image/png"}}),
+        agui_body({"type": "image", "source": {"type": "data", "value": PNG}}),
+        agui_body({"type": "text"}),
+    ],
+    ids=["url", "base64", "mime", "text"],
+)
+def test_no_refusal_has_pydantics_prefix_its_path_of_a_union_or_the_word_body(body):
+    message = refusal(agui, body)
+    assert "Value error" not in message and "tagged-union" not in message and "body:" not in message
+    assert "messages.0" not in message  # the path reads messages[0].content[0], not messages.0.user.content.list
+
+
+def test_a_body_that_is_not_json_or_not_a_request_says_so():
+    assert refusal(agui, b"not json").startswith("The body is not JSON")
+    assert refusal(agui, {"nope": 1}).startswith("The body is not an AG-UI request: ")
+
+
 # the events: an attachment turn streams like any other, and the events carry no bytes
 
 

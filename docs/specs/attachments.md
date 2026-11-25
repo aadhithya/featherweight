@@ -165,6 +165,9 @@ Checked while writing this (2026-11-22):
   through Anthropic and Chat Completions, although Chat Completions takes only PDFs. This is the packages' behaviour on the dates above and it changes.
 - **Observers:** an observer that captures content (`capture_content=True`, and OpenTelemetry with content capture on) is given the attachment bytes with
   the rest of the messages. That is the documented opt-in. By default no event, run log row, observer record or span holds any of it.
+- **The body of a request** carries each attachment as base64 inside the JSON, a third larger than the file, and every turn sends the whole conversation again. A
+  server or a proxy in front of the application often has a lower limit on a body, and a body over it never reaches featherweight: the guide says so, and that
+  `max_bytes` is the agent's policy and not the server's.
 - **The Vercel adapter** read only the text of a user message and dropped its `file` parts, so an attachment was lost. It now converts a `file` part with
   a `data:...;base64,` URL into an image, audio, video or document part by its `mediaType`, and refuses any other URL with a `BadRequest`. The AG-UI adapter
   needed no change.
