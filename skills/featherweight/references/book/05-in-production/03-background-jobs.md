@@ -105,5 +105,6 @@ The researcher says: something like the cause named in the note.
 
 - A chat that starts background work: [the guide](../../background-jobs.md#a-chat-in-the-browser).
 - [An agent that starts another and goes on](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/an-agent-that-starts-another-and-goes-on.md), as a recipe.
+- Give the job what the parent knows: [a `context` field in its input](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/giving-a-sub-agent-context.md).
 
 Next: see what all of it did.
