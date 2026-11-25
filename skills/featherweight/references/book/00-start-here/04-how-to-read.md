@@ -16,3 +16,8 @@ In order, or through [the map](02-the-map.md): go straight to what you want to b
   ([choosing a model](../01-your-first-agent/06-choosing-a-model.md)).
 
 When you need an exact rule, the guides and the specs are the reference ([Part 7](../07-reference/01-the-guides.md)).
+
+**Also possible**
+
+- Upgrading from an earlier version? See the [migration guide](../../migration.md).
+- Short patterns to copy: the [recipes](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/README.md).

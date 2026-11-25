@@ -99,6 +99,10 @@ The first message the page sends is the report, and the following ones are quest
 > **Why adapters.** The events are one protocol, AG-UI, and each client's format is a translation at the edge. See
 > [the spec](../../specs/streaming.md).
 
+**Also possible**
+
+- [A chat that streams](../../recipes/a-chat-agent-that-streams.md), keeping the conversation yourself.
+
 Next: stopping a response, and keeping the conversation.
 
 <!-- nav:bottom -->

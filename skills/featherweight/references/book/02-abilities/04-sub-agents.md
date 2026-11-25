@@ -138,4 +138,9 @@ SUCCESS gemini-3.5-flash-lite open_questions=[...] title='Sign-in trouble' sever
 > **Why an allow-list of classes.** There is no registry to maintain, and an agent can launch only what it declares. See
 > [launching agents](https://github.com/aadhithya/featherweight/blob/main/docs/specs/runner.md#launching-agents).
 
+**Also possible**
+
+- How deep, and how many, agents may launch agents: [the limits](../../launching-agents.md#limits).
+- A sub-agent on an allow-list: [the recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/an-agent-that-launches-another.md).
+
 Next: Part 3 adds jobs to the assistant, to run it over many reports.

@@ -59,3 +59,7 @@ await testing.check_queue(lambda lease: SqsQueue(client, url, lease=int(lease)))
 
 > **Why** the lease is in the interface: a queue that loses a message when a worker dies would strand its job. See [the queue](https://github.com/aadhithya/featherweight/blob/main/docs/specs/submitted-jobs.md#the-queue) and
 > [your own queue](../../submitted-jobs.md#your-own-queue).
+
+**Also possible**
+
+- [A queue that signs its messages](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/a-queue-that-signs-its-messages.md), as a recipe.

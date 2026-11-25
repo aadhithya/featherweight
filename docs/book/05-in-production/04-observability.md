@@ -90,6 +90,10 @@ invoke_workflow summarise_file
 
 > **Why an observer.** It never changes a run: one that raises or is slow is logged and ignored. See [observers and OpenTelemetry](../../specs/observability.md) and [the guide](../../observability.md).
 
+**Also possible**
+
+- [Traces for jobs and agents](../../recipes/traces-for-jobs-and-agents.md), as a recipe.
+
 Next: bring your own storage.
 
 <!-- nav:bottom -->
