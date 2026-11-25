@@ -567,7 +567,7 @@ A tool acts for the user whose identity the run has. featherweight carries the i
 
 ```python
 from langchain.tools import ToolRuntime, tool
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from featherweight import AgentRunner, RunContext
 
@@ -575,6 +575,7 @@ from featherweight import AgentRunner, RunContext
 class Teacher(BaseModel):
     user_id: str
     tenant: str
+    jwt: str | None = Field(None, exclude=True)  # only in the process that has it: not sent, so None on a worker
 
 
 def send_email_tool(tokens, directory):
@@ -588,7 +589,9 @@ def send_email_tool(tokens, directory):
             who.user_id, "send_email"
         ):  # re-checked now: the identity is a snapshot
             return "Not allowed."
-        token = await tokens.access_token(who.user_id, scope="mail.send")  # at each call: a long job outlives a token
+        token = who.jwt or await tokens.access_token(
+            who.user_id, scope="mail.send"
+        )  # at each call: a long job outlives a token
         await mail_api.send(token, to, subject, body)
         return "Sent."
 

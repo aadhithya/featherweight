@@ -104,6 +104,43 @@ async def test_a_job_without_an_identity_has_none_when_the_worker_allows_it(db, 
     assert row.status is Status.SUCCESS and WhoAmI.seen == [None]
 
 
+# a field that is not sent
+
+
+class Leaky(BaseModel):
+    user_id: str
+    jwt: str = Field(exclude=True)  # not sent, and no default: the worker could not rebuild it
+
+
+@pytest.mark.parametrize("declared", [Leaky, Leaky | Teacher, Teacher | Leaky | None])
+def test_a_field_that_is_not_sent_needs_a_default_when_the_runner_the_worker_and_the_client_are_built(db, declared):
+    match = "Leaky.jwt is marked exclude=True and has no default"
+    with pytest.raises(TypeError, match=match):
+        runner_with(db, Scripted(script=[]), identity_type=declared)
+    with pytest.raises(TypeError, match=match):
+        JobWorker(db, MemoryQueue(), runner_for(db), [WhoAmI], identity_type=declared)
+    with pytest.raises(TypeError, match=match):
+        JobClient(db, MemoryQueue(), MemoryResultStore(), identity_type=declared)
+
+
+async def test_a_field_that_is_not_sent_is_there_in_the_process_and_is_its_default_on_a_worker(db, queue):
+    from featherweight.jobs import run_job
+
+    runner = runner_for(db)
+    teacher = Teacher(user_id="a", token="only in this process")
+    await run_job(runner, WhoAmI, In(text="x"), identity=teacher)  # in the process: the object that was passed
+    client = await client_for(db, queue, identity_type=Teacher)
+    job_id = await client.submit(WhoAmI, In(text="x"), identity=teacher)
+
+    async with Running(make(db, queue, [WhoAmI], runner=runner_for(db), identity_type=Teacher)):
+        await final(db, job_id)
+
+    in_process, on_a_worker = WhoAmI.seen
+    assert (
+        in_process.token == "only in this process" and on_a_worker.token == ""
+    )  # the default: the tool asks the vault
+
+
 # a message that does not fit the worker
 
 

@@ -84,7 +84,8 @@ returns `Not allowed.`, and the model says it could not open it.
 - **On a worker it is the same.** `client.submit(job, input, identity=...)` puts it in the message with its kind, the name of its class, and `JobWorker(..., identity_type=Responder)` rebuilds it as that model ([the guide](../../submitted-jobs.md#who-the-job-is-for-the-identity)). The runner must accept the worker's type, and a rename of the class while a job is queued fails that job.
 - **It is a snapshot,** taken when the job was submitted. A queued job can run later, after a role changed or a token expired: for a sensitive action, the tool re-checks with your application by user id.
   A tool gets a credential from the identity with your own code, at each call. The identity is small and has no secrets in it: it sits in the queue message.
-- **Resuming** reuses a step only for the same identity, and whether someone may resume a job at all is your check.
+- **A job is for one identity.** If you pass a `job_id` to `run` yourself, pass the same identity every time: a run for another one raises. Resuming makes a new job, and reuses a step only for the same identity; whether someone may resume a job at all is your check.
+- **A field that is not sent** (`exclude=True`, for a value that exists only in your process) needs a default, because the worker rebuilds the identity without it. Do not change an identity after a run has it.
 - **If you build agents from what users write,** do not let them declare stdio MCP servers: they run commands on your server. Names of jobs are yours: unique in what your lookup searches, and stable.
 
 > **Why carry and not enforce.** Authentication, what a user may do and where credentials live differ in every application, so featherweight hands a typed identity to the tools and leaves the rest to you. See [identity](../../specs/identity.md) and [the guide](../../agents.md#who-is-asking-the-identity-of-a-run).

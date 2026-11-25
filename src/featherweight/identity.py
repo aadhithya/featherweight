@@ -40,6 +40,13 @@ class IdentitySpec:
                 f"identity_type has two models called {sorted({n for n in names if names.count(n) > 1})[0]!r}: the name of the class is "
                 "the kind of the identity on the queue, so each model needs its own"
             )
+        for model in models:
+            for field_name, field in model.model_fields.items():
+                if field.exclude and field.is_required():  # the worker rebuilds the identity without it
+                    raise TypeError(
+                        f"{model.__name__}.{field_name} is marked exclude=True and has no default: a field that is not sent needs "
+                        "one (for example None), because the worker rebuilds the identity without it"
+                    )
         self.models = models
         self.allows_none = _NONE in members
         self._by_kind = {m.__name__: m for m in models}

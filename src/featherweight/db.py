@@ -376,5 +376,11 @@ class Database(ABC):
         looks in its own job without finding the runs of the execution that asks."""
 
     @abstractmethod
+    async def job_has_other_identity(self, job_id: str, identity_hash: str | None) -> bool:
+        """Whether `job_id` already has a run whose identity differs from `identity_hash`, of any status and depth. `None` (no identity)
+        differs from any hash and the reverse, so a job that ran with none is not for an identity, and the other way round. It is
+        how a job stays for one identity (docs/specs/identity.md)."""
+
+    @abstractmethod
     async def list_attempts(self, *, job_id: str | None = None, run_id: str | None = None) -> list[AttemptRow]:
         """Runs in the order they were made, optionally of one job and/or one run."""

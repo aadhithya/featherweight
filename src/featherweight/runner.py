@@ -350,16 +350,37 @@ class AgentRunner:
     ) -> AgentResult[Any]:
         """Run an agent. Runtime failures come back as a FAILED result; they are not raised.
 
-        Programming errors still raise: an input that is not the agent's `input_model`, a `job_id` that does not exist, and an
-        `identity` that is missing, of the wrong type, or given when no `identity_type` is declared. A streaming agent is run
-        with `stream()`.
+        Programming errors still raise: an input that is not the agent's `input_model`, a `job_id` that does not exist, an
+        `identity` that is missing, of the wrong type, or given when no `identity_type` is declared, and an identity that is not
+        the one of the job (`ValueError`: a job is for one identity). A streaming agent is run with `stream()`.
 
         `identity` is who the run is for. The tools read it from their `RunContext`, a launched agent inherits it, and it is never
         shown to the model.
         """
+        await self._check_call(agent_cls, identity, job_id)
+        return await self._run_for(agent_cls, agent_input, job_id, identity)
+
+    async def _check_call(self, agent_cls: type[AgentBase], identity: Any, job_id: str | None) -> None:
+        """What `run` and `run_many` check once, at the call, before anything runs or is written: a streaming agent, the identity
+        against the declared type, and a job that is for another identity."""
         if agent_cls.streaming:
             raise TypeError(f"{agent_cls.__name__} is a streaming agent: run it with runner.stream()")
         self.identity.check(identity)
+        await self._check_job_identity(job_id, identity)
+
+    async def _check_job_identity(self, job_id: str | None, identity: Any) -> None:
+        """A job is for one identity: refuse a run whose identity is not the one the job's earlier runs had (docs/specs/identity.md).
+        Not atomic, and not a security boundary: a guard against a mistake. The text names no identity."""
+        if job_id is not None and await self.db.job_has_other_identity(job_id, identity_hash(identity)):
+            raise ValueError(
+                f"a job is for one identity: job {job_id} already has a run for another one. Use another job for this identity "
+                "(a resume is a new job)"
+            )
+
+    async def _run_for(
+        self, agent_cls: type[AgentBase], agent_input: AgentInput, job_id: str | None, identity: Any
+    ) -> AgentResult[Any]:
+        """Run with `identity` as the identity of the run, for the tools and for what the run launches."""
         token = CURRENT_IDENTITY.set(identity)
         try:
             return await self._run(agent_cls, agent_input, job_id=job_id)
@@ -374,7 +395,7 @@ class AgentRunner:
 
         Programming errors raise, as for `run()`: an agent that is not a streaming agent, an input that is not a
         `ChatInput`, a conversation with more attachments or bytes than the agent allows, an `identity` that is missing or of the
-        wrong type, or a `job_id` that does not exist (raised when the loop starts).
+        wrong type, or a `job_id` that does not exist or a job that is for another identity (raised when the loop starts).
         """
         if not (isinstance(agent_cls, type) and issubclass(agent_cls, StreamingAgent)):
             raise TypeError(
@@ -420,6 +441,9 @@ class AgentRunner:
         system_prompt = agent.build_system_prompt(can_launch=can_launch, can_background=self._can_background(agent))
         CURRENT_ATTEMPT_ID.set(run.attempt_id)  # this task has its own context, so nothing needs undoing
         CURRENT_IDENTITY.set(identity)  # the tools of this turn, and what it launches, read it
+        await self._check_job_identity(
+            job_id, identity
+        )  # a stream is not async: the job is checked when the loop starts
         logger.info(
             "stream_started run_id=%s attempt_id=%s agent=%s version=%s model=%s reasoning=%s job_id=%s thread_id=%s",
             run.run_id,
@@ -1174,11 +1198,12 @@ class AgentRunner:
         exceptions, so the caller decides what a failure means. There is no limit of its own: the
         runner's concurrency limit bounds how many attempts run at once.
         """
+        await self._check_call(agent_cls, identity, job_id)  # once, and also for no inputs
         name = agent_cls().name  # ty: ignore[missing-argument]  # a subclass supplies the defaults
         logger.info("fan_out_started agent=%s count=%d job_id=%s", name, len(agent_inputs), job_id)
         results = list(
             await asyncio.gather(
-                *(self.run(agent_cls, agent_input, job_id=job_id, identity=identity) for agent_input in agent_inputs)
+                *(self._run_for(agent_cls, agent_input, job_id, identity) for agent_input in agent_inputs)
             )
         )
         failed = sum(result.status == Status.FAILED for result in results)
@@ -1375,7 +1400,9 @@ class AgentRunner:
                         input=child_input.model_dump(mode="json") if self._observers.wants_content else None,
                     )
                 )
-            task = asyncio.create_task(self._run_background(declared, job_id, child_input, trace_context))
+            task = asyncio.create_task(
+                self._run_background(declared, job_id, child_input, context.identity, trace_context)
+            )
             self._background_tasks.add(task)
             task.add_done_callback(self._background_tasks.discard)
             placement = "here"
@@ -1391,9 +1418,10 @@ class AgentRunner:
         return job_id
 
     async def _run_background(
-        self, declared: Any, job_id: str, child_input: Any, trace_context: dict[str, str] | None = None
+        self, declared: Any, job_id: str, child_input: Any, identity: Any, trace_context: dict[str, str] | None = None
     ) -> None:
-        """The task of a child that runs here: the same code as `run_job`. What it raises is logged, and nothing more."""
+        """The task of a child that runs here: the same code as `run_job`, for the identity of the attempt that started it (the
+        same place a child on a worker gets it from). What it raises is logged, and nothing more."""
         from featherweight.jobs import run_job  # jobs.py imports this module
 
         try:
@@ -1403,7 +1431,7 @@ class AgentRunner:
                 child_input,
                 job_id=job_id,
                 trace_context=trace_context or {},
-                identity=CURRENT_IDENTITY.get(),
+                identity=identity,
             )
         except asyncio.CancelledError:
             raise

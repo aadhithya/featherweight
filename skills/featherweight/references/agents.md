@@ -96,7 +96,7 @@ async with SqliteDatabase("featherweight.db") as db:
 - `run(agent_cls, agent_input, job_id=None)` runs one agent. Pass the class, not an instance.
 - `run_many(agent_cls, inputs, job_id=None)` runs one agent over many inputs at the same time (fan-out) and returns the
   results in input order. It has no limit of its own: the runner's concurrency limit bounds it.
-- Several agents of one pipeline share a `job_id`. Without one, the run is logged with no job.
+- Several agents of one pipeline share a `job_id`. Without one, the run is logged with no job. A job is for one identity ([who is asking](#who-is-asking-the-identity-of-a-run)): give every run of a `job_id` the same one.
 - A `job_id` is **the job that the run belongs to**, not the id of the run. A job is one unit of work with a status (a pipeline
   you run with `run_job`, or one you submit to a worker): it has many runs, each with a `run_id`, and each attempt of a run has an `attempt_id`.
 
@@ -220,7 +220,10 @@ result = await runner.run(Mailer, MailerInput(...), identity=Teacher(user_id="u1
 - `run`, `run_many`, `stream` and `run_job` take `identity=`. A job reads it as `ctx.identity`, and every agent it runs with `ctx.run` has it.
 - **A launched agent has its parent's identity,** and so does an agent started in the background in the same process. The model cannot set or change it.
 - Code that cannot take `runtime` (a tool shared by many attempts, such as an MCP tool) reads `CURRENT_IDENTITY` from `featherweight.context`.
-- **It is carried, not used.** It is never shown to the model, never part of the agent's hash, never logged and never stored. Keep it small, and keep secrets out of it:
+- **A job is for one identity.** `run_job` and `submit` give a whole job one identity. If you pass a `job_id` to `run`, `run_many` or `stream` yourself, pass the same identity every time: a run for another identity (or for none, when
+  an earlier run had one) raises `ValueError` before anything is written. To run for someone else, use another job: a resume is a new job, so a support person can resume a user's job under their own identity.
+- **A field marked `exclude=True` is not sent to a worker,** for a value that exists only in your process. It needs a default (`jwt: str | None = Field(None, exclude=True)`), because the worker rebuilds the identity without it; a model without one is refused when the runner, the worker or the client is built.
+- **It is carried, not used.** It is never shown to the model, never part of the agent's hash, never logged and never stored. Keep it small, keep secrets out of it, and do not change it after a run has it:
   a tool gets a credential from the identity with your own code. Checking what the identity may do is the tool's job.
 - A job that is submitted to a worker carries it in the queue message, and the worker rebuilds it ([submitted jobs](submitted-jobs.md#who-the-job-is-for-the-identity)).
 - **Resuming a job reuses a step only for the same identity** ([resuming a job](jobs.md#resuming-a-job)): a change in who the run is for may be a change in what it may do, so the old result is not relied on. Whether a person may resume a job at all is your check.

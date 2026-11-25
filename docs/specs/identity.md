@@ -23,7 +23,7 @@ and adds a few lines to each. What it owns is the identity itself.
 
 A tool often has to act for someone: read this user's files, send this user's mail, count against this tenant's quota. **The model must not choose who**, and
 the answer cannot come from the model's input. An identity is what the application tells a run about who it is for. It is a typed value that reaches the tools
-and nothing else, and it is the same value whether the run happens in your process or on a worker ("one concept, two places": a tool that works in a process
+and nothing else, and it is the same value, apart from the fields marked `exclude=True`, whether the run happens in your process or on a worker ("one concept, two places": a tool that works in a process
 must not silently get nothing on a worker).
 
 featherweight **carries** the identity. It does not authenticate anyone, decide what they may do, get a credential for them or keep them: those are the
@@ -47,7 +47,16 @@ class Teacher(BaseModel):
 - **Small.** It travels in the queue message of a submitted job, so it holds ids, not names or addresses.
 - **No secrets.** A token in it would sit in the queue until the message is acknowledged, and a queued job can outlive a token. A tool gets a credential from the
   identity with the application's own code ([the responsibilities](#the-developers-responsibilities)). A field marked `exclude=True` is the one exception: it is
-  not serialised, so it is dropped when a job is submitted, and it is not part of the [hash](#resuming-a-job). It is there for a value that exists only in your process.
+  not serialised, so it is dropped when a job is submitted, and it is not part of the [hash](#resuming-a-job). It is there for a value that exists only in your process (a token that
+  the tool would otherwise ask the vault for). **It needs a default** (`jwt: str | None = Field(None, exclude=True)`): the worker rebuilds the identity without it, and a model whose excluded field
+  has none would fail every job on the worker, late, after `submit` had made and queued it. So `identity_type` is refused when the runner, the worker or the client is built if a model has an excluded
+  field with no default. The pattern for a tool: in a process it may find the value; on a worker it is the default, and the tool falls back to the vault by user id.
+- **One job, one identity.** A job is for one identity: every run that carries its `job_id` has the same identity, or none. To run something for another identity, use another job (a resume is a new job, so a
+  support person can resume a user's job under their own identity). `run_job` and `submit` give the whole job one identity by construction; only a developer who passes the same `job_id` to `run`,
+  `run_many` or `stream` with different identities can break it, and the runner [refuses it](#declaring-and-passing-it).
+- **Read-only, by recommendation.** An identity is a value the application hands over: do not change it after a run has it. The hash is computed from the object at each run, so a tool that changes it
+  changes what later runs record. featherweight does not enforce this (a frozen model is the application's choice).
+
 - **It is a model, not a field of an agent.** An agent is a static definition and is not changed by who runs it: the same agent class runs for every user, and the
   identity is not in `agent_hash`.
 
@@ -78,7 +87,10 @@ result = await runner.run(Summarise, summarise_input, identity=teacher)
   application says which kinds, and the identity says which one this run is for ([the kind](#across-the-queue)).
 - **A missing identity is a programming error and raises**, like an input of the wrong type, and before anything runs. The case it prevents: one code path of
   an application forgets `identity=`, and a tool runs as nobody. A union of the type and `None` (`identity_type=Teacher | None`) is how an application says that some runs (a nightly job) have none.
-- `run_many` gives every input the same identity. `run_job` and `submit` give it to the job: every agent the job runs with `ctx.run` has it.
+- `run_many` gives every input the same identity, and checks it **once, at the call, whatever the number of inputs** (also none). `run_job` and `submit` give it to the job: every agent the job runs with `ctx.run` has it.
+- **A run refuses an identity that is not its job's.** When a run has a `job_id` and the job already has a run with another identity (or with none, and this one has one, or the reverse), the runner raises
+  `ValueError` ("a job is for one identity") before anything is written, naming no identity value. `run` and `run_many` check at the call; `stream` is not `async`, so it checks when the loop starts, where it also
+  raises for a `job_id` that does not exist. A run with no `job_id` is not checked. It is a guard against a mistake, not a security boundary: two first runs of one job with different identities at the same instant can both pass.
 - **The worker's type must be one its runner accepts.** The worker rebuilds the identity from the message with its type and gives it to the run, so every model of the worker's type must be a model of
   the runner's (or a subclass of one), and if the worker allows no identity, so must the runner. `JobWorker` raises `TypeError` when it is built, naming both types, if not: otherwise every job that runs an
   agent would fail at its first `ctx.run`. The two types need not be equal: a worker for `Teacher` over a runner of `Teacher | None` is fine (the runner also serves runs in the process that have none),
@@ -106,12 +118,13 @@ the model never passes it and cannot see it ([tools and the registry](tools-and-
 - **A tool on a runner that declares a union** annotates `RunContext[Teacher | Student]` and checks the kind (`isinstance`) before it acts. Nothing links the annotation to the runner's `identity_type`: a mismatch
   fails at run time, not in the editor.
 - **Pipeline code** reads the identity of its job with `ctx.identity` on the `JobContext`, for a job that has to behave differently for a tenant.
-- The identity is the **same object** that was passed, in a process. On a worker it is a new object, rebuilt from the message, and equal to it.
+- The identity is the **same object** that was passed, in a process. On a worker it is a new object, rebuilt from the message, and equal to it apart from the fields marked `exclude=True`, which have their default.
 
 ## Who inherits it
 
 - **A launched agent** (`launch_agent`) runs with the identity of its parent, and so does an agent started in the background in the same process.
 - **A background job on a worker** (a runner with `background=JobClient`) is submitted with the identity of its parent.
+- **Both read it from the attempt that started them** (its `RunContext`): how a background job runs, here or on a worker, does not change where its identity comes from.
 - **The model cannot set, change or drop it.** `launch_agent` and `start_background` take no identity argument.
 
 **Why identity is inherited and capabilities are not.** A launched agent does not get its parent's tools, skills or sub-agents: each agent has the allow-lists its own
@@ -176,7 +189,8 @@ These stay the application's, on purpose, and the guides, the book and the recip
   the user id, a service credential plus the user id (the service decides), a token exchange or impersonation, or a grant made at submit time and looked up by the job id.
 - **Check who owns a job before `resume_from`.** The identity hash makes a resume reuse only steps of the same identity, and does not decide who may resume a job or read
   its result: that is a check the application makes with its own records of who started which job.
-- **Keep it small,** and keep secrets out of it.
+- **If you pass a `job_id` to `run`, `run_many` or `stream` yourself,** pass the same identity every time: a job is for one identity.
+- **Keep it small,** and keep secrets out of it. Do not change an identity after a run has it.
 - **Do not let users declare stdio MCP servers.** A `StdioMCPServer` runs a command on your server. An application that builds agents from what users write allows only
   `HttpMCPServer`, or servers from a list it controls.
 - **The name of an identity class is a name in the queue.** The kind is the class name, so a rename of an identity class between `submit` and the worker running the job fails that job (`InvalidJobIdentity`),
@@ -197,6 +211,9 @@ These stay the application's, on purpose, and the guides, the book and the recip
 - **The worker keeps its own type, and it must be compatible with its runner's.** The worker's type is what it accepts from the queue, the runner's what a run accepts; a worker may be stricter than its runner,
   never looser.
 - **Inherited by what a run launches, and the model cannot touch it.** It is who the run is for, not a capability.
+- **A job is for one identity, and the runner refuses a run that is not.** The design does not support several identities in one job (the key of a result is the job, the agent and the input), so the rule is stated and
+  checked at run time, rather than the key changed. It is checked on each run that names a job: one indexed lookup of the run log.
+- **An excluded field has a default,** because the worker rebuilds the identity without it, and a failure that shows only on a worker is found when the type is declared instead.
 - **Identity, not credentials.** The framework has no credential provider and no protocol for one: where tokens live and how they are exchanged is the application's.
 - **A hash on the run, so that resume reuses only the same step.** The framework keeps a hash, as it keeps `input_hash`, and never the identity.
 - **No codec, no signing and no encryption in the framework.** The queue is the seam; a deployment secures it, and a wrapper queue is a recipe.
@@ -206,6 +223,8 @@ These stay the application's, on purpose, and the guides, the book and the recip
 
 - **Authenticating a user,** deciding what they may do, and getting a credential for them.
 - **An identity per tool call,** or a tool that changes it: a run has one.
+- **Several identities in one job:** a job is for one identity. The result store's key does not carry the identity, and a resume finds a step by the job and the identity: a job that held two would hand one identity's
+  output to the other.
 - **Per-identity MCP servers** (a connection and headers for each identity). Deferred: the connection of a server is shared by every run of a runner today, and a server that
   acts for a user needs its own connection and a token issued for that server. It is its own piece of work.
 - **Signing or encrypting a message,** and an identity that is a secret.
@@ -222,6 +241,9 @@ No live model call. Fake models, `MemoryQueue`.
   with two identities on one runner at once do not mix; `ctx.identity` in a job.
 - **Never:** the hash of an agent does not change with it; it is not in the prompt, the log, the run log or a span.
 - **Inheritance:** a launched agent and an in-process background job have it; a background job submitted to a worker carries it.
+- **A job is for one identity:** a second run of a job for another identity raises before the model is called and writes nothing, for `run`, `run_many` (also with no inputs) and `stream`; the same identity twice is fine; none then an identity
+  and the reverse are refused; a run with no `job_id` is not checked; a resume under another identity is a new job and works; the `Database` kit on sqlite and Postgres.
+- **Excluded fields:** one with no default is refused when the runner, the worker and the client are built (for a model, and for a member of a union); a tool sees the value in a process and the default on a worker.
 - **The kind:** a union of two models with the same fields is rebuilt as the model that was sent, in both orders of the union; a single declared type refuses the data of another model; a kind that the type does not have, and an
   identity with no kind, fail the job; two members with one class name are refused when built; the worker's type is checked against its runner's (accepted and refused cases).
 - **The queue:** `check_queue` against `SqliteQueue` and `MemoryQueue` (a queue that drops a field fails it); a job submitted with an identity whose tool reads it on a worker; a

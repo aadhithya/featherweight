@@ -131,6 +131,8 @@ For each run that your pipeline starts in the new job, the runner looks in the o
 - has the same identity (`identity_hash`, made from the kind of the identity, the name of its class, and its fields: [who the run is for](agents.md#who-is-asking-the-identity-of-a-run); a run with none matches only a run with none), and
 - is a top-level run (`depth` 1).
 
+A job is for one identity, and a resume is a new job: to resume a user's job as someone else (a support person), give the new job their identity, and every step reruns.
+
 If there is one, the runner gets its output from the result store, and checks that it still validates against the output model
 and passes `check_output`. If so, it does not call the model and takes no concurrency slot. It writes a `SUCCESS` row of its own in
 the new job, with zero tokens, the kept output and `reused_from_attempt_id`, copies the result to the new job (so deleting the old job
