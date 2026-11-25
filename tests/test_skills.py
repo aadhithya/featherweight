@@ -2,17 +2,20 @@
 
 import asyncio
 import logging
+import time
 from pathlib import Path
 from typing import ClassVar
 
 import pytest
-from fakes import FakeSettings, Scripted, runner_with, structured_reply, tool_reply
+from fakes import FakeSettings, Scripted, runner_with, settings, structured_reply, tool_reply
 from langchain_core.messages import SystemMessage, ToolMessage
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
+from featherweight.context import CURRENT_IDENTITY
 from featherweight.fingerprint import agent_hash, tools_hash
 from featherweight.model_settings import ModelSettings
 from featherweight.models import AgentBase, AgentInput, AgentOutput, Status
+from featherweight.runner import AgentRunner
 from featherweight.skills import Skill, SkillError
 
 EXAMPLE = Path(__file__).parent.parent / "examples" / "skills" / "meeting-notes"
@@ -404,3 +407,157 @@ async def test_a_read_that_fails_is_text_for_the_agent_and_the_error_goes_to_the
         "private-bucket" not in text
     )  # the message of the error can name a bucket or a key: it is not shown to the model
     assert any("skill_read_failed" in r.message and "private-bucket" in r.message for r in caplog.records)
+
+
+# what the runner does around `aread`
+
+
+class Recording(Skill):
+    """A fetching skill that keeps what it was asked for, and answers with what it is told to."""
+
+    asked: ClassVar[list[str]] = []
+    answer: ClassVar[object] = "text"
+    wait: ClassVar[float] = 0.0
+    seen_identity: ClassVar[list[object]] = []
+
+    async def aread(self, resource: str = "") -> str:
+        Recording.asked.append(resource)
+        Recording.seen_identity.append(CURRENT_IDENTITY.get())
+        await asyncio.sleep(Recording.wait)
+        return Recording.answer
+
+
+@pytest.fixture(autouse=True)
+def fresh_recording():
+    Recording.asked, Recording.seen_identity = [], []
+    Recording.answer, Recording.wait = "text", 0.0
+
+
+class Fetching(Writer):
+    skills: list[Skill] = [Recording(name="fetched", description="Kept elsewhere.")]
+
+
+async def ask_for(db, *resources: str, runner=None):
+    calls = [tool_reply("get_skill", {"name": "fetched", "resource": r}, f"t{n}") for n, r in enumerate(resources)]
+    model = Scripted(script=[*calls, done()])
+    result = await (runner or runner_with(db, model)).run(Fetching, TaskInput(text="t"))
+    assert result.status == Status.SUCCESS
+    return tool_texts(model)
+
+
+@pytest.mark.parametrize(
+    "resource",
+    [
+        "../tenant-b/SKILL.md",
+        "a/../../b",
+        "a/../b",  # it stays inside the skill, and is still refused: `..` is never resolved
+        "..",
+        "/etc/passwd",
+        "//host/share",
+        "a\\b",
+        "..\\x",
+        "a\x00b",
+        "a\nb",
+        "x" * 257,
+        ".",
+        "./",
+        "/",
+    ],
+)
+async def test_a_path_that_is_not_inside_the_skill_is_refused_as_text_and_the_skill_is_not_asked(db, caplog, resource):
+    with caplog.at_level(logging.WARNING):
+        (text,) = await ask_for(db, resource)
+
+    assert Recording.asked == []  # `aread` was not called
+    assert text.startswith("The skill 'fetched' has no file '") and text.endswith("'.")
+    assert len(text) < 140  # the path is cut: a model could send a very long one
+    assert "skill_read_failed" not in caplog.text  # a refusal is not an error
+
+
+@pytest.mark.parametrize(
+    "resource,reaches",
+    [
+        ("", ""),
+        ("references/a.md", "references/a.md"),
+        ("a/b.md", "a/b.md"),
+        ("./references/a.md", "references/a.md"),
+        ("references//a.md", "references/a.md"),
+        ("a/./b.md", "a/b.md"),
+        ("x" * 256, "x" * 256),
+        ("..a/b..", "..a/b.."),  # dots in a name are not a `..` segment
+    ],
+)
+async def test_a_path_inside_the_skill_reaches_it_normalised(db, resource, reaches):
+    (text,) = await ask_for(db, resource)
+
+    assert Recording.asked == [reaches] and text == "text"
+
+
+async def test_the_default_read_is_what_it_was_for_a_path_in_its_files_and_one_that_is_not(db):
+    class Plain(Writer):
+        skills: list[Skill] = [NOTES]
+
+    model = Scripted(
+        script=[
+            tool_reply("get_skill", {"name": "meeting-notes", "resource": "./references/tags.md"}, "t1"),
+            tool_reply("get_skill", {"name": "meeting-notes", "resource": "../x"}, "t2"),
+            done(),
+        ]
+    )
+    await runner_with(db, model).run(Plain, TaskInput(text="t"))
+
+    assert tool_texts(model)[0] == NOTES.read("references/tags.md")
+    assert tool_texts(model)[1] == "The skill 'meeting-notes' has no file '../x'."
+
+
+@pytest.mark.parametrize("answer", [None, b"bytes", 7, ["a"]], ids=["None", "bytes", "an int", "a list"])
+async def test_a_read_that_does_not_return_text_is_a_read_that_failed(db, caplog, answer):
+    Recording.answer = answer
+    with caplog.at_level(logging.WARNING, logger="featherweight.runner"):
+        (text,) = await ask_for(db, "")
+
+    assert text == "The skill 'fetched' could not be read: TypeError."  # not 'null', and not the repr of the value
+    assert any("skill_read_failed" in r.message and "TypeError" in r.message for r in caplog.records)
+
+
+async def test_an_empty_text_is_text(db):
+    Recording.answer = ""
+    assert await ask_for(db, "") == [""]
+
+
+async def test_a_read_that_takes_longer_than_the_timeout_is_a_read_that_failed_and_the_run_goes_on(db, caplog):
+    Recording.wait = 30
+    model = Scripted(script=[tool_reply("get_skill", {"name": "fetched"}, "t"), done()])
+    with settings(skill_read_timeout=0.1):  # read when the runner is built
+        runner = runner_with(db, model)
+
+    with caplog.at_level(logging.WARNING, logger="featherweight.runner"):
+        started = time.perf_counter()
+        result = await runner.run(Fetching, TaskInput(text="t"))
+
+    assert result.status == Status.SUCCESS and time.perf_counter() - started < 5
+    assert tool_texts(model) == ["The skill 'fetched' could not be read: TimeoutError."]
+    assert any("skill_read_failed" in r.message and "TimeoutError" in r.message for r in caplog.records)
+
+
+def test_the_timeout_is_15_seconds_unless_the_variable_says_otherwise_and_a_bad_one_is_refused(db, monkeypatch):
+    assert AgentRunner(db).skill_read_timeout == 15.0
+    monkeypatch.setenv("FTW_SKILL_READ_TIMEOUT", "2.5")
+    assert AgentRunner(db).skill_read_timeout == 2.5
+    for bad in ("0", "-1", "soon"):  # there is no way to switch it off
+        monkeypatch.setenv("FTW_SKILL_READ_TIMEOUT", bad)
+        with pytest.raises(ValueError, match="FTW_SKILL_READ_TIMEOUT"):
+            AgentRunner(db)
+
+
+class Teacher(BaseModel):
+    user_id: str
+
+
+async def test_a_fetching_skill_sees_who_the_run_is_for(db):
+    model = Scripted(script=[tool_reply("get_skill", {"name": "fetched"}, "t"), done()])
+    runner = runner_with(db, model, identity_type=Teacher)
+
+    await runner.run(Fetching, TaskInput(text="t"), identity=Teacher(user_id="u-1"))
+
+    assert Recording.seen_identity == [Teacher(user_id="u-1")]

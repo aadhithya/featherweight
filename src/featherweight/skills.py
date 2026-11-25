@@ -23,6 +23,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
+MAX_RESOURCE_CHARS = 256  # the longest path that a model may ask a skill for
+
 SKILL_FILE = "SKILL.md"
 # 1 to 64 characters, lowercase letters, digits and single hyphens, none at the start or the end.
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -158,3 +160,21 @@ class Skill(BaseModel):
         if skill.name != root.resolve().name:
             raise SkillError(f"the skill name {skill.name!r} must match its directory name {root.resolve().name!r}")
         return skill
+
+
+def clean_resource(resource: str) -> str | None:
+    """The path that a model asked for, as a path inside the skill, or `None` when it is not one (docs/specs/skills.md).
+
+    The empty string is the skill itself. A `.` segment is dropped and `//` is one `/`. Refused: a path that starts with `/`, has a backslash,
+    a `..` segment (it is not resolved), a control character (NUL and newline included), is longer than `MAX_RESOURCE_CHARS`, or is only dots
+    and slashes. The model chose it, so this is the one place that decides, for every skill."""
+    if resource == "":
+        return ""
+    if len(resource) > MAX_RESOURCE_CHARS or resource.startswith("/") or "\\" in resource:
+        return None
+    if any(ord(char) < 32 or ord(char) == 127 for char in resource):
+        return None
+    parts = [part for part in resource.split("/") if part not in ("", ".")]
+    if not parts or ".." in parts:
+        return None
+    return "/".join(parts)

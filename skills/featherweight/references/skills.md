@@ -142,7 +142,13 @@ class BucketSkill(Skill):
   skills, and a fetched text is not one of them: without it, an edit in the store leaves the hash as it was, and
   [resuming a job](jobs.md#resuming-a-job) reuses results made with the old text.
 - A read that fails does not fail the run. The agent is told `The skill 'x' could not be read: <the type of the error>`, and the error
-  goes to the log as `skill_read_failed`, because its message can name a bucket or a key.
+  goes to the log as `skill_read_failed`, because its message can name a bucket or a key. These are failures too: `aread` returns something that is not text (a client that answers `None` for a missing
+  key), and a read that takes longer than `FTW_SKILL_READ_TIMEOUT` seconds (15 by default, and it must be safe to cancel).
+- **The path is checked before `aread` sees it.** The model chooses `resource`, and a prompt injection can too. The runner gives `aread` only a path that is inside the skill (`./a.md` and `a//b.md` are tidied to `a.md` and `a/b.md`),
+  and answers `The skill 'x' has no file '...'` itself, without asking your skill, for a path that starts with `/`, has a `..`, a backslash or a control character, or is over 256 characters. It does not decode `%2e%2e`: a client that
+  does must treat what it gets as untrusted, and check again.
+- **Who is asking:** a subclass that keeps skills per tenant can read the identity of the run from `CURRENT_IDENTITY` (`from featherweight.context import CURRENT_IDENTITY`) to check what it may fetch. featherweight does not check it
+  for you ([who is asking](agents.md#who-is-asking-the-identity-of-a-run)).
 - featherweight ships no store and no client. Where the skills live, who may edit them and which ones an agent gets is your application's.
   The [spec](https://github.com/aadhithya/featherweight/blob/main/docs/specs/skills.md#reading-a-skill-from-somewhere-else) has the rules.
 

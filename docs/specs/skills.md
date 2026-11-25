@@ -66,7 +66,8 @@ skills (with `await skill.aread(resource)`, see [below](#reading-a-skill-from-so
 | a known skill | `# Skill: <name>`, the instructions, and a list of the other files |
 | a known skill and a file | The text of the file |
 | an unknown skill | `'x' is not one of your skills. Your skills: ...` |
-| an unknown file, or a path that leaves the skill | `The skill 'x' has no file '...'. Its files: ...` |
+| an unknown file | `The skill 'x' has no file '...'. Its files: ...` |
+| a path that is not inside the skill ([below](#the-path-the-model-chooses)) | `The skill 'x' has no file '...'.` The skill is not asked, and nothing is raised or logged as an error |
 
 The agent decides whether and when to read a skill: nothing activates one for it. Skills are not passed on to the agents
 an agent launches. Each read logs `skill_read agent=... skill=... resource=...`. The instructions are tool results, so they
@@ -92,9 +93,27 @@ A subclass that fetches overrides `aread`, and never blocks the event loop (ever
 - **A read that fails is text, not an exception.** If `aread` raises, the runner logs `skill_read_failed` (with the error) and the agent gets
   `The skill 'x' could not be read: <the type of the error>`, so the run goes on, as with the other tools that return their errors. The message of the error
   goes to the log only: it can name a bucket or a key.
+- **`aread` returns text.** What it returns is the tool's result, so a value that is not a `str` (a store client that answers `None` for a key that does not exist, or `bytes`) is a read that failed: the same text
+  as an exception (`could not be read: TypeError`), and `skill_read_failed` in the log. An empty string is text.
+- **`aread` has a timeout:** `FTW_SKILL_READ_TIMEOUT` seconds (15 by default; [configuration](configuration.md)), read when the runner is built, with no argument and no way to switch it off. A read that takes longer is cancelled and is a read
+  that failed (`could not be read: TimeoutError`), so a hung store does not hold the attempt, and its concurrency slot, for ever. An `aread` must be safe to cancel.
+- **`aread` can ask who the run is for.** The identity of the run is `CURRENT_IDENTITY` (`featherweight.context`), the same context variable that code which cannot take `runtime` reads ([identity](identity.md#how-tools-read-it)): a subclass that
+  keeps skills per tenant can check what the identity may fetch. It is not an argument of `aread`, so the signature is the same for every skill. featherweight does not check it: a read is a tool call, and a tool checks authorization itself.
 - **Nothing is fetched until the agent asks,** and the runner caches nothing: caching for the length of a run is the subclass's.
 - **The framework ships no store.** There is no S3 or database client in featherweight. The recipes show a skill from a database and a skill
   from S3.
+
+### The path the model chooses
+
+`resource` is written by the model, and a model reads documents and user input, so a prompt injection can choose it. The runner therefore gives `aread` only a **normalised path that is inside the skill**, or the empty string, and
+answers anything else itself, as text, without asking the skill:
+
+- **Refused, flatly:** a path that starts with `/`, one with a backslash, one with a `..` segment (it is not resolved: `a/../b` is refused too), one with a control character (NUL and newline included), one longer than 256 characters, and one that is
+  only `.` and `/`. The answer is `The skill 'x' has no file '...'.` (the path, cut at 80 characters), the same as for a file that is not there, so the model learns nothing about what is outside. It is not an error: the run goes on.
+- **Normalised:** a `.` segment is dropped and `//` is one `/`, so `./references/a.md` and `references//a.md` are `references/a.md`.
+- **Not decoded:** the runner does not URL-decode. A subclass that does (an HTTP store) treats what it gets as untrusted, and checks it again. What a file holds is not checked here.
+
+The default `read` is unchanged: it looks the path up in the skill's own files. The rule is for every skill, because a subclass's `aread` replaces that lookup and with it the check.
 
 ## What is supported
 
@@ -119,6 +138,8 @@ A subclass that fetches overrides `aread`, and never blocks the event loop (ever
 - **The read is async-capable, and the store is not ours.** `aread` is the one hook, and `read` stays for code that holds the text. A URL is not a
   resource: the model cannot open one, so the framework would have to fetch it, with a client, limits and the risks that come with it. The
   path stays the name the model sees, and where the text comes from is the subclass's business.
+- **The runner checks the model's path, and the skill still treats it as untrusted.** The check is in one place (`clean_resource`), so that a subclass that joins paths, reads a directory or calls a service that normalises `..` cannot be reached by a path that leaves the skill.
+- **A read is bounded and returns text.** A fetching skill is application code in the middle of an attempt: a timeout and a type check stop a store that hangs or answers with something else from reaching the model or stalling the run.
 - **A long skill is logged, not refused**, as the specification recommends rather than requires.
 
 ## Not supported
@@ -137,5 +158,6 @@ A subclass that fetches overrides `aread`, and never blocks the event loop (ever
 [test_skills.py](../../tests/test_skills.py) covers the model's rules, `from_markdown`, `from_directory` (names,
 hidden and binary files, resources), `read`, the prompt, and the `get_skill` tool. `aread` is covered with a subclass that reads from a fake
 in-memory store: the default equals `read`, the tool awaits it, the hash changes with the subclass's `etag`, and a read that raises comes
-back as text and is logged. A real-model test is in
+back as text and is logged; a value that is not text, and a read that takes longer than the timeout, come back as text too; a path that is absolute, has a `..`, a backslash, a control character or is too long never reaches `aread`
+and a normal one reaches it normalised; an `aread` sees the identity of the run. A real-model test is in
 [tests/e2e/test_skills_e2e.py](../../tests/e2e/test_skills_e2e.py).
