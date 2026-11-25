@@ -104,14 +104,14 @@ async def test_a_job_that_resumes_another_is_resumable_and_points_to_it(db):
 
 async def test_a_write_that_fails_does_not_roll_back_the_writes_in_flight_beside_it(tmp_path):
     """Everything shares one connection: without a lock per transaction, a failure rolls back another task's pending work."""
-    from featherweight.testing import _run
+    from featherweight.testing import _attempt_record
 
     async with SqliteDatabase(tmp_path / "x.db") as db:
         job = await db.create_job("p")
 
         async def fails() -> None:
             with pytest.raises(Exception, match="FOREIGN KEY"):
-                await db.create_attempt(_run("no-such-job", "bad"))
+                await db.create_attempt(_attempt_record("no-such-job", "bad"))
 
         await asyncio.gather(*(fails() for _ in range(10)), db.set_job_status(job, Status.RUNNING))
         row = await db.get_job(job)

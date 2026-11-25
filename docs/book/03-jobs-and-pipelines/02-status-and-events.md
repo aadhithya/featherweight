@@ -8,7 +8,7 @@ Follow a job through its status and its events.
 
 <!-- code: code/3-2/app.py -->
 ```python
-"""Chapter 3-2: a job has a status and events, and its agent runs are in the run log."""
+"""Chapter 3-2: a job has a status and events, and its runs are in the run log."""
 
 import asyncio
 from pathlib import Path
@@ -45,9 +45,9 @@ async def main() -> None:
         assert job_row  # the job is there
         print("job:", job_row.name, job_row.status.value, f"version {job_row.job_version}")
         print("events:", [event.type for event in await db.list_job_events(outcome.job_id)])
-        for run in await db.list_attempts(job_id=outcome.job_id):  # one row for each attempt of each agent run
+        for attempt in await db.list_attempts(job_id=outcome.job_id):  # one row for each attempt of each run
             print(
-                f"  {run.agent_name} attempt {run.attempt}: {run.status.value}, tokens={run.input_tokens}+{run.output_tokens}"
+                f"  {attempt.agent_name} attempt {attempt.attempt}: {attempt.status.value}, tokens={attempt.input_tokens}+{attempt.output_tokens}"
             )
 
 

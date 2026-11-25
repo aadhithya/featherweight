@@ -102,10 +102,10 @@ async def check_result_store(make_store: Callable[[], ResultStore | Awaitable[Re
     assert results == [{"i": i} for i in range(40)], "concurrent puts and gets must not lose or mix results"
 
 
-def _run(job_id: str | None, attempt_id: str, **changes: Any) -> AttemptRecord:
+def _attempt_record(job_id: str | None, attempt_id: str, **changes: Any) -> AttemptRecord:
     fields: dict[str, Any] = {
         "attempt_id": attempt_id,
-        "run_id": f"inv-{attempt_id}",
+        "run_id": f"run-of-{attempt_id}",
         "attempt": 1,
         "job_id": job_id,
         "agent_name": "echo",
@@ -124,15 +124,15 @@ def _run(job_id: str | None, attempt_id: str, **changes: Any) -> AttemptRecord:
 
 async def _check_identity_hash(db: Database) -> None:
     """A step is reused only for the same identity: the hash of the identity is recorded on the run, and it matches by equality, where
-    `None` (a run with no identity) matches only a run that had none."""
+    `None` (an attempt with no identity) matches only an attempt that had none."""
     job_id = await db.create_job("identity", resumable=True)
     mine, other = _hash("identity: a"), _hash("identity: b")
-    await db.create_attempt(_run(job_id, "id-none", agent_hash=_hash("who")))
-    await db.create_attempt(_run(job_id, "id-a", agent_hash=_hash("who"), identity_hash=mine))
+    await db.create_attempt(_attempt_record(job_id, "id-none", agent_hash=_hash("who")))
+    await db.create_attempt(_attempt_record(job_id, "id-a", agent_hash=_hash("who"), identity_hash=mine))
     for run_id in ("id-none", "id-a"):
         await db.finish_attempt(run_id, AttemptFinish(status=Status.SUCCESS))
     recorded = await db.get_attempt("id-a")
-    assert recorded is not None and recorded.identity_hash == mine, "a run records the hash of its identity"
+    assert recorded is not None and recorded.identity_hash == mine, "an attempt records the hash of its identity"
     plain = await db.get_attempt("id-none")
     assert plain is not None and plain.identity_hash is None, "and None when it had none"
 
@@ -142,16 +142,16 @@ async def _check_identity_hash(db: Database) -> None:
         "another identity is not"
     )
     nothing = await db.find_reusable_attempt(job_id, _hash("who"), _hash("input"), None)
-    assert nothing is not None and nothing.attempt_id == "id-none", "no identity matches only a run that had none"
-    await db.create_attempt(_run(job_id, "id-only-a", agent_hash=_hash("only a"), identity_hash=mine))
+    assert nothing is not None and nothing.attempt_id == "id-none", "no identity matches only an attempt that had none"
+    await db.create_attempt(_attempt_record(job_id, "id-only-a", agent_hash=_hash("only a"), identity_hash=mine))
     await db.finish_attempt("id-only-a", AttemptFinish(status=Status.SUCCESS))
     assert await db.find_reusable_attempt(job_id, _hash("only a"), _hash("input"), None) is None, (
-        "a run with an identity is not found for none"
+        "an attempt with an identity is not found for none"
     )
 
 
 async def _check_one_identity_per_job(db: Database) -> None:
-    """A job is for one identity: `job_has_other_identity` says whether the job has a run with another one, and `None` is another."""
+    """A job is for one identity: `job_has_other_identity` says whether the job has an attempt with another one, and `None` is another."""
     a, b = _hash("one identity: a"), _hash("one identity: b")
     empty = await db.create_job("one-identity-empty")
     assert await db.job_has_other_identity(empty, a) is False, "a job with no runs has no other identity"
@@ -160,16 +160,16 @@ async def _check_one_identity_per_job(db: Database) -> None:
 
     for n, (first, same, other) in enumerate([(a, a, b), (a, a, None), (None, None, a)]):
         job_id = await db.create_job("one-identity")
-        await db.create_attempt(_run(job_id, f"one-identity-{n}", identity_hash=first))
+        await db.create_attempt(_attempt_record(job_id, f"one-identity-{n}", identity_hash=first))
         assert await db.job_has_other_identity(job_id, same) is False, (
             "the identity of the job's own runs is not another"
         )
         assert await db.job_has_other_identity(job_id, other) is True, "any other identity is, and so is none"
     failed = await db.create_job("one-identity-failed")
-    await db.create_attempt(_run(failed, "one-failed", identity_hash=a))
+    await db.create_attempt(_attempt_record(failed, "one-failed", identity_hash=a))
     await db.finish_attempt("one-failed", AttemptFinish(status=Status.FAILED))
     assert await db.job_has_other_identity(failed, b) is True, (
-        "a run that did not succeed counts: the job was for its identity"
+        "an attempt that did not succeed counts: the job was for its identity"
     )
 
 
@@ -218,19 +218,19 @@ async def _check_takeover(db: Database) -> None:
     await asyncio.sleep(short)
     assert await db.take_over_job(unleased, "w2", 30) is False, "a job without a lease has none to lose"
 
-    # the runs of the first execution are tagged with it, and a run without a job with nothing
-    await db.create_attempt(_run(job, "t-1"))
+    # the attempts of the first execution are tagged with it, and an attempt without a job with nothing
+    await db.create_attempt(_attempt_record(job, "t-1"))
     await db.finish_attempt("t-1", AttemptFinish(status=Status.SUCCESS))
-    stray = await db.create_attempt(_run(None, "t-stray"))
+    stray = await db.create_attempt(_attempt_record(None, "t-stray"))
     one = await db.get_attempt("t-1")
-    assert one is not None and one.job_execution == 1, "a run records the execution of its job"
+    assert one is not None and one.job_execution == 1, "an attempt records the execution of its job"
     loose = await db.get_attempt(stray)
-    assert loose is not None and loose.job_execution is None, "a run without a job has no execution"
+    assert loose is not None and loose.job_execution is None, "an attempt without a job has no execution"
 
     # a lease that ended: the next worker takes the job, as the next execution
     lost = await db.create_job("takeover", resumable=True)
     assert await db.start_job(lost, worker_id="w1", lease=short) is True
-    await db.create_attempt(_run(lost, "l-1"))
+    await db.create_attempt(_attempt_record(lost, "l-1"))
     await db.finish_attempt("l-1", AttemptFinish(status=Status.SUCCESS))
     await asyncio.sleep(short * 3)
     assert await db.take_over_job(lost, "w2", 30) is True, "a job whose lease ended is taken over"
@@ -252,13 +252,15 @@ async def _check_takeover(db: Database) -> None:
         pass
     else:
         raise AssertionError("the worker that lost the job must not be able to write to it")
-    await db.create_attempt(_run(lost, "l-2"))
+    await db.create_attempt(_attempt_record(lost, "l-2"))
     again = await db.get_attempt("l-2")
-    assert again is not None and again.job_execution == 2, "a run of the new execution records it"
-    await db.create_attempt(_run(lost, "l-late", job_execution=1))  # a worker that has not noticed that it lost the job
+    assert again is not None and again.job_execution == 2, "an attempt of the new execution records it"
+    await db.create_attempt(
+        _attempt_record(lost, "l-late", job_execution=1)
+    )  # a worker that has not noticed that it lost the job
     late = await db.get_attempt("l-late")
     assert late is not None and late.job_execution == 1, (
-        "a run records the execution it is given, and not the job's current one"
+        "an attempt records the execution it is given, and not the job's current one"
     )
 
     # a takeover looks in its own job, at earlier executions only
@@ -273,7 +275,7 @@ async def _check_takeover(db: Database) -> None:
     )
     await db.finish_attempt("l-2", AttemptFinish(status=Status.SUCCESS))
     again = await db.find_reusable_attempt(lost, reusable, _hash("input"), None, 2)
-    assert again is not None and again.attempt_id == "l-1", "the run of the current execution is never found"
+    assert again is not None and again.attempt_id == "l-1", "the attempt of the current execution is never found"
 
     # ending a job that will not run
     queued = await db.create_job("fail")
@@ -484,11 +486,11 @@ async def check_database(make_db: Callable[[], Database]) -> None:
         assert row is not None and (row.job_version, row.job_hash, row.input_hash) == ("2", _hash("job"), _hash("in"))
         assert row.started_at is None and row.cancel_requested is False
         plain = await db.get_job(job_id)
-        child = await db.create_job("bg", parent_attempt_id="run-parent")
+        child = await db.create_job("bg", parent_attempt_id="attempt-parent")
         row = await db.get_job(child)
         assert (
             row is not None
-            and row.parent_attempt_id == "run-parent"
+            and row.parent_attempt_id == "attempt-parent"
             and plain is not None
             and plain.parent_attempt_id is None
         )
@@ -523,10 +525,12 @@ async def check_database(make_db: Callable[[], Database]) -> None:
                 raise AssertionError(f"resuming {bad!r} must raise {error.__name__}")
 
         # runs
-        assert await db.get_attempt("no-such-run") is None, "get_attempt of a run that does not exist must be None"
-        first = _run(keeps, "run-1")
-        assert await db.create_attempt(first) == "run-1"
-        row = await db.get_attempt("run-1")
+        assert await db.get_attempt("no-such-attempt") is None, (
+            "get_attempt of an attempt that does not exist must be None"
+        )
+        first = _attempt_record(keeps, "attempt-1")
+        assert await db.create_attempt(first) == "attempt-1"
+        row = await db.get_attempt("attempt-1")
         assert row is not None and row.status is Status.INIT and row.started_at is None and row.completed_at is None
         assert row.settings == first.settings, "settings must come back as the dict that went in"
         assert row.created_at.tzinfo is not None and row.attempt == 1 and row.depth == 1 and row.job_id == keeps
@@ -535,12 +539,12 @@ async def check_database(make_db: Callable[[], Database]) -> None:
             first.system_prompt_hash,
             first.tools_hash,
         )
-        await db.start_attempt("run-1")
-        row = await db.get_attempt("run-1")
+        await db.start_attempt("attempt-1")
+        row = await db.get_attempt("attempt-1")
         assert row is not None and row.status is Status.RUNNING and row.started_at is not None
         assert row.started_at >= row.created_at - timedelta(seconds=1)
         await db.finish_attempt(
-            "run-1",
+            "attempt-1",
             AttemptFinish(
                 status=Status.SUCCESS,
                 output_hash=_hash("out"),
@@ -550,55 +554,66 @@ async def check_database(make_db: Callable[[], Database]) -> None:
                 reported_model_name="reported",
             ),
         )
-        row = await db.get_attempt("run-1")
+        row = await db.get_attempt("attempt-1")
         assert row is not None and row.status is Status.SUCCESS and row.completed_at is not None
         assert (row.input_tokens, row.output_tokens, row.latency_ms) == (5, 7, 12.5)
         assert (row.output_hash, row.reported_model_name) == (_hash("out"), "reported")
         try:
-            await db.finish_attempt("no-such-run", AttemptFinish(status=Status.FAILED))
+            await db.finish_attempt("no-such-attempt", AttemptFinish(status=Status.FAILED))
         except LookupError:
             pass
         else:
-            raise AssertionError("finish_attempt of a run that does not exist must raise LookupError")
+            raise AssertionError("finish_attempt of an attempt that does not exist must raise LookupError")
         try:
-            await db.create_attempt(_run("no-such-job", "run-x"))
+            await db.create_attempt(_attempt_record("no-such-job", "attempt-x"))
         except Exception:
-            assert await db.get_attempt("run-x") is None, "a run of a job that does not exist must not be written"
+            assert await db.get_attempt("attempt-x") is None, (
+                "an attempt of a job that does not exist must not be written"
+            )
         else:
             raise AssertionError("create_attempt with a job that does not exist must raise")
 
         # the launch tree, and the order
-        await db.create_attempt(_run(keeps, "run-2", run_id="inv-2", parent_attempt_id="run-1", depth=2))
-        await db.create_attempt(_run(keeps, "run-3", run_id="inv-2", attempt=2, thread_id="t-1"))
-        await db.create_attempt(_run(None, "run-4"))
+        await db.create_attempt(
+            _attempt_record(keeps, "attempt-2", run_id="run-A", parent_attempt_id="attempt-1", depth=2)
+        )
+        await db.create_attempt(_attempt_record(keeps, "attempt-3", run_id="run-A", attempt=2, thread_id="t-1"))
+        await db.create_attempt(_attempt_record(None, "attempt-4"))
         await db.finish_attempt(
-            "run-3",
+            "attempt-3",
             AttemptFinish(status=Status.FAILED, error_type="RuntimeError", error_hash=_hash("no"), latency_ms=1.0),
         )
         everything = await db.list_attempts()
-        assert [r.attempt_id for r in everything] == ["run-1", "run-2", "run-3", "run-4"], "rows come in the order made"
+        assert [r.attempt_id for r in everything] == ["attempt-1", "attempt-2", "attempt-3", "attempt-4"], (
+            "rows come in the order made"
+        )
         assert [r.seq for r in everything] == sorted(r.seq for r in everything)
-        assert [r.attempt_id for r in await db.list_attempts(job_id=keeps)] == ["run-1", "run-2", "run-3"]
-        assert [r.attempt_id for r in await db.list_attempts(run_id="inv-2")] == ["run-2", "run-3"]
-        assert [r.attempt_id for r in await db.list_attempts(job_id=keeps, run_id="inv-2")] == ["run-2", "run-3"]
-        third = await db.get_attempt("run-3")
+        assert [r.attempt_id for r in await db.list_attempts(job_id=keeps)] == ["attempt-1", "attempt-2", "attempt-3"]
+        assert [r.attempt_id for r in await db.list_attempts(run_id="run-A")] == ["attempt-2", "attempt-3"]
+        assert [r.attempt_id for r in await db.list_attempts(job_id=keeps, run_id="run-A")] == [
+            "attempt-2",
+            "attempt-3",
+        ]
+        third = await db.get_attempt("attempt-3")
         assert third is not None and (third.error_type, third.error_hash) == ("RuntimeError", _hash("no"))
         assert third.thread_id == "t-1" and third.attempt == 2
-        second = await db.get_attempt("run-2")
-        assert second is not None and (second.parent_attempt_id, second.depth) == ("run-1", 2)
+        second = await db.get_attempt("attempt-2")
+        assert second is not None and (second.parent_attempt_id, second.depth) == ("attempt-1", 2)
 
         # finding a step to reuse: the first successful top-level run of the job with this agent and this input
         found = await db.find_reusable_attempt(keeps, _hash("agent"), _hash("input"), None)
-        assert found is not None and found.attempt_id == "run-1"
+        assert found is not None and found.attempt_id == "attempt-1"
         assert await db.find_reusable_attempt(keeps, _hash("other agent"), _hash("input"), None) is None
         assert await db.find_reusable_attempt(keeps, _hash("agent"), _hash("other input"), None) is None
         assert await db.find_reusable_attempt(job_id, _hash("agent"), _hash("input"), None) is None, (
             "another job's runs do not match"
         )
-        await db.finish_attempt("run-2", AttemptFinish(status=Status.SUCCESS))
+        await db.finish_attempt("attempt-2", AttemptFinish(status=Status.SUCCESS))
         found = await db.find_reusable_attempt(keeps, _hash("agent"), _hash("input"), None)
-        assert found is not None and found.attempt_id == "run-1", "a run launched by an agent (depth 2) is never reused"
-        await db.create_attempt(_run(keeps, "run-5", agent_hash=_hash("agent 2")))
+        assert found is not None and found.attempt_id == "attempt-1", (
+            "an attempt launched by an agent (depth 2) is never reused"
+        )
+        await db.create_attempt(_attempt_record(keeps, "attempt-5", agent_hash=_hash("agent 2")))
         assert await db.find_reusable_attempt(keeps, _hash("agent 2"), _hash("input"), None) is None, (
             "only a SUCCESS run matches"
         )
@@ -901,8 +916,8 @@ async def check_observer(make_observer: Callable[[], Observer | Awaitable[Observ
 
     job = JobStart(job_id="job-1", name="job", version="1", job_hash=_hash("job"), input_hash=_hash("in"))
     attempt = AttemptStart(
-        attempt_id="run-1",
-        run_id="inv-1",
+        attempt_id="attempt-1",
+        run_id="run-1",
         attempt=1,
         max_attempts=3,
         job_id="job-1",
@@ -918,9 +933,9 @@ async def check_observer(make_observer: Callable[[], Observer | Awaitable[Observ
         (
             "reused",
             RunReused(
-                attempt_id="run-2",
-                run_id="inv-1",
-                reused_from_attempt_id="run-0",
+                attempt_id="attempt-2",
+                run_id="run-1",
+                reused_from_attempt_id="attempt-0",
                 agent_name="agent",
                 agent_version="1",
                 agent_hash=_hash("agent"),
@@ -928,11 +943,11 @@ async def check_observer(make_observer: Callable[[], Observer | Awaitable[Observ
         ),
         (
             "model_call_started",
-            ModelCallStart(call_id="m-1", attempt_id="run-1", provider="fake", model="fake-model"),
+            ModelCallStart(call_id="m-1", attempt_id="attempt-1", provider="fake", model="fake-model"),
         ),
-        ("model_call_finished", ModelCallEnd(call_id="m-1", attempt_id="run-1", input_tokens=3, output_tokens=2)),
-        ("tool_call_started", ToolCallStart(call_id="t-1", attempt_id="run-1", tool_name="tool")),
-        ("tool_call_finished", ToolCallEnd(call_id="t-1", attempt_id="run-1", tool_name="tool")),
+        ("model_call_finished", ModelCallEnd(call_id="m-1", attempt_id="attempt-1", input_tokens=3, output_tokens=2)),
+        ("tool_call_started", ToolCallStart(call_id="t-1", attempt_id="attempt-1", tool_name="tool")),
+        ("tool_call_finished", ToolCallEnd(call_id="t-1", attempt_id="attempt-1", tool_name="tool")),
     ]
     before = [record.model_dump() for record in (job, attempt, job_end, attempt_end, *(r for _, r in events))]
 

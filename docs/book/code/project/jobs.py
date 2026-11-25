@@ -21,7 +21,7 @@ class Digest(BaseModel):
 @job  # a class made from this function: a name, a version, a typed input and output
 async def summarise_all(ctx: JobContext, input: Reports) -> Digest:
     reports = [Report(text=Path(path).read_text()) for path in input.paths]
-    results = await ctx.run_many(IncidentSummariser, reports)  # one agent run for each report, at the same time
+    results = await ctx.run_many(IncidentSummariser, reports)  # one run for each report, at the same time
     failed = [path for path, result in zip(input.paths, results, strict=True) if result.output is None]
     if failed:  # a digest with gaps would look complete: fail, and say which reports
         raise RuntimeError(f"Could not summarise: {', '.join(failed)}")

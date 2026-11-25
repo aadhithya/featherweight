@@ -92,9 +92,9 @@ not write every abstract method cannot be built.
 | `list_job_events(job_id, after, limit)`, `poll_job_events(job_ids, after)` | The events of one job, or of many in one query |
 | `renew_job_leases(worker_id, jobs, lease)`, `owns_job(job_id, owner)` | A worker's heartbeat (one in-place update for all of its jobs, returning the ones it still owns), and a cheap read of whether it still owns one ([several workers](submitted-jobs.md#several-workers)). `set_job_status(..., owner=)` and the lease renewal are conditional on the owner, in the statement, and raise `JobLost` when it is not |
 | `take_over_job(job_id, worker_id, lease)` | Taking a job whose lease expired: one transaction, a `lost` event and then a `running` event, `executions` + 1, a new lease; False if the lease is live. Where the database has a clock, it decides ([several workers](submitted-jobs.md#several-workers)) |
-| `create_attempt(AttemptRecord)`, `start_attempt(...)`, `finish_attempt(AttemptFinish)`, `get_attempt(...)`, `list_attempts(...)` | Runs |
+| `create_attempt(AttemptRecord)`, `start_attempt(...)`, `finish_attempt(AttemptFinish)`, `get_attempt(...)`, `list_attempts(...)` | Attempts |
 | `job_has_other_identity(job_id, identity_hash)` | Whether the job has a run whose identity hash differs from this one (`None` differs from any hash, and the reverse): the check that a job is for one identity ([identity](identity.md#declaring-and-passing-it)) |
-| `find_reusable_attempt(job_id, agent_hash, input_hash, identity_hash, before_execution=None)` | The run of a job that succeeded with this agent, input and identity (`NULL`, no identity, matches only `NULL`): metadata only. With `before_execution`, only runs of an earlier execution of the job (a takeover looks in its own job) |
+| `find_reusable_attempt(job_id, agent_hash, input_hash, identity_hash, before_execution=None)` | The attempt of a job that succeeded, at depth 1 (a step), with this agent, input and identity (`NULL`, no identity, matches only `NULL`): metadata only. With `before_execution`, only attempts of an earlier execution of the job (a takeover looks in its own job) |
 
 **Typed in, typed out.** `create_attempt` and `finish_attempt` take frozen Pydantic records (`AttemptRecord`, `AttemptFinish`), and the methods return
 Pydantic rows (`JobRow`, `AttemptRow`). Statuses, hash formats and non-negative numbers are checked once, in the model, whichever
@@ -159,9 +159,9 @@ Types are given as *Postgres / sqlite*. A `CHECK` is in both.
 | `settings` | `jsonb` / `text` not null | All the model settings |
 | `input_hash` | `text` not null, 64 hex | |
 | `identity_hash` | `text` null, 64 hex | The hash of the run's identity (its kind and its fields), `NULL` when it had none ([identity](identity.md#resuming-a-job)); added by a migration |
-| `output_hash` | `text` null, 64 hex | Set when the run produced one |
-| `reused_from_attempt_id` | `text` null | For a run answered from an earlier one |
-| `job_execution` | `integer` null | The execution of the job that made the run ([several workers](submitted-jobs.md#several-workers)): given by the task that runs the job, or else the job's `executions` when the run is created. `NULL` without a job |
+| `output_hash` | `text` null, 64 hex | Set when the attempt produced one |
+| `reused_from_attempt_id` | `text` null | For an attempt answered from an earlier one |
+| `job_execution` | `integer` null | The execution of the job that made the attempt ([several workers](submitted-jobs.md#several-workers)): given by the task that runs the job, or else the job's `executions` when the attempt is created. `NULL` without a job |
 | `thread_id` | `text` null | For a streaming run: the conversation the client named |
 | `status` | `text` not null, one of `INIT`, `RUNNING`, `SUCCESS`, `FAILED`, `CANCELLED` | |
 | `error_type`, `error_hash` | `text` null | Set for `FAILED` |

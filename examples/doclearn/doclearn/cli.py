@@ -184,7 +184,7 @@ async def learn(
 ) -> tuple[LearnedDocument, LearningResult]:
     outcome = await run_job(runner, learn_job(store, console), LearnInput(documents=documents, category=category))
     if outcome.status != Status.SUCCESS or outcome.result is None:
-        raise CliError(f"Learning failed: {outcome.error} (job {outcome.job_id}; the agent runs are in the database)")
+        raise CliError(f"Learning failed: {outcome.error} (job {outcome.job_id}; the runs are in the run log)")
     learned = await store.get(outcome.result.learned_id)
     assert learned is not None
     return learned, outcome.result
