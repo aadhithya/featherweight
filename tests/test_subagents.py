@@ -157,6 +157,9 @@ async def test_a_launch_runs_the_child_in_the_same_job_and_returns_its_output_to
     assert (parent_row.agent_name, parent_row.depth, parent_row.parent_attempt_id) == ("parent", 1, None)
     assert (child_row.agent_name, child_row.depth) == ("child", 2)
     assert child_row.parent_attempt_id == parent_row.attempt_id
+    assert (
+        child_row.run_id != parent_row.run_id and result.run_id == parent_row.run_id
+    )  # a launched agent is a run of its own
     assert child_row.input_hash == input_hash(ChildInput(topic="x"))  # the input is in the hash, not in the row
     (returned,) = (json.loads(t) for t in tool_messages(model))
     assert returned == {

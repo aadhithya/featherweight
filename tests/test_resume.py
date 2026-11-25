@@ -74,6 +74,7 @@ async def test_a_resumed_job_reuses_step_one_and_runs_the_steps_after_it(db):
     new = await db.list_attempts(job_id=outcome.job_id)
     assert [r.status for r in new] == [Status.SUCCESS] * 3
     assert new[0].reused_from_attempt_id == old[0].attempt_id and new[0].attempt_id != old[0].attempt_id
+    assert new[0].run_id not in {r.run_id for r in old}  # a reused step is a run of its own
     assert (new[0].input_tokens, new[0].output_tokens) == (0, 0)
     assert new[0].output_hash == old[0].output_hash == output_hash(EchoOutput(echoed="a"))
     assert [r.reused_from_attempt_id for r in new[1:]] == [None, None]

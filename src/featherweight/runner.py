@@ -1060,14 +1060,23 @@ class AgentRunner:
         key = ResultKey(job_id=source_job, agent_hash=declaration_hash, input_hash=this_input_hash)
         stored = await self.results.get(key)  # and what was its output
         if stored is None:
-            logger.warning("result_missing reused_from=%s agent=%s: the agent runs", old.attempt_id, agent.name)
+            logger.warning(
+                "result_missing run_id=%s reused_from_attempt_id=%s agent=%s: the agent runs",
+                run_id,
+                old.attempt_id,
+                agent.name,
+            )
             return None
         try:
             output = agent.output_model.model_validate(stored)
             agent.check_output(agent_input, output)
         except Exception as exc:
             logger.warning(
-                "run_reuse_rejected reused_from=%s agent=%s reason=%s", old.attempt_id, agent.name, _format_error(exc)
+                "run_reuse_rejected run_id=%s reused_from_attempt_id=%s agent=%s reason=%s",
+                run_id,
+                old.attempt_id,
+                agent.name,
+                _format_error(exc),
             )
             return None
         attempt_id = await self.db.create_attempt(
@@ -1106,7 +1115,13 @@ class AgentRunner:
             await self._keep_result(
                 job_id, declaration_hash, this_input_hash, output
             )  # a later attempt resumes from this job too
-        logger.info("run_reused attempt_id=%s reused_from=%s agent=%s", attempt_id, old.attempt_id, agent.name)
+        logger.info(
+            "run_reused run_id=%s attempt_id=%s reused_from_attempt_id=%s agent=%s",
+            run_id,
+            attempt_id,
+            old.attempt_id,
+            agent.name,
+        )
         if self._observers:
             await self._observers.emit(
                 "reused",
