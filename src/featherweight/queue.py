@@ -16,6 +16,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
+from featherweight import config
 from featherweight.db import now
 from featherweight.fingerprint import text_hash
 from featherweight.sqlite import SqliteDatabase
@@ -96,9 +97,9 @@ class JobQueue(ABC):
 
 
 class SqliteQueue(JobQueue):
-    """A `job_queue` table in the run log's sqlite file, for local development. A message is claimed atomically for `lease`
-    seconds (60 by default); if its receiver does not `ack`, `nack` or `extend` it in time, it is delivered again, with a higher
-    `delivery_count`. One that has been delivered `max_deliveries` times (3 by default) and whose lease ends again is marked
+    """A `job_queue` table in the run log's sqlite file, for local development. A message is claimed atomically for
+    `FTW_QUEUE_LEASE` seconds (60 by default); if its receiver does not `ack`, `nack` or `extend` it in time, it is delivered again, with a higher
+    `delivery_count`. One that has been delivered `FTW_QUEUE_MAX_DELIVERIES` times (3 by default) and whose lease ends again is marked
     `dead`: it stays in the table, and is not delivered. `ack` deletes the row; `nack` puts it back in its place or deletes it.
     A delivery's token names its claim, so that a stale delivery cannot touch the message after it was delivered again. The
     input stays in the table until the message is acknowledged, on the same terms as the sqlite result store: sqlite is for
@@ -107,14 +108,10 @@ class SqliteQueue(JobQueue):
     POLL_START = 0.01
     POLL_MAX = 0.25
 
-    def __init__(self, db: SqliteDatabase, *, lease: float = 60.0, max_deliveries: int = 3):
-        if lease <= 0:
-            raise ValueError("lease must be positive")
-        if max_deliveries < 1:
-            raise ValueError("max_deliveries must be at least 1")
+    def __init__(self, db: SqliteDatabase):
         self.db = db
-        self.lease = lease
-        self.max_deliveries = max_deliveries
+        self.lease = float(config.QUEUE_LEASE.read() or 0)  # FTW_QUEUE_LEASE
+        self.max_deliveries = int(config.QUEUE_MAX_DELIVERIES.read() or 0)  # FTW_QUEUE_MAX_DELIVERIES
 
     async def enqueue(self, message: JobMessage) -> None:
         async with self.db.transaction() as conn:

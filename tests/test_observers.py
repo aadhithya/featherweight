@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 from ag_ui.core import UserMessage
-from fakes import Echo, EchoInput, Scripted, Streams, run_pipeline, runner_with, structured_reply, use_model
+from fakes import Echo, EchoInput, Scripted, Streams, run_pipeline, runner_with, settings, structured_reply, use_model
 from test_resume import model, steps
 from test_streaming import Chat, say
 from test_subagents import PARENT_INPUT, Parent, child_done, launch_child, parent_done
@@ -117,7 +117,8 @@ class Slow(RecordingObserver):
 async def test_an_observer_that_raises_or_is_too_slow_changes_nothing(db):
     good = RecordingObserver()
 
-    runner = runner_with(db, Scripted(script=[echoed()]), observers=[Broken(), Slow(), good], observer_timeout=0.05)
+    with settings(observer_timeout=0.05):
+        runner = runner_with(db, Scripted(script=[echoed()]), observers=[Broken(), Slow(), good])
     result = await runner.run(Echo, ECHO)
 
     assert result.status == Status.SUCCESS and result.output is not None and result.output.echoed == "hello"

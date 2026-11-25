@@ -107,7 +107,9 @@ A message has two new fields, `identity` (a JSON mapping or `None`) and `identit
 
 | Before | After | Notes |
 |---|---|---|
-| the environment variable `MAX_CONCURRENT_AGENT_RUNS` | `MAX_CONCURRENT_ATTEMPTS` | It limits the attempts (the model calls) that run at once. The argument `max_concurrent` is unchanged. |
+| the environment variable `MAX_CONCURRENT_AGENT_RUNS` | `FTW_MAX_CONCURRENT_ATTEMPTS` | It limits the attempts (the model calls) that run at once. The argument `max_concurrent` is unchanged. |
+| the environment variables `MAX_AGENT_DEPTH`, `MAX_AGENT_LAUNCHES` | `FTW_MAX_AGENT_DEPTH`, `FTW_MAX_AGENT_LAUNCHES` | Every variable of featherweight starts with `FTW_`. The old names do nothing. |
+| the arguments `AgentRunner(observer_timeout=)`, `JobWorker(lease=, heartbeat=, receive_timeout=, cancel_poll=)`, `SqliteQueue(lease=, max_deliveries=)` | `FTW_OBSERVER_TIMEOUT`, `FTW_JOB_LEASE`, `FTW_HEARTBEAT`, `FTW_WORKER_RECEIVE_TIMEOUT`, `FTW_WORKER_CANCEL_POLL`, `FTW_QUEUE_LEASE`, `FTW_QUEUE_MAX_DELIVERIES` | These tune a deployment and are environment-only; passing the argument is a `TypeError`. [The list](https://github.com/aadhithya/featherweight/blob/main/docs/specs/configuration.md#the-settings). |
 | the span attribute `ftw.invocation.id` | `ftw.run.id` | |
 | the span attribute `ftw.run.id` | `ftw.attempt.id` | **`ftw.run.id` now means something else** (a run, not an attempt): change dashboards and alerts that read it before you upgrade the attribute they read. |
 | the span attribute `ftw.reused_from_agent_run_id` | `ftw.reused_from_attempt_id` | |
@@ -165,7 +167,7 @@ You are changing a project that uses featherweight 0.1 to the next release. Work
    | 8 | `list_runs`, `get_run`, `create_run`, `finish_run`, `mark_run_running`, `find_reusable_run` | `list_attempts`, `get_attempt`, `create_attempt`, `finish_attempt`, `start_attempt`, `find_reusable_attempt` | calls on a database object, and a `Database` you implement |
    | 9 | `agent_runs` | `attempts` | SQL |
    | 10 | `background_agents` | `background_jobs` | code, docs and prompts |
-   | 11 | `MAX_CONCURRENT_AGENT_RUNS` | `MAX_CONCURRENT_ATTEMPTS` | deployment files, `.env`, docs |
+   | 11 | `MAX_CONCURRENT_AGENT_RUNS` | `FTW_MAX_CONCURRENT_ATTEMPTS` | deployment files, `.env`, docs |
    | 11b | `RunStatus` | `Status` | code (the import and every use) |
    | 11c | `ReusedRun` | `RunReused` | code that implements an observer |
    | 11d | `max_background=` | `max_background_jobs=` | `AgentRunner(...)` calls |

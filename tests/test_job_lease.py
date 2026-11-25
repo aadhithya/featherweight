@@ -3,7 +3,7 @@
 import asyncio
 
 import pytest
-from fakes import Reactive, runner_with
+from fakes import Reactive, runner_with, settings
 from pydantic import BaseModel
 
 from featherweight import run_job
@@ -57,11 +57,10 @@ async def submit(db, queue, text):
     return job_id
 
 
-def worker(db, queue, runner=None, **kwargs):
-    kwargs.setdefault("receive_timeout", 0.05)
-    kwargs.setdefault("cancel_poll", 0.05)
+def worker(db, queue, runner=None, lease=None, heartbeat=None, **kwargs):
     runner = runner or runner_with(db, Reactive(respond=lambda *_: RuntimeError("no model"), delay_s=0))
-    return JobWorker(db, queue, runner, [Hold], **kwargs)
+    with settings(**{k: v for k, v in (("job_lease", lease), ("heartbeat", heartbeat)) if v is not None}):
+        return JobWorker(db, queue, runner, [Hold], **kwargs)
 
 
 async def until(condition, timeout=5.0):
@@ -146,9 +145,10 @@ async def test_a_job_run_in_process_has_an_owner_and_no_lease(db):
 async def test_the_heartbeat_keeps_a_job_longer_than_its_lease_and_its_message_alive(db):
     from featherweight.queue import SqliteQueue
 
-    queue = SqliteQueue(
-        db, lease=1.0
-    )  # a lease with room for a late heartbeat on a busy machine: it renews every third of it
+    with settings(
+        queue_lease=1.0
+    ):  # a lease with room for a late heartbeat on a busy machine: it renews every third of it
+        queue = SqliteQueue(db)
     job_id = await submit(db, queue, "long")
     async with Started(worker(db, queue, lease=1.0)):  # renews every 0.33 s, and the lease has 0.67 s of slack
         await until(lambda: running(db, job_id))
@@ -258,8 +258,8 @@ async def test_a_requeued_job_is_started_again_as_the_next_execution(db):
 
 
 async def test_the_lease_options_are_checked(db):
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="FTW_JOB_LEASE"):
         worker(db, MemoryQueue(), lease=0)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="FTW_HEARTBEAT"):
         worker(db, MemoryQueue(), heartbeat=-1)
     assert worker(db, MemoryQueue(), lease=30).heartbeat == 10

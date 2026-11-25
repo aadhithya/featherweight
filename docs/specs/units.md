@@ -73,7 +73,7 @@ job ── one or more executions (a takeover, or a requeue after a shutdown, ma
 | **Observers** | `JobStart`, `JobEnd` | `JobStart.execution` | `run_id` on the attempt records | `AttemptStart`, `AttemptEnd` |
 | **Spans** | `invoke_workflow` | `ftw.job.execution` | `ftw.run.id` | `invoke_agent`, `ftw.attempt.id`, `ftw.attempt` |
 | **Logs** | `job_started`... | `worker_takeover` | `run_started`, `run_finished`, `run_reused` | `attempt_started`, `attempt_created`, `attempt_finished` |
-| **Settings** | `max_background` | | | `MAX_CONCURRENT_ATTEMPTS` |
+| **Settings** | `max_background` | | | `FTW_MAX_CONCURRENT_ATTEMPTS` |
 
 ## The rename
 
@@ -134,7 +134,7 @@ every log line, span attribute and observer field; every setting; and every page
 
 Unchanged: `attempt_started`, `run_reused`, `run_reuse_rejected`, `stream_started`, `stream_ended`, `fan_out_started`, `fan_out_finished`.
 
-**Settings:** the environment variable `MAX_CONCURRENT_AGENT_RUNS` becomes `MAX_CONCURRENT_ATTEMPTS`: it limits the attempts (the model calls) that run at once, not the runs. The argument `max_concurrent` keeps its name.
+**Settings:** the environment variable `MAX_CONCURRENT_AGENT_RUNS` becomes `MAX_CONCURRENT_ATTEMPTS` (and then `FTW_MAX_CONCURRENT_ATTEMPTS`, [configuration](configuration.md)): it limits the attempts (the model calls) that run at once, not the runs. The argument `max_concurrent` keeps its name.
 
 **The examples:** the doclearn example saves what a run of its command produces in a "run folder" (`runs/<time>_<category>/`, `make_run_dir`, `setup_run_logging`, 24 mentions in the docs, the Makefile and `.gitignore`). That is a run of a command line, not of an agent, so it becomes the **output folder** (`out/<time>_<category>/`, `make_output_dir`). `examples/resume` prints attempts (`print_runs` becomes `print_attempts`).
 

@@ -7,7 +7,7 @@ from fakes import Echo, EchoInput, Reactive, respond, runner_with
 
 from featherweight.fingerprint import input_hash
 from featherweight.models import Status
-from featherweight.runner import ENV_MAX_CONCURRENT, AgentRunner
+from featherweight.runner import AgentRunner
 
 
 async def run_many(runner, texts):
@@ -26,7 +26,7 @@ async def test_never_more_than_the_limit_in_flight_and_everything_completes(db):
 
 
 async def test_limit_comes_from_the_environment(db, monkeypatch):
-    monkeypatch.setenv(ENV_MAX_CONCURRENT, "2")
+    monkeypatch.setenv("FTW_MAX_CONCURRENT_ATTEMPTS", "2")
     model = Reactive(respond=respond)
     runner = runner_with(db, model)
 
@@ -105,9 +105,9 @@ async def test_run_many_returns_failures_as_results_and_handles_the_job_id_and_n
 
 
 LIMITS = [  # the argument, its environment variable and its default
-    ("max_concurrent", "MAX_CONCURRENT_ATTEMPTS", 10),
-    ("max_depth", "MAX_AGENT_DEPTH", 3),
-    ("max_launches", "MAX_AGENT_LAUNCHES", 10),
+    ("max_concurrent", "FTW_MAX_CONCURRENT_ATTEMPTS", 10),
+    ("max_depth", "FTW_MAX_AGENT_DEPTH", 3),
+    ("max_launches", "FTW_MAX_AGENT_LAUNCHES", 10),
 ]
 
 

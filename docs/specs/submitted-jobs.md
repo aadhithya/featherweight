@@ -111,7 +111,7 @@ over one is thin. How many redeliveries are allowed is the queue's business. `fe
 
 **What we ship:**
 - **`SqliteQueue(db)`**: a `job_queue` table in the run log's sqlite file, for local development, and our only product
-  implementation. A message is claimed atomically, `ack` deletes the row, `nack` requeues or deletes it. With the lease: `SqliteQueue(db, lease=60, max_deliveries=3)`; a message whose lease ends is delivered again (`ready` or `claimed` with an expired lease, in the order it went in), and one that was delivered `max_deliveries` times and whose lease ends again is marked `dead`, kept in the table for inspection, and logged (`queue_message_dead`). Failing its job (`DeadLettered`) is part of [#106](https://github.com/aadhithya/featherweight/issues/106), which is not built yet. A delivery's token names its claim (`<seq>:<delivery count>`), so that a stale `ack`, `nack` or `extend` cannot touch a message that was delivered again. A `nack(requeue=True)` is a deliberate return, and does not count against `max_deliveries`. The payload is in the table
+  implementation. A message is claimed atomically, `ack` deletes the row, `nack` requeues or deletes it. With the lease (`FTW_QUEUE_LEASE`, 60 seconds, and `FTW_QUEUE_MAX_DELIVERIES`, 3: [configuration](configuration.md)): `SqliteQueue(db)`; a message whose lease ends is delivered again (`ready` or `claimed` with an expired lease, in the order it went in), and one that was delivered `FTW_QUEUE_MAX_DELIVERIES` times and whose lease ends again is marked `dead`, kept in the table for inspection, and logged (`queue_message_dead`). Failing its job (`DeadLettered`) is part of [#106](https://github.com/aadhithya/featherweight/issues/106), which is not built yet. A delivery's token names its claim (`<seq>:<delivery count>`), so that a stale `ack`, `nack` or `extend` cannot touch a message that was delivered again. A `nack(requeue=True)` is a deliberate return, and does not count against `max_deliveries`. The payload is in the table
   until it is acknowledged, on the same terms as the sqlite result store: sqlite is for local development.
 - **`MemoryQueue(lease=60)`**, in `featherweight.testing`, for tests: the same lease semantics (pass a very short lease in a test), and no limit on redeliveries.
 
@@ -231,9 +231,9 @@ for ever. This section is the recovery from that, and it is all that it is: we d
 - **Two leases, with one job each** (built, [#105](https://github.com/aadhithya/featherweight/issues/105)). The queue's lease keeps a *message* from other receivers, and it comes back by itself when the worker
   stops renewing it. The job's lease is on the job row (`jobs.worker_id`, `jobs.lease_expires_at`), and is what makes it *exclusive*:
   at-least-once delivery can deliver a message twice even without a lease running out, so the job needs a lock of its own. The default
-  lease is 60 seconds (`JobWorker(lease=...)`). A job that runs in your process (`run_job`) has an owner and no lease: nothing renews one and
+  lease is 60 seconds (`FTW_JOB_LEASE`). A job that runs in your process (`run_job`) has an owner and no lease: nothing renews one and
   nobody takes it over, so it has none to lose.
-- **The heartbeat** (built, #105). One task per worker renews, every third of the lease (20 seconds; `JobWorker(heartbeat=...)`), the job lease of every job it runs
+- **The heartbeat** (built, #105). One task per worker renews, every third of the lease (20 seconds; `FTW_HEARTBEAT`), the job lease of every job it runs
   (**one `UPDATE`, in place, no new rows**) and the queue lease of each of their messages (`extend`). It proves that the worker is alive,
   and not that a job makes progress: that is the timeout.
 - **Takeover** (built, [#106](https://github.com/aadhithya/featherweight/issues/106)). A message comes back after its lease ended and reaches a worker. If the job is `RUNNING` and its lease has expired, the
@@ -266,7 +266,7 @@ for ever. This section is the recovery from that, and it is all that it is: we d
   cancellation from outside, do not (the job ends `FAILED` with that error, and `CANCELLED`). The runs that it interrupts end `CANCELLED`. A heartbeat cannot do this, because a hung job in a healthy worker still
   heartbeats.
 - **Delivery count.** `Delivery.delivery_count` says how many times a message has been delivered. **How many redeliveries are allowed is the
-  queue's business**: a broker has its own policy and dead-letter queue. Ours, `SqliteQueue`, allows 3 by default (`max_deliveries`), then marks
+  queue's business**: a broker has its own policy and dead-letter queue. Ours, `SqliteQueue`, allows 3 by default (`FTW_QUEUE_MAX_DELIVERIES`), then marks
   the message `dead` and fails the job with error type `DeadLettered`. A user's queue that dead-letters a message ends its
   job with **`client.fail(job_id)`** (built, #106), from its dead-letter handler: a compare-and-set that moves a job that is not running to `FAILED`
   with error type `DeadLettered` (a `failed` event): one that is still `INIT`, or `RUNNING` with an expired lease (its worker was lost). It returns
@@ -381,7 +381,7 @@ No live model call. Fake models, `MemoryQueue`, the dict result store.
   writer and a reader on one file in two processes; one reader serving many streams; the stream ends at a final event; the SSE
   format and `Last-Event-ID`; the `Database` conformance kit on sqlite and Postgres.
 - **Several workers:** `check_queue` with a short lease (built, #104: a message comes back with a higher count, `extend` keeps it, an acknowledged one
-  does not, a stale delivery changes nothing); `SqliteQueue` with `max_deliveries` (dead, and its job `FAILED`); two workers, one killed mid-job: the other takes the job over,
+  does not, a stale delivery changes nothing); `SqliteQueue` with `FTW_QUEUE_MAX_DELIVERIES` (dead, and its job `FAILED`); two workers, one killed mid-job: the other takes the job over,
   `executions` is 2 and the events read queued, running, lost, running, succeeded; a duplicate delivery of a live job is skipped; a stalled
   worker that wakes up loses its job quietly and writes nothing; the heartbeat keeps a long job alive; a takeover of a resumable job reuses its finished steps (and one that is not resumable reruns them), and
   never its own execution's; `client.fail` on an `INIT` job, and on a final one; the timeout fails a hung job (in the worker and in `run_job`).

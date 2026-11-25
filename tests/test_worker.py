@@ -5,7 +5,7 @@ import json
 import logging
 
 import pytest
-from fakes import Echo, EchoInput, Reactive, runner_with, structured_reply
+from fakes import Echo, EchoInput, Reactive, runner_with, settings, structured_reply
 from pydantic import BaseModel
 
 from featherweight.db import Database
@@ -105,8 +105,6 @@ async def submit(db: Database, queue: JobQueue, job: type[Job], text: str = "hi"
 
 
 def make(db, queue, jobs, **kwargs):
-    kwargs.setdefault("receive_timeout", 0.05)
-    kwargs.setdefault("cancel_poll", 0.05)
     runner = kwargs.pop("runner", None) or runner_with(
         db, Reactive(respond=lambda *_: RuntimeError("no model"), delay_s=0)
     )
@@ -317,7 +315,9 @@ def test_two_jobs_with_one_name_are_refused(db):
 
 async def test_cancel_in_the_same_process_cancels_the_running_job_at_once(db, queue):
     job_id = await submit(db, queue, Slow)
-    async with Running(make(db, queue, [Slow], cancel_poll=60)) as worker:
+    with settings(worker_cancel_poll=60):
+        slow_poll = make(db, queue, [Slow])
+    async with Running(slow_poll) as worker:
         await asyncio.wait_for(GATE.started.wait(), timeout=5)
         assert worker.cancel(job_id) is True and worker.cancel("nope") is False
         row = await final(db, job_id)
@@ -331,7 +331,7 @@ async def test_cancel_from_another_process_is_found_by_the_poll(tmp_path):
     async with SqliteDatabase(path) as worker_db, SqliteDatabase(path) as client_db:
         queue = SqliteQueue(worker_db)
         job_id = await submit(worker_db, queue, Slow)
-        async with Running(make(worker_db, queue, [Slow], cancel_poll=0.05)):
+        async with Running(make(worker_db, queue, [Slow])):
             await asyncio.wait_for(GATE.started.wait(), timeout=5)
             assert await client_db.request_job_cancel(job_id) is True  # a client, with a connection of its own
             row = await final(worker_db, job_id)

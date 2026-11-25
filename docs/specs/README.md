@@ -21,6 +21,7 @@ not supported, tests.
 | [Jobs](jobs.md) | Jobs, the run log, statuses, logging |
 | [Submitted jobs](submitted-jobs.md) | A job as a declared class, `JobQueue`, `JobClient`, `JobWorker`, cancelling, job events and SSE |
 | [Background jobs](background-jobs.md) | A job exposed to an agent as a tool, here or on a worker, getting its result back, events, how long a child lives |
+| [Configuration](configuration.md) | The environment variables (`FTW_...`), which settings can also be passed in code, and the rule for both |
 | [Observers and OpenTelemetry](observability.md) | The `Observer` class and what it receives, `OTelObserver` and the GenAI conventions, spans for jobs, attempts, model calls and tool calls, evaluation |
 
 ## Where things belong
@@ -41,6 +42,7 @@ A change goes in the spec of the thing it changes, and not in the spec of the ep
 | [Jobs](jobs.md) | A job: `run_job`, running a job class, its version, statuses, what the run log records, logging |
 | [Submitted jobs](submitted-jobs.md) | The `Job` class and `@job`, the queue and its message, the client, the worker, cancelling, job events and SSE |
 | [Background jobs](background-jobs.md) | `background_jobs`, `start_background`, where a child runs, the result message, the events, how long a child lives |
+| [Configuration](configuration.md) | Every environment variable, its default, and whether an argument may override it |
 | [Observers and OpenTelemetry](observability.md) | The `Observer` class and its records, `OTelObserver`, the GenAI mapping, your own spans, evaluation |
 
 A spec says what it owns, and links to the spec that owns the rest.

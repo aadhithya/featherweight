@@ -392,7 +392,7 @@ async def test_a_job_that_a_client_submits_and_a_worker_runs_is_one_trace_across
     queue = SqliteQueue(db)
     client = JobClient(db, queue, MemoryResultStore(), observers=[observer_for(telemetry)])
     runner = runner_with(db, Scripted(script=[echoed()]), observers=[observer_for(telemetry)])
-    worker = JobWorker(db, queue, runner, [Shout], results=MemoryResultStore(), receive_timeout=0.05, cancel_poll=0.05)
+    worker = JobWorker(db, queue, runner, [Shout], results=MemoryResultStore())
     api = telemetry[0].get_tracer("my api")
 
     with api.start_as_current_span("POST /jobs") as request:

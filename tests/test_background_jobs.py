@@ -439,7 +439,7 @@ async def run_on_a_worker(db, results, queue):
     use_model(Scripted(script=[child_done("same")]), "child")
     client = JobClient(db, queue, results)
     worker_runner = AgentRunner(db, results=results)
-    worker = JobWorker(db, queue, worker_runner, jobs=[Child], results=results, receive_timeout=0.05)
+    worker = JobWorker(db, queue, worker_runner, jobs=[Child], results=results)
     running = asyncio.create_task(worker.run())
     try:
         model = Scripted(script=[start_child(), parent_done(), parent_done()])
@@ -482,7 +482,7 @@ async def test_a_worker_that_does_not_know_the_child_fails_its_job(db):
     queue = MemoryQueue()
     results = MemoryResultStore()
     client = JobClient(db, queue, results)
-    worker = JobWorker(db, queue, AgentRunner(db, results=results), jobs=[], results=results, receive_timeout=0.05)
+    worker = JobWorker(db, queue, AgentRunner(db, results=results), jobs=[], results=results)
     running = asyncio.create_task(worker.run())
     try:
         model = Scripted(script=[start_child(), parent_done(), parent_done()])

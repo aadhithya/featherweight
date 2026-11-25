@@ -374,9 +374,7 @@ async def test_a_job_that_an_agent_starts_in_the_background_on_a_worker_runs_for
     queue, results = MemoryQueue(), MemoryResultStore()
     client = JobClient(db, queue, results)
     worker_runner = AgentRunner(db, results=results, identity_type=Teacher)
-    worker = JobWorker(
-        db, queue, worker_runner, jobs=[WhoAmI], results=results, receive_timeout=0.05, identity_type=Teacher
-    )
+    worker = JobWorker(db, queue, worker_runner, jobs=[WhoAmI], results=results, identity_type=Teacher)
     running = asyncio.create_task(worker.run())
     try:
         parent = Scripted(

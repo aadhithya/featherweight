@@ -7,6 +7,7 @@ the message comes back, and worker B takes the job over: the events read queued,
 """
 
 import asyncio
+import os
 import subprocess
 import sys
 import tempfile
@@ -19,6 +20,9 @@ from pydantic import BaseModel  # noqa: E402
 from featherweight import AgentRunner, JobClient, JobContext, JobWorker, SqliteDatabase, SqliteQueue, job  # noqa: E402
 
 LEASE = 1.0  # seconds: short, so that this takes seconds. The default is 60.
+os.environ["FTW_JOB_LEASE"] = os.environ["FTW_QUEUE_LEASE"] = str(
+    LEASE
+)  # settings are environment variables: a worker process inherits them
 
 
 class Nap(BaseModel):
@@ -37,14 +41,14 @@ async def nap(ctx: JobContext, input: Nap) -> Rested:
 
 async def worker(path: str) -> None:
     async with SqliteDatabase(path) as db:
-        queue = SqliteQueue(db, lease=LEASE)
-        await JobWorker(db, queue, AgentRunner(db), jobs=[nap], lease=LEASE).run()
+        queue = SqliteQueue(db)
+        await JobWorker(db, queue, AgentRunner(db), jobs=[nap]).run()
 
 
 async def main() -> None:
     path = str(Path(tempfile.mkdtemp()) / "takeover.db")
     async with SqliteDatabase(path) as db:
-        queue = SqliteQueue(db, lease=LEASE)
+        queue = SqliteQueue(db)
         client = JobClient(db, queue)
         a = subprocess.Popen([sys.executable, __file__, "worker", path])  # worker A, a process of its own
         job_id = await client.submit(nap, Nap(seconds=2))

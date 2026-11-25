@@ -21,6 +21,7 @@ in the spec that owns it, and the others link to it. [The table of who owns what
 | What is in a span, and which attribute names are used? | [Observers and OpenTelemetry](../../specs/observability.md) |
 | How does the runner retry, limit and launch agents? | [The agent runner](../../specs/runner.md) |
 | Who is a run for, and what does featherweight do and not do with that? | [Identity](../../specs/identity.md) |
+| Which environment variables are there, and which settings can I pass in code? | [Configuration](../../specs/configuration.md) |
 
 > **Why** the book does not restate them: a fact written twice is soon written two ways.
 

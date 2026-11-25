@@ -11,6 +11,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
+from featherweight import config
 from featherweight.db import Database, JobEvent, JobRow
 from featherweight.events import job_events, wait_for_job
 from featherweight.fingerprint import error_fields, input_hash, text_hash
@@ -41,7 +42,9 @@ class JobClient:
         self.db = db
         self._identity = IdentitySpec(identity_type)  # optional here: the worker's declared type is the authority
         self.queue = queue
-        self._observers = Observers(observers)  # heard on `submit`: the carrier they return travels in the message
+        self._observers = Observers(
+            observers, float(config.OBSERVER_TIMEOUT.read() or 0)
+        )  # heard on `submit`: the carrier they return travels in the message
         self.results: ResultStore | None = (
             results
             if not isinstance(results, str)

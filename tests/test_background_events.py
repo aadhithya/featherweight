@@ -215,8 +215,6 @@ async def test_stopping_the_response_cancels_a_child_on_a_worker(db, results):
         AgentRunner(db, results=results),
         jobs=[slow],
         results=results,
-        receive_timeout=0.05,
-        cancel_poll=0.05,
     )
     running = asyncio.create_task(worker.run())
     try:
@@ -330,7 +328,7 @@ async def test_the_job_of_a_child_on_a_worker_is_under_the_tool_call(db, results
     queue = MemoryQueue()
     client = JobClient(db, queue, results, observers=[observer])
     worker_runner = AgentRunner(db, results=results, observers=[observer])
-    worker = JobWorker(db, queue, worker_runner, jobs=[quick], results=results, receive_timeout=0.05)
+    worker = JobWorker(db, queue, worker_runner, jobs=[quick], results=results)
     running = asyncio.create_task(worker.run())
     model = Scripted(
         script=[

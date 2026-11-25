@@ -311,7 +311,7 @@ async def test_the_jobs_example_api_submits_follows_over_sse_and_reads_the_resul
     api = jobs_example(monkeypatch, "api")
     queue = SqliteQueue(db)
     api.app.state.client = JobClient(db, queue)  # the lifespan opens its own; a test shares the database
-    worker = JobWorker(db, queue, AgentRunner(db), jobs=[shout.shout], receive_timeout=0.05)
+    worker = JobWorker(db, queue, AgentRunner(db), jobs=[shout.shout])
     running = asyncio.create_task(worker.run())
     try:
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=api.app), base_url="http://test") as http:

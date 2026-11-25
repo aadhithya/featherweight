@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+import os
+from contextlib import contextmanager
 from typing import Any, ClassVar
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -32,6 +34,23 @@ class FakeSettings(ModelSettings):
                 f"no fake model {self.key!r} in this test: use runner_with(db, model) or use_model(model)"
             )
         return MODELS[self.key]
+
+
+@contextmanager
+def settings(**values: object):
+    """Set featherweight's environment settings while an object is built (they are read when it is): `settings(job_lease=0.3)` is
+    `FTW_JOB_LEASE=0.3`. The values are put back afterwards."""
+    before = {key: os.environ.get(key) for key in (f"FTW_{name.upper()}" for name in values)}
+    for name, value in values.items():
+        os.environ[f"FTW_{name.upper()}"] = str(value)
+    try:
+        yield
+    finally:
+        for key, old in before.items():
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
 
 
 def use_model(model: BaseChatModel, key: str = "default") -> None:
