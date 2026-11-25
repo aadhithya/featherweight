@@ -34,7 +34,7 @@ from ag_ui.core import (
 )
 from pydantic import ValidationError
 
-from featherweight.adapters.errors import BadRequest
+from featherweight.adapters.errors import BadRequest, problems
 from featherweight.streaming import ChatInput, StreamingRun
 
 logger = logging.getLogger(__name__)
@@ -72,7 +72,7 @@ def parse_request(body: dict[str, Any] | str | bytes | list[Any]) -> ChatInput:
     try:
         return ChatInput(messages=to_agui_messages(body), thread_id=thread_id)
     except ValidationError as exc:
-        raise BadRequest("; ".join(e["msg"].removeprefix("Value error, ") for e in exc.errors())) from exc
+        raise BadRequest(problems(exc)) from exc
 
 
 def _json(value: Any) -> str:

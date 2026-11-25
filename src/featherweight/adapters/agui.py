@@ -10,7 +10,7 @@ from ag_ui.core import RunAgentInput
 from ag_ui.encoder import EventEncoder
 from pydantic import ValidationError
 
-from featherweight.adapters.errors import BadRequest
+from featherweight.adapters.errors import BadRequest, problems
 from featherweight.streaming import ChatInput, StreamingRun
 
 logger = logging.getLogger(__name__)
@@ -18,10 +18,6 @@ logger = logging.getLogger(__name__)
 CONTENT_TYPE = "text/event-stream"
 # Headers for the response: the stream must not be cached or buffered on its way to the browser.
 HEADERS = {"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"}
-
-
-def _problems(exc: ValidationError) -> str:
-    return "; ".join(f"{'.'.join(str(p) for p in e['loc']) or 'body'}: {e['msg']}" for e in exc.errors())
 
 
 def parse_request(body: dict[str, Any] | bytes | str) -> ChatInput:
@@ -38,13 +34,13 @@ def parse_request(body: dict[str, Any] | bytes | str) -> ChatInput:
     except json.JSONDecodeError as exc:
         raise BadRequest(f"The body is not JSON: {exc}") from exc
     except ValidationError as exc:
-        raise BadRequest(f"The body is not an AG-UI request: {_problems(exc)}") from exc
+        raise BadRequest(f"The body is not an AG-UI request: {problems(exc)}") from exc
     if request.tools:
         logger.warning("agui_tools_ignored count=%d: the agent has its own tools", len(request.tools))
     try:
         return ChatInput(messages=request.messages, thread_id=request.thread_id)
     except ValidationError as exc:
-        raise BadRequest(f"The conversation is not valid: {_problems(exc)}") from exc
+        raise BadRequest(problems(exc)) from exc
 
 
 async def encode(run: StreamingRun) -> AsyncGenerator[str, None]:
