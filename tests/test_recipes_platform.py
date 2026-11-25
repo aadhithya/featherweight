@@ -7,17 +7,19 @@ import logging
 import re
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
-from fakes import Scripted, runner_with, structured_reply, tool_reply
+from fakes import Scripted, runner_with, settings, structured_reply, tool_reply
 from langchain_core.messages import SystemMessage, ToolMessage
 from pydantic import BaseModel
+from test_worker import In, Out
 
 from featherweight import AgentBase, AgentInput, AgentOutput, AgentRunner, SetupError, Skill, testing
 from featherweight.client import JobClient
 from featherweight.events import wait_for_job
 from featherweight.fingerprint import agent_hash
+from featherweight.jobs import Job, JobContext
 from featherweight.model_settings import Gemini
 from featherweight.models import Status
 from featherweight.queue import JobMessage, SqliteQueue
@@ -275,6 +277,149 @@ async def test_the_signing_queue_runs_a_job_for_a_client_and_a_worker_that_share
         await worker.stop(grace=1)
         await asyncio.wait_for(task, timeout=5)
     assert row.status is Status.SUCCESS
+
+
+class Principal(BaseModel):
+    user_id: str
+
+
+class Seen(Job):
+    """A job that keeps who it ran for, and how many times it ran."""
+
+    name = "seen"
+    version = "1"
+    input_model = In
+    output_model = Out
+    runs = 0
+    who: ClassVar[list[Any]] = []
+
+    async def run(self, ctx: JobContext, input: In) -> Out:
+        Seen.runs += 1
+        Seen.who.append(ctx.identity)
+        return Out(shouted=input.text)
+
+
+@pytest.fixture(autouse=True)
+def fresh_seen():
+    Seen.runs = 0
+    Seen.who.clear()
+
+
+async def signed_worker(db, queue) -> JobWorker:
+    runner = AgentRunner(db, identity_type=Principal)
+    return JobWorker(db, queue, runner, jobs=[Seen], results=MemoryResultStore(), identity_type=Principal)
+
+
+async def a_valid_message_put_on_the_inner_queue(class_block_ns, message: JobMessage) -> JobMessage:
+    """What an attacker with access to the queue could copy: a message as the signing queue wrote it."""
+    scratch = MemoryQueue()
+    await class_block_ns["HmacQueue"](scratch, KEY).enqueue(message)
+    delivery = await scratch.receive(1.0)
+    assert delivery is not None
+    return delivery.message
+
+
+A_MESSAGE = JobMessage(
+    job_id="j1",
+    job_name="seen",
+    input={"text": "x"},
+    identity={"user_id": "u1"},
+    identity_kind="Principal",
+    trace_context={"traceparent": "00-a"},
+)
+
+
+async def test_a_signature_is_not_valid_for_another_job_or_another_kind_of_identity(db, caplog):
+    class_block, _ = blocks("a-queue-that-signs-its-messages.md")
+    ns = namespace_for_the_queue(db)
+    await run_block(class_block, ns)
+    inner = MemoryQueue()
+    queue = ns["HmacQueue"](inner, KEY)
+    signed = await a_valid_message_put_on_the_inner_queue(ns, A_MESSAGE)
+    await inner.enqueue(signed)
+    await inner.enqueue(signed.model_copy(update={"job_id": "j2"}))  # the identity moved onto another job
+    await inner.enqueue(signed.model_copy(update={"identity_kind": "Admin"}))  # only its kind changed
+    await inner.enqueue(signed.model_copy(update={"job_name": "other"}))
+
+    with caplog.at_level(logging.WARNING):
+        first = await queue.receive(0.2)
+        assert first is not None and first.message == A_MESSAGE  # the one that was not touched
+        await queue.ack(first)
+        assert await queue.receive(0.2) is None  # the other three are dropped
+    assert caplog.text.count("message_dropped") == 3
+
+
+async def test_an_identity_and_its_kind_go_through_the_signing_queue_to_a_worker(db):
+    class_block, _ = blocks("a-queue-that-signs-its-messages.md")
+    ns = namespace_for_the_queue(db)
+    await run_block(class_block, ns)
+    inner = MemoryQueue()
+    queue = ns["HmacQueue"](inner, KEY)
+    client = JobClient(db, queue, MemoryResultStore(), identity_type=Principal)
+    job_id = await client.submit(Seen, In(text="hi"), identity=Principal(user_id="u1"))
+    worker = await signed_worker(db, queue)
+    task = asyncio.create_task(worker.run())
+    try:
+        row = await wait_for_job(db, job_id, timeout=5)
+    finally:
+        await worker.stop(grace=1)
+        await asyncio.wait_for(task, timeout=5)
+
+    assert row.status is Status.SUCCESS
+    assert Seen.who == [Principal(user_id="u1")]  # rebuilt as the model that was submitted
+
+
+async def test_a_message_that_is_put_on_the_queue_again_after_its_job_ended_runs_nothing_twice(db):
+    class_block, _ = blocks("a-queue-that-signs-its-messages.md")
+    ns = namespace_for_the_queue(db)
+    await run_block(class_block, ns)
+    inner = MemoryQueue()
+    queue = ns["HmacQueue"](inner, KEY)
+    job_id = await db.create_job("seen", job_hash=Seen.job_hash())
+    message = A_MESSAGE.model_copy(update={"job_id": job_id})
+    signed = await a_valid_message_put_on_the_inner_queue(ns, message)
+    await inner.enqueue(signed)
+    worker = await signed_worker(db, queue)
+    task = asyncio.create_task(worker.run())
+    try:
+        await wait_for_job(db, job_id, timeout=5)
+        await inner.enqueue(signed)  # a replay: valid, and for a job that ended
+        async with asyncio.timeout(5):
+            while inner._ready or inner._claimed:  # the replay was taken and acknowledged
+                await asyncio.sleep(0.02)
+    finally:
+        await worker.stop(grace=1)
+        await asyncio.wait_for(task, timeout=5)
+
+    assert Seen.runs == 1
+    row = await db.get_job(job_id)
+    assert row is not None and row.status is Status.SUCCESS and row.executions == 1
+
+
+async def test_a_message_that_is_dropped_is_gone_from_the_sqlite_queue_too(db):
+    class_block, _ = blocks("a-queue-that-signs-its-messages.md")
+    ns = namespace_for_the_queue(db)
+    await run_block(class_block, ns)
+    inner = SqliteQueue(db)
+    await inner.enqueue(A_MESSAGE)  # not signed
+
+    assert await ns["HmacQueue"](inner, KEY).receive(0.3) is None
+    async with db.conn.execute("SELECT count(*) FROM job_queue") as cur:
+        assert (await cur.fetchone())[0] == 0  # `nack(requeue=False)` deletes the row: nothing of it is kept
+
+
+async def test_the_signing_queue_passes_the_kit_on_the_sqlite_queue_too(db):
+    class_block, _ = blocks("a-queue-that-signs-its-messages.md")
+    ns = namespace_for_the_queue(db)
+    await run_block(class_block, ns)
+
+    async def fresh(lease: float):
+        await db.conn.execute("DELETE FROM job_queue")
+        await db.conn.commit()
+        with settings(queue_lease=lease):
+            return ns["HmacQueue"](SqliteQueue(db), key=KEY)
+
+    await testing.check_queue(fresh)
 
 
 # a tool that gets a token for its identity
