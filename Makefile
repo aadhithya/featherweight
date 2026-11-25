@@ -103,7 +103,7 @@ example-takeover:
 example-observability:
 	docker compose run --rm --no-deps featherweight python examples/observability/trace.py
 
-# A chat agent that starts a background agent and is woken when it is done (real Claude Haiku calls; needs ANTHROPIC_API_KEY, see examples/background).
+# A chat agent that starts a background job and is woken when it is done (real Claude Haiku calls; needs ANTHROPIC_API_KEY, see examples/background).
 example-background:
 	docker compose run --rm --no-deps featherweight python examples/background/session.py
 

@@ -139,7 +139,7 @@ nav:
       - specs/agents.md
       - specs/runner.md
       - specs/models.md
-      - specs/tools-and-store.md
+      - specs/tools.md
       - specs/mcp-tools.md
       - specs/tool-discovery.md
       - specs/skills.md

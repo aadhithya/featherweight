@@ -178,7 +178,33 @@ def test_an_agent_without_background_jobs_keeps_its_hash_and_one_with_them_has_a
         background_jobs: list[type] = []
 
     assert agent_hash(Plain()) != agent_hash(Parent())
-    assert "background_jobs" not in agent_declaration(Plain())
+    # The name of the key is part of the hash: it is still the field's old name, so that the rename changed no hash and a resume of a job
+    # started before the upgrade reuses its steps. Renaming it to match the field would change the hash of every agent that has some.
+    assert "background_agents" in agent_declaration(Parent())
+    assert "background_agents" not in agent_declaration(Plain())
+    assert "background_jobs" not in agent_declaration(Parent()) and "background_jobs" not in agent_declaration(Plain())
+
+
+def test_a_class_that_still_declares_the_old_field_is_refused_and_not_ignored():
+    # an agent written for 0.1, annotated as it was: it would be built and have no background jobs, and the model never offered the tool
+    with pytest.raises(TypeError, match="`background_agents`.*now `background_jobs`"):
+
+        class Old(Parent):
+            background_agents: list[type] = [Child]
+
+
+def test_a_class_built_from_data_that_declares_the_old_field_is_refused_too():
+    from pydantic import create_model
+
+    with pytest.raises(TypeError, match="now `background_jobs`"):
+        create_model("Built", __base__=Parent, background_agents=(list[type], [Child]))
+
+
+def test_the_new_field_is_not_refused():
+    class Renamed(Parent):
+        background_jobs: list[type] = [Child]
+
+    assert Renamed().background_jobs == [Child]
 
 
 # the prompt and the tools

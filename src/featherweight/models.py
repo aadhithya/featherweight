@@ -139,6 +139,15 @@ class AgentBase(BaseModel):
     # True for a `StreamingAgent` (featherweight/streaming.py): it is run with `runner.stream()`, not `runner.run()`.
     streaming: ClassVar[bool] = False
 
+    @classmethod
+    def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:
+        super().__pydantic_init_subclass__(**kwargs)
+        if "background_agents" in cls.model_fields:  # the field of 0.1: as a plain field it would be read by nothing
+            raise TypeError(
+                f"{cls.__name__} declares `background_agents`, which is now `background_jobs` (the same list; an agent class in it "
+                "runs as a job): rename the field, or the agent has no background jobs"
+            )
+
     @model_validator(mode="after")
     def _check_subagents(self):
         names = []
