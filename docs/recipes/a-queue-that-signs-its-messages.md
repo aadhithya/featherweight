@@ -75,6 +75,7 @@ client, worker = JobClient(db, queue), JobWorker(db, queue, runner, jobs=[...])
 <!-- skill:omit -->
 - **The signature covers the whole message:** the job id and name, the input, the identity and its kind, and the trace context, so an identity cannot be moved onto another job. It is a signature, not encryption: the message stays readable.
 - **A forged or changed message is dropped** (`nack(requeue=False)`), and the job row is left alone, because the `job_id` of a forged message can name someone's real job.
+- **A replay does no harm.** A valid message that someone puts on the queue again (a copy of one they saw) is for a job that already ran: the worker starts only a job that is queued, so it acknowledges the message and runs nothing. The signature binds the job, the input and the identity, so a replay can at most start that same job, once. If you also want to refuse old messages, put a timestamp in `trace_context` and check it in `receive`.
 - **Rotating the key:** accept a list of keys on `receive` and sign with the first.
 - **Encryption** is the same shape: encrypt `input` and `identity` in `enqueue` and decrypt them in `receive`, and leave `job_id`, `job_name` and `trace_context` readable, because a broker uses them. featherweight
   ships none (it has no cryptography dependency): bring the library you trust, and run the kit on the result.
