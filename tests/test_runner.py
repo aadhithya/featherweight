@@ -99,6 +99,7 @@ async def test_retry_then_success(db, make_error, error_type):
     rows = await db.list_attempts()
     assert [r.attempt for r in rows] == [1, 2]
     assert len({r.run_id for r in rows}) == 1
+    assert result.run_id == rows[0].run_id  # the result names its run, which is the run of its attempts
     assert len({r.attempt_id for r in rows}) == 2
     assert rows[0].status == Status.FAILED
     assert rows[0].error_type == error_type  # the class of the error, and a hash of its message: never the text

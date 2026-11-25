@@ -132,8 +132,9 @@ every log line, span attribute and observer field; every setting; and every page
 | `run_created`, `run_running`, `run_finished` | `attempt_created`, `attempt_running`, `attempt_finished` | The databases, once per attempt row. |
 | the key `agent_run_id=` | `attempt_id=` | In every line that carries it. |
 | the key `invocation_id=` | `run_id=` | |
+| `run_reused attempt_id=... reused_from=...`, `run_reuse_rejected reused_from=...`, `result_missing reused_from=...` | `run_reused run_id=... attempt_id=... reused_from_attempt_id=...`, and the other two with `run_id=` and `reused_from_attempt_id=` | The lines of a resume. A reused run is a run with one attempt row: its line names both ids, and the key says that it holds an attempt id. |
 
-Unchanged: `attempt_started`, `run_reused`, `run_reuse_rejected`, `stream_started`, `stream_ended`, `fan_out_started`, `fan_out_finished`.
+Unchanged: `attempt_started`, `stream_started`, `stream_ended`, `fan_out_started`, `fan_out_finished`.
 
 **Settings:** the environment variable `MAX_CONCURRENT_AGENT_RUNS` becomes `MAX_CONCURRENT_ATTEMPTS` (and then `FTW_MAX_CONCURRENT_ATTEMPTS`, [configuration](configuration.md)): it limits the attempts (the model calls) that run at once, not the runs. The argument `max_concurrent` keeps its name.
 
