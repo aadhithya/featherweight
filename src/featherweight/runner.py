@@ -356,9 +356,10 @@ class AgentRunner:
         """Run a streaming agent. Returns at once; the run starts when you loop over it, and its events (AG-UI's) come as
         the model writes. A failure is an `RUN_ERROR` event and a FAILED row, not an exception; and nothing is retried.
 
-        Programming errors raise, as for `run()`: an agent that is not a streaming agent, an input that is not a
-        `ChatInput`, a conversation with more attachments or bytes than the agent allows, an `identity` that is missing or of the
-        wrong type, or a `job_id` that does not exist or a job that is for another identity (raised when the loop starts).
+        A conversation with more attachments or bytes than the agent allows raises `AttachmentLimitError` (a `BadRequest`:
+        the client's request, not a mistake of the application). Programming errors raise, as for `run()`: an agent that is not
+        a streaming agent, an input that is not a `ChatInput`, an `identity` that is missing or of the wrong type, or a `job_id`
+        that does not exist or a job that is for another identity (raised when the loop starts).
         """
         if not (isinstance(agent_cls, type) and issubclass(agent_cls, StreamingAgent)):
             raise TypeError(

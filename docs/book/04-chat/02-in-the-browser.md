@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from featherweight import (
     AgentRunner,
+    AttachmentLimitError,
     BadRequest,
     Gemini,
     ModelSettings,
@@ -45,6 +46,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+
+@app.exception_handler(AttachmentLimitError)
+async def too_many_files(request: Request, exc: AttachmentLimitError):
+    return JSONResponse({"error": str(exc)}, status_code=413)  # more files, or more bytes, than the agent allows
 
 
 @app.exception_handler(BadRequest)
@@ -78,7 +84,7 @@ Without Docker: `pip install fastapi uvicorn`, then `uvicorn --app-dir 4-2 app:a
 
 - **Two endpoints, one agent.** `/vercel` speaks the [Vercel AI SDK](../../streaming.md#vercel-ai-sdk) stream, and `/agui` speaks [AG-UI](../../streaming.md#ag-ui). `parse_request` reads the client's conversation, and `encode` writes the events.
 - **The client sends the whole conversation,** report included, on every request. The server keeps nothing.
-- **A body that is not a chat request** is a `BadRequest`: answer it with a 422, as the handler does.
+- **A body that is not a chat request** is a `BadRequest`: answer it with a 422, as the handler does. **A conversation with more files, or more bytes, than the agent allows** is an `AttachmentLimitError`, which is a `BadRequest` too: `runner.stream()` raises it, and the handler for the subclass answers it with a 413 first. See [Attaching a file](04-attaching-a-file.md).
 
 A browser using the Vercel AI SDK's `useChat` hook posts to `/vercel`. This is a sketch of the client, not run in the book (the SDK's API changes between versions: check yours):
 

@@ -31,7 +31,7 @@ class IncidentAssistant(StreamingAgent):
         "from the report and from the files the user attaches."
     )
     model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
-    max_attachments = 3  # the limit is the agent's: ten by default, and 15 MB in all
+    max_attachments = 3  # the limit is the agent's: ten by default, and 15 MiB in all
 
 
 def attach(question: str, path: str) -> HumanMessage:
@@ -85,7 +85,7 @@ The payments team owns the integration with the payment provider.
 - **featherweight only passes it on.** It reads nothing, converts nothing and fetches nothing, and it does not know what the model can read. If the provider says no (a type it does not accept, a file that is too big), the turn fails with the provider's error, as any failed turn does.
 - **Only the bytes are accepted, not a URL.** A message with a link in its file block is refused when the `ChatInput` is built. Download the file yourself, check it as you see fit, and send what you have. The bytes are base64 as `base64.b64encode` gives it (no `data:` prefix, no line breaks), and a file with no bytes is refused.
 - **The file stays in the history.** The second question has no file, and it works because the first message, with its file, is still in `history`. Every turn sends the whole history again, so a file is sent again, and it counts again.
-- **The limits are the agent's.** `max_attachments` is 10 by default and the data may not be over 15 MB. Here the agent says 3. Over a limit, `runner.stream()` raises before anything runs, so catch that where you build the request.
+- **The limits are the agent's.** `max_attachments` is 10 by default and the data may not be over 15 MiB (`max_attachments = 0` turns attachments off). Here the agent says 3. Over a limit, `runner.stream()` raises an `AttachmentLimitError` before anything runs. It is a `BadRequest` (and a `ValueError`), so a web application answers it like one: [the handler of chapter 4-2](02-in-the-browser.md) gives it a 413.
 - **Providers differ.** Gemini reads all four types, Claude reads images and PDFs, and a provider may drop a type without an error. Check [what the providers accept](../../attachments-providers.md), which is a dated snapshot, and try your type with your model.
 
 > **Why bytes only.** How a file is fetched, scanned and stored is your application's decision, and a URL that a user chose is not one a framework should open for you. See

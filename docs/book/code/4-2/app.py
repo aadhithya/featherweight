@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from featherweight import (
     AgentRunner,
+    AttachmentLimitError,
     BadRequest,
     Gemini,
     ModelSettings,
@@ -35,6 +36,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+
+@app.exception_handler(AttachmentLimitError)
+async def too_many_files(request: Request, exc: AttachmentLimitError):
+    return JSONResponse({"error": str(exc)}, status_code=413)  # more files, or more bytes, than the agent allows
 
 
 @app.exception_handler(BadRequest)

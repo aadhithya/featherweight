@@ -228,7 +228,7 @@ An adapter has two parts: **read the request** into a `ChatInput`, and **encode 
 no router, no web framework dependency. A one-line Starlette example goes in the guide.
 
 **AG-UI** (`featherweight.adapters.agui`, built): the events are already AG-UI's, so this is the thin edge.
-- `parse_request(body)`: a `RunAgentInput` (a dict, text or bytes) becomes a `ChatInput`; a body it cannot read raises `BadRequest`, a `ValueError` that a framework turns into a 422. The client's `tools`, `state` and `context` are **ignored**
+- `parse_request(body)`: a `RunAgentInput` (a dict, text or bytes) becomes a `ChatInput`; a body it cannot read raises `BadRequest`, a `ValueError` that a framework turns into a 422. A conversation over the agent's attachment limits is not known to `parse_request`: `runner.stream()` raises `AttachmentLimitError` (a `BadRequest`, answered with a 413) ([attachments](attachments.md#failures)). The client's `tools`, `state` and `context` are **ignored**
   (the agent has its own tools), and sending tools logs a warning.
 - `encode(run)`: SSE strings from the official `EventEncoder`, plus `CONTENT_TYPE` and `HEADERS` for the response. The binary encoding is not supported.
 

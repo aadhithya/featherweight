@@ -21,7 +21,7 @@ class IncidentAssistant(StreamingAgent):
         "from the report and from the files the user attaches."
     )
     model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
-    max_attachments = 3  # the limit is the agent's: ten by default, and 15 MB in all
+    max_attachments = 3  # the limit is the agent's: ten by default, and 15 MiB in all
 
 
 def attach(question: str, path: str) -> HumanMessage:

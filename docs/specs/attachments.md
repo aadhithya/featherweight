@@ -81,11 +81,13 @@ Every turn sends the whole conversation, so an attachment in an earlier message 
 | Limit | Default | Counts |
 |---|---|---|
 | `max_attachments` | 10 | the media parts of all messages |
-| `max_bytes` | 15 MB | the decoded size of all of them |
+| `max_bytes` | 15 MiB (15,728,640 bytes) | the decoded size of all of them |
 
-The application sets them on the agent, with a class attribute, and the runner checks them when a turn starts.
+The application sets them on the agent, with a class attribute, and the runner checks them when a turn starts. A limit is a whole number of 0 or
+more. **`max_attachments = 0` turns attachments off for that agent:** any attachment is refused, and a message with only text passes. A conversation over
+either limit raises [`AttachmentLimitError`](#failures) before any run exists.
 
-**Where the defaults come from.** The size is the highest value that Anthropic, Google and OpenAI all accept (cautiously read); the count is our own choice. The providers' figures are in [what the providers accept](../attachments-providers.md)
+**Where the defaults come from.** The size is a cautious value that Anthropic, Google and OpenAI all accept; the count is our own choice. The providers' figures are in [what the providers accept](../attachments-providers.md)
 (read it with its warning: it is a dated snapshot, and the providers' pages are the source):
 
 | Provider | Count per request | Size of a request |
@@ -97,8 +99,9 @@ The application sets them on the agent, with a class attribute, and the runner c
 The default count is **10**, a design choice, not a provider's limit: every provider accepts more (the lowest is Anthropic's 100 images), but a chat
 that takes 100 files in one go is a different job, with its own pipeline (batch, jobs, a store). 10 is also what the Gemini **app** allows.
 An application that needs more raises `max_attachments`. For size the pages disagree: the lowest figure on any of them is Google's 20 MB, the next is OpenAI's 50 MB
-for files. Base64 makes data a third larger, so 15 MB of decoded bytes stays under 20 MB on the wire, with room for the text. The default is the
-cautious one, and an application that has checked its provider raises it.
+for files. Base64 makes data a third larger, so 15 MiB of decoded bytes is **exactly 20 MiB on the wire**: that lowest figure and no more (and
+over it, if "20 MB" is read as 20 million bytes). It is under every other figure. The default is the cautious one: Google has since raised its
+inline limit to 100 MB, and an application that has checked its provider raises it.
 Anthropic also applies a stricter pixel limit past 20 images or documents: that is the provider's to report.
 These are **ceilings against a request that cannot work, not a promise** that every request under them does: a provider also limits
 pages, pixels and the type of each file, and says so in its error.
@@ -110,6 +113,11 @@ result.**
 
 - **Raised, before any run exists:** a `url` source; a part type that is not supported; data that is not base64; an empty attachment; a
   missing mime type; more attachments or bytes than the agent allows. Nothing is started, and nothing is written to the run log.
+- **The limits raise `AttachmentLimitError`,** a subclass of [`BadRequest`](streaming.md#the-adapters) (so a `ValueError`, and a handler for `BadRequest` answers
+  it too), from `runner.stream()`. The input cannot refuse it earlier: the adapters build a `ChatInput` before they know the agent and its limits.
+  A web application answers it as a request that cannot be taken: **413** for `AttachmentLimitError` (a handler for the subclass wins over the one
+  for `BadRequest`), and **422** for every other `BadRequest`. The message says by how much, and that the application can raise the limit.
+  `BadRequest` is defined in `featherweight.errors`, where `streaming.py` can import it; `featherweight.adapters.errors` still exports it.
 - **A result:** everything the provider says no to (a type the model cannot read, a file that is too large for it, too many pages).
   The turn ends `FAILED` with the provider's error, an error event is sent, and **nothing is retried**, as for any streaming agent.
 
@@ -124,7 +132,7 @@ result.**
 - **Validate without a decoded copy.** The input is built before the agent's limits are known, so it cannot refuse a conversation that is too
   large first; what it can do is not to hold a second copy of every attachment while it checks.
 - **All four media types.** They map in the same way, so supporting two and refusing two would add code and not remove any.
-- **Limits are on the agent,** with defaults at the highest value all three big providers accept, so that most applications need no setting.
+- **Limits are on the agent,** with cautious defaults that all three big providers accept, so that most applications need no setting.
 - **The run log keeps no content.** It holds no message text today, and holds no attachment now: not the bytes, not the name.
 
 ## Not supported
@@ -175,6 +183,9 @@ Never a real model, and no network.
 - **The check agrees with Python's:** over many generated strings, and at the edges of the chunks, it accepts what `base64.b64decode(...,
   validate=True)` accepts and refuses what it refuses (an empty value apart).
 - **Memory:** checking a large attachment does not allocate a decoded copy of it (the peak is measured).
+- **The limit error:** it is an `AttachmentLimitError`, a `BadRequest` and a `ValueError`; a limit of 0 refuses an attachment and passes text; a
+  limit that is not a whole number of 0 or more is refused when the class is declared; over HTTP, a handler answers the limit error with 413 and
+  its message, and a malformed body with 422.
 - **The provider's side, offline:** build the request that each of the three packages would send for each block, and check its shape
   without sending it.
 - **A fake model** that fails on a block: the run is `FAILED`, the error event is sent, and there is no retry.
