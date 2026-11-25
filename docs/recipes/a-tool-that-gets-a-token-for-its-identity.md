@@ -3,6 +3,7 @@
 A tool acts for the user whose identity the run has. featherweight carries the identity; the tool checks what it may do, and gets a credential with code of your own, at each call.
 
 ```python
+# yours: db, mail_api (the client of the mail service), and Mailer and MailerInput (an agent that sends mail)
 from langchain.tools import ToolRuntime, tool
 from pydantic import BaseModel, Field
 

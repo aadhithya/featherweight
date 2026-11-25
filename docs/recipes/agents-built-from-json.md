@@ -4,6 +4,7 @@ Your users define agents in a form; you keep the definition as JSON and build th
 which tools a user may pick, which models, whether they may add skills, what every agent gets.
 
 ```python
+# yours: definition_from_your_database, house_style_md (the text of a skill) and runner (an AgentRunner)
 from typing import ClassVar
 
 from langchain_core.tools import BaseTool, tool
@@ -62,6 +63,7 @@ result = await runner.run(Summariser, Summariser.input_model(text="..."))
 On a worker, the agent does not exist in the code that started it. `jobs_lookup` is the fallback that finds it, from the same definitions:
 
 ```python
+# yours: definitions (your storage of definitions), db, queue and runner; Teacher is the identity, as in the identity recipe
 from featherweight import JobWorker
 
 

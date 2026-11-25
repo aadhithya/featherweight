@@ -14,6 +14,8 @@ from pydantic import BaseModel
 
 from featherweight import AgentRunner, JobContext, Status, SqliteDatabase, job, run_job
 
+# PeopleExtractor and ExtractInput: the agent of Getting started (../getting-started.md#an-agent)
+
 
 class Texts(BaseModel):
     texts: list[str]
@@ -46,34 +48,113 @@ exception. The same job can be submitted to a queue and run by a worker ([submit
 
 ## Resuming a failed job
 
-Create the first job with `resumable=True` (it keeps the outputs of its steps), and when it fails, run the same job again
-and point it at the failed job:
+Run a job again after it failed, without paying for the steps that worked. Create the first job with `resumable=True`, which keeps the outputs of its steps, and point the second run at it.
 
 ```python
-first = await run_job(runner, find_people, texts, resumable=True)
-outcome = await run_job(runner, find_people, texts, resume_from=first.job_id)
+import asyncio
+
+from pydantic import BaseModel
+
+from featherweight import AgentRunner, JobContext, SqliteDatabase, Status, default_db_path, job, run_job
+
+# PeopleExtractor and ExtractInput: the agent of Getting started (../getting-started.md#an-agent)
+
+
+class Texts(BaseModel):
+    texts: list[str]
+
+
+class People(BaseModel):
+    people: list[str]
+
+
+@job
+async def find_people(ctx: JobContext, input: Texts) -> People:
+    results = await ctx.run_many(PeopleExtractor, [ExtractInput(text=t) for t in input.texts])
+    for result in results:
+        if result.status != Status.SUCCESS:
+            raise RuntimeError(result.error)  # a failed step fails the job, so that it can be resumed
+    return People(people=sorted({p for result in results for p in result.output.people}))
+
+
+async def main() -> None:
+    texts = Texts(texts=["Anna met Tom.", "Li came."])
+    async with SqliteDatabase(default_db_path()) as db, AgentRunner(db) as runner:
+        first = await run_job(runner, find_people, texts, resumable=True)
+        outcome = await run_job(runner, find_people, texts, resume_from=first.job_id)
+        print(first.status.value, "then", outcome.status.value, outcome.result)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
-Runs that succeeded with the same agent and input are answered from the kept results (`result.reused`, zero tokens). Keep
-the code between agents deterministic (no clock, no `random`), and do not rely on state outside the result store for a resume.
+Runs that succeeded with the same agent and input are answered from the kept results (`result.reused`, zero tokens). Keep the code between agents deterministic (no clock, no `random`), and do not rely on state outside the result store for a resume.
 
 [The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/resuming-a-failed-job.md)
 
 ## Telling a retry what went wrong
 
-A retry does not see the last error. If the next attempt should, make it part of the input:
+A retry gets the same input as the try before it, so it cannot learn from the error. Put the error in the input, and the next try can fix what was wrong.
 
 ```python
+import asyncio
+from typing import ClassVar
+
+from featherweight import (
+    AgentBase,
+    AgentInput,
+    AgentOutput,
+    AgentRunner,
+    Gemini,
+    ModelSettings,
+    SqliteDatabase,
+    Status,
+    default_db_path,
+)
+
+
 class FillInput(AgentInput):
     form: str
-    problems: list[str] = []
+    problems: list[str] = []  # what was wrong with the last try
 
 
-result = await runner.run(Filler, FillInput(form=form), job_id=job_id)
-for _ in range(2):
-    if result.status == Status.SUCCESS:
-        break
-    result = await runner.run(Filler, FillInput(form=form, problems=[result.error or ""]), job_id=job_id)
+class Filled(AgentOutput):
+    name: str = ""
+    year: int = 0
+
+
+class Filler(AgentBase):
+    name: str = "filler"
+    description: str = "Fills in a form"
+    version: str = "0.1.0"
+    prompt: str = "Fill in the form. If the input lists problems, fix them."
+    model: ModelSettings = Gemini()
+    input_model: ClassVar[type[AgentInput]] = FillInput
+    output_model: ClassVar[type[AgentOutput]] = Filled
+
+    def check_output(self, agent_input, output):  # a rule the schema cannot say: raise to reject
+        if not 1000 <= output.year <= 2100:
+            raise ValueError(f"The year {output.year} is not a four-digit year")
+
+
+async def main() -> None:
+    form = "Ada Lovelace, born in the eighteen-hundreds"
+    async with (
+        SqliteDatabase(default_db_path()) as db,
+        AgentRunner(db, max_attempts=1) as runner,
+    ):  # one try: the loop is the retry
+        job_id = await db.create_job("fill-in")  # a job id groups the runs of one piece of work
+        result = await runner.run(Filler, FillInput(form=form), job_id=job_id)
+        for _ in range(2):
+            if result.status == Status.SUCCESS:
+                break
+            result = await runner.run(Filler, FillInput(form=form, problems=[result.error or ""]), job_id=job_id)
+        print(result.status.value, result.output or result.error)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 [The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/telling-a-retry-what-went-wrong.md)
@@ -95,7 +176,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from pydantic import Field
 
-from app import ExtractInput, PeopleExtractor  # your agent module
+from app import ExtractInput, PeopleExtractor  # the agent of Getting started, saved as app.py
 from featherweight import AgentRunner, ModelSettings, Status, SqliteDatabase
 
 
@@ -176,8 +257,31 @@ a `Literal` or a validator for rules on the output alone, and `check_output` for
 
 ## An agent with an MCP server
 
+Give an agent the tools of an MCP server. The agent below answers questions about a GitHub repository with the tools of GitHub's read-only server.
+
 ```python
-from featherweight import HttpMCPServer
+import asyncio
+from typing import ClassVar
+
+from featherweight import (
+    AgentBase,
+    AgentInput,
+    AgentOutput,
+    AgentRunner,
+    Gemini,
+    HttpMCPServer,
+    ModelSettings,
+    SqliteDatabase,
+    default_db_path,
+)
+
+
+class Question(AgentInput):
+    question: str
+
+
+class Answer(AgentOutput):
+    answer: str = ""
 
 
 class RepoReader(AgentBase):
@@ -185,6 +289,9 @@ class RepoReader(AgentBase):
     description: str = "Answers questions about a GitHub repository"
     version: str = "0.1.0"
     prompt: str = "Answer from the repository, using the tools."
+    model: ModelSettings = Gemini()
+    input_model: ClassVar[type[AgentInput]] = Question
+    output_model: ClassVar[type[AgentOutput]] = Answer
     mcp_servers: list = [
         HttpMCPServer(
             name="github",
@@ -193,32 +300,103 @@ class RepoReader(AgentBase):
             description="Repositories, issues and code",
         )
     ]
+
+
+async def main() -> None:
+    async with (
+        SqliteDatabase(default_db_path()) as db,
+        AgentRunner(db) as runner,
+    ):  # keeps the server connections open between runs
+        result = await runner.run(RepoReader, Question(question="What does aadhithya/featherweight do?"))
+        print(result.output)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
-`async with AgentRunner(db) as runner:` keeps the server connections open between runs and closes them at the end. It is
-optional.
+`pip install "featherweight[mcp]"` and set `GITHUB_TOKEN`. A server that has many tools can be searched instead of listed: [the MCP guide](mcp.md).
 
 [The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/an-agent-with-an-mcp-server.md)
 
 ## An agent that launches another
 
+Hand part of the work to another agent. The editor below asks a summariser for a summary, then writes the headline. It can launch only the agents on its list.
+
 ```python
+import asyncio
+from typing import ClassVar
+
+from featherweight import (
+    AgentBase,
+    AgentInput,
+    AgentOutput,
+    AgentRunner,
+    Gemini,
+    ModelSettings,
+    SqliteDatabase,
+    default_db_path,
+)
+
+
+class Topic(AgentInput):
+    topic: str
+
+
+class Summary(AgentOutput):
+    summary: str = ""
+
+
+class Headline(AgentOutput):
+    headline: str = ""
+
+
+class Summariser(AgentBase):
+    name: str = "summariser"
+    description: str = "Summarises a topic in one sentence"  # the editor's model reads this
+    version: str = "0.1.0"
+    prompt: str = "Summarise the topic in one sentence."
+    model: ModelSettings = Gemini()
+    input_model: ClassVar[type[AgentInput]] = Topic
+    output_model: ClassVar[type[AgentOutput]] = Summary
+
+
 class Editor(AgentBase):
     name: str = "editor"
     description: str = "Writes a headline"
     version: str = "0.1.0"
     prompt: str = "Write a headline. Ask the summariser for a summary first."
+    model: ModelSettings = Gemini()
     subagents: list[type] = [Summariser]  # classes: the only agents this one may launch
+    input_model: ClassVar[type[AgentInput]] = Topic
+    output_model: ClassVar[type[AgentOutput]] = Headline
+
+
+async def main() -> None:
+    async with SqliteDatabase(default_db_path()) as db, AgentRunner(db) as runner:
+        result = await runner.run(Editor, Topic(topic="a new bridge"))
+        print(result.output)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
+
+The model sees only the list you wrote, and `max_depth` and `max_launches` limit how far it goes. See [launching agents](launching-agents.md).
 
 [The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/an-agent-that-launches-another.md)
 
 ## A streaming agent for chat
 
+Stream a chat answer to a browser, as server-sent events, and keep the conversation yourself. featherweight keeps none: you give each turn the whole history, and you store what the turn produced.
+
 ```python
+import asyncio
 from contextlib import aclosing
 
-from featherweight import ChatInput, Claude, StreamingAgent
+from langchain_core.messages import BaseMessage, HumanMessage
+
+from featherweight import AgentRunner, ChatInput, Claude, ModelSettings, SqliteDatabase, StreamingAgent, default_db_path
 from featherweight.adapters import agui
 
 
@@ -230,38 +408,72 @@ class Support(StreamingAgent):
     model: ModelSettings = Claude(model="claude-haiku-5-5", effort="low", thinking="off")
 
 
-run = runner.stream(Support, ChatInput.from_langchain([*history.messages, user_message]))
-try:
-    async with aclosing(agui.encode(run)) as pieces:  # SSE strings: send them with any web framework
-        async for piece in pieces:
-            yield piece
-finally:
-    history.add_messages([user_message, *run.new_messages])  # you keep the conversation; featherweight keeps none
+history: list[BaseMessage] = []  # yours: keep the conversation where you like (a database, a file)
+
+
+async def answer(runner: AgentRunner, user_message: HumanMessage):
+    """The server-sent events of one turn: send them with any web framework."""
+    run = runner.stream(Support, ChatInput.from_langchain([*history, user_message]))
+    try:
+        async with aclosing(agui.encode(run)) as pieces:
+            async for piece in pieces:
+                yield piece
+    finally:
+        history.extend([user_message, *run.new_messages])  # what the turn produced, for the next turn
+
+
+async def main() -> None:
+    async with SqliteDatabase(default_db_path()) as db, AgentRunner(db) as runner:
+        async for piece in answer(runner, HumanMessage("Where is my order?")):
+            print(piece, end="")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
-`runner.cancel(run.run_id)` stops it. `featherweight.adapters.vercel` does the same for `useChat`. A chat in the terminal is
-`examples/chat/cli.py`, and the same agent behind FastAPI is `examples/chat/api.py`; [the streaming guide](streaming.md) has the details. Test it with a fake streaming chat model: the
-`Streams` double in the repository's `tests/fakes.py` shows how.
+`runner.cancel(run.run_id)` stops a turn. `featherweight.adapters.vercel` does the same for `useChat`. A chat in the terminal is `examples/chat/cli.py`, and the same agent behind FastAPI is `examples/chat/api.py`; [the streaming guide](streaming.md) has the details.
 
 [The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/a-chat-agent-that-streams.md)
 
 ## A result store of your own
 
-Resuming a job reads the outputs of finished steps from a `ResultStore`. Subclass it, write `put`, `get` and `delete_job`, and
-check it with the conformance kit (a missing method cannot be built; a broken rule raises `AssertionError`):
+Resuming a job reads the outputs of finished steps from a result store. Write one for your own storage: subclass `ResultStore`, write `put`, `get` and `delete_job`, and check it with the conformance kit.
 
 ```python
-from featherweight import AgentRunner, ResultKey, ResultStore, testing
+import asyncio
+
+from featherweight import AgentRunner, ResultKey, ResultStore, SqliteDatabase, default_db_path, testing
 
 
 class MyStore(ResultStore):
-    async def put(self, key: ResultKey, output: dict) -> None: ...  # key: job_id, agent_hash, input_hash
-    async def get(self, key: ResultKey) -> dict | None: ...
-    async def delete_job(self, job_id: str) -> None: ...
+    """Results in a dict, to show the shape: yours writes to a database, S3 or a file."""
+
+    def __init__(self) -> None:
+        self.results: dict[ResultKey, dict] = {}
+
+    async def put(self, key: ResultKey, output: dict) -> None:  # key: job_id, agent_hash, input_hash
+        self.results[key] = output
+
+    async def get(self, key: ResultKey) -> dict | None:
+        return self.results.get(key)
+
+    async def delete_job(self, job_id: str) -> None:
+        for key in [k for k in self.results if k.job_id == job_id]:
+            del self.results[key]
 
 
-await testing.check_result_store(lambda: MyStore())
-runner = AgentRunner(db, results=MyStore())
+async def main() -> None:
+    await testing.check_result_store(
+        lambda: MyStore()
+    )  # a missing method cannot be built; a broken rule raises AssertionError
+    async with SqliteDatabase(default_db_path()) as db:
+        runner = AgentRunner(db, results=MyStore())  # use it where jobs run and resume
+        print("results kept by", type(runner.results).__name__)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
 The first job has to be created `resumable=True`. `examples/results/store.py` is a whole store (a JSON file per result).
@@ -270,71 +482,214 @@ The first job has to be created `resumable=True`. `examples/results/store.py` is
 
 ## A job that a worker runs
 
+Submit a job to a queue and let a worker run it, in another process. The example puts the worker in the same script so that it runs on its own.
+
 ```python
+import asyncio
+
+from pydantic import BaseModel
+
+from featherweight import (
+    AgentRunner,
+    JobClient,
+    JobContext,
+    JobWorker,
+    SqliteDatabase,
+    SqliteQueue,
+    default_db_path,
+    job,
+)
+
+
+class Text(BaseModel):
+    text: str
+
+
+class Shouted(BaseModel):
+    shouted: str
+
+
 @job
 async def shout(ctx: JobContext, input: Text) -> Shouted:
     return Shouted(shouted=input.text.upper())
 
 
-queue = SqliteQueue(db)
-worker = JobWorker(db, queue, AgentRunner(db), jobs=[shout])  # its own process: await worker.run()
-client = JobClient(db, queue)
-job_id = await client.submit(shout, Text(text="hello"))
-async for event in client.events(job_id):
-    ...  # or sse.encode(...) from a web handler
-print(await client.result(shout, job_id))
+async def main() -> None:
+    async with SqliteDatabase(default_db_path()) as db:
+        queue = SqliteQueue(db)
+        worker = JobWorker(db, queue, AgentRunner(db), jobs=[shout])  # a worker runs only the jobs you list
+        running = asyncio.create_task(worker.run())  # in real life a process of its own
+
+        client = JobClient(db, queue)  # the client only writes to the queue and the database
+        job_id = await client.submit(shout, Text(text="hello"))
+        async for event in client.events(job_id):  # until the job is final; or sse.encode(...) from a web handler
+            print(event.type)  # queued, running, succeeded
+        print(await client.result(shout, job_id))
+
+        await worker.stop()
+        await running
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
-Run as many workers as you like: a worker that dies loses its lease, and another takes the job over (`executions` + 1; a resumable job reuses its finished steps).
-A job must be safe to run twice, and `@job(timeout=...)` (600 s by default) stops one that hangs. [the submitted jobs guide](submitted-jobs.md) has cancelling, shutdown, leases and writing your own queue. `examples/jobs` runs it, and `takeover.py` kills a worker mid-job.
+Run as many workers as you like: a worker that dies loses its lease, and another takes the job over (`executions` + 1; a resumable job reuses its finished steps). A job must be safe to run twice, and `@job(timeout=...)` (600 s by default) stops one that hangs. [The submitted jobs guide](submitted-jobs.md) has cancelling, shutdown, leases and writing your own queue. `examples/jobs` runs it, and `takeover.py` kills a worker mid-job.
 
 [The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/a-job-that-a-worker-runs.md)
 
 ## Traces for jobs and agents
 
-```python
-from featherweight import AgentRunner, OTelObserver
+See what a job and its agents did, as OpenTelemetry spans. The example prints them to the console; point the exporter at your platform to keep them.
 
-runner = AgentRunner(
-    db, observers=[OTelObserver()]
-)  # pip install 'featherweight[otel]'; you configure the SDK and the exporter
+```python
+import asyncio
+
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+
+from featherweight import AgentRunner, OTelObserver, SqliteDatabase, default_db_path, run_job
+
+# PeopleExtractor and ExtractInput: the agent of Getting started (../getting-started.md#an-agent)
+
+
+async def main() -> None:
+    provider = TracerProvider()  # you configure the SDK and the exporter
+    provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
+    async with SqliteDatabase(default_db_path()) as db:
+        runner = AgentRunner(db, observers=[OTelObserver(tracer_provider=provider)])
+        await run_job(runner, PeopleExtractor, ExtractInput(text="Anna Berger met Tom Okafor on Monday."))
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
-A job becomes `invoke_workflow`, each attempt `invoke_agent`, with `chat` and `execute_tool` spans under it, in the GenAI conventions.
-Content is off unless `OTelObserver(capture_content=True)`. Your own spans use the OpenTelemetry API and nest under the job.
-[the observability guide](observability.md) has the rest, and `examples/observability` runs it.
+`pip install "featherweight[otel]"`. A job becomes `invoke_workflow`, each attempt `invoke_agent`, with `chat` and `execute_tool` spans under it, in the GenAI conventions. Content is off unless `OTelObserver(capture_content=True)`. Your own spans use the OpenTelemetry API and nest under the job. [The observability guide](observability.md) has the rest, and `examples/observability` runs it.
 
 [The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/traces-for-jobs-and-agents.md)
 
 ## An agent that starts another and goes on
 
+Start a child in the background and carry on, without waiting for it. The researcher below starts a web search and keeps working; the child's result is added to its conversation when it is ready.
+
 ```python
+import asyncio
+from typing import ClassVar
+
+from featherweight import (
+    AgentBase,
+    AgentInput,
+    AgentOutput,
+    AgentRunner,
+    Gemini,
+    ModelSettings,
+    SqliteDatabase,
+    default_db_path,
+)
+
+
+class Query(AgentInput):
+    query: str
+
+
+class Findings(AgentOutput):
+    findings: str = ""
+
+
+class Question(AgentInput):
+    question: str
+
+
+class Report(AgentOutput):
+    report: str = ""
+
+
+class WebSearcher(AgentBase):
+    name: str = "web_searcher"
+    description: str = "Searches the web for a query"  # the researcher's model reads this
+    version: str = "0.1.0"
+    prompt: str = "Search the web for the query and report what you find."
+    model: ModelSettings = Gemini()
+    input_model: ClassVar[type[AgentInput]] = Query
+    output_model: ClassVar[type[AgentOutput]] = Findings
+
+
 class Researcher(AgentBase):
-    background_jobs = [WebSearcher]  # the model gets `start_background`; the child is a job
+    name: str = "researcher"
+    description: str = "Answers a question, searching the web while it thinks"
+    version: str = "0.1.0"
+    prompt: str = "Answer the question. Start a web search in the background, and go on while it runs."
+    model: ModelSettings = Gemini()
+    background_jobs: list[type] = [WebSearcher]  # the model gets `start_background`; the child is a job
+    input_model: ClassVar[type[AgentInput]] = Question
+    output_model: ClassVar[type[AgentOutput]] = Report
 
 
-runner = AgentRunner(db, results=store)  # here, in this process; needs a result store
-runner = AgentRunner(db, results=store, background=client)  # or on a worker: a JobClient
-message = await runner.background_message(job_id)  # a user message with the child's result, for the next turn
+async def main() -> None:
+    async with SqliteDatabase(default_db_path()) as db, AgentRunner(db) as runner:  # here, in this process
+        job_id = await db.create_job("research")
+        result = await runner.run(Researcher, Question(question="Who built the first lighthouse?"), job_id=job_id)
+        print(result.output)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
-While the parent runs, a finished child's result is added before the next model call. A chat turn does not wait: follow `background_started` and
-`background_finished` on its stream, or the child's job events, and start the next turn yourself. [the background jobs guide](background-jobs.md) has the rest.
+To run the child on a worker, give the runner a client: `AgentRunner(db, background=client)`. A chat turn does not wait: follow `background_started` and `background_finished` on its stream, or the child's job events, and start the next turn yourself. `await runner.background_message(job_id)` is a user message with the child's result, for that next turn. [The background jobs guide](background-jobs.md) has the rest.
 
 [The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/an-agent-that-starts-another-and-goes-on.md)
 
 ## A different provider
 
+Run an agent on another model or provider by changing one line: the `model` of the agent. Each provider has a settings class that checks its own options when the agent is built.
+
 ```python
-from featherweight import Claude
+import asyncio
+from typing import ClassVar
+
+from featherweight import (
+    AgentBase,
+    AgentInput,
+    AgentOutput,
+    AgentRunner,
+    Claude,  # or Gemini, or OpenAI
+    ModelSettings,
+    SqliteDatabase,
+    default_db_path,
+)
+
+
+class Ticket(AgentInput):
+    text: str
+
+
+class Triage(AgentOutput):
+    urgency: str = "low"
 
 
 class Triager(AgentBase):
-    ...
-    model: Claude = Claude(model="claude-haiku-5-5", effort="low")
+    name: str = "triager"
+    description: str = "Rates how urgent a ticket is"
+    version: str = "0.1.0"
+    prompt: str = "Rate how urgent the ticket is: low, medium or high."
+    model: ModelSettings = Claude(model="claude-haiku-5-5", effort="low")  # the one line to change
+    input_model: ClassVar[type[AgentInput]] = Ticket
+    output_model: ClassVar[type[AgentOutput]] = Triage
+
+
+async def main() -> None:
+    async with SqliteDatabase(default_db_path()) as db, AgentRunner(db) as runner:
+        result = await runner.run(Triager, Ticket(text="The checkout page is down for everyone."))
+        print(result.output)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
-`pip install "featherweight[anthropic]"` and set `ANTHROPIC_API_KEY`.
+`pip install "featherweight[anthropic]"` and set `ANTHROPIC_API_KEY` (`openai` and `GOOGLE_API_KEY` for the others). A model that is not in a class's list, or a provider that has no class, is a few lines: [add a model or a provider](models.md#add-a-model-gpt-5x).
 
 [The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/a-different-provider.md)
 
@@ -343,6 +698,7 @@ class Triager(AgentBase):
 A skill is plain data, so it can live anywhere. Text in a database needs nothing; text in an object store is fetched when the agent asks.
 
 ```python
+# yours: row and resource_rows (rows of your database)
 from featherweight import Skill
 
 # the skill is a row of text in your database: build it from the rows, nothing to add
@@ -350,6 +706,7 @@ skill = Skill.from_markdown(row["skill_md"], resources={r["path"]: r["text"] for
 ```
 
 ```python
+# yours: bucket (the client of your object store) and head (the object's metadata)
 from featherweight import Skill
 
 
@@ -371,6 +728,7 @@ skill = BucketSkill(name="meeting-notes", description="How this department write
 The agent is written once, and each department's skills are data: build the agent class for the request, with that department's skills.
 
 ```python
+# yours: rows_of (reads the skills of a department from your database) and runner (an AgentRunner)
 from typing import ClassVar
 
 from pydantic import Field, create_model
@@ -414,6 +772,7 @@ Your users define agents in a form; you keep the definition as JSON and build th
 which tools a user may pick, which models, whether they may add skills, what every agent gets.
 
 ```python
+# yours: definition_from_your_database, house_style_md (the text of a skill) and runner (an AgentRunner)
 from typing import ClassVar
 
 from langchain_core.tools import BaseTool, tool
@@ -472,6 +831,7 @@ result = await runner.run(Summariser, Summariser.input_model(text="..."))
 On a worker, the agent does not exist in the code that started it. `jobs_lookup` is the fallback that finds it, from the same definitions:
 
 ```python
+# yours: definitions (your storage of definitions), db, queue and runner; Teacher is the identity, as in the identity recipe
 from featherweight import JobWorker
 
 
@@ -551,6 +911,7 @@ class HmacQueue(JobQueue):
 Check it like any queue, with the kit, and give the client and the worker the wrapper, with the same key:
 
 ```python
+# yours: db (the database), runner (an AgentRunner) and key (a secret from your vault)
 from featherweight import JobClient, JobWorker, testing
 from featherweight.queue import SqliteQueue
 from featherweight.testing import MemoryQueue
@@ -568,6 +929,7 @@ client, worker = JobClient(db, queue), JobWorker(db, queue, runner, jobs=[...])
 A tool acts for the user whose identity the run has. featherweight carries the identity; the tool checks what it may do, and gets a credential with code of your own, at each call.
 
 ```python
+# yours: db, mail_api (the client of the mail service), and Mailer and MailerInput (an agent that sends mail)
 from langchain.tools import ToolRuntime, tool
 from pydantic import BaseModel, Field
 
@@ -656,6 +1018,9 @@ def document_tools(files, directory):
 The job's input and the agent's input hold the reference, and never the file. A pipeline that fetches a file puts it in the store first, and passes the reference on:
 
 ```python
+# yours: files (your store), directory (who may read what), download (fetches a file), db; Teacher is as above
+from pydantic import BaseModel
+
 from featherweight import (
     AgentBase,
     AgentInput,

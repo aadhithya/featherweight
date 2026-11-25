@@ -48,6 +48,9 @@ def document_tools(files, directory):
 The job's input and the agent's input hold the reference, and never the file. A pipeline that fetches a file puts it in the store first, and passes the reference on:
 
 ```python
+# yours: files (your store), directory (who may read what), download (fetches a file), db; Teacher is as above
+from pydantic import BaseModel
+
 from featherweight import (
     AgentBase,
     AgentInput,

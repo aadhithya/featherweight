@@ -8,6 +8,8 @@ from pydantic import BaseModel
 
 from featherweight import AgentRunner, JobContext, Status, SqliteDatabase, job, run_job
 
+# PeopleExtractor and ExtractInput: the agent of Getting started (../getting-started.md#an-agent)
+
 
 class Texts(BaseModel):
     texts: list[str]

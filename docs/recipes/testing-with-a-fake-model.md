@@ -15,7 +15,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from pydantic import Field
 
-from app import ExtractInput, PeopleExtractor  # your agent module
+from app import ExtractInput, PeopleExtractor  # the agent of Getting started, saved as app.py
 from featherweight import AgentRunner, ModelSettings, Status, SqliteDatabase
 
 

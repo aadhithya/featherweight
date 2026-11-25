@@ -3,6 +3,7 @@
 A skill is plain data, so it can live anywhere. Text in a database needs nothing; text in an object store is fetched when the agent asks.
 
 ```python
+# yours: row and resource_rows (rows of your database)
 from featherweight import Skill
 
 # the skill is a row of text in your database: build it from the rows, nothing to add
@@ -10,6 +11,7 @@ skill = Skill.from_markdown(row["skill_md"], resources={r["path"]: r["text"] for
 ```
 
 ```python
+# yours: bucket (the client of your object store) and head (the object's metadata)
 from featherweight import Skill
 
 
