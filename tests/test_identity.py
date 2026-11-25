@@ -1,6 +1,8 @@
 """The identity of a run, in the process: the declared type, `identity=`, the tools that read it, who inherits it, what it never touches."""
 
 import asyncio
+import contextlib
+import json
 import logging
 from typing import Any, ClassVar, Optional
 
@@ -19,6 +21,9 @@ from fakes import (
 )
 from langchain.tools import ToolRuntime
 from langchain_core.tools import BaseTool, tool
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from pydantic import BaseModel, Field
 
 from featherweight.context import CURRENT_IDENTITY, RunContext
@@ -27,6 +32,8 @@ from featherweight.identity import IdentitySpec
 from featherweight.jobs import JobContext, job, run_job
 from featherweight.model_settings import ModelSettings
 from featherweight.models import AgentBase, AgentInput, AgentOutput, Status
+from featherweight.observers import Observer, Scope, ToolCallStart
+from featherweight.otel import OTelObserver
 from featherweight.runner import _Slot
 from featherweight.streaming import ChatInput, StreamingAgent
 from featherweight.testing import MemoryResultStore
@@ -264,6 +271,43 @@ async def test_a_union_with_none_allows_a_run_without_an_identity(db):
     use_model(asks(), "asker")
     assert (await runner.run(Asker, AskInput(), identity=teacher)).status == Status.SUCCESS
     assert [identity for _, identity in SEEN] == [teacher, teacher, teacher]
+
+
+# every entry point checks the identity, at the call, before anything is written
+
+
+async def test_run_many_refuses_a_wrong_identity_for_one_input_and_for_several(db):
+    runner = runner_with(db, Scripted(script=[]), identity_type=Teacher)
+    for inputs in ([AskInput()], [AskInput(), AskInput(), AskInput()]):
+        with pytest.raises(TypeError, match="identity must be a Teacher"):
+            await runner.run_many(Asker, inputs, identity=Student(user_id="a"))
+    assert await db.list_attempts() == []
+
+
+async def test_run_many_refuses_an_identity_when_no_type_is_declared(db):
+    runner = runner_with(db, Scripted(script=[]))
+    with pytest.raises(TypeError, match="no identity_type is declared"):
+        await runner.run_many(Asker, [AskInput()], identity=Teacher(user_id="a"))
+    with pytest.raises(TypeError, match="no identity_type is declared"):
+        await runner.run_many(Asker, [], identity=Teacher(user_id="a"))
+    assert await db.list_attempts() == []
+
+
+async def test_stream_refuses_a_wrong_identity_and_an_undeclared_one_at_the_call_not_when_the_loop_starts(db):
+    declared = runner_with(db, Streams(turns=[["ok"]]), identity_type=Teacher)
+    with pytest.raises(TypeError, match="identity must be a Teacher"):
+        declared.stream(Chat, say("hi"), identity=Student(user_id="a"))
+    undeclared = runner_with(db, Streams(turns=[["ok"]]))
+    with pytest.raises(TypeError, match="no identity_type is declared"):
+        undeclared.stream(Chat, say("hi"), identity=Teacher(user_id="a"))
+    assert await db.list_attempts() == []
+
+
+async def test_run_job_refuses_an_identity_when_no_type_is_declared(db):
+    runner = runner_with(db, Scripted(script=[]))
+    with pytest.raises(TypeError, match="no identity_type is declared"):
+        await run_job(runner, ask_for, AskInput(), identity=Teacher(user_id="a"))
+    assert await db.list_attempts() == []
 
 
 # the tools
@@ -550,6 +594,117 @@ async def test_the_tools_the_model_sees_for_launching_have_no_identity_to_set(db
     assert set(tools["launch_agent"].args) == {"agent_name", "input_json"}
     assert set(tools["start_background"].args) == {"agent_name", "input_json"}
     assert set(tools["get_agent_schema"].args) == {"agent_name"}
+
+
+class Recorder(Observer):
+    """Keeps every record that the runner hands to an observer, content included."""
+
+    capture_content = True
+
+    def __init__(self):
+        self.records: list[BaseModel] = []
+
+    def job(self, start):
+        self.records.append(start)
+        return super().job(start)
+
+    def attempt(self, start):
+        self.records.append(start)
+        return self._scope()
+
+    @contextlib.asynccontextmanager
+    async def _scope(self):
+        recorder = self
+
+        class Keeping(Scope):
+            async def finish(self, end):
+                recorder.records.append(end)
+
+        yield Keeping()
+
+    async def reused(self, run):
+        self.records.append(run)
+
+    async def model_call_started(self, call):
+        self.records.append(call)
+
+    async def model_call_finished(self, call):
+        self.records.append(call)
+
+    async def tool_call_started(self, call):
+        self.records.append(call)
+
+    async def tool_call_finished(self, call):
+        self.records.append(call)
+
+
+def an_observed_runner(db, model=None):
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    recorder = Recorder()
+    runner = runner_with(
+        db,
+        model or Scripted(script=[]),
+        identity_type=Teacher,
+        observers=[OTelObserver(capture_content=True, tracer_provider=provider), recorder],
+    )
+    return runner, recorder, exporter
+
+
+def the_identity_is_in(recorder: Recorder, exporter: InMemorySpanExporter) -> list[str]:
+    """Where, among the spans' attributes and the observers' records, one of the identity's distinctive values is."""
+    values = ("u-distinct-123", "t-distinct-456")
+    found = []
+    for span in exporter.get_finished_spans():
+        text = json.dumps(dict(span.attributes or {}), default=str)
+        found += [f"span {span.name}: {v}" for v in values if v in text]
+    for record in recorder.records:
+        text = record.model_dump_json()
+        found += [f"{type(record).__name__}: {v}" for v in values if v in text]
+    return found
+
+
+def test_the_search_for_the_identity_in_what_an_observer_hears_finds_it_where_it_is():
+    recorder, exporter = Recorder(), InMemorySpanExporter()
+    assert the_identity_is_in(recorder, exporter) == []
+    recorder.records.append(
+        ToolCallStart(call_id="c", attempt_id="a", tool_name="t", arguments={"who": "u-distinct-123"})
+    )
+    assert the_identity_is_in(recorder, exporter) == ["ToolCallStart: u-distinct-123"]
+
+
+async def test_an_observer_and_a_span_never_see_the_identity(db):
+    use_model(asks(), "asker")
+    runner, recorder, exporter = an_observed_runner(db)
+
+    result = await runner.run(Asker, AskInput(), identity=Teacher(user_id="u-distinct-123", tenant="t-distinct-456"))
+
+    assert result.status == Status.SUCCESS and kinds() == ["sync", "async", "shared"]  # the tools did read it
+    assert {type(r).__name__ for r in recorder.records} >= {
+        "AttemptStart",
+        "ToolCallStart",
+        "ToolCallEnd",
+        "AttemptEnd",
+    }
+    assert exporter.get_finished_spans()
+    assert the_identity_is_in(recorder, exporter) == []
+
+
+async def test_a_streamed_run_shows_no_identity_to_an_observer_or_a_span_either(db):
+    model = Streams(turns=[[tool_call_chunk("whoami_async", {}, "c1")], ["done"]])
+    runner, recorder, exporter = an_observed_runner(db, model)
+
+    events = [
+        e
+        async for e in runner.stream(
+            Chat, say("hi"), identity=Teacher(user_id="u-distinct-123", tenant="t-distinct-456")
+        )
+    ]
+
+    assert events[-1].type.value == "RUN_FINISHED" and [kind for kind, _ in SEEN] == ["async"]
+    assert any(type(r).__name__ == "ToolCallStart" for r in recorder.records)
+    assert the_identity_is_in(recorder, exporter) == []
 
 
 # what it never touches

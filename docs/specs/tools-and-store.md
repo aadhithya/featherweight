@@ -64,7 +64,7 @@ In `featherweight.tools`. All return text, never raise, and the model can read w
 ## The run context
 
 A tool that needs the job declares `runtime: ToolRuntime[RunContext]`. Langchain fills it in and hides it from
-the model, so the model never passes a job id. `RunContext` has `job_id`, `attempt_id` (the attempt that is
+the model, so the model never passes a job id. `RunContext` has `job_id`, `run_id` (the run it is called in), `attempt_id` (the attempt that is
 running) and `identity`: who the run is for, if the application gave one. `RunContext` is generic in the identity,
 so a tool declares `ToolRuntime[RunContext[Teacher]]` and reads `runtime.context.identity`. The [identity spec](identity.md#how-tools-read-it) owns it.
 

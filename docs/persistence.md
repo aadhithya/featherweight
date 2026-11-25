@@ -55,7 +55,7 @@ started and completed. A job whose task is cancelled is `CANCELLED`. `attempts`:
 | `status` | `INIT` (queued for a slot), `RUNNING`, `SUCCESS`, `FAILED` or `CANCELLED` (the task that awaited it was cancelled, or a [streaming](streaming.md) run was stopped) |
 | `error_type`, `error_hash` | For a failed attempt: the class of the exception (`ValidationError`, `RateLimitError`) and the hash of its message. Recurring errors group; the text is in the logs and in the `AgentResult` you get back, not in the run log (a message can quote the data) |
 | `input_hash`, `output_hash` | The SHA-256 of the input and of the output, as canonical JSON. A reused or repeated step is recognised by them, with no content kept |
-| `identity_hash` | The SHA-256 of the run's identity (its kind, the name of its class, and its fields as canonical JSON without the excluded ones), empty when it had none. A resume reuses only a step of the same identity; the identity itself is kept nowhere |
+| `identity_hash` | The SHA-256 of the run's identity (its kind, the name of its class, and its fields as canonical JSON without the excluded ones), `NULL` when it had none. A resume reuses only a step of the same identity; the identity itself is kept nowhere |
 | `reused_from_attempt_id` | For a run that reused an earlier one ([resuming a job](jobs.md#resuming-a-job)): the row it took its output from |
 | `thread_id` | For a [streaming](streaming.md) run: the conversation the client named |
 | `input_tokens`, `output_tokens`, `latency_ms` | Of the attempt |

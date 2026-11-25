@@ -1,6 +1,6 @@
 # Identity
 
-Status: implemented, in [epic #190](https://github.com/aadhithya/featherweight/issues/190): the runner and the tools ([#195](https://github.com/aadhithya/featherweight/issues/195): `identity_type`, `identity=`, `RunContext.identity`, `CURRENT_IDENTITY`, `JobContext.identity` and the inheritance), the identity hash ([#197](https://github.com/aadhithya/featherweight/issues/197): the `identity_hash` column, `fingerprint.identity_hash` and the reuse check) and the queue and the worker ([#196](https://github.com/aadhithya/featherweight/issues/196): the `identity` field of the message, `JobClient(identity_type=)` and `submit(identity=)`, `JobWorker(identity_type=)`, `InvalidJobIdentity`, the migration of the sqlite queue table, and the kit's check). The guides are [who is asking](../agents.md#who-is-asking-the-identity-of-a-run) and [the identity across the queue](../submitted-jobs.md#who-the-job-is-for-the-identity).
+Status: implemented, in [epic #190](https://github.com/aadhithya/featherweight/issues/190): the runner and the tools ([#195](https://github.com/aadhithya/featherweight/issues/195): `identity_type`, `identity=`, `RunContext.identity`, `CURRENT_IDENTITY`, `JobContext.identity` and the inheritance), the identity hash ([#197](https://github.com/aadhithya/featherweight/issues/197): the `identity_hash` column, `fingerprint.identity_hash` and the reuse check) the queue and the worker ([#196](https://github.com/aadhithya/featherweight/issues/196): the `identity` field of the message, `JobClient(identity_type=)` and `submit(identity=)`, `JobWorker(identity_type=)`, `InvalidJobIdentity`, the migration of the sqlite queue table, and the kit's check), `Skill.aread` ([#198](https://github.com/aadhithya/featherweight/issues/198)) and `jobs_lookup` ([#199](https://github.com/aadhithya/featherweight/issues/199)), which [skills](skills.md) and [submitted jobs](submitted-jobs.md) own. The guides are [who is asking](../agents.md#who-is-asking-the-identity-of-a-run) and [the identity across the queue](../submitted-jobs.md#who-the-job-is-for-the-identity).
 
 It builds on [the runner](runner.md), [tools and the registry](tools-and-store.md), [submitted jobs](submitted-jobs.md) and [persistence](persistence.md),
 and adds a few lines to each. What it owns is the identity itself.
@@ -106,9 +106,12 @@ result = await runner.run(Summarise, summarise_input, identity=teacher)
 @dataclass
 class RunContext(Generic[IdentityT]):
     job_id: str | None
-    attempt_id: str
-    identity: IdentityT | None
+    run_id: str  # the run that the tool is called in
+    attempt_id: str  # the attempt that is running now
+    identity: IdentityT | None = None
 ```
+
+`run_id` and `attempt_id` are the units of [the units spec](units.md): a run is one call of an agent, and an attempt is one try of it.
 
 A tool declares `runtime: ToolRuntime[RunContext[Teacher]]` and reads `runtime.context.identity`. LangChain fills the parameter in and hides it from the model, so
 the model never passes it and cannot see it ([tools and the registry](tools-and-store.md#the-run-context)). A tool that does not declare `runtime` cannot see it.
@@ -235,6 +238,8 @@ These stay the application's, on purpose, and the guides, the book and the recip
 
 No live model call. Fake models, `MemoryQueue`.
 
+The identity cases of `Skill.aread` are in [skills](skills.md#tests), and those of `jobs_lookup` in [submitted jobs](submitted-jobs.md#tests): each spec owns its own.
+
 - **Declaring and passing:** a missing, a wrong and an extra identity, for each of the three declarations; `Teacher | None`; each entry point (`run`, `run_many`,
   `stream`, `run_job`, `submit`).
 - **Tools:** a tool of the parent, a tool of a launched agent and a sync tool (which runs in a thread) see the identity; the shared tools read `CURRENT_IDENTITY`; two runs
@@ -248,7 +253,7 @@ No live model call. Fake models, `MemoryQueue`.
   identity with no kind, fail the job; two members with one class name are refused when built; the worker's type is checked against its runner's (accepted and refused cases).
 - **The queue:** `check_queue` against `SqliteQueue` and `MemoryQueue` (a queue that drops a field fails it); a job submitted with an identity whose tool reads it on a worker; a
   message without an identity for a worker that requires one, and a message that does not validate, fail the job and are not run.
-- **Resume:** the same identity reuses, another one reruns, `NULL` matches only `NULL`; the hash is the same in a process and on a worker, two models with the same data have two hashes, and a field marked `exclude=True` is not in it; the `Database`
+- **Resume:** the same identity reuses, another one reruns, `NULL` matches only `NULL`; a job that failed on a worker and is resumed on a worker, and a takeover, reuse a step of the same identity only; the hash is the same in a process and on a worker, two models with the same data have two hashes, and a field marked `exclude=True` is not in it; the `Database`
   kit on sqlite and Postgres.
 
 ## The work

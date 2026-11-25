@@ -64,7 +64,7 @@ answered from the log.
 
 - **Where.** At the start of `_invoke`, once per `run` call, before the attempt loop, and only when `depth` is 1 and
   there is a `job_id`. A sub-agent (depth above 1) is never looked up.
-- **The match.** In the old job: `status = SUCCESS`, the same `agent_hash`, the same `input_hash`, the same `identity_hash` (an empty one matches only an empty one: [identity](identity.md#resuming-a-job)), `depth = 1`. Any
+- **The match.** In the old job: `status = SUCCESS`, the same `agent_hash`, the same `input_hash`, the same `identity_hash` (`NULL`, no identity, matches only `NULL`: [identity](identity.md#resuming-a-job)), `depth = 1`. Any
   matching row will do. A row with no `agent_hash` or `input_hash` never matches. The log is the metadata question.
 - **The result.** The output comes from the runner's `ResultStore` (`get(ResultKey(old job, agent hash, input hash))`). No
   store (`results=None`) is a `SetupError`; no result for a step that the log says succeeded logs `result_missing` and the

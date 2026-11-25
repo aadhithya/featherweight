@@ -8,7 +8,7 @@ from fakes import Echo, EchoInput, Reactive, runner_with, structured_reply
 from pydantic import BaseModel
 
 from featherweight import JobClient
-from featherweight.fingerprint import input_hash
+from featherweight.fingerprint import identity_hash, input_hash
 from featherweight.jobs import Job, JobContext
 from featherweight.models import Status
 from featherweight.queue import DEAD_LETTERED, JobMessage, SqliteQueue
@@ -22,6 +22,10 @@ class In(BaseModel):
 
 class Out(BaseModel):
     done: str
+
+
+class Teacher(BaseModel):
+    user_id: str
 
 
 class Steps(Job):
@@ -63,19 +67,28 @@ def calls(fake: Reactive) -> dict[str, int]:
     return {json.loads(text)["text"]: count for text, count in sorted(fake.counts.items())}
 
 
-async def submit(db, queue, text="abc", resumable=True):
+async def submit(db, queue, text="abc", resumable=True, identity=None):
     job_input = In(text=text)
     job_id = await db.create_job(
         Steps.name, resumable=resumable, job_hash=Steps.job_hash(), input_hash=input_hash(job_input)
     )
-    await queue.enqueue(JobMessage(job_id=job_id, job_name=Steps.name, input=job_input.model_dump(mode="json")))
+    await queue.enqueue(
+        JobMessage(
+            job_id=job_id,
+            job_name=Steps.name,
+            input=job_input.model_dump(mode="json"),
+            identity=identity.model_dump(mode="json") if identity else None,
+            identity_kind=type(identity).__name__ if identity else None,
+        )
+    )
     return job_id
 
 
-def worker(db, queue, fake, **kwargs):
+def worker(db, queue, fake, identity_type=None, **kwargs):
     kwargs.setdefault("receive_timeout", 0.05)
     kwargs.setdefault("cancel_poll", 0.05)
-    return JobWorker(db, queue, runner_with(db, fake, max_attempts=1), [Steps], **kwargs)
+    runner = runner_with(db, fake, max_attempts=1, identity_type=identity_type)
+    return JobWorker(db, queue, runner, [Steps], identity_type=identity_type, **kwargs)
 
 
 async def until(condition, timeout=5.0):
@@ -102,13 +115,14 @@ class Started:
         await asyncio.wait_for(self.task, timeout=5)
 
 
-async def lost_and_taken_over(db, queue, fake, resumable=True):
+async def lost_and_taken_over(db, queue, fake, resumable=True, identity=None):
     """w1 starts the job and stalls (no heartbeat, a short lease); w2 gets the message back and takes the job over, and finishes it."""
-    job_id = await submit(db, queue, resumable=resumable)
-    stalled = worker(db, queue, fake, worker_id="w1", lease=0.3, heartbeat=3600, concurrency=1)
+    job_id = await submit(db, queue, resumable=resumable, identity=identity)
+    kind = type(identity) if identity else None
+    stalled = worker(db, queue, fake, kind, worker_id="w1", lease=0.3, heartbeat=3600, concurrency=1)
     async with Started(stalled):
         await asyncio.wait_for(Steps.reached.wait(), timeout=5)
-        async with Started(worker(db, queue, fake, worker_id="w2", lease=30)):
+        async with Started(worker(db, queue, fake, kind, worker_id="w2", lease=30)):
             await until(lambda: final(db, job_id))
             snapshot = (await db.get_job(job_id), await db.list_job_events(job_id), calls(fake))
             Steps.hold.set()  # the stalled worker wakes up
@@ -166,6 +180,20 @@ async def test_a_takeover_of_a_resumable_job_reuses_the_steps_that_finished(db):
         "no run reuses its own execution's"
     )
     assert [(r.input_tokens, r.output_tokens) for r in second[:2]] == [(0, 0), (0, 0)]
+
+
+async def test_a_takeover_of_a_job_for_an_identity_reuses_the_steps_of_the_same_identity(db):
+    fake = model()
+    teacher = Teacher(user_id="u-1")
+    job_id, (_, _, seen) = await lost_and_taken_over(db, MemoryQueue(lease=0.3), fake, identity=teacher)
+
+    assert seen == {"a": 1, "b": 1, "c": 1}, "the steps that finished did not reach the model again"
+    runs = await db.list_attempts(job_id=job_id)
+    assert {r.identity_hash for r in runs} == {identity_hash(teacher)}, (
+        "both executions ran for the identity of the message"
+    )
+    second = [r for r in runs if r.job_execution == 2]
+    assert [r.reused_from_attempt_id is not None for r in second] == [True, True, False]
 
 
 async def test_a_takeover_of_a_job_that_is_not_resumable_runs_every_step_again(db):

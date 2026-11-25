@@ -119,6 +119,24 @@ async def test_the_identity_the_worker_rebuilt_reaches_the_lookup(db, queue):
     assert lookup.calls == [("shout", Shout.job_hash(), Teacher(user_id="u-1"))]
 
 
+@pytest.mark.parametrize(
+    "identity",
+    [{"user_id": {"value": "secret-value-123"}}, None],
+    ids=["an identity that does not fit the type", "no identity, for a type that requires one"],
+)
+async def test_a_message_whose_identity_does_not_fit_fails_before_the_lookup_is_asked(db, queue, identity, caplog):
+    lookup = Lookup({"shout": Shout})
+    job_id = await enqueue(db, queue, "shout", Shout.job_hash(), identity=identity)  # a name that `jobs` does not have
+
+    async with Running(make(db, queue, [], jobs_lookup=lookup, identity_type=Teacher, runner=runner_for(db))):
+        row = await final(db, job_id)
+
+    assert row.status is Status.FAILED and row.error_type == "InvalidJobIdentity"
+    assert lookup.calls == []  # the application's code was not asked about a message that cannot run
+    assert await queue.receive(0.05) is None  # and the message is acknowledged
+    assert "secret-value-123" not in caplog.text
+
+
 async def test_the_worker_caches_nothing(db, queue):
     lookup = Lookup({"shout": Shout})
     first = await submit(db, queue, Shout, "a")
