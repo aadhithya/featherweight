@@ -260,6 +260,7 @@ There is no way to switch a timeout off: set a very large one.
 | `FTW_QUEUE_LEASE` | 60 s | | How long a received message stays invisible to other receivers (`SqliteQueue`) |
 | `FTW_QUEUE_MAX_DELIVERIES` | 3 | | How many times `SqliteQueue` delivers a message before it marks it `dead` |
 | `FTW_JOBS_LOOKUP_TIMEOUT` | 15 s | | How long `jobs_lookup` may take |
+| `FTW_SKILL_READ_TIMEOUT` | 15 s | | How long a skill's `aread` may take |
 | `FTW_DB_PATH` | `featherweight.db` | the path given to `SqliteDatabase` | The sqlite file |
 | `FTW_LOG_LEVEL` | `INFO` | the level given to `setup_logging()` | Used by `setup_logging()` |
 

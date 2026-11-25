@@ -46,6 +46,7 @@ A setting that applies to a whole deployment is set where a deployment is config
 | `FTW_QUEUE_LEASE` | 60 s | none | How long a message that was received stays invisible to other receivers, in the queues featherweight ships (`SqliteQueue`) |
 | `FTW_QUEUE_MAX_DELIVERIES` | 3 | none | How many times `SqliteQueue` delivers a message before it marks it `dead` |
 | `FTW_JOBS_LOOKUP_TIMEOUT` | 15 s | none | How long `jobs_lookup` may take ([submitted jobs](submitted-jobs.md#jobs-that-are-not-declared-in-code)) |
+| `FTW_SKILL_READ_TIMEOUT` | 15 s | none | How long a skill's `aread` may take ([skills](skills.md#reading-a-skill-from-somewhere-else)) |
 | `FTW_DB_PATH` | `featherweight.db` | the path given to `SqliteDatabase` | The sqlite file |
 | `FTW_LOG_LEVEL` | `INFO` | the level given to `setup_logging()` | The log level |
 

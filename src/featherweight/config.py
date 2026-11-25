@@ -73,6 +73,7 @@ QUEUE_LEASE = _seconds("FTW_QUEUE_LEASE", 60.0, "How long a received message sta
 QUEUE_MAX_DELIVERIES = _count("FTW_QUEUE_MAX_DELIVERIES", 3, "Deliveries of a message before SqliteQueue marks it dead")
 
 JOBS_LOOKUP_TIMEOUT = _seconds("FTW_JOBS_LOOKUP_TIMEOUT", 15.0, "How long jobs_lookup may take")
+SKILL_READ_TIMEOUT = _seconds("FTW_SKILL_READ_TIMEOUT", 15.0, "How long a skill's aread may take")
 
 SETTINGS: tuple[Setting, ...] = (
     MAX_CONCURRENT_ATTEMPTS,
@@ -88,4 +89,5 @@ SETTINGS: tuple[Setting, ...] = (
     QUEUE_LEASE,
     QUEUE_MAX_DELIVERIES,
     JOBS_LOOKUP_TIMEOUT,
+    SKILL_READ_TIMEOUT,
 )

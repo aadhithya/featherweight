@@ -66,6 +66,7 @@ from featherweight.models import (
 from featherweight.observers import AttemptEnd, AttemptStart, Entered, JobSubmitted, Observer, Observers, RunReused
 from featherweight.registry import ToolRegistry
 from featherweight.results import ResultKey, ResultStore, SqliteResultStore
+from featherweight.skills import clean_resource
 from featherweight.sqlite import SqliteDatabase
 from featherweight.stream_events import EventMapper
 from featherweight.streaming import ChatInput, StreamingAgent, StreamingRun
@@ -248,6 +249,7 @@ class AgentRunner:
         self.max_launches = int(config.MAX_AGENT_LAUNCHES.read(max_launches) or 0)
         self.max_background_jobs = int(config.MAX_BACKGROUND_JOBS.read(max_background_jobs) or 0)
         observer_timeout = float(config.OBSERVER_TIMEOUT.read() or 0)
+        self.skill_read_timeout = float(config.SKILL_READ_TIMEOUT.read() or 0)
         self.background = background
         self._background_tasks: set[asyncio.Task[Any]] = (
             set()
@@ -270,12 +272,14 @@ class AgentRunner:
         self.identity = IdentitySpec(identity_type)
         self._observers = Observers(observers, observer_timeout)
         logger.info(
-            "runner_configured max_concurrent=%d max_depth=%d max_launches=%d max_background_jobs=%d observer_timeout=%s",
+            "runner_configured max_concurrent=%d max_depth=%d max_launches=%d max_background_jobs=%d observer_timeout=%s "
+            "skill_read_timeout=%s",
             max_concurrent,
             self.max_depth,
             self.max_launches,
             self.max_background_jobs,
             observer_timeout,
+            self.skill_read_timeout,
         )
         self._keep_open = False  # True inside `async with`: MCP servers stay up between runs
         self._mcp: MCPConnections | None = None  # created when a run first needs an MCP server
@@ -1457,8 +1461,7 @@ class AgentRunner:
         if children:
             logger.info("background_cancelled parent_attempt_id=%s children=%d", attempt_id, len(children))
 
-    @staticmethod
-    def _skill_tools(agent: AgentBase) -> list[BaseTool]:
+    def _skill_tools(self, agent: AgentBase) -> list[BaseTool]:
         """`get_skill` for `agent`: it reads only the skills the agent lists, and says so when asked for another."""
         by_name = {skill.name: skill for skill in agent.skills}
         available = ", ".join(by_name)
@@ -1470,9 +1473,19 @@ class AgentRunner:
             skill = by_name.get(name)
             if skill is None:
                 return f"'{name}' is not one of your skills. Your skills: {available}."
-            logger.info("skill_read agent=%s skill=%s resource=%s", agent.name, name, resource or "-")
+            path = clean_resource(
+                resource
+            )  # the model chose it: only a path inside the skill reaches the skill (docs/specs/skills.md)
+            if path is None:
+                logger.info("skill_resource_refused agent=%s skill=%s length=%d", agent.name, name, len(resource))
+                return f"The skill '{name}' has no file '{resource[:80]}'."
+            logger.info("skill_read agent=%s skill=%s resource=%s", agent.name, name, path or "-")
             try:
-                return await skill.aread(resource)
+                async with asyncio.timeout(self.skill_read_timeout):
+                    text = await skill.aread(path)
+                if not isinstance(text, str):  # a store client that answers None for a key that is not there
+                    raise TypeError(f"aread returned {type(text).__name__}, not text")
+                return text
             except Exception as exc:  # a read that fails is text for the agent, as it is for the other tools; the error goes to the log only
                 logger.warning(
                     "skill_read_failed agent=%s skill=%s resource=%s error=%s: %s",
