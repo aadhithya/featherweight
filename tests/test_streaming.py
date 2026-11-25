@@ -413,3 +413,15 @@ async def test_a_launched_agent_is_a_tool_call_and_its_text_is_not_streamed(db):
     assert streamed == "Done."  # not the child's words
     rows = await db.list_attempts()
     assert [r.agent_name for r in rows] == ["chat", "echo"] and rows[1].parent_attempt_id == rows[0].attempt_id
+
+
+async def test_the_id_of_a_streamed_run_is_the_run_and_not_its_row(db):
+    """The migration guide says it: `get_attempt(run.run_id)` is `None`, and the row is `run.attempt_id`, or `list_attempts(run_id=...)`."""
+    runner = runner_with(db, Streams(turns=[["ok"]]))
+    run = runner.stream(Chat, say("hi"))
+    await collect(run)
+
+    assert await db.get_attempt(run.run_id) is None
+    row = await db.get_attempt(run.attempt_id)
+    assert row is not None and row.run_id == run.run_id
+    assert [r.attempt_id for r in await db.list_attempts(run_id=run.run_id)] == [run.attempt_id]

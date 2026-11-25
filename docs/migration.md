@@ -2,7 +2,7 @@
 
 Everything that breaks between 0.1 and the next release, what to search for in your project, what to write instead, and how to check. It is for people, and for the coding agents that work on projects that use featherweight: the last section is written for them, and the skill carries the same page.
 
-The rename of the units is [specified](specs/units.md), and a test checks every name on this page against the code.
+The rename of the units is [specified](specs/units.md), and a test checks the names of its tables against the code (the Python, SQL, settings, spans and logs, and the steps for coding agents).
 
 - [What breaks, in the order you are likely to meet it](#what-breaks)
 - [The run store is gone](#the-run-store-is-gone)
@@ -85,6 +85,8 @@ Each word now names one unit ([the spec](specs/units.md)): a **run** is one call
 | `ReusedRun` (observer record) | `RunReused` |
 | `AgentRunner(max_background=...)` | `AgentRunner(max_background_jobs=...)` |
 
+**A streamed run** (`runner.stream`): `run.run_id` is the id of the **run**, the one that its events carry and that `runner.cancel` takes, and the row of the run log has its own id, `run.attempt_id`. It used to be one id. So `await db.get_attempt(run.run_id)` (the old `db.get_run(run.run_id)`) now returns `None`, with no error: look the row up with `get_attempt(run.attempt_id)`, or with `list_attempts(run_id=run.run_id)` (its `run_id` column is the run's).
+
 **SQL**, if you query the run log yourself: the table `agent_runs` is `attempts`; the columns `agent_run_id`, `invocation_id`, `parent_agent_run_id` (also in `jobs`) and `reused_from_agent_run_id` are `attempt_id`, `run_id`, `parent_attempt_id` and `reused_from_attempt_id`.
 The database is migrated for you: [see below](#your-database-upgrades-by-itself).
 
@@ -114,6 +116,7 @@ A message has two new fields, `identity` (a JSON mapping or `None`) and `identit
 | the log lines `invocation_started`, `invocation_finished` | `run_started`, `run_finished` | One per run. |
 | the log lines `run_created`, `run_running`, `run_finished` (the run log's rows) | `attempt_created`, `attempt_running`, `attempt_finished` | One per attempt. Mind the order if you rewrite them by script: `run_finished` is both a before and an after. |
 | the keys `agent_run_id=` and `invocation_id=` in the log lines | `attempt_id=` and `run_id=` | |
+| the key `reused_from=` in the log lines of a resume | `reused_from_attempt_id=` | The three lines of a resume (`run_reused`, `run_reuse_rejected`, `result_missing`) also carry `run_id=` now. |
 
 The span **names** do not change (`invoke_workflow`, `invoke_agent`, `chat`, `execute_tool`).
 
@@ -176,6 +179,6 @@ You are changing a project that uses featherweight 0.1 to the next release. Work
    | 15 | the log lines `run_created`, `run_running`, `run_finished` | `attempt_created`, `attempt_running`, `attempt_finished` | log queries and alerts: **before row 16** |
    | 16 | `invocation_started`, `invocation_finished` | `run_started`, `run_finished` | log queries and alerts |
 
-4. **Ask the owner** about: a `Database` or a queue the project implements (change them as the two sections above say, then run the kits), and dashboards, alerts and log queries that are not in the repository.
+4. **Ask the owner** about: a chat that looks up the row of a stream by the `run_id` of its events (`get_attempt(` or `get_run(` with a stream's id, which is now `None`: use the stream's `attempt_id`, or `list_attempts(run_id=...)`), a `Database` or a queue the project implements (change them as the two sections above say, then run the kits), and dashboards, alerts and log queries that are not in the repository.
 5. **Check.** Run the rename search from step 1 again: it must return nothing outside this page. Run the project's tests. If the project has a database that matters, test the upgrade on a copy. Then run `git diff --stat` and read it: every change should be one of the rows above.
 6. **Do not** rename a variable that happens to be called `run_id` or `attempt_id` in the project's own code, and do not touch the OpenTelemetry span names.
