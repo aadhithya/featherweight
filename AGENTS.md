@@ -20,6 +20,7 @@ retries and limits, and jobs run in your process or on workers. Pydantic is the 
 - A failed run is a value. Check `result.status` (`Status.SUCCESS` or `FAILED`); do not wrap `run` in `try`.
 - Rules a schema cannot say go in `check_output`: raise to reject, and the runner retries.
 - Capabilities are allow-lists: `tools`, `mcp_servers`, `skills`, `subagents` and `background_jobs` are what the developer gave the agent.
+- Agents propose, your code executes. Give an agent no tool that does what needs a person's approval: it returns a typed proposal (or calls a `propose_*` tool that only writes one), your application shows it, and plain code acts after the approval. Only the streaming agent talks to the user; a sub-agent or a background job has its own read tools. A job that needs an answer ends with `open_questions` and is resumed with `resume_from`. See [`docs/specs/approvals.md`](docs/specs/approvals.md).
 - The framework stores metadata only (status, tokens, timing, hashes). Results and inputs go to stores you provide.
 - Who a run is for is an `identity`: a small model you define, declared with `identity_type` and passed as `identity=`, and read by a tool as `runtime.context.identity`. The model never sees it. The tool checks authorization.
 - Never call a real model in tests: use a fake model (see [`docs/recipes/testing-with-a-fake-model.md`](docs/recipes/testing-with-a-fake-model.md)).

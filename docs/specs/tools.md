@@ -88,7 +88,7 @@ The shared MCP tools cannot take a `RunContext`, because one tool object serves 
 - State shared between agents, or kept by the framework between runs.
 - Rows for tool calls in the run log.
 - A per-call timeout or size cap for local tools. MCP tools have both.
-- Policy on a tool, such as "needs approval" or read-only.
+- Policy on a tool, such as "needs approval" or read-only. An agent that must not act is given no tool that acts, and proposes: [approvals](approvals.md).
 - Discovery of an agent's own tools.
 
 ## Tests

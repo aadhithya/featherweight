@@ -140,6 +140,7 @@ asyncio.run(main())
 - **Sub-agents:** `subagents=[OtherAgent]`, classes on an allow-list. Depth and breadth are limited (3 and 10).
 - **Skills:** `skills=[Skill.from_directory(path)]`, Agent Skills format. The agent reads them when it decides to.
 - **Capabilities are allow-lists:** `tools`, `mcp_servers`, `skills`, `subagents` and `background_jobs` are what the developer gave the agent, on purpose.
+- **Agents propose, your code executes.** Give an agent no tool that does what needs a person's approval: it returns a typed proposal (or calls a `propose_*` tool that only writes one), your application shows it, and plain code acts after the approval, once. Only the streaming agent talks to the user; a sub-agent or a background job has its own read tools. A job that needs an answer ends with `open_questions` and is resumed with `resume_from`. See `references/book/05-in-production/06-approvals.md`.
 - **Check what the model returned in code.** Validators and `check_output` have the last word. The model proposes.
 - **Who a run is for is an `identity`,** not something the model chooses: a small Pydantic model you define, declared with `identity_type` on the runner, the worker and the client, and passed as `identity=`. A tool reads it as `runtime.context.identity` and checks authorization itself. It carries no secrets.
 
@@ -158,6 +159,7 @@ The guides are the reference for one subject each (the book above is the way to 
 | The task | Read |
 |---|---|
 | Define and run an agent, results, retries, checks, tools, who is asking, configuration | `references/agents.md` |
+| A person must approve an action (booking, paying, sending), or a job needs an answer from the user | `references/book/05-in-production/06-approvals.md`, `references/recipes.md` (approving what an agent proposes; asking the user in the middle of a job) |
 | Patterns: a pipeline, feeding errors back, a fake model for tests, a second agent; and for a platform where users define skills or agents: a skill from a database or S3, agents built from JSON, a queue that signs messages, a tool that acts for the signed-in user (`identity`), files for an agent or a job (pass a reference, and a tool fetches it) | `references/recipes.md` |
 | Pick a model or provider, effort, add GPT-5.x or Ollama | `references/models.md` |
 | An agent that launches other agents | `references/launching-agents.md` |

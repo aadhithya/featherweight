@@ -44,6 +44,7 @@
 - [Background jobs](05-in-production/03-background-jobs.md)
 - [Observability](05-in-production/04-observability.md)
 - [Who is asking](05-in-production/05-who-is-asking.md)
+- [Approvals](05-in-production/06-approvals.md)
 
 # Part 6: Bring your own storage
 

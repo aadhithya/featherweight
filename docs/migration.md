@@ -181,6 +181,7 @@ None of this needs a change; it is here so that you know it exists.
 - **[Reading a skill from somewhere else](skills.md#reading-a-skill-from-somewhere-else):** `Skill.aread`.
 - **[Attachments in a chat](streaming.md#attachments):** images, documents, audio and video, with limits (`max_attachments`, `max_bytes`). A file for an agent or a job is [passed as a reference](recipes/files-for-an-agent-or-a-job.md), and not carried.
 - **[Configuration](agents.md#configuration):** one list of `FTW_` variables. New: `FTW_MAX_BACKGROUND_JOBS` and `FTW_WORKER_CONCURRENCY` (an argument wins over them), `FTW_JOBS_LOOKUP_TIMEOUT` and `FTW_SKILL_READ_TIMEOUT` (15 s each; environment only).
+- **[Approvals](specs/approvals.md):** agents propose and your code executes (a pattern, with two recipes and a chapter of the book), and what is not supported on purpose.
 - **[Recipes](recipes/README.md)** and a glossary that says which name to use.
 
 ## For coding agents

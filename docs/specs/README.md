@@ -14,6 +14,7 @@ not supported, tests.
 | [MCP tools](mcp-tools.md) | MCP servers: declaring, connections, failures, what the model gets |
 | [Tool discovery](tool-discovery.md) | Finding MCP tools by keyword: `discover`, `search_tools`, `call_tool`, matching |
 | [Skills](skills.md) | The skill model, loading, how an agent reads a skill, the Agent Skills specification |
+| [Approvals](approvals.md) | Agents propose, code executes: the proposal, the executor, who talks to the user, asking in a job, and what is not supported |
 | [Identity](identity.md) | Who a run is for: a typed identity the application passes, how tools read it, how it crosses the queue, and the identity hash for resuming; what stays the application's |
 | [Streaming agents](streaming.md) | `StreamingAgent`, `runner.stream()`, AG-UI events, thoughts, stopping a response, messages, the AG-UI and Vercel adapters |
 | [Attachments](attachments.md) | Images, documents, audio and video in a chat message: what a client can send, what the model gets, limits, failures |
@@ -35,6 +36,7 @@ A change goes in the spec of the thing it changes, and not in the spec of the ep
 | [Agent runner](runner.md) | Running an agent: results, attempts and retries, concurrency, launching agents, how a step is resumed, when observers are called |
 | [Models and providers](models.md) | `ModelSettings`, the catalog, what is checked per provider, tokens |
 | [Tools and the registry](tools.md), [MCP tools](mcp-tools.md), [tool discovery](tool-discovery.md), [skills](skills.md) | What their names say |
+| [Approvals](approvals.md) | A proposal as a typed value, the executor's checks, who talks to the user, asking at a boundary, and what is left out on purpose |
 | [Identity](identity.md) | The identity of a run: declaring and passing it, `RunContext.identity`, who inherits it, its field in the queue message, `identity_hash`, the developer's responsibilities |
 | [Streaming agents](streaming.md) | `StreamingAgent`, `runner.stream()`, the events, the adapters |
 | [Attachments](attachments.md) | The parts a user message may carry, how they reach the model, the limits on them |

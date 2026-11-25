@@ -101,3 +101,32 @@ async def test_chapter_5_5_requires_an_identity_on_every_run(db):
         assert "every run needs identity=" in str(exc)
     else:
         raise AssertionError("a run without an identity must raise when a type is declared")
+
+
+def test_chapter_5_6_acts_once_for_the_right_approver_and_refuses_the_rest(capsys):
+    app = load("book_5_6", "5-6/app.py")
+    app.main()
+
+    out = capsys.readouterr().out.splitlines()
+    assert out == [
+        'proposed: {"service":"payment-form","to_version":"4.1","reason":"errors began with 4.2"}',
+        "raj -> refused: raj may not approve",
+        "ana -> refused: it is not the proposal that was shown",
+        "ana -> rolled payment-form back to 4.1",
+        "ana -> rolled payment-form back to 4.1",
+    ]
+    assert list(app.DONE.values()) == ["rolled payment-form back to 4.1"]  # the second approval did not act again
+
+
+def test_chapter_5_6_refuses_an_expired_and_an_already_approved_proposal():
+    import pytest
+
+    app = load("book_5_6_refusals", "5-6/app.py")
+    record = app.keep(app.Rollback(service="s", to_version="1", reason="r"), seconds=-1)  # it has expired already
+    with pytest.raises(PermissionError, match="expired"):
+        app.approve(record["id"], record["hash"], "ana", "k1")
+    fresh = app.keep(app.Rollback(service="s", to_version="1", reason="r"))
+    app.approve(fresh["id"], fresh["hash"], "ana", "k2")
+    with pytest.raises(PermissionError, match="not pending"):
+        app.approve(fresh["id"], fresh["hash"], "ana", "k3")  # another key: it is not approved twice
+    assert len(app.DONE) == 1

@@ -3,6 +3,7 @@ application's (a store, a directory, a web handler) is in the recipe itself or i
 uses the agent of Getting started says so in a comment, and the agent is read from that page. The platform recipes with more to say are in
 `test_recipes_platform.py` and `test_skill_package.py`."""
 
+import inspect
 import json
 import re
 from pathlib import Path
@@ -227,6 +228,142 @@ async def test_the_same_field_works_for_a_background_job(recipes, tmp_path, caps
     assert (
         the_input_of(model, "Draft the text for the task")["context"] == SUMMARY
     )  # the job got the parent's summary too
+
+
+# approving what an agent proposes
+
+FOUND = [
+    {"id": "f1", "airline": "TAP", "departs": "07:10", "price_eur": 142},
+    {"id": "f2", "airline": "Lufthansa", "departs": "11:45", "price_eur": 189},
+]
+
+
+async def load_recipe(page: str) -> dict[str, Any]:
+    """The code of a page, run, without its `main()`: for a test that uses what the page defines."""
+    namespace: dict[str, Any] = {}
+    await run_block("\n".join(blocks(page)), namespace)
+    return namespace
+
+
+def a_pending_proposal(ns: dict[str, Any]) -> dict:
+    return ns["keep"](ns["Proposal"](options=[ns["Option"](**f) for f in FOUND], recommended="f1"))
+
+
+async def test_the_agent_proposes_and_a_person_approves_once(recipes, capsys):
+    model = recipes(
+        PerAgent(
+            scripts={
+                "Search the flights for the trip": [
+                    tool_reply("search_flights", {"origin": "MUC", "destination": "LIS", "day": "2026-12-12"}, "t1"),
+                    structured_reply("Proposal", {"options": FOUND, "recommended": "f1"}),
+                ]
+            }
+        )
+    )
+    ns = await run_recipe("approving-what-an-agent-proposes.md")
+
+    out = capsys.readouterr().out
+    assert "proposed ['f1', 'f2']" in out and "nothing is booked" in out
+    assert "the same approval again is the same booking: True | bookings: 1" in out
+    assert len(ns["BOOKINGS"]) == 1 and model.calls == {"Search the flights for the trip": 2}
+
+
+async def test_the_agent_has_no_tool_that_books_and_the_executor_takes_no_arguments_of_the_action():
+    ns = await load_recipe("approving-what-an-agent-proposes.md")
+
+    assert [tool.name for tool in ns["FlightFinder"]().tools] == ["search_flights"]  # it reads: it cannot act
+    assert set(inspect.signature(ns["approve"]).parameters) == {
+        "proposal_id",
+        "option_id",
+        "shown_hash",
+        "approver",
+        "idempotency_key",
+        "now",
+    }  # an id, a choice and what was shown: never the flight, the price or any argument of the action
+
+
+async def test_a_proposal_that_changed_expired_or_is_not_for_this_approver_books_nothing():
+    from datetime import timedelta
+
+    ns = await load_recipe("approving-what-an-agent-proposes.md")
+    refused, approve = ns["NotApproved"], ns["approve"]
+
+    record = a_pending_proposal(ns)
+    with pytest.raises(refused, match="not the one that was shown"):
+        approve(record["id"], "f1", "0" * 64, "u1", "k1")  # not what the person saw
+    with pytest.raises(refused, match="may not approve"):
+        approve(record["id"], "f1", record["hash"], "mallory", "k2")
+    with pytest.raises(refused, match="not an option"):
+        approve(record["id"], "f9", record["hash"], "u1", "k3")
+    with pytest.raises(refused, match="expired"):
+        approve(record["id"], "f1", record["hash"], "u1", "k4", now=record["expires_at"] + timedelta(minutes=1))
+    assert record["status"] == "expired"
+    with pytest.raises(refused, match="no pending proposal"):
+        approve(record["id"], "f1", record["hash"], "u1", "k5")  # it is not pending any more
+
+    stale = a_pending_proposal(ns)
+    ns["FLIGHTS"].clear()  # the flight was sold in the meantime
+    with pytest.raises(refused, match="no longer available"):
+        approve(stale["id"], "f1", stale["hash"], "u1", "k6")
+    assert ns["BOOKINGS"] == {}  # nothing was booked, by any of them
+
+
+async def test_a_second_approval_with_another_key_does_not_book_again():
+    ns = await load_recipe("approving-what-an-agent-proposes.md")
+    record = a_pending_proposal(ns)
+
+    ns["approve"](record["id"], "f1", record["hash"], "u1", "first")
+    with pytest.raises(ns["NotApproved"], match="no pending proposal"):
+        ns["approve"](record["id"], "f2", record["hash"], "u1", "second")
+    assert len(ns["BOOKINGS"]) == 1
+
+
+async def test_the_propose_tool_writes_a_proposal_and_books_nothing(recipes):
+    from featherweight import SqliteDatabase, default_db_path
+
+    ns = await load_recipe("approving-what-an-agent-proposes.md")
+    model = recipes(
+        PerAgent(
+            scripts={
+                "Help the person plan the trip": [
+                    tool_reply("propose_booking", {"option_id": "f1"}, "p1"),
+                    structured_reply("Reply", {"reply": "I proposed it: waiting for your approval."}),
+                ]
+            }
+        )
+    )
+    async with SqliteDatabase(default_db_path()) as db, AgentRunner(db) as runner:
+        result = await runner.run(ns["Assistant"], ns["Search"](origin="MUC", destination="LIS", day="2026-12-12"))
+
+    assert result.status.value == "SUCCESS"
+    [record] = ns["PROPOSALS"].values()
+    assert record["status"] == "pending" and ns["BOOKINGS"] == {}  # a proposal exists, and nothing was done
+    told = [m.content for messages in model.seen for m in messages if m.type == "tool"]
+    assert any("It is not booked" in str(text) for text in told)
+
+
+# asking the user in the middle of a job
+
+
+async def test_a_job_ends_with_its_questions_and_the_second_job_does_not_pay_for_the_first_stage(recipes, capsys):
+    model = recipes(
+        PerAgent(
+            scripts={
+                "Plan the trip": [
+                    structured_reply(
+                        "Draft", {"plan": {"destination": "Lisbon"}, "open_questions": ["How many nights?"]}
+                    )
+                ],
+                "Write the itinerary": [structured_reply("Itinerary", {"itinerary": "Four nights in Lisbon."})],
+            }
+        )
+    )
+    await run_recipe("asking-the-user-in-the-middle-of-a-job.md")
+
+    out = capsys.readouterr().out
+    assert "first job: SUCCESS | done: False | asks: ['How many nights?']" in out  # asking is a result
+    assert "second job: SUCCESS | done: True | Four nights in Lisbon." in out
+    assert model.calls == {"Plan the trip": 1, "Write the itinerary": 1}  # the planner ran once, across both jobs
 
 
 # a different provider
