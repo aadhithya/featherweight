@@ -62,7 +62,7 @@ A job created with `resume_from` (see [jobs](jobs.md#resuming-a-job)) makes the 
 run before it runs it. This is replay with memoised agent calls: the caller's code runs again, and only runs are
 answered from the log.
 
-- **Where.** At the start of `_invoke`, once per `run` call, before the attempt loop, and only when `depth` is 1 and
+- **Where.** At the start of a run, once per `run` call, before the attempt loop, and only when `depth` is 1 and
   there is a `job_id`. A sub-agent (depth above 1) is never looked up.
 - **The match.** In the old job: `status = SUCCESS`, the same `agent_hash`, the same `input_hash`, the same `identity_hash` (`NULL`, no identity, matches only `NULL`: [identity](identity.md#resuming-a-job)), `depth = 1`. Any
   matching row will do. A row with no `agent_hash` or `input_hash` never matches. The log is the metadata question.

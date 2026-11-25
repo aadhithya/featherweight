@@ -479,7 +479,7 @@ class SqliteDatabase(Database):
     async def get_attempt(self, attempt_id: str) -> AttemptRow | None:
         async with self.conn.execute("SELECT * FROM attempts WHERE attempt_id = ?", (attempt_id,)) as cur:
             row = await cur.fetchone()
-        return self._run(row) if row else None
+        return self._attempt(row) if row else None
 
     async def job_has_other_identity(self, job_id: str, identity_hash: str | None) -> bool:
         async with self.conn.execute(
@@ -509,7 +509,7 @@ class SqliteDatabase(Database):
             ),
         ) as cur:
             row = await cur.fetchone()
-        return self._run(row) if row else None
+        return self._attempt(row) if row else None
 
     async def list_attempts(self, *, job_id: str | None = None, run_id: str | None = None) -> list[AttemptRow]:
         where, params = [], []
@@ -525,7 +525,7 @@ class SqliteDatabase(Database):
         sql += " ORDER BY seq"
         async with self.conn.execute(sql, params) as cur:
             rows = await cur.fetchall()
-        return [self._run(r) for r in rows]
+        return [self._attempt(r) for r in rows]
 
     async def _set_run(self, attempt_id: str, **columns: Any) -> None:
         assignments = ", ".join(f"{c} = ?" for c in columns)
@@ -537,7 +537,7 @@ class SqliteDatabase(Database):
             raise LookupError(f"No such run: {attempt_id}")
 
     @staticmethod
-    def _run(row: aiosqlite.Row) -> AttemptRow:
+    def _attempt(row: aiosqlite.Row) -> AttemptRow:
         data: dict[str, Any] = dict(row)
         data["settings"] = json.loads(data["settings"])
         for column in ("created_at", "started_at", "completed_at"):

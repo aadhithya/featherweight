@@ -24,7 +24,7 @@ from featherweight import AgentRunner, JobContext, SqliteDatabase, job, run_job
 
 @job  # a class made from this function: a name, a version, a typed input and output
 async def summarise(ctx: JobContext, input: Report) -> Summary:
-    result = await ctx.run(IncidentSummariser, input)  # an agent run, inside the job
+    result = await ctx.run(IncidentSummariser, input)  # a run of an agent, inside the job
     if result.output is None:
         raise RuntimeError(result.error)
     return result.output

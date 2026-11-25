@@ -2,7 +2,10 @@
 
 Only prose is read: code blocks, code spans, link targets and comments are left alone, so a field called `subagents` is fine."""
 
+import ast
+import io
 import re
+import tokenize
 from pathlib import Path
 
 import pytest
@@ -84,9 +87,48 @@ def test_the_source_docstrings_use_the_same_words():
     assert not found, "\n".join(found)
 
 
+CODE_RULED_OUT = [(pattern, use) for pattern, use in RULED_OUT if use == "run"] + [(r"\bagent runs are\b", "run")]
+
+
+def words_of_code(path: Path) -> list[tuple[int, str]]:
+    """The comments, and the docstrings, of a Python file: the words a reader meets in it, with their line."""
+    source = path.read_text()
+    found = [
+        (t.start[0], t.string)
+        for t in tokenize.generate_tokens(io.StringIO(source).readline)
+        if t.type == tokenize.COMMENT
+    ]
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+            doc = ast.get_docstring(node, clean=False)
+            if doc and node.body:
+                found.append((node.body[0].lineno, doc))
+    return found
+
+
+def test_the_comments_and_docstrings_of_the_books_code_and_the_examples_use_the_same_words():
+    found = []
+    for folder in ("docs/book/code", "examples"):
+        for path in sorted((ROOT / folder).rglob("*.py")):
+            for number, text in words_of_code(path):
+                for pattern, use in CODE_RULED_OUT:
+                    if re.search(pattern, text, re.I):
+                        found.append(f"{path.relative_to(ROOT)}:{number}: say {use!r}: {text.strip()[:80]}")
+    assert not found, "\n".join(found)
+
+
 def test_the_check_reads_prose_only_and_does_catch_a_ruled_out_name():
     assert re.search(RULED_OUT[0][0], prose("An agent can launch a subagent."), re.I)
     assert not re.search(
         RULED_OUT[0][0], prose("The `subagents` field, and a [link](launching-agents.md#subagents)."), re.I
     )
     assert not re.search(RULED_OUT[0][0], prose("```python\nsubagent = 1\n```"), re.I)
+
+
+def test_the_check_of_code_reads_comments_and_docstrings_and_does_catch_a_ruled_out_name(tmp_path):
+    path = tmp_path / "chapter.py"
+    path.write_text('"""Its agent runs are in the run log."""\n\nx = "an agent run"  # one agent run, inside the job\n')
+    words = [text for _, text in words_of_code(path)]
+    assert any("agent runs are" in text for text in words) and any("one agent run" in text for text in words)
+    assert not any('"an agent run"' in text for text in words)  # a string that is not a docstring is not read
+    assert all(any(re.search(p, t, re.I) for p, _ in CODE_RULED_OUT) for t in words)

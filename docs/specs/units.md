@@ -73,7 +73,7 @@ job ── one or more executions (a takeover, or a requeue after a shutdown, ma
 | **Observers** | `JobStart`, `JobEnd` | `JobStart.execution` | `run_id` on the attempt records | `AttemptStart`, `AttemptEnd` |
 | **Spans** | `invoke_workflow` | `ftw.job.execution` | `ftw.run.id` | `invoke_agent`, `ftw.attempt.id`, `ftw.attempt` |
 | **Logs** | `job_started`... | `worker_takeover` | `run_started`, `run_finished`, `run_reused` | `attempt_started`, `attempt_created`, `attempt_finished` |
-| **Settings** | `max_background` | | | `FTW_MAX_CONCURRENT_ATTEMPTS` |
+| **Settings** | `FTW_MAX_BACKGROUND_JOBS` | | | `FTW_MAX_CONCURRENT_ATTEMPTS` |
 
 ## The rename
 
@@ -193,7 +193,7 @@ A scan of the public names, after the renames above, found three that are not pa
 |---|---|---|
 | `ReusedRun` (observer record) | `RunReused` | The other records of an event are `<Unit><Event>`: `JobSubmitted`, `JobStart`, `AttemptEnd`. |
 | `Database.mark_run_running` | `Database.start_attempt` | A job's `start_job` and an attempt's start are the same step, and the lifecycle reads `create_attempt`, `start_attempt`, `finish_attempt`. |
-| `AgentRunner(max_background=)`, `DEFAULT_MAX_BACKGROUND` | `max_background_jobs`, `DEFAULT_MAX_BACKGROUND_JOBS` | The other limits name what they count: `max_launches`, `max_depth`, `max_concurrent`; and the field is `background_jobs`. |
+| `AgentRunner(max_background=)` | `max_background_jobs` (and the setting `FTW_MAX_BACKGROUND_JOBS`: [configuration](configuration.md)) | The other limits name what they count: `max_launches`, `max_depth`, `max_concurrent`; and the field is `background_jobs`. |
 
 **Considered, and left as they are:** `AgentResult` (the result of a run) and `JobOutcome` (the outcome of a job) use two words for two similar things, and `outcome.result` holds what `result.output` holds. They are the two types
 that users meet most, the difference between a result and an outcome is a real one (a job can be `CANCELLED`, an agent's result is a value), and renaming them would change every example for a gain that is small.

@@ -33,7 +33,7 @@ class Shout(Job):
     output_model = Out
 
     async def run(self, ctx: JobContext, input: In) -> Out:
-        result = await ctx.run(Echo, EchoInput(text=input.text))  # one agent run inside the job
+        result = await ctx.run(Echo, EchoInput(text=input.text))  # one run inside the job
         return Out(shouted=result.output.echoed.upper())
 
 

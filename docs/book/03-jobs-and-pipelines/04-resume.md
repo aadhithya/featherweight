@@ -46,8 +46,10 @@ async def summarise_all(ctx: JobContext, input: Reports) -> Digest:
 
 async def show(db, label: str, job_id: str) -> None:
     print(label)
-    for run in await db.list_attempts(job_id=job_id):
-        print(f"  {run.status.value:<8} {'reused: no model call' if run.reused_from_attempt_id else 'model call'}")
+    for attempt in await db.list_attempts(job_id=job_id):
+        print(
+            f"  {attempt.status.value:<8} {'reused: no model call' if attempt.reused_from_attempt_id else 'model call'}"
+        )
 
 
 async def main() -> None:

@@ -159,7 +159,7 @@ def test_the_version_of_the_conventions_is_pinned():
 # retries, rejections and the attempt that counted
 
 
-async def test_retries_are_siblings_that_share_an_invocation_and_only_the_last_is_final(db, telemetry):
+async def test_retries_are_siblings_that_share_a_run_and_only_the_last_is_final(db, telemetry):
     observer = observer_for(telemetry)
     runner = runner_with(db, Scripted(script=[RuntimeError("down"), echoed()]), observers=[observer], max_attempts=2)
 
