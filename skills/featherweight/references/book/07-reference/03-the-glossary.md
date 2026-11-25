@@ -10,6 +10,7 @@ do not](#words-we-use-and-words-we-do-not) lists the names that look the same an
 | Term | Meaning |
 |---|---|
 | **agent** | A typed class: an input, an output, a prompt and what it may use. A running agent is complete and validated before it runs, and its hash identifies it. [A typed agent](../01-your-first-agent/02-a-typed-agent.md) |
+| **approval** | A person's yes to a proposal. The client sends the proposal's id, the choice and the hash it was shown; your own code checks them and acts, once. [Approvals](../05-in-production/06-approvals.md) |
 | **allow-list** | A list the developer writes of what an agent may use: its tools, MCP servers, skills, sub-agents and background jobs. Nothing is granted by default. [Philosophy](../00-start-here/03-philosophy.md) |
 | **attachment** | A file (an image, a document, audio or video) sent with a chat message, as inline bytes. featherweight passes it on and checks nothing but the limits. [Attaching a file](../04-chat/04-attaching-a-file.md) |
 | **attempt** | One try within a run. A failed attempt is retried, up to three times. Each attempt is a row of the run log. Not a run, and not an execution. [Failures](../01-your-first-agent/05-failures-and-check-output.md) |
@@ -39,6 +40,7 @@ do not](#words-we-use-and-words-we-do-not) lists the names that look the same an
 | **observer** | A class the runner calls as things happen; `OTelObserver` is the one we ship. [An observer](../06-bring-your-own-storage/05-an-observer.md) |
 | **pipeline** | Plain Python that runs agents: order, loops and branching are `if` and `for`. When it is declared as a class or with `@job`, it is a job. [What a job is](../03-jobs-and-pipelines/01-what-a-job-is.md) |
 | **queue** | How a submitted job travels to a worker: `SqliteQueue`, `MemoryQueue` or yours. [Submit and a worker](../05-in-production/01-submit-and-a-worker.md) |
+| **proposal** | What an agent returns instead of acting: a typed value (its output, or what a `propose_*` tool writes) that your application keeps with its hash and an expiry, shows to a person, and executes after the approval. [Approvals](../05-in-production/06-approvals.md) |
 | **recipe** | A short, complete pattern for one job, in `docs/recipes`. Its code is run by the tests. [Recipes](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/README.md) |
 | **reference** | An id or a name for a file or a record that you keep in a store of your own. The input of a job or an agent carries it, and a tool fetches what it points to and checks who may read it: files do not travel between agents or through a queue. [Files for an agent or a job](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/files-for-an-agent-or-a-job.md) |
 | **run** | One call of an agent, with its retries: what `runner.run(agent, input)` is and what returns an `AgentResult`. One streamed turn is a run. A run makes one or more attempts. Used as a verb, "to run" starts anything; as a noun, "a run" is only this. [Running it](../01-your-first-agent/03-running-it.md) |

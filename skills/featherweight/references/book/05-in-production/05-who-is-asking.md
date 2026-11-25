@@ -92,5 +92,6 @@ returns `Not allowed.`, and the model says it could not open it.
 
 - [A tool that gets a token for its identity](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/a-tool-that-gets-a-token-for-its-identity.md).
 - Files are passed as references, not carried: [files for an agent or a job](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/files-for-an-agent-or-a-job.md).
+- An action that needs a person's yes: the agent proposes and your code acts, as in [Approvals](06-approvals.md).
 
 Next: bring your own storage.

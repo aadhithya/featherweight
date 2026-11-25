@@ -57,6 +57,7 @@ New to featherweight? Start with [what it is](00-start-here/01-what-it-is.md). W
 3. [Background jobs](05-in-production/03-background-jobs.md)
 4. [Observability](05-in-production/04-observability.md)
 5. [Who is asking](05-in-production/05-who-is-asking.md)
+6. [Approvals](05-in-production/06-approvals.md)
 
 ### Part 6: Bring your own storage
 

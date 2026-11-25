@@ -1011,6 +1011,314 @@ client, worker = JobClient(db, queue), JobWorker(db, queue, runner, jobs=[...])
 
 [The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/a-queue-that-signs-its-messages.md)
 
+## Approving what an agent proposes
+
+An agent never books, pays or sends: it proposes, a person approves, and plain code executes. The agent below searches flights and returns a typed proposal, and it has no tool that books. A function of yours does that, after the approval.
+
+```python
+import asyncio
+import hashlib
+import json
+import uuid
+from datetime import datetime, timedelta, timezone
+from typing import ClassVar
+
+from langchain_core.tools import tool
+from pydantic import BaseModel
+
+from featherweight import (
+    AgentBase,
+    AgentInput,
+    AgentOutput,
+    AgentRunner,
+    Gemini,
+    ModelSettings,
+    SqliteDatabase,
+    default_db_path,
+)
+
+# yours: the flight search, your database of proposals and bookings, and who may approve
+FLIGHTS = {
+    ("MUC", "LIS", "2026-12-12"): [
+        {"id": "f1", "airline": "TAP", "departs": "07:10", "price_eur": 142},
+        {"id": "f2", "airline": "Lufthansa", "departs": "11:45", "price_eur": 189},
+    ]
+}
+PROPOSALS: dict[str, dict] = {}
+BOOKINGS: dict[str, dict] = {}  # by idempotency key
+APPROVERS = {"u1"}
+
+
+class Search(AgentInput):
+    origin: str
+    destination: str
+    day: str
+
+
+class Option(BaseModel):
+    id: str
+    airline: str
+    departs: str
+    price_eur: int
+
+
+class Proposal(AgentOutput):  # what the agent returns: options to choose from, not a booking
+    options: list[Option] = []
+    recommended: str = ""  # the id of one option
+
+
+@tool
+def search_flights(origin: str, destination: str, day: str) -> list[dict]:
+    """Search the flights of a day. It only reads."""
+    return FLIGHTS.get((origin, destination, day), [])
+
+
+class FlightFinder(AgentBase):
+    name: str = "flight_finder"
+    description: str = "Finds flights and proposes the best options"
+    version: str = "0.1.0"
+    prompt: str = "Search the flights for the trip and propose the best options. You cannot book: someone else does, after the person approves."
+    model: ModelSettings = Gemini()
+    tools: list = [search_flights]  # read-only: there is no tool that books
+    input_model: ClassVar[type[AgentInput]] = Search
+    output_model: ClassVar[type[AgentOutput]] = Proposal
+
+
+def fingerprint(proposal: Proposal) -> str:
+    return hashlib.sha256(json.dumps(proposal.model_dump(mode="json"), sort_keys=True).encode()).hexdigest()
+
+
+def keep(proposal: Proposal, minutes: int = 30) -> dict:
+    """Stage one is done: keep the proposal, with its hash and an expiry, and show it to a person."""
+    record = {
+        "id": uuid.uuid4().hex[:8],
+        "proposal": proposal,
+        "hash": fingerprint(proposal),  # what the person was shown
+        "expires_at": datetime.now(timezone.utc) + timedelta(minutes=minutes),
+        "status": "pending",
+    }
+    PROPOSALS[record["id"]] = record
+    return record
+
+
+class NotApproved(Exception):
+    pass
+
+
+def approve(
+    proposal_id: str, option_id: str, shown_hash: str, approver: str, idempotency_key: str, now: datetime | None = None
+) -> dict:
+    """Stage two, the executor: plain code, no model. It checks everything, then books once."""
+    if idempotency_key in BOOKINGS:
+        return BOOKINGS[idempotency_key]  # the same approval again changes nothing
+    record = PROPOSALS.get(proposal_id)
+    if record is None or record["status"] != "pending":
+        raise NotApproved("there is no pending proposal with that id")
+    if (now or datetime.now(timezone.utc)) > record["expires_at"]:
+        record["status"] = "expired"
+        raise NotApproved("the proposal has expired")
+    if shown_hash != record["hash"]:
+        raise NotApproved("the proposal is not the one that was shown")
+    if (
+        approver not in APPROVERS
+    ):  # the approver's identity, from your authentication: never anything that the model said
+        raise NotApproved("this person may not approve")
+    option = next((o for o in record["proposal"].options if o.id == option_id), None)
+    if option is None:
+        raise NotApproved("that is not an option of the proposal")
+    if not any(f["id"] == option.id for flights in FLIGHTS.values() for f in flights):  # what can have changed since
+        raise NotApproved("that flight is no longer available")
+    booking = {
+        "booking_id": uuid.uuid4().hex[:8],
+        "flight": option.model_dump(),
+        "approved_by": approver,
+    }  # an API call, in real life
+    record["status"] = "approved"
+    BOOKINGS[idempotency_key] = booking
+    return booking
+
+
+async def main() -> None:
+    async with SqliteDatabase(default_db_path()) as db, AgentRunner(db) as runner:
+        result = await runner.run(FlightFinder, Search(origin="MUC", destination="LIS", day="2026-12-12"))
+    record = keep(result.output)
+    print("proposed", [o.id for o in record["proposal"].options], "- nothing is booked, a person has to approve")
+
+    # Draw the screen from the typed proposal, wait as long as it takes, and when the person approves:
+    booking = approve(record["id"], "f1", record["hash"], approver="u1", idempotency_key="approval-1")
+    again = approve(record["id"], "f1", record["hash"], approver="u1", idempotency_key="approval-1")
+    print(
+        "booked",
+        booking["flight"]["airline"],
+        "| the same approval again is the same booking:",
+        again == booking,
+        "| bookings:",
+        len(BOOKINGS),
+    )
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+- **The agent cannot act.** Its allow-list has a search and no booking, so a wrong answer, or a prompt injection, can only make a wrong proposal.
+- **An approval is for exactly what was shown.** The person's client sends the proposal id, the option and the hash it was shown, never the arguments of the action, and the executor refuses a proposal that changed, expired or is not pending.
+- **The approver is the person, not the model.** `approve` checks who they are with your own authentication, and an idempotency key makes a second approval change nothing.
+- **Draw the screen yourself** from the fields of the proposal. A sentence that the model wrote about it is decoration.
+
+To propose in the middle of a conversation, give the agent a tool that writes a proposal and cannot act. The chat shows a card, your code executes after the yes, and the outcome goes into the conversation for the next turn:
+
+```python
+class Reply(AgentOutput):
+    reply: str = ""
+
+
+@tool
+def propose_booking(option_id: str) -> str:
+    """Propose booking a flight for the person to approve. This does not book."""
+    flights = [f for flights in FLIGHTS.values() for f in flights if f["id"] == option_id]
+    if not flights:
+        return "There is no such flight."
+    record = keep(Proposal(options=[Option(**flights[0])], recommended=option_id))
+    return f"Proposed as {record['id']}. It is not booked: the person has to approve it."
+
+
+class Assistant(AgentBase):
+    name: str = "assistant"
+    description: str = "Helps a person plan a trip"
+    version: str = "0.1.0"
+    prompt: str = "Help the person plan the trip. To book a flight, propose it with `propose_booking`: you cannot book, the person approves."
+    model: ModelSettings = Gemini()
+    tools: list = [search_flights, propose_booking]  # both only read or propose
+    input_model: ClassVar[type[AgentInput]] = Search
+    output_model: ClassVar[type[AgentOutput]] = Reply
+```
+
+[The approvals spec](https://github.com/aadhithya/featherweight/blob/main/docs/specs/approvals.md) says what is left out on purpose, and why.
+
+[The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/approving-what-an-agent-proposes.md)
+
+## Asking the user in the middle of a job
+
+A job runs without a person, so it cannot stop and wait for an answer. It asks at a boundary instead: the first stage ends with its questions, the job succeeds, and when the person answers a new job picks up from the finished stage, which costs nothing again. Nothing is held while you wait, for a minute or for a week.
+
+```python
+import asyncio
+from typing import ClassVar
+
+from pydantic import BaseModel
+
+from featherweight import (
+    AgentBase,
+    AgentInput,
+    AgentOutput,
+    AgentRunner,
+    Gemini,
+    JobContext,
+    ModelSettings,
+    SqliteDatabase,
+    Status,
+    default_db_path,
+    job,
+    run_job,
+)
+
+
+class Plan(BaseModel):
+    destination: str = ""
+    nights: int = 0
+
+
+class Request(AgentInput):
+    request: str
+
+
+class Draft(AgentOutput):  # also carries `open_questions: list[str]`
+    plan: Plan = Plan()
+
+
+class Planner(AgentBase):
+    name: str = "planner"
+    description: str = "Plans a trip from a request"
+    version: str = "0.1.0"
+    prompt: str = "Plan the trip. What you do not know, leave out of the plan and ask in open_questions."
+    model: ModelSettings = Gemini()
+    input_model: ClassVar[type[AgentInput]] = Request
+    output_model: ClassVar[type[AgentOutput]] = Draft
+
+
+class FinishInput(AgentInput):
+    plan: Plan
+    answers: dict[str, str]  # the questions, and what the person said
+
+
+class Itinerary(AgentOutput):
+    itinerary: str = ""
+
+
+class Finisher(AgentBase):
+    name: str = "finisher"
+    description: str = "Writes the itinerary from a plan and the answers"
+    version: str = "0.1.0"
+    prompt: str = "Write the itinerary from the plan and the answers."
+    model: ModelSettings = Gemini()
+    input_model: ClassVar[type[AgentInput]] = FinishInput
+    output_model: ClassVar[type[AgentOutput]] = Itinerary
+
+
+class TripIn(BaseModel):
+    request: str
+    answers: dict[str, str] = {}
+
+
+class TripOut(BaseModel):  # the outcome: done, or the questions to ask
+    done: bool
+    questions: list[str] = []
+    itinerary: str = ""
+
+
+@job
+async def plan_trip(ctx: JobContext, input: TripIn) -> TripOut:
+    first = await ctx.run(Planner, Request(request=input.request))  # the same input each time: a resume reuses it
+    if first.status != Status.SUCCESS:
+        raise RuntimeError(first.error)
+    draft = first.output
+    if draft.open_questions and not input.answers:
+        return TripOut(done=False, questions=draft.open_questions)  # the job succeeds: asking is a result
+    second = await ctx.run(Finisher, FinishInput(plan=draft.plan, answers=input.answers))
+    if second.status != Status.SUCCESS:
+        raise RuntimeError(second.error)
+    return TripOut(done=True, itinerary=second.output.itinerary)
+
+
+async def main() -> None:
+    request = "A few days somewhere warm in March."
+    async with SqliteDatabase(default_db_path()) as db, AgentRunner(db) as runner:
+        first = await run_job(
+            runner, plan_trip, TripIn(request=request), resumable=True
+        )  # resumable: it keeps its steps
+        print("first job:", first.status.value, "| done:", first.result.done, "| asks:", first.result.questions)
+
+        # Your application keeps "waiting for an answer", tells the person (a page, a notification), and a day may pass.
+        answers = {question: "4 nights" for question in first.result.questions}
+
+        second = await run_job(runner, plan_trip, TripIn(request=request, answers=answers), resume_from=first.job_id)
+        print("second job:", second.status.value, "| done:", second.result.done, "|", second.result.itinerary)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+- **Asking is a result, not a pause.** `open_questions` is part of every agent's output, and the job succeeds with a typed outcome. The application sees `done=False`, keeps its own "waiting" row, and asks. There is no status and no exception for it.
+- **The second job does not pay for the first stage.** The planner ran with the same input, so the second job answers it from the kept results, with no model call and no tool call. Only the finisher runs, with a small input: the plan and the answers.
+- **A rerun costs the work it repeats,** the output tokens and the tools, and not the input it reads again. A provider's cache lasts minutes to about an hour, so a person's answer finds it cold anyway.
+- **In a chat,** the streaming agent does the asking in its own turn: a background job that needs something returns `open_questions`, and the streaming agent relays them. Only the streaming agent talks to the user.
+
+[The approvals spec](https://github.com/aadhithya/featherweight/blob/main/docs/specs/approvals.md) has the rule, and what is not supported, with the conditions to think again.
+
+[The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/asking-the-user-in-the-middle-of-a-job.md)
+
 ## A tool that gets a token for its identity
 
 A tool acts for the user whose identity the run has. featherweight carries the identity; the tool checks what it may do, and gets a credential with code of your own, at each call.

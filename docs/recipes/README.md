@@ -21,6 +21,8 @@ Short, complete patterns to adapt, for building with featherweight. Each one say
 | [A skill for each department](a-skill-for-each-department.md) | One agent, with the skills of whoever is asking |
 | [Agents built from JSON, with your own rules](agents-built-from-json.md) | Let users define agents from a catalog you control, and run them on workers |
 | [A queue that signs its messages](a-queue-that-signs-its-messages.md) | Wrap any queue with an HMAC signature, and check it with the kit |
+| [Approving what an agent proposes](approving-what-an-agent-proposes.md) | An agent proposes, a person approves, plain code executes once |
+| [Asking the user in the middle of a job](asking-the-user-in-the-middle-of-a-job.md) | A job ends with its questions, and the next job reuses the finished stage |
 | [A tool that gets a token for its identity](a-tool-that-gets-a-token-for-its-identity.md) | Act for the signed-in user: check, then get a credential at each call |
 | [Files for an agent or a job: pass a reference](files-for-an-agent-or-a-job.md) | Keep the file in your store, pass its reference, and let a tool fetch it and check the identity |
 

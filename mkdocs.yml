@@ -101,6 +101,8 @@ nav:
       - recipes/an-agent-with-an-mcp-server.md
       - recipes/an-agent-that-launches-another.md
       - recipes/giving-a-sub-agent-context.md
+      - recipes/approving-what-an-agent-proposes.md
+      - recipes/asking-the-user-in-the-middle-of-a-job.md
       - recipes/a-chat-agent-that-streams.md
       - recipes/a-result-store-of-your-own.md
       - recipes/a-job-that-a-worker-runs.md
@@ -144,6 +146,7 @@ nav:
       - specs/tool-discovery.md
       - specs/skills.md
       - specs/identity.md
+      - specs/approvals.md
       - specs/streaming.md
       - specs/attachments.md
       - specs/persistence.md

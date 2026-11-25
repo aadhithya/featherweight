@@ -94,11 +94,12 @@ returns `Not allowed.`, and the model says it could not open it.
 
 - [A tool that gets a token for its identity](../../recipes/a-tool-that-gets-a-token-for-its-identity.md).
 - Files are passed as references, not carried: [files for an agent or a job](../../recipes/files-for-an-agent-or-a-job.md).
+- An action that needs a person's yes: the agent proposes and your code acts, as in [Approvals](06-approvals.md).
 
 Next: bring your own storage.
 
 <!-- nav:bottom -->
 ---
 
-[← Observability](04-observability.md) · [Part 5: In production](../README.md#part-5-in-production) · [Postgres →](../06-bring-your-own-storage/01-postgres.md)
+[← Observability](04-observability.md) · [Part 5: In production](../README.md#part-5-in-production) · [Approvals →](06-approvals.md)
 <!-- /nav:bottom -->

@@ -57,5 +57,5 @@ INIT
 <!-- nav:bottom -->
 ---
 
-[← Who is asking](../05-in-production/05-who-is-asking.md) · [Part 6: Bring your own storage](../README.md#part-6-bring-your-own-storage) · [A result store →](02-a-result-store.md)
+[← Approvals](../05-in-production/06-approvals.md) · [Part 6: Bring your own storage](../README.md#part-6-bring-your-own-storage) · [A result store →](02-a-result-store.md)
 <!-- /nav:bottom -->

@@ -12,6 +12,7 @@ How to define an agent, run it, and what to expect back. Agents that launch othe
 - [Checking the output](#checking-the-output)
 - [Tools](#tools)
 - [Who is asking: the identity of a run](#who-is-asking-the-identity-of-a-run)
+- [Approvals: agents propose, your code acts](#approvals-agents-propose-your-code-acts)
 - [Configuration](#configuration)
 
 ## Defining an agent
@@ -235,6 +236,18 @@ result = await runner.run(Mailer, MailerInput(...), identity=Teacher(user_id="u1
 - **Stdio MCP servers.** If users define agents, do not let them declare one ([MCP](mcp.md#declaring-a-server)).
 
 The [identity spec](specs/identity.md) has the rules, [the book](book/05-in-production/05-who-is-asking.md) has a chapter on it, and the [recipes](recipes/README.md) show how to build on it.
+
+## Approvals: agents propose, your code acts
+
+An agent does not ask for approval and does not hold a permission. It **proposes**; your application shows the proposal to a person; and after the yes, **plain code** (an API call, a pipeline, another job) executes it. Two stages, and the model never holds the permission, so a mistake or a prompt injection can only produce a proposal.
+
+- **Give the agent no tool that does what needs approval.** Its `tools` hold read tools and, to propose in the middle of a conversation, a `propose_*` tool that only writes a proposal. A sub-agent or a background job has its own tools, never its parent's, so it reads.
+- **The proposal is typed:** the agent's `output_model`, or what the tool writes. Keep it with its hash and an expiry, and draw the screen from its fields.
+- **An approval is for what was shown.** The client sends the proposal's id, the choice and the hash, never the arguments. The executor checks that the proposal is pending, unchanged and not expired, that this person may approve it, and an idempotency key.
+- **Only the streaming agent talks to the user.** Anything else returns a result, `open_questions` or a proposal to its parent.
+- **A job asks at a boundary:** its agent ends with `open_questions`, the job succeeds with a typed outcome, you ask the person, and a new job with `resume_from` reuses the finished stage at no cost. Nothing is held while you wait.
+
+[A recipe](recipes/approving-what-an-agent-proposes.md) has the whole thing, [another](recipes/asking-the-user-in-the-middle-of-a-job.md) the job that asks, and [the spec](specs/approvals.md) says what is left out (a flag on a tool, a "needs input" status, pausing a run) and why.
 
 ## Configuration
 
