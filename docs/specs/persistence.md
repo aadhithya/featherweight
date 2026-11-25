@@ -60,7 +60,7 @@ A hash says that something changed without saying what it was, so it can stand w
 | `tools_hash` | The tools bound to the model (names, descriptions, argument schemas) | Replaces `tool_names`: a tool's name can be client-specific. It says *the tools* changed |
 | `input_hash` | The input, as canonical JSON | Matches the same input again |
 | `output_hash` | The output, as canonical JSON (every agent, and a streaming run's text) | Compares two runs without keeping either |
-| `identity_hash` | The identity of the run, as canonical JSON, without its excluded fields; `NULL` when there is none | A resume reuses only a step of the same identity, and no identity is stored ([identity](identity.md#resuming-a-job)) |
+| `identity_hash` | The SHA-256 of the identity of the run (its kind, the name of its class, and its fields as canonical JSON, without its excluded fields); `NULL` when there is none | A resume reuses only a step of the same identity, and no identity is stored ([identity](identity.md#resuming-a-job)) |
 
 **`agent_hash` and the schemas.** (Done in #59.) Before it, `agent_hash` left out `input_model` and `output_model`, which are class attributes and
 not instance fields, so a changed output model does not change the hash. That is an oversight: the declaration includes them. Their
@@ -123,7 +123,7 @@ contract against any implementation. Our two pass it.
 The schema is made by **hand-rolled, numbered, dialect-aware migrations**: a list of `Migration(version, name, sqlite, postgres)`,
 applied in order by `connect()`, each in a transaction, and recorded in `schema_migrations` (`version`, `name`, `applied_at`). The
 sqlite-only patching of added columns is gone. A later change is a new migration with the SQL of each dialect, and a migration is
-never edited once released. Migration 2, `identity_hash`, adds `attempts.identity_hash` (`NULL` for every run from before it).
+never edited once released. Migration 2, `identity_hash`, adds `attempts.identity_hash` (`NULL` for every run from before it). Migration 3, `queue_identity`, adds `job_queue.identity`; migration 5, `queue_identity_kind`, adds `job_queue.identity_kind`.
 
 **The baseline migration** creates the schema of the first release, and is never edited. It carried nothing over from the database that came before
 migrations existed, which was never released: that one is **not read**. A database that has `attempts` but no `schema_migrations` raises `SetupError`
@@ -157,7 +157,7 @@ Types are given as *Postgres / sqlite*. A `CHECK` is in both.
 | `reasoning` | `text` not null | The effort or thinking level, as a short label |
 | `settings` | `jsonb` / `text` not null | All the model settings |
 | `input_hash` | `text` not null, 64 hex | |
-| `identity_hash` | `text` null, 64 hex | The hash of the run's identity, `NULL` when it had none ([identity](identity.md#resuming-a-job)); added by a migration |
+| `identity_hash` | `text` null, 64 hex | The hash of the run's identity (its kind and its fields), `NULL` when it had none ([identity](identity.md#resuming-a-job)); added by a migration |
 | `output_hash` | `text` null, 64 hex | Set when the run produced one |
 | `reused_from_attempt_id` | `text` null | For a run answered from an earlier one |
 | `job_execution` | `integer` null | The execution of the job that made the run ([several workers](submitted-jobs.md#several-workers)): given by the task that runs the job, or else the job's `executions` when the run is created. `NULL` without a job |
@@ -199,7 +199,7 @@ after the change), `error_type`, `error_hash`, `at`. Index: `(job_id, seq)`. Met
 
 **`job_queue`** (sqlite only: the queue we ship, see [the queue](submitted-jobs.md#the-queue)): `seq`, `job_id`, `job_name`, `input` (JSON: this is the one table that
 holds a job's input, until the message is acknowledged), `trace_context` (JSON: the submitter's trace context, if an observer gave one;
-the one place it is kept, and gone with the message), `state` (`ready`, `claimed` or `dead`), `enqueued_at`, `claimed_at`, `lease_expires_at` (when the claim's lease ends) and `delivery_count` (how many times it has been delivered).
+the one place it is kept, and gone with the message), `identity` (JSON) and `identity_kind` (the class name): who the run is for, kept with the input until the message is acknowledged and nowhere else, `state` (`ready`, `claimed` or `dead`), `enqueued_at`, `claimed_at`, `lease_expires_at` (when the claim's lease ends) and `delivery_count` (how many times it has been delivered).
 
 **`results`** (the sqlite result store only): `job_id`, `agent_hash`, `input_hash` (together the primary key), `output` (`text`, JSON),
 `created_at`. **`schema_migrations`:** `version` (primary key), `name`, `applied_at`.

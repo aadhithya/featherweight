@@ -205,6 +205,10 @@ POSTGRES_IDENTITY_HASH = "ALTER TABLE agent_runs ADD COLUMN identity_hash text;"
 SQLITE_QUEUE_IDENTITY = "ALTER TABLE job_queue ADD COLUMN identity TEXT;"
 POSTGRES_NOTHING = "SELECT 1;"
 
+# Which model the identity in a queue message is: the name of its class, so that a worker rebuilds the identity as the model that was sent (docs/specs/identity.md).
+# A message that is queued when this is applied has an identity and no kind, and the worker fails it (`InvalidJobIdentity`): pre-release, nothing carries over.
+SQLITE_QUEUE_IDENTITY_KIND = "ALTER TABLE job_queue ADD COLUMN identity_kind TEXT;"
+
 # The run log's rows are attempts, and a run has an id of its own (docs/specs/units.md): the table, its columns and its indexes say so. The rows are kept.
 SQLITE_ATTEMPTS = """
 ALTER TABLE agent_runs RENAME TO attempts;
@@ -246,4 +250,9 @@ MIGRATIONS: list[Migration] = [
     ),
     Migration(version=3, name="queue_identity", sql={"sqlite": SQLITE_QUEUE_IDENTITY, "postgres": POSTGRES_NOTHING}),
     Migration(version=4, name="attempts", sql={"sqlite": SQLITE_ATTEMPTS, "postgres": POSTGRES_ATTEMPTS}),
+    Migration(
+        version=5,
+        name="queue_identity_kind",
+        sql={"sqlite": SQLITE_QUEUE_IDENTITY_KIND, "postgres": POSTGRES_NOTHING},
+    ),
 ]

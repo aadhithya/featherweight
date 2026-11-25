@@ -22,6 +22,11 @@ class Teacher(BaseModel):
     token: str = Field(default="", exclude=True)  # a value that exists only in the process
 
 
+class Twin(BaseModel):  # the same fields as a Teacher, and another kind of identity
+    user_id: str
+    tenant: str = "uni"
+
+
 A = Teacher(user_id="a")
 B = Teacher(user_id="b")
 
@@ -36,8 +41,8 @@ def steps(runner, inputs, identity):
     return pipeline
 
 
-async def run_as(db, identity, fake=None, inputs="abc", **kwargs):
-    runner = runner_with(db, fake or model(), max_attempts=1, identity_type=Teacher | None)
+async def run_as(db, identity, fake=None, inputs="abc", identity_type=Teacher | None, **kwargs):
+    runner = runner_with(db, fake or model(), max_attempts=1, identity_type=identity_type)
     return await run_pipeline(db, "p", steps(runner, inputs, identity), resumable=True, **kwargs)
 
 
@@ -46,7 +51,8 @@ async def run_as(db, identity, fake=None, inputs="abc", **kwargs):
 
 def test_the_hash_is_that_of_the_canonical_json_of_the_identity_and_none_without_one():
     assert identity_hash(None) is None
-    assert identity_hash(A) == input_hash(A) == identity_hash(Teacher(user_id="a"))
+    assert identity_hash(A) == identity_hash(Teacher(user_id="a"))
+    assert identity_hash(A) != input_hash(A)  # the kind is in the hashed text, as well as the fields
     assert identity_hash(A) != identity_hash(B)
     assert identity_hash(A) != identity_hash(Teacher(user_id="a", tenant="other"))
 
@@ -54,12 +60,29 @@ def test_the_hash_is_that_of_the_canonical_json_of_the_identity_and_none_without
 def test_a_field_that_is_excluded_is_not_in_the_hash_so_that_a_process_and_a_worker_agree():
     spec = IdentitySpec(Teacher)
     here = Teacher(user_id="a", token="only here")
-    on_a_worker = spec.load(spec.dump(here))  # what a message carries, and the worker rebuilds
+    on_a_worker = spec.load(*spec.dump(here))  # what a message carries, and the worker rebuilds
     assert on_a_worker.token == ""
     assert identity_hash(here) == identity_hash(on_a_worker) == identity_hash(A)
 
 
+def test_two_models_with_the_same_data_are_two_identities_and_the_hash_is_the_same_after_a_round_trip():
+    assert identity_hash(Teacher(user_id="a")) != identity_hash(Twin(user_id="a"))
+    spec = IdentitySpec(Teacher | Twin)
+    for identity in (Teacher(user_id="a"), Twin(user_id="a")):
+        assert identity_hash(spec.load(*spec.dump(identity))) == identity_hash(identity)  # a process and a worker agree
+
+
 # resuming
+
+
+async def test_a_step_that_ran_for_one_kind_of_identity_is_not_reused_for_another_with_the_same_data(db):
+    both = Teacher | Twin
+    failed = await run_as(db, Twin(user_id="a"), model({"b"}), identity_type=both)
+
+    healthy = model()
+    outcome = await run_as(db, Teacher(user_id="a"), healthy, identity_type=both, resume_from=failed.job_id)
+
+    assert outcome.status == Status.SUCCESS and texts(healthy) == ["a", "b", "c"]  # nothing was reused
 
 
 async def test_the_same_identity_resumes_and_reuses_the_steps_that_finished(db):

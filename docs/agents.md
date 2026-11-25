@@ -213,6 +213,8 @@ result = await runner.run(Mailer, MailerInput(...), identity=Teacher(user_id="u1
 
 - **A declared type makes `identity=` required** (a `TypeError` when it is missing or of another type), so that one code path that forgets it cannot run a tool as nobody.
   `identity_type=Teacher | None` allows runs without one. With no type declared, passing an identity is a `TypeError`.
+- **One agent can serve different kinds of people:** `identity_type=Teacher | Student` accepts either, and a tool that serves both annotates `RunContext[Teacher | Student]` and checks `isinstance` before it acts. Two models in one union cannot have the same class name:
+  the name is the identity's kind on the queue, and a rename of the class while a job is queued fails that job.
 - `run`, `run_many`, `stream` and `run_job` take `identity=`. A job reads it as `ctx.identity`, and every agent it runs with `ctx.run` has it.
 - **A launched agent has its parent's identity,** and so does an agent started in the background in the same process. The model cannot set or change it.
 - Code that cannot take `runtime` (a tool shared by many attempts, such as an MCP tool) reads `CURRENT_IDENTITY` from `featherweight.context`.

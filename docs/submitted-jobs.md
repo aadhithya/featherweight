@@ -73,7 +73,7 @@ a script or a test, but a web handler should return the job id and let the calle
 ## Who the job is for: the identity
 
 A tool on a worker can act for the user who started the job, as a tool in your process can ([who is asking](agents.md#who-is-asking-the-identity-of-a-run)).
-`submit` takes `identity=`, the message carries it as JSON, and the worker rebuilds it with its own `identity_type`:
+`submit` takes `identity=`, the message carries it as JSON together with its kind (the name of its class), and the worker rebuilds it as the model that the kind names, from its own `identity_type`:
 
 ```python
 runner = AgentRunner(db, identity_type=Teacher)
@@ -84,7 +84,11 @@ job_id = await client.submit(shout, Text(text="hello"), identity=Teacher(user_id
 ```
 
 - **The worker's type is the authority.** A message without an identity, when the worker's type does not allow `None`, fails its job (`InvalidJobIdentity`),
-  and so does an identity that does not fit the type, or one when the worker declares no type. The job is not run, and it is not retried. The error names the fields, never the values.
+  and so does an identity that does not fit the type, one whose kind the type does not have (a `Student`'s message for a worker that declares only `Teacher`), or one when the worker declares no type.
+  The job is not run, and it is not retried. The error names the fields, never the values.
+- **A worker can serve several kinds of people:** declare a union (`identity_type=Teacher | Student`) and the worker rebuilds each message as the model it was sent as, even when the models have the same fields.
+  The kind is the name of the class, so a rename of an identity class while a job is queued fails that job, as a renamed job does. Two models of one union cannot have the same name.
+- **The runner must accept the worker's type.** `JobWorker` raises `TypeError` when it is built if the runner's `identity_type` does not accept every type the worker rebuilds (and `None`, if the worker allows no identity): otherwise every job that runs an agent would fail. A worker may be stricter than its runner.
 - **Fields marked `exclude=True` are not sent,** so a value that exists only in your process stays there. The worker's copy is equal to the original without them.
 - **A job that an agent starts in the background on a worker** (a runner with `background=JobClient`) is submitted with the identity of its parent.
 - **It is data in the queue message,** until the message is acknowledged: the queue is trusted, so keep the identity small and keep secrets out of it, and secure the queue the way you secure the
@@ -188,8 +192,8 @@ delivered again to another receiver, and its `Delivery.delivery_count` is higher
 How many times a message may be delivered is your broker's policy, with its own dead-letter queue. The kit asks that a message can be delivered at
 least three times. `SqliteQueue(db, lease=60, max_deliveries=3)` is the one we ship: after `max_deliveries` it marks the message `dead`.
 
-A message also carries a `trace_context` (a small mapping of strings, empty unless the client has an observer that gives one) and an `identity` (a JSON mapping, or `None`: [who the job is for](#who-the-job-is-for-the-identity)): carry both
-unchanged, and the kit checks that you do. A queue that drops the identity fails the kit.
+A message also carries a `trace_context` (a small mapping of strings, empty unless the client has an observer that gives one) and an `identity` (a JSON mapping, or `None`) and its `identity_kind` (a string, or `None`: [who the job is for](#who-the-job-is-for-the-identity)): carry them
+unchanged, and the kit checks that you do. A queue that drops the identity or its kind fails the kit.
 
 A dead-letter queue is yours to configure on your queue: a message that is `nack`ed without `requeue` is yours to keep or drop.
 

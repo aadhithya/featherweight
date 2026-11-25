@@ -10,7 +10,7 @@ import types
 import typing
 from typing import Any
 
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel
 
 _NONE = type(None)
 
@@ -19,7 +19,8 @@ class IdentitySpec:
     """What a runner (a worker, a client) declared as `identity_type`, and the checks that come with it.
 
     `None` declares nothing: runs have no identity, and passing one is an error. A Pydantic model class makes an identity required.
-    A union of one or more model classes and `None` (`Teacher | None`) allows a run without one."""
+    A union of one or more model classes and `None` (`Teacher | None`) allows a run without one. A union of several models (`Teacher | Student`)
+    is for an agent or a job that serves different kinds of people: the kind of an identity, the name of its class, says which one it is."""
 
     def __init__(self, identity_type: Any = None):
         self.declared = identity_type
@@ -33,9 +34,15 @@ class IdentitySpec:
             raise TypeError(
                 f"identity_type must be a Pydantic model class, or a union of model classes and None, got {identity_type!r}"
             )
+        names = [m.__name__ for m in models]
+        if len(set(names)) != len(names):
+            raise TypeError(
+                f"identity_type has two models called {sorted({n for n in names if names.count(n) > 1})[0]!r}: the name of the class is "
+                "the kind of the identity on the queue, so each model needs its own"
+            )
         self.models = models
         self.allows_none = _NONE in members
-        self._adapter: TypeAdapter[Any] = TypeAdapter(identity_type)
+        self._by_kind = {m.__name__: m for m in models}
 
     @staticmethod
     def _is_union(tp: Any) -> bool:
@@ -44,6 +51,10 @@ class IdentitySpec:
     @property
     def declared_type(self) -> bool:
         return self.declared is not None
+
+    def describe(self) -> str:
+        """The declaration as words, for an error message."""
+        return self._name() if self.declared_type else "no identity"
 
     def _name(self) -> str:
         return getattr(self.declared, "__name__", None) or str(self.declared)
@@ -68,17 +79,31 @@ class IdentitySpec:
         if not isinstance(identity, self.models):
             raise TypeError(f"identity must be a {self._name()}, got {type(identity).__name__}")
 
-    def dump(self, identity: Any) -> dict[str, Any] | None:
-        """The identity as JSON-ready data (what travels in a queue message): its fields, without the ones marked `exclude=True`."""
-        return None if identity is None else identity.model_dump(mode="json")
+    def accepts(self, other: "IdentitySpec") -> bool:
+        """Whether a run on this declaration can take every identity that `other` can produce: each of its models is one of ours (or a
+        subclass of one), and if it allows no identity, so do we. A worker's type is `other`, and its runner's is `self`."""
+        return all(issubclass(m, self.models) for m in other.models) and (not other.allows_none or self.allows_none)
 
-    def load(self, data: Any) -> Any:
-        """Rebuild an identity from `dump`'s output with the declared type; `ValidationError` if it does not fit. `None` is `None`
-        when the type allows it."""
+    def dump(self, identity: Any) -> tuple[dict[str, Any] | None, str | None]:
+        """The identity as what travels in a queue message: its fields as JSON-ready data, without the ones marked `exclude=True`,
+        and its kind (the name of its class). `(None, None)` for none."""
+        if identity is None:
+            return None, None
+        return identity.model_dump(mode="json"), type(identity).__name__
+
+    def load(self, data: Any, kind: str | None = None) -> Any:
+        """Rebuild an identity from `dump`'s output: the model of the declared type that `kind` names, validated against `data`
+        (`ValidationError` if it does not fit; `ValueError` if the kind is missing or is not one of the declared models). `None` is
+        `None` when the type allows it."""
         if data is None:
             if not self.allows_none and self.declared_type:
                 raise ValueError("there is no identity, and the declared type requires one")
             return None
         if not self.declared_type:
             raise ValueError("there is an identity, but no identity_type is declared")
-        return self._adapter.validate_python(data)
+        if kind is None:
+            raise ValueError("the identity has no kind: a message says which model its identity is")
+        model = self._by_kind.get(kind)
+        if model is None:
+            raise ValueError(f"the kind of the identity is not one of the declared types ({self._name()})")
+        return model.model_validate(data)

@@ -85,6 +85,7 @@ class JobMessage(BaseModel):            # frozen
     input: dict[str, Any]               # JSON, or references inside it
     trace_context: dict[str, str] = {}  # the W3C trace context of the submitter, if an observer gave one (see below)
     identity: dict[str, Any] | None = None  # the identity of the run as JSON, if it has one ([identity](identity.md#across-the-queue))
+    identity_kind: str | None = None  # which model the identity is: the name of its class; set whenever there is an identity
 
 class Delivery(BaseModel):              # frozen
     message: JobMessage
@@ -121,8 +122,8 @@ The **trace context** ([#93](https://github.com/aadhithya/featherweight/issues/9
 the client that submitted the job ([observers and OpenTelemetry](observability.md#opentelemetry)). It is empty unless the client has an observer
 that gives one, and it travels in the message only: it is stored in no table. Every queue carries it, and `check_queue` checks that it does.
 
-The **identity** ([identity](identity.md)) is how a tool on a worker knows who the run is for. It is the identity as JSON, and it too travels in the message only. Every queue
-carries it, and `check_queue` checks that a queue returns it unchanged, so a queue that drops the field fails the kit. `SqliteQueue` keeps it in its `job_queue` table until
+The **identity** ([identity](identity.md)) is how a tool on a worker knows who the run is for. It is the identity as JSON and its kind (the name of its class), and it too travels in the message only. Every queue
+carries both, and `check_queue` checks that a queue returns them unchanged, so a queue that drops a field fails the kit. `SqliteQueue` keeps them in its `job_queue` table until
 the message is acknowledged, on the same terms as the input. The queue is trusted: how to secure it (and a queue that signs its messages) is the deployment's, see [identity](identity.md#across-the-queue).
 
 ## The client
@@ -148,8 +149,8 @@ output = await client.result(Summarise, job_id)  # read from YOUR result store
 | `events(job_id, after=0)` | The [events](#job-events) of the job |
 | `wait(job_id, timeout=None)` | The `JobRow` once the job is final (`SUCCESS`, `FAILED` or `CANCELLED`); `TimeoutError` otherwise. A convenience for scripts and tests: a web handler should return the job id, not wait |
 
-**`identity=`** is the identity of the run ([identity](identity.md#declaring-and-passing-it)). With `identity_type` the client checks it before it creates a job, and puts it in the message; the worker
-rebuilds it.
+**`identity=`** is the identity of the run ([identity](identity.md#declaring-and-passing-it)). With `identity_type` the client checks it before it creates a job; the message carries it and its kind, and the worker
+rebuilds it as the model the kind names.
 
 **Resuming** is `submit(job, input, resume_from=failed_job_id)`: a new job points to the old one, and the worker's runner reuses the
 finished steps exactly as `run_job(..., resume_from=...)` does. Nothing resumes a failed job by itself.
@@ -163,7 +164,7 @@ database, the queue and the user's store. `jobs` are the jobs declared in code; 
 `await worker.run()` loops:
 
 1. **Receive** a message. If the job is already `CANCELLED`, acknowledge and skip it. If the job name is unknown (not in `jobs`, and
-   `jobs_lookup`, if there is one, found nothing), or the input does not validate, or the identity does not (it is missing and the worker's `identity_type` does not allow `None`, or it does not fit the type: `InvalidJobIdentity`), mark the job
+   `jobs_lookup`, if there is one, found nothing), or the input does not validate, or the identity does not (it is missing and the worker's `identity_type` does not allow `None`, or it does not fit the type, or its kind is not one the type has, or there is no kind: `InvalidJobIdentity`), mark the job
    `FAILED` (`error_type`, `error_hash`) and acknowledge. A job that fails for this is not run, and is not retried.
 2. **Start:** take the job (`start_job`: `RUNNING`, `started_at`, a `running` event) and run it as an asyncio task, up to `concurrency` at a time. What the
    task does is `execute_job`, the function that also runs a job for `run_job` ([running a job class](jobs.md#running-a-job-class)): the worker adds the queue.
@@ -388,7 +389,7 @@ No live model call. Fake models, `MemoryQueue`, the dict result store.
   `None` is `UnknownJob`; a lookup that returns another name, a job whose hash is not the one recorded at submit, and a lookup that raises each
   fail the job with `JobLookupError` and do not run it; a lookup that ignores the hash runs a job whose definition did not change; an empty `jobs`; the identity reaches the lookup.
 - **The identity** ([the spec](identity.md#tests)): a job submitted with an identity whose tool reads it on a worker; a message without one for a worker whose type does not allow `None`, and one
-  that does not validate, fail the job without running it; `check_queue` and the identity field.
+  that does not validate, one whose kind the type does not have, and one with no kind, fail the job without running it; a worker whose type its runner does not accept is refused when it is built; `check_queue` and the identity and its kind.
 - **The client and the worker:** submit, status, wait, result; a failing enqueue; every cancel case, in the same process and from
   another; success, failure, an unknown job, an invalid input, a failing result store, a skipped cancelled job; shutdown with the
   grace period and the requeue; concurrency; resuming through `submit`; and a client in one process with a worker in another.

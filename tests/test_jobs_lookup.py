@@ -55,7 +55,13 @@ async def enqueue(db, queue, name: str, hash_of, text: str = "hi", identity: dic
     """What a client does for a job whose recorded hash is `hash_of`, but under any name."""
     job_id = await db.create_job(name, job_hash=hash_of, input_hash=input_hash(In(text=text)))
     await queue.enqueue(
-        JobMessage(job_id=job_id, job_name=name, input=In(text=text).model_dump(mode="json"), identity=identity)
+        JobMessage(
+            job_id=job_id,
+            job_name=name,
+            input=In(text=text).model_dump(mode="json"),
+            identity=identity,
+            identity_kind="Teacher" if identity is not None else None,
+        )
     )
     return job_id
 
@@ -98,11 +104,15 @@ async def test_an_agent_class_is_a_job_too(db, queue):
     assert row.status is Status.SUCCESS
 
 
+def runner_for(db):
+    return runner_with(db, Reactive(respond=lambda *_: RuntimeError("no model"), delay_s=0), identity_type=Teacher)
+
+
 async def test_the_identity_the_worker_rebuilt_reaches_the_lookup(db, queue):
     lookup = Lookup({"shout": Shout})
     job_id = await enqueue(db, queue, "shout", Shout.job_hash(), identity={"user_id": "u-1"})
 
-    async with Running(make(db, queue, [], jobs_lookup=lookup, identity_type=Teacher)):
+    async with Running(make(db, queue, [], jobs_lookup=lookup, identity_type=Teacher, runner=runner_for(db))):
         row = await final(db, job_id)
 
     assert row.status is Status.SUCCESS

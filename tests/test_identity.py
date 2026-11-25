@@ -41,6 +41,11 @@ class Student(BaseModel):
     user_id: str
 
 
+class Twin(BaseModel):  # the same fields as a Teacher: pydantic cannot tell their data apart
+    user_id: str
+    tenant: str = "uni"
+
+
 SEEN: list[tuple[str, Any]] = []
 
 
@@ -154,10 +159,72 @@ def test_what_a_run_may_pass_follows_the_declaration(declared, identity, ok):
 
 def test_an_identity_is_dumped_without_its_excluded_fields_and_rebuilt_with_the_declared_type():
     spec = IdentitySpec(Teacher)
-    data = spec.dump(Teacher(user_id="a", token="secret"))
+    data, kind = spec.dump(Teacher(user_id="a", token="secret"))
     assert data == {"user_id": "a", "tenant": "uni"}  # the token is not serialised
-    assert spec.load(data) == Teacher(user_id="a")
+    assert kind == "Teacher"  # the name of the class
+    assert spec.load(data, kind) == Teacher(user_id="a")
     assert IdentitySpec(Teacher | None).load(None) is None
+    assert spec.dump(None) == (None, None)
+
+
+@pytest.mark.parametrize("declared", [Teacher | Twin, Twin | Teacher, Teacher | Twin | None])
+@pytest.mark.parametrize("sent", [Teacher(user_id="a"), Twin(user_id="a")], ids=["a teacher", "a twin"])
+def test_a_union_of_models_with_the_same_fields_is_rebuilt_as_the_model_that_was_sent(declared, sent):
+    spec = IdentitySpec(declared)
+    rebuilt = spec.load(*spec.dump(sent))
+    assert type(rebuilt) is type(sent)  # not the first model of the union that fits the data
+    assert rebuilt == sent
+
+
+def test_a_single_declared_type_refuses_the_data_of_another_model_with_the_same_fields():
+    spec = IdentitySpec(Teacher)
+    data, kind = spec.dump(Twin(user_id="a"))
+    assert kind == "Twin"
+    with pytest.raises(ValueError, match="not one of the declared types"):
+        spec.load(data, kind)
+
+
+def test_an_identity_without_a_kind_is_refused_and_so_is_a_kind_the_type_does_not_have():
+    spec = IdentitySpec(Teacher | Student)
+    with pytest.raises(ValueError, match="no kind"):
+        spec.load({"user_id": "a"}, None)
+    with pytest.raises(ValueError, match="not one of the declared types"):
+        spec.load({"user_id": "a"}, "Principal")
+
+
+def test_two_models_with_one_name_are_refused_when_the_declaration_is_made():
+    def named(name: str) -> type[BaseModel]:
+        return type(name, (BaseModel,), {"__annotations__": {"user_id": str}})
+
+    with pytest.raises(TypeError, match="two models called 'Teacher'"):
+        IdentitySpec(named("Teacher") | named("Teacher"))
+    IdentitySpec(named("Teacher") | named("Student"))
+
+
+class Principal(Teacher):  # a subclass is accepted wherever its parent is
+    pass
+
+
+@pytest.mark.parametrize(
+    "runner,worker,ok",
+    [
+        (Teacher, Teacher, True),
+        (Teacher | None, Teacher, True),  # a worker may be stricter than its runner
+        (Teacher | Student, Teacher, True),
+        (Teacher, Principal, True),
+        (None, None, True),
+        (Teacher | None, None, True),
+        (Teacher | None, Teacher | None, True),
+        (None, Teacher, False),  # the three mismatched rows: every job that runs an agent would fail
+        (Teacher, Student, False),
+        (Teacher, None, False),
+        (Teacher, Teacher | None, False),  # a run without an identity, on a runner that requires one
+        (Teacher, Teacher | Student, False),
+        (Teacher | None, Student, False),
+    ],
+)
+def test_a_runner_accepts_a_worker_whose_identities_are_all_ones_it_accepts(runner, worker, ok):
+    assert IdentitySpec(runner).accepts(IdentitySpec(worker)) is ok
 
 
 # the runner

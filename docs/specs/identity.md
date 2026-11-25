@@ -70,11 +70,19 @@ result = await runner.run(Summarise, summarise_input, identity=teacher)
 | nothing | fine: no identity | `TypeError`: the framework could not rebuild it on a worker |
 | `Teacher` | `TypeError` | checked: it must be a `Teacher` |
 | `Teacher` or `None` (a union) | fine: no identity | checked: it must be a `Teacher` |
+| `Teacher` or `Student` (a union of models) | `TypeError` | checked: it must be one of them |
+| `Teacher`, `Student` or `None` | fine: no identity | checked: it must be one of them |
 
+- **`identity_type` is a Pydantic model class, or a union of model classes, with or without `None`.** Anything else, and a union that has two classes with the same `__name__` (two `Teacher` classes in two
+  modules), raises `TypeError` when the runner, the worker or the client is built, not at the first run. A union is for one agent or job that serves different kinds of people, a teacher or a student: the
+  application says which kinds, and the identity says which one this run is for ([the kind](#across-the-queue)).
 - **A missing identity is a programming error and raises**, like an input of the wrong type, and before anything runs. The case it prevents: one code path of
   an application forgets `identity=`, and a tool runs as nobody. A union of the type and `None` (`identity_type=Teacher | None`) is how an application says that some runs (a nightly job) have none.
 - `run_many` gives every input the same identity. `run_job` and `submit` give it to the job: every agent the job runs with `ctx.run` has it.
-- **The runner and the worker declare the same type.** The worker rebuilds the identity from the message with its type. **The client's declaration is
+- **The worker's type must be one its runner accepts.** The worker rebuilds the identity from the message with its type and gives it to the run, so every model of the worker's type must be a model of
+  the runner's (or a subclass of one), and if the worker allows no identity, so must the runner. `JobWorker` raises `TypeError` when it is built, naming both types, if not: otherwise every job that runs an
+  agent would fail at its first `ctx.run`. The two types need not be equal: a worker for `Teacher` over a runner of `Teacher | None` is fine (the runner also serves runs in the process that have none),
+  and a job can be a pipeline of several agents, because they all run with the job's one identity on the one runner. **The client's declaration is
   optional:** with it, `submit` checks the identity before it creates a job (`TypeError`); without it, `submit` accepts any Pydantic model and serialises it, and
   the worker is where the declared type is the authority.
 
@@ -95,6 +103,8 @@ the model never passes it and cannot see it ([tools and the registry](tools-and-
 
 - **The shared (MCP) tools** cannot take a `RunContext`, because one tool object serves many attempts. The runner sets a context variable around each attempt,
   as it does for the attempt's id, and code that cannot take `runtime` reads it: `CURRENT_IDENTITY`.
+- **A tool on a runner that declares a union** annotates `RunContext[Teacher | Student]` and checks the kind (`isinstance`) before it acts. Nothing links the annotation to the runner's `identity_type`: a mismatch
+  fails at run time, not in the editor.
 - **Pipeline code** reads the identity of its job with `ctx.identity` on the `JobContext`, for a job that has to behave differently for a tenant.
 - The identity is the **same object** that was passed, in a process. On a worker it is a new object, rebuilt from the message, and equal to it.
 
@@ -114,12 +124,16 @@ same one. What the child **can do** with it stays limited by its own allow-lists
 A submitted job is the one place where a run leaves the process, so it is the one place where the identity is serialised, and the only place where it could be read or changed
 by anything but the application.
 
-- `JobMessage` gets a field `identity: dict[str, Any] | None`: the identity as JSON, from `model_dump(mode="json")`, without the fields marked `exclude=True`.
-- **The worker rebuilds it** with its declared type and gives it to the run, so a tool sees on a worker what it sees in a process.
-- **It fails closed.** A message whose identity does not validate against the worker's type, and a message without one when the worker's type does not allow `None`,
+- `JobMessage` gets two fields: `identity: dict[str, Any] | None`, the identity as JSON, from `model_dump(mode="json")`, without the fields marked `exclude=True`, and **`identity_kind: str | None`**, which model it is:
+  the name of its class (`type(identity).__name__`). Both are `None` when the run has no identity, and the kind is sent **always**, also when the declared type is a single model.
+  Two fields, and not one that holds both, so that a queue carries the same flat message as before.
+- **The worker rebuilds it** with its declared type, and gives it to the run, so a tool sees on a worker what it sees in a process. It **chooses the model by the kind**, and validates the data against that one model:
+  pydantic's own choice among the members of a union is the first one that fits, which is the wrong model when a teacher and a student have the same fields. A kind that no member of the worker's type has
+  fails the job, so a message of a `Student` never passes as a `Teacher`, also when the worker declares a single `Teacher`.
+- **It fails closed.** A message whose identity does not validate against the worker's type, one whose kind the worker's type does not have, one that has an identity and no kind, and a message without an identity when the worker's type does not allow `None`,
   make the job `FAILED` with `InvalidJobIdentity` (the way an input that does not validate does): the job is not run, and the worker does not retry it.
-- **Every queue carries it,** and `testing.check_queue` checks that a queue returns it unchanged, so that a queue that drops the field fails the kit. `SqliteQueue`
-  stores it in the `job_queue` table (a migration) until the message is acknowledged, on the same terms as the input.
+- **Every queue carries it,** and `testing.check_queue` checks that a queue returns the identity and its kind unchanged, so that a queue that drops a field fails the kit. `SqliteQueue`
+  stores them in the `job_queue` table (two migrations: the identity, then its kind) until the message is acknowledged, on the same terms as the input.
 - **The queue is trusted.** featherweight does not sign or encrypt a message: a deployment secures its queue (access control, TLS, encryption at rest) as it does for the
   input. An application that wants a signature or encryption of its own writes or wraps a queue: `JobQueue` is the seam, and a wrapper that signs the message on
   `enqueue` and checks it on `receive` is a [recipe](../recipes/a-queue-that-signs-its-messages.md), run through `check_queue` like any queue.
@@ -129,8 +143,12 @@ by anything but the application.
 [Resuming](runner.md#resuming) reuses a step of an old job when the agent hash and the input hash match. That assumes a step depends only on its agent and its input. A tool that
 reads the identity makes it depend on who ran it, and if the identity has changed, so may the permissions, so the old result cannot be relied on. So the identity takes part, as a hash:
 
-- Each run records **`identity_hash`**: the SHA-256 of the identity as canonical JSON (keys sorted, no spaces: the form `input_hash` uses), without the fields
+- Each run records **`identity_hash`**: the SHA-256 of the identity as canonical JSON (keys sorted, no spaces: the form `input_hash` uses) of `{"kind": <the class name>, "data": <its fields>}`, without the fields
   marked `exclude=True`, so that it is the same in a process and on a worker. **`NULL` when the run had no identity.** The framework stores no identity.
+  The kind is in it because two models can have the same fields: a `Teacher` and a `Student` with the same data are two identities, and a step of one is not a step of the other.
+- **The hash is of the identity, never of the message.** It is computed from the identity object (its class and its fields): in a process from the object that was passed, on a worker from the object the worker
+  rebuilt by the kind and the data. Because the worker chooses the model by the kind, both give the same class name and the same fields, and so the same hash. The two fields of the message are how
+  the object travels; the `{"kind", "data"}` text is what is hashed, and it is never sent.
 - A step is reused only when the old run's `identity_hash` **equals** the new run's. `NULL` equals only `NULL`: a step that ran with no identity is not reused by a run
   with one, and the other way round.
 - This is a rule about **which steps are the same step.** Whether a person may resume a job at all, or see its result, is the application's check ([the
@@ -161,6 +179,8 @@ These stay the application's, on purpose, and the guides, the book and the recip
 - **Keep it small,** and keep secrets out of it.
 - **Do not let users declare stdio MCP servers.** A `StdioMCPServer` runs a command on your server. An application that builds agents from what users write allows only
   `HttpMCPServer`, or servers from a list it controls.
+- **The name of an identity class is a name in the queue.** The kind is the class name, so a rename of an identity class between `submit` and the worker running the job fails that job (`InvalidJobIdentity`),
+  as a renamed job fails a queued job, and changes the `identity_hash` of the runs after it, so a resume reruns their steps once. Rename when the queue is empty, or keep the old name.
 - **Names are the application's.** A job's name is a plain string it chooses, unique in what its [`jobs_lookup`](submitted-jobs.md#jobs-that-are-not-declared-in-code)
   searches, and stable: a rename breaks the jobs queued under the old name. The pattern is `^[A-Za-z][A-Za-z0-9_.-]*$`: a letter first, then letters, digits, `_`, `.` and `-`.
 
@@ -170,6 +190,12 @@ These stay the application's, on purpose, and the guides, the book and the recip
 - **Typed, declared, and required when declared:** the type says what a run must pass, and a union with `None` is how an application allows none. A missing identity raises,
   instead of letting a tool run as nobody.
 - **It crosses the queue as a field of the message, rebuilt with the declared type,** and a message that does not fit fails the job. It is the one place where a run leaves the process.
+- **The kind of an identity is the name of its class, sent in its own field, always.** A union of models is wanted (one agent serves a teacher or a student), and a plain JSON of the fields does not say which
+  model it was: pydantic would rebuild a student as the first model that fits. The class name is the simplest kind that works; the cost, a rename of the class while a job is queued, is documented, not engineered
+  around (the application names its jobs the same way). It is sent always, so there is one rule, and a worker that declared a single type does not accept the data of another model with the same fields.
+  The hash includes it for the same reason.
+- **The worker keeps its own type, and it must be compatible with its runner's.** The worker's type is what it accepts from the queue, the runner's what a run accepts; a worker may be stricter than its runner,
+  never looser.
 - **Inherited by what a run launches, and the model cannot touch it.** It is who the run is for, not a capability.
 - **Identity, not credentials.** The framework has no credential provider and no protocol for one: where tokens live and how they are exchanged is the application's.
 - **A hash on the run, so that resume reuses only the same step.** The framework keeps a hash, as it keeps `input_hash`, and never the identity.
@@ -196,9 +222,11 @@ No live model call. Fake models, `MemoryQueue`.
   with two identities on one runner at once do not mix; `ctx.identity` in a job.
 - **Never:** the hash of an agent does not change with it; it is not in the prompt, the log, the run log or a span.
 - **Inheritance:** a launched agent and an in-process background job have it; a background job submitted to a worker carries it.
-- **The queue:** `check_queue` against `SqliteQueue` and `MemoryQueue` (a queue that drops the field fails it); a job submitted with an identity whose tool reads it on a worker; a
+- **The kind:** a union of two models with the same fields is rebuilt as the model that was sent, in both orders of the union; a single declared type refuses the data of another model; a kind that the type does not have, and an
+  identity with no kind, fail the job; two members with one class name are refused when built; the worker's type is checked against its runner's (accepted and refused cases).
+- **The queue:** `check_queue` against `SqliteQueue` and `MemoryQueue` (a queue that drops a field fails it); a job submitted with an identity whose tool reads it on a worker; a
   message without an identity for a worker that requires one, and a message that does not validate, fail the job and are not run.
-- **Resume:** the same identity reuses, another one reruns, `NULL` matches only `NULL`; the hash is the same in a process and on a worker, and a field marked `exclude=True` is not in it; the `Database`
+- **Resume:** the same identity reuses, another one reruns, `NULL` matches only `NULL`; the hash is the same in a process and on a worker, two models with the same data have two hashes, and a field marked `exclude=True` is not in it; the `Database`
   kit on sqlite and Postgres.
 
 ## The work

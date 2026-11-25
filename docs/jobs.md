@@ -126,7 +126,7 @@ For each run that your pipeline starts in the new job, the runner looks in the o
 - has status `SUCCESS`,
 - has the same `agent_hash` (the same agent: prompt, version, model settings, tools and so on),
 - has the same input (`input_hash`),
-- has the same identity (`identity_hash`: [who the run is for](agents.md#who-is-asking-the-identity-of-a-run); a run with none matches only a run with none), and
+- has the same identity (`identity_hash`, made from the kind of the identity, the name of its class, and its fields: [who the run is for](agents.md#who-is-asking-the-identity-of-a-run); a run with none matches only a run with none), and
 - is a top-level run (`depth` 1).
 
 If there is one, the runner gets its output from the result store, and checks that it still validates against the output model
