@@ -21,7 +21,6 @@ from ag_ui.core import (
 from fakes import FakeSettings, Streams, runner_with
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage
-from langchain_google_genai.chat_models import _parse_chat_history
 from langchain_openai import ChatOpenAI
 from stream_check import assert_valid
 
@@ -245,10 +244,18 @@ def test_openai_responses_raises_on_video(openai_responses):
         openai_content(openai_responses, VIDEO, "input")
 
 
-# Google: `_parse_chat_history` turns the messages into `Content` for the request, with the data as bytes.
+# Google: `_parse_chat_history` turns the messages into `Content` for the request, with the data as bytes. It is a private function of the
+# package, so it is imported here and not at the top of the file: if the package moves it, only the Google tests fail, and they say why.
 
 
 def google_parts(part) -> list:
+    try:
+        from langchain_google_genai.chat_models import _parse_chat_history
+    except ImportError as exc:
+        pytest.fail(
+            f"langchain-google-genai no longer has chat_models._parse_chat_history ({exc}): it changed, so read what it does with a block again"
+            " and update this helper, the spec's Findings and the provider page"
+        )
     with warnings.catch_warnings():
         warnings.simplefilter("error")  # a warning here would be a surprise
         [content] = _parse_chat_history([message(part)])[1]
