@@ -1,4 +1,4 @@
-# Spec: MCP tools
+# MCP tools
 
 Status: implemented. This is the design for [issue #1](https://github.com/aadhithya/featherweight/issues/1); how to use it is in
 [mcp.md](../mcp.md). It was checked against `langchain-mcp-adapters` 0.3.2 (see [Findings](#findings-from-the-adapter)).

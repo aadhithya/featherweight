@@ -1,4 +1,4 @@
-# Spec: skills
+# Skills
 
 Status: implemented. How to use it is in [skills.md](../skills.md). The code is [skills.py](../../src/featherweight/skills.py). It
 follows the [Agent Skills specification](https://agentskills.io/specification).
@@ -88,7 +88,7 @@ A subclass that fetches overrides `aread`, and never blocks the event loop (ever
   the prompt, so it is not fetched. Only the instructions and the files are read late.
 - **The hash.** The agent's hash is made from the fields of its skills. A fetched text is not a field, so **a subclass adds one that changes
   when the text does** (an `etag` or a `version`). Without it, an edit in the store leaves the hash as it was, and
-  [resuming a job](../agents.md#resuming-a-job) reuses results made with the old text.
+  [resuming a job](../jobs.md#resuming-a-job) reuses results made with the old text.
 - **A read that fails is text, not an exception.** If `aread` raises, the runner logs `skill_read_failed` (with the error) and the agent gets
   `The skill 'x' could not be read: <the type of the error>`, so the run goes on, as with the other tools that return their errors. The message of the error
   goes to the log only: it can name a bucket or a key.

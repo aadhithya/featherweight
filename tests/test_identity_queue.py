@@ -30,6 +30,11 @@ class Teacher(BaseModel):
     token: str = Field(default="", exclude=True)  # a value that exists only in the process that made it
 
 
+class Twin(BaseModel):  # the same fields as a Teacher, and another kind of identity
+    user_id: str
+    tenant: str = "uni"
+
+
 class WhoAmI(Job):
     name = "whoami"
     version = "1"
@@ -85,6 +90,7 @@ async def test_the_message_holds_the_identity_as_json_without_its_excluded_field
     delivery = await queue.receive(1.0)
 
     assert delivery is not None and delivery.message.identity == {"user_id": "a", "tenant": "uni"}
+    assert delivery.message.identity_kind == "Teacher"  # the name of the class, sent also for a single declared type
     assert "secret" not in delivery.message.model_dump_json()
 
 
@@ -101,10 +107,18 @@ async def test_a_job_without_an_identity_has_none_when_the_worker_allows_it(db, 
 # a message that does not fit the worker
 
 
-async def message_for(db, queue, identity):
+async def message_for(db, queue, identity, kind="Teacher"):
     job_input = In(text="x")
     job_id = await db.create_job("whoami", job_hash=WhoAmI.job_hash())
-    await queue.enqueue(JobMessage(job_id=job_id, job_name="whoami", input=job_input.model_dump(), identity=identity))
+    await queue.enqueue(
+        JobMessage(
+            job_id=job_id,
+            job_name="whoami",
+            input=job_input.model_dump(),
+            identity=identity,
+            identity_kind=kind if identity is not None else None,
+        )
+    )
     return job_id
 
 
@@ -141,6 +155,67 @@ async def test_an_identity_in_a_message_fails_a_worker_that_declares_no_type(db,
         row = await final(db, job_id)
 
     assert row.status is Status.FAILED and row.error_type == "InvalidJobIdentity" and WhoAmI.seen == []
+
+
+# the kind of the identity
+
+
+@pytest.mark.parametrize("worker_declares", [Teacher | Twin, Twin | Teacher], ids=["teacher first", "twin first"])
+async def test_a_worker_rebuilds_an_identity_as_the_model_that_was_submitted_when_two_have_the_same_fields(
+    db, queue, worker_declares
+):
+    client = await client_for(db, queue)  # no declared type: it takes any model
+    ids = [
+        await client.submit(WhoAmI, In(text="x"), identity=Twin(user_id="a")),
+        await client.submit(WhoAmI, In(text="y"), identity=Teacher(user_id="a")),
+    ]
+
+    runner = runner_for(db, worker_declares)
+    async with Running(make(db, queue, [WhoAmI], runner=runner, identity_type=worker_declares)):
+        rows = [await final(db, job_id) for job_id in ids]
+
+    assert [r.status for r in rows] == [Status.SUCCESS, Status.SUCCESS]
+    assert [type(seen) for seen in WhoAmI.seen] == [Twin, Teacher]  # not the first model of the union that fits
+
+
+async def test_a_worker_that_declares_one_model_refuses_the_identity_of_another_with_the_same_fields(db, queue):
+    client = await client_for(db, queue)  # no declared type: it would take a Twin
+    job_id = await client.submit(WhoAmI, In(text="x"), identity=Twin(user_id="a"))
+
+    async with Running(make(db, queue, [WhoAmI], runner=runner_for(db), identity_type=Teacher)):
+        row = await final(db, job_id)
+
+    assert row.status is Status.FAILED and row.error_type == "InvalidJobIdentity" and WhoAmI.seen == []
+
+
+@pytest.mark.parametrize("kind", [None, "Principal"], ids=["no kind", "a kind the worker does not have"])
+async def test_a_message_with_no_kind_or_an_unknown_one_fails_the_job_and_is_not_run(db, queue, kind):
+    job_id = await message_for(db, queue, {"user_id": "a"}, kind=kind)
+
+    async with Running(make(db, queue, [WhoAmI], runner=runner_for(db), identity_type=Teacher)):
+        row = await final(db, job_id)
+
+    assert row.status is Status.FAILED and row.error_type == "InvalidJobIdentity" and WhoAmI.seen == []
+
+
+# the worker and its runner
+
+
+@pytest.mark.parametrize(
+    "runner_declares,worker_declares",
+    [(None, Teacher), (Teacher, Twin), (Teacher, None), (Teacher, Teacher | None), (Teacher, Teacher | Twin)],
+)
+def test_a_worker_whose_type_its_runner_does_not_accept_is_refused_when_it_is_built(
+    db, runner_declares, worker_declares
+):
+    runner = runner_with(db, Scripted(script=[]), identity_type=runner_declares)
+    with pytest.raises(TypeError, match="does not accept"):
+        JobWorker(db, MemoryQueue(), runner, [WhoAmI], identity_type=worker_declares)
+
+
+def test_a_worker_may_be_stricter_than_its_runner(db):
+    runner = runner_with(db, Scripted(script=[]), identity_type=Teacher | None)
+    JobWorker(db, MemoryQueue(), runner, [WhoAmI], identity_type=Teacher)
 
 
 # the client
@@ -241,6 +316,43 @@ async def test_a_queue_that_drops_the_identity_fails_the_kit():
 
     with pytest.raises(AssertionError, match="identity"):
         await check_queue(lambda lease: Dropping(lease=lease))
+
+
+async def test_a_queue_that_drops_the_kind_of_the_identity_fails_the_kit():
+    class Dropping(MemoryQueue):
+        async def enqueue(self, message: JobMessage) -> None:
+            await super().enqueue(message.model_copy(update={"identity_kind": None}))
+
+    with pytest.raises(AssertionError, match="kind"):
+        await check_queue(lambda lease: Dropping(lease=lease))
+
+
+async def test_a_queue_table_from_before_the_kind_is_migrated_and_its_waiting_message_has_an_identity_and_no_kind(
+    tmp_path,
+):
+    path = tmp_path / "old.db"
+    async with SqliteDatabase(path):
+        pass
+    conn = sqlite3.connect(path)
+    conn.execute("ALTER TABLE job_queue DROP COLUMN identity_kind")  # the table as migration 4 left it
+    conn.execute("DELETE FROM schema_migrations WHERE version = 5")
+    conn.execute(
+        "INSERT INTO job_queue (job_id, job_name, input, trace_context, identity, state, enqueued_at) "
+        "VALUES ('old-job', 'whoami', '{\"text\": \"x\"}', '{}', '{\"user_id\": \"a\"}', 'ready', '2026-11-20T00:00:00')"
+    )
+    conn.commit()
+    conn.close()
+
+    async with SqliteDatabase(path) as db:  # connecting applies migration 5
+        delivery = await SqliteQueue(db).receive(1.0)
+        job_id = await message_for(db, SqliteQueue(db), {"user_id": "b"})  # and a new message has its kind
+
+    assert (
+        delivery is not None
+        and delivery.message.identity == {"user_id": "a"}
+        and delivery.message.identity_kind is None
+    )
+    assert job_id
 
 
 async def test_a_queue_table_from_before_the_column_is_migrated_and_its_waiting_message_has_no_identity(

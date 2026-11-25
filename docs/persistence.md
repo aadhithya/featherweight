@@ -4,12 +4,11 @@
 
 featherweight keeps **the state of the orchestration**, and none of **the data** that flowed through it. The run log says what
 ran, in what order, with what outcome, at what cost. It never holds an input, an output, a message or the text of an error. Where
-data has to be kept for a feature (resuming a job), you provide the place.
+data has to be kept for a feature ([resuming a job](jobs.md#resuming-a-job)), you provide the place.
 
 > The design is in the [spec](specs/persistence.md).
 
 - [What the run log holds](#what-the-run-log-holds)
-- [Resuming a job](#resuming-a-job)
 - [A result store of your own](#a-result-store-of-your-own)
 - [Choosing a database](#choosing-a-database)
 - [Migrations](#migrations)
@@ -30,31 +29,50 @@ A hash says that something changed without saying what it was: `agent_hash` (the
 included), `system_prompt_hash` (so that you can see *the prompt* changed), `tools_hash`, `input_hash`, `output_hash` and `identity_hash` (the hash of who the run was for: the identity itself is not kept). A failed
 attempt keeps `error_type` (the class, such as `ValidationError`) and `error_hash`, because a message can quote data. You still get
 the error text in the `AgentResult` you are returned, in the logs, and (for a streaming run) in the `RUN_ERROR` event. The columns
-are in [agents](agents.md#jobs-and-tracing).
+are below.
 
 Content leaves featherweight in two ways only: in what `AgentRunner.run` returns to you, and through an **observer** that asks for it
 ([observability](observability.md)): never into the run log. The two exceptions are the sqlite queue and the sqlite result store, for
 local work: they hold a submitted job's input until a worker acknowledges it, and its result. For a deployment those are yours
 ([a production stack](production-stack.md)).
 
-## Resuming a job
+### The tables
 
-A job keeps the outputs of its steps only if it **opts in, before it runs**:
+Two tables record everything. `jobs`: id, name, status, whether it is `resumable`, `resumed_from` (the job this one resumes, or
+empty), for a submitted job its `job_hash` and `input_hash`, `cancel_requested`, the error's type and hash, and when it was created,
+started and completed. A job whose task is cancelled is `CANCELLED`. `attempts`: one row **per attempt**:
 
-```python
-first = await run_job(runner, notes, NotesInput(...), resumable=True)  # a job (see agents.md): fails halfway
-second = await run_job(
-    runner, notes, NotesInput(...), resume_from=first.job_id
-)  # the finished steps are not paid for again
+| Column | |
+|---|---|
+| `seq`, `attempt_id` | The order the rows were made in, and the attempt |
+| `run_id`, `attempt` | The attempts of one run share a `run_id` |
+| `job_id` | The job |
+| `parent_attempt_id`, `depth` | For an agent launched by another: the attempt that launched it, and its depth (1 for a top-level run) |
+| `agent_name`, `agent_version` | The agent, readable |
+| `agent_hash` | The hash of the whole agent: its prompt, version, limits, model settings (and the settings class), tools, sub-agents, skills and MCP servers, and the JSON schemas of its input and output models. Same hash, same agent |
+| `system_prompt_hash`, `tools_hash` | The hash of the assembled system prompt, and of the tools bound to the model. They say *what* changed when `agent_hash` does (a tool's name can be client-specific, so tool names are not kept) |
+| `provider`, `model_name`, `reasoning`, `settings`, `reported_model_name` | What was asked for (the provider, the model, the effort, all settings as JSON), and what the API reported |
+| `status` | `INIT` (queued for a slot), `RUNNING`, `SUCCESS`, `FAILED` or `CANCELLED` (the task that awaited it was cancelled, or a [streaming](streaming.md) run was stopped) |
+| `error_type`, `error_hash` | For a failed attempt: the class of the exception (`ValidationError`, `RateLimitError`) and the hash of its message. Recurring errors group; the text is in the logs and in the `AgentResult` you get back, not in the run log (a message can quote the data) |
+| `input_hash`, `output_hash` | The SHA-256 of the input and of the output, as canonical JSON. A reused or repeated step is recognised by them, with no content kept |
+| `identity_hash` | The SHA-256 of the run's identity (its kind, the name of its class, and its fields as canonical JSON without the excluded ones), empty when it had none. A resume reuses only a step of the same identity; the identity itself is kept nowhere |
+| `reused_from_attempt_id` | For a run that reused an earlier one ([resuming a job](jobs.md#resuming-a-job)): the row it took its output from |
+| `thread_id` | For a [streaming](streaming.md) run: the conversation the client named |
+| `input_tokens`, `output_tokens`, `latency_ms` | Of the attempt |
+| `created_at`, `started_at`, `completed_at` | Created (queued for a slot), holds a slot and runs, ended. Times are `datetime`s |
+
+```
+sqlite3 featherweight.db "select agent_name, attempt, status, depth, error_type from attempts where job_id = '<job id>' order by seq"
 ```
 
-The outputs go to a **result store**. With a `SqliteDatabase` the default is a table in the same file, which is for local
-development; a deployment passes its own: `AgentRunner(db, results=MyStore())`. `results=None` keeps nothing. Resuming a job
-that was not `resumable`, or with no store, raises before any model call. A step whose result is missing runs again. A reused step
-copies its result to the new job, so deleting an old job never affects a newer one. [Resuming a job](agents.md#resuming-a-job)
-has the rest, and says why resuming is always up to you.
+A failed pipeline can be diagnosed from those rows (which step failed, and with what kind of error), and resumed from them
+([resuming a job](jobs.md#resuming-a-job)). To see what went in and out of a step, use the logs, or keep the content yourself.
 
-[`examples/resume`](../examples/resume) uses the default store: it passes none. [`examples/results`](../examples/results) shows how to write your own.
+Log lines go to stdout through `setup_logging()` (`featherweight.log`), such as `attempt_started attempt_id=... attempt=1/3`.
+
+**Why sqlite, and not OpenTelemetry or Langfuse?** To keep it as small and simple as possible: two tables, no
+collector, no account. A real deployment will want a proper backend, and an observer sends traces to it
+([observability](observability.md)).
 
 ## A result store of your own
 

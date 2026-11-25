@@ -21,8 +21,6 @@ It has opinions. Take them, or fork off.
 
 And there's a skill, so your coding agent can build with it from the first prompt.
 
-> Designed by a human. Implemented by Claude.
->
 > **Alpha.** The API can still change before 1.0.
 
 ## Built on LangChain, on purpose
@@ -98,7 +96,7 @@ pip install featherweight
 pip install 'featherweight[all]'    # or just: mcp, anthropic, openai, postgres, otel
 ```
 
-Python 3.12 or later. Import what you use: `from featherweight import AgentBase, AgentRunner`. (`import featherweight as ftw` works too, as a joke.)
+Python 3.12 or later. Import what you use: `from featherweight import AgentBase, AgentRunner`. (`import featherweight as ftw` works too.)
 
 ## Showcase
 
@@ -126,3 +124,7 @@ Python 3.12 or later. Import what you use: `from featherweight import AgentBase,
 ## License
 
 Apache License 2.0. See [LICENSE](https://github.com/aadhithya/featherweight/blob/main/LICENSE).
+
+---
+
+Designed by humans. Implemented by AI agents.

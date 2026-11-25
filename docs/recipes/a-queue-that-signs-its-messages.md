@@ -73,7 +73,7 @@ client, worker = JobClient(db, queue), JobWorker(db, queue, runner, jobs=[...])
 ```
 
 <!-- skill:omit -->
-- **The signature covers the whole message:** the job id and name, the input, the identity and the trace context, so an identity cannot be moved onto another job. It is a signature, not encryption: the message stays readable.
+- **The signature covers the whole message:** the job id and name, the input, the identity and its kind, and the trace context, so an identity cannot be moved onto another job. It is a signature, not encryption: the message stays readable.
 - **A forged or changed message is dropped** (`nack(requeue=False)`), and the job row is left alone, because the `job_id` of a forged message can name someone's real job.
 - **Rotating the key:** accept a list of keys on `receive` and sign with the first.
 - **Encryption** is the same shape: encrypt `input` and `identity` in `enqueue` and decrypt them in `receive`, and leave `job_id`, `job_name` and `trace_context` readable, because a broker uses them. featherweight

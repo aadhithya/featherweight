@@ -7,6 +7,7 @@ site_url: https://ftw.asankar.de/
 repo_url: https://github.com/aadhithya/featherweight
 repo_name: aadhithya/featherweight
 edit_uri: edit/main/docs/
+copyright: Designed by humans. Implemented by AI agents.
 
 docs_dir: docs
 exclude_docs: |
@@ -58,7 +59,11 @@ markdown_extensions:
   - toc:
       permalink: true
   - pymdownx.highlight
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid # the diagrams (production-stack.md, the map): Material draws them in the browser
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
 
 hooks:
   - scripts/docs_hooks.py
@@ -114,33 +119,34 @@ nav:
       - launching-agents.md
       - mcp.md
       - skills.md
-      - background-jobs.md
       - streaming.md
-      - submitted-jobs.md
-      - persistence.md
-      - production-stack.md
-      - observability.md
       - attachments-providers.md
+      - persistence.md
+      - jobs.md
+      - submitted-jobs.md
+      - background-jobs.md
+      - observability.md
+      - production-stack.md
       - example-pipeline.md
-      - development.md
       - migration.md
+      - development.md
       - releasing.md
   - Specs:
       - specs/README.md
+      - specs/units.md
       - specs/agents.md
       - specs/runner.md
       - specs/models.md
-      - specs/jobs-and-tracing.md
-      - specs/persistence.md
-      - specs/submitted-jobs.md
+      - specs/tools-and-store.md
+      - specs/mcp-tools.md
+      - specs/tool-discovery.md
+      - specs/skills.md
       - specs/identity.md
-      - specs/units.md
-      - specs/observability.md
-      - specs/background-jobs.md
       - specs/streaming.md
       - specs/attachments.md
-      - specs/skills.md
-      - specs/tools-and-store.md
-      - specs/tool-discovery.md
-      - specs/mcp-tools.md
+      - specs/persistence.md
+      - specs/jobs.md
+      - specs/submitted-jobs.md
+      - specs/background-jobs.md
+      - specs/observability.md
   - API reference: []

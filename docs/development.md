@@ -35,6 +35,6 @@ The docs use the words of [the glossary](book/07-reference/03-the-glossary.md): 
 
 ## Contributing
 
-Run `make hooks` once. Commit messages follow [Conventional Commits](https://www.conventionalcommits.org) (`feat(runner): ...`,
+Read [CONTRIBUTING.md](https://github.com/aadhithya/featherweight/blob/main/CONTRIBUTING.md) first: what a change needs, spec-first design, and the rules for changes made with AI tools. Run `make hooks` once. Commit messages follow [Conventional Commits](https://www.conventionalcommits.org) (`feat(runner): ...`,
 `fix: ...`), and `make check` and `make test` must pass. Each change updates the docs, the specs and the skill with the code.
 How a release is made: [Releasing](releasing.md).

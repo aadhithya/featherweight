@@ -99,7 +99,7 @@ Check: the old names are gone from your code (`git grep -n "agent_run_id\|invoca
 
 ## A queue you wrote
 
-A message has a new field, `identity` (a JSON mapping or `None`): carry it unchanged. Your queue stores it with the other fields, and returns it. `testing.check_queue` checks that it does, and a queue that drops it fails.
+A message has two new fields, `identity` (a JSON mapping or `None`) and `identity_kind` (the name of the identity's class, or `None`): carry them unchanged. Your queue stores them with the other fields, and returns them. `testing.check_queue` checks that it does, and a queue that drops either fails.
 
 ## Settings, logs and spans
 
@@ -124,6 +124,7 @@ The span **names** do not change (`invoke_workflow`, `invoke_agent`, `chat`, `ex
 | 2, `identity_hash` | Adds `agent_runs.identity_hash`. Runs from before it have none. |
 | 3, `queue_identity` | Adds the column of the identity to the sqlite queue table. |
 | 4, `attempts` | Renames the table and the columns of the run log ([the spec](specs/units.md#the-database-migration)). |
+| 5, `queue_identity_kind` | Adds the column of the identity's kind to the sqlite queue table. A message that is queued with an identity when it is applied has no kind, and its job fails (`InvalidJobIdentity`). |
 
 Take a copy of a database that matters before you connect to it with the new version, as you would for any upgrade. There is no way back: a database that was migrated cannot be opened by 0.1.
 

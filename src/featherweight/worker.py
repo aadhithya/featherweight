@@ -126,6 +126,13 @@ class JobWorker:
         self._grace = 30.0
         self._running = False
         self._stopped = asyncio.Event()
+        if not runner.identity.accepts(
+            self._identity
+        ):  # every job that runs an agent would fail at its first `ctx.run`
+            raise TypeError(
+                f"this worker rebuilds identities as {self._identity.describe()}, which its runner ({runner.identity.describe()}) does "
+                "not accept: declare on the runner every type the worker declares (and None, if the worker allows no identity)"
+            )
 
     # running
 
@@ -217,7 +224,7 @@ class JobWorker:
                 return
             taken_over = True
         try:
-            identity = self._identity.load(message.identity)
+            identity = self._identity.load(message.identity, message.identity_kind)
         except (
             ValidationError
         ) as exc:  # the text names the fields and the rules, never the values: they are the identity

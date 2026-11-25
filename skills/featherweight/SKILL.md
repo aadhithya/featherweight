@@ -110,7 +110,7 @@ asyncio.run(main())
 
 ## Rules that save you a round trip
 
-- **Import what you use:** `from featherweight import AgentBase, AgentRunner`, not `import featherweight as ftw` (a joke).
+- **Import what you use:** `from featherweight import AgentBase, AgentRunner`, not `import featherweight as ftw`.
 - **A `job_id` is the job a run belongs to, not the run's id.** A job has many runs; a run has a `run_id`, and each of its attempts an `attempt_id`.
 - **featherweight keeps metadata only** (status, tokens, timing, hashes). Inputs, outputs and results go to stores you provide
   (`ResultStore`, `Database`, `JobQueue` are interfaces you can implement), so never expect it to hold them.
@@ -157,21 +157,22 @@ The guides are the reference for one subject each (the book above is the way to 
 
 | The task | Read |
 |---|---|
-| Define and run an agent, results, retries, checks, tools, jobs, tracing, configuration | `references/agents.md` |
+| Define and run an agent, results, retries, checks, tools, who is asking, configuration | `references/agents.md` |
 | Patterns: a pipeline, feeding errors back, a fake model for tests, a second agent; and for a platform where users define skills or agents: a skill from a database or S3, agents built from JSON, a queue that signs messages, a tool that acts for the signed-in user (`identity`) | `references/recipes.md` |
 | Pick a model or provider, effort, add GPT-5.x or Ollama | `references/models.md` |
 | An agent that launches other agents | `references/launching-agents.md` |
 | Use an MCP server, discovery, secrets, failures | `references/mcp.md` |
 | Give an agent skills | `references/skills.md` |
-| Upgrade a project that uses an older featherweight: what broke, what to search for, what to write instead, and a rename table in order | `references/migration.md` |
 | A streaming agent for chat its answer: `StreamingAgent`, `runner.stream()`, AG-UI and Vercel adapters, stopping, keeping the conversation | `references/streaming.md` |
 | Attach images, PDFs, audio or video to a chat message: what is accepted, the limits, and a dated snapshot of what Anthropic, Google, OpenAI and Ollama accept | `references/streaming.md` (Attachments), `references/attachments-providers.md` |
-| What is kept and what is not, resuming a job (`resumable=True`), a result store of your own, choosing a database | `references/persistence.md` |
+| What the run log holds, a result store of your own, choosing a database, migrations, tenants | `references/persistence.md` |
+| Declare a job (`@job`), run it with `run_job`, follow its events, resume a failed one (`resumable=True`, `resume_from`) | `references/jobs.md` |
 | Submit a job to a queue and run it in a worker: `JobClient`, `JobWorker`, `JobQueue`, cancelling, events and SSE | `references/submitted-jobs.md` |
+| An agent that starts another agent and goes on: `background_jobs`, `start_background`, the result message, events, a chat in the browser | `references/background-jobs.md` |
 | See what jobs and agents do: observers, `OTelObserver` (OpenTelemetry spans for jobs, attempts, model calls and tool calls), content, your own spans, evaluation | `references/observability.md` |
 | Deploy it: what to use where (Postgres, your own queue and result store). A suggestion only: follow the user's own stack | `references/production-stack.md` |
-| An agent that starts another agent and goes on: `background_jobs`, `start_background`, the result message, events, a chat in the browser | `references/background-jobs.md` |
 | See a whole pipeline of several agents | `references/example-pipeline.md` |
+| Upgrade a project that uses an older featherweight: what broke, what to search for, what to write instead, and a rename table in order | `references/migration.md` |
 
 The full specs, which say what each part does and why, are in `docs/specs` of the repository, and runnable examples are in
 `examples/` (`launching`, `skills`, `mcp`, `resume`, `results`, `chat`, `jobs` (also `takeover`), `observability`, `doclearn`): https://github.com/aadhithya/featherweight

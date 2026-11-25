@@ -1,12 +1,11 @@
-# Spec: the units of work
+# Units of work
 
-Status: designed, not built. It is [epic #215](https://github.com/aadhithya/featherweight/issues/215): this spec ([#216](https://github.com/aadhithya/featherweight/issues/216)),
+Status: implemented. It was [epic #215](https://github.com/aadhithya/featherweight/issues/215): this spec ([#216](https://github.com/aadhithya/featherweight/issues/216)),
 the code ([#217](https://github.com/aadhithya/featherweight/issues/217)), the docs ([#218](https://github.com/aadhithya/featherweight/issues/218)), the migration document
-([#219](https://github.com/aadhithya/featherweight/issues/219)) and the decisions ([#220](https://github.com/aadhithya/featherweight/issues/220), decided, built with the code). When a part is
-built, this page says so.
+([#219](https://github.com/aadhithya/featherweight/issues/219)) and the decisions ([#220](https://github.com/aadhithya/featherweight/issues/220), built with the code). All of them are done.
 
 It owns the words for the units that featherweight does work in, and the names that those words give to ids, tables, columns, spans and log lines. The other specs use them and
-link here: [the runner](runner.md) (attempts and retries), [jobs and tracing](jobs-and-tracing.md), [submitted jobs](submitted-jobs.md), [persistence](persistence.md) (the schema) and
+link here: [the runner](runner.md) (attempts and retries), [jobs](jobs.md), [submitted jobs](submitted-jobs.md), [persistence](persistence.md) (the schema) and
 [observers and OpenTelemetry](observability.md) (the attributes).
 
 - [Goal](#goal)
@@ -19,7 +18,7 @@ link here: [the runner](runner.md) (attempts and retries), [jobs and tracing](jo
 - [The database migration](#the-database-migration)
 - [Decisions](#decisions)
 - [Decided by the owner](#decided-by-the-owner-2026-11-24)
-- [Proposed with them](#proposed-with-them-for-the-same-reason-names-that-should-not-change-again)
+- [Decided with them](#decided-with-them-for-the-same-reason-names-that-should-not-change-again)
 - [Tests](#tests)
 - [The work](#the-work)
 
@@ -98,8 +97,8 @@ every log line, span attribute and observer field; every setting; and every page
 | `AttemptRow.invocation_id` | `run_id` | |
 | `AgentRunFailed` (in `featherweight.jobs`) | `RunFailed` | Raised by a job made from an agent whose run failed. |
 | `RunStatus` | `Status` | The status of a job, an attempt and a result. Decided. |
-| `ReusedRun` (observer record) | `RunReused` | Proposed. |
-| `AgentRunner(max_background=)` | `max_background_jobs` | Proposed. |
+| `ReusedRun` (observer record) | `RunReused` | Decided. |
+| `AgentRunner(max_background=)` | `max_background_jobs` | Decided. |
 | `StreamingRun.run_id` | `StreamingRun.run_id` (unchanged name) | Now really a run id; `runner.cancel(run_id)` takes it. |
 
 **The database** ([migration 4](#the-database-migration))
@@ -186,9 +185,9 @@ attempt) and checks that they come back under the new names.
 - **The verb `run_job` stays,** with the rule above that the verb "run" starts anything and the noun "a run" is one call of an agent.
 - **The doclearn example's run folder is the output folder.**
 
-## Proposed with them, for the same reason (names that should not change again)
+## Decided with them, for the same reason (names that should not change again)
 
-A scan of the public names, after the renames above, found three that are not parallel to their neighbours. They are in the rename tables, and the review of this spec is where to say no.
+A scan of the public names, after the renames above, found three that are not parallel to their neighbours. The owner accepted the renames, and they are in the rename tables.
 
 | Today | After | Why |
 |---|---|---|

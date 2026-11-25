@@ -1,4 +1,4 @@
-# Spec: observers and OpenTelemetry
+# Observers and OpenTelemetry
 
 Status: implemented. #92 (the `Observer` class, its records, `testing.check_observer`, and the runner's calls), the job scope and the trace context across the queue (#93) and `OTelObserver` (#94, pinned to `semantic-conventions-genai@622b2b6`, which refers to core semantic conventions 1.45.0) and the guide, the example and the skill reference (#95) are done. It is tracked in [epic #90](https://github.com/aadhithya/featherweight/issues/90), and each part has its own issue. When
 a part is built, this page says so, and the guide `docs/observability.md` shows how to use it.
@@ -7,7 +7,7 @@ It builds on [the persistence spec](persistence.md) (the rule that featherweight
 goes into the run log, even by option). It is about what an observer is, what it receives, and the OpenTelemetry observer. What the
 other specs do about it is in them, and not here: [the runner](runner.md#observers) (when it calls observers, and how it sees model calls
 and tool calls), [submitted jobs](submitted-jobs.md#the-queue) (the trace context in the message), and [jobs and
-tracing](jobs-and-tracing.md#running-a-job-class) (a job runs the same way in your process and on a worker, and has a version), which the
+tracing](jobs.md#running-a-job-class) (a job runs the same way in your process and on a worker, and has a version), which the
 spans of a job depend on.
 
 - [Goal](#goal)
@@ -184,7 +184,7 @@ and tool calls have their own spans, and why content is an opt-in switch and not
 - **To evaluate the answer:** turn content on. The span of an attempt has the input and the final output; the model call has the messages.
 - **To evaluate the path:** the tool calls, in order, with their arguments and results, under the attempt that made them.
 - **To tell which attempt counted:** `ftw.attempt.final`, and `error.type` on the ones that were rejected.
-- **To compare versions:** the agent name, version and hash, the job name and version ([a job's version](jobs-and-tracing.md#running-a-job-class)),
+- **To compare versions:** the agent name, version and hash, the job name and version ([a job's version](jobs.md#running-a-job-class)),
   and the model are on the spans. The code release is the OpenTelemetry resource attribute `service.version`, which the user sets (a git sha
   or a tag), and which evaluation platforms already group by.
 - We do not run evaluations, score, or have a feedback API.
@@ -194,7 +194,7 @@ and tool calls have their own spans, and why content is an opt-in switch and not
 - **New:** `Observer` and its records, `testing.check_observer`, `OTelObserver`, and the extra `featherweight[otel]`.
 - **Elsewhere,** each in the spec that owns it: the runner calls observers ([runner](runner.md#observers)); `JobMessage.trace_context` and
   `JobClient(observers=)` ([submitted jobs](submitted-jobs.md#the-queue)); `run_job` runs a job class, and the job version
-  ([jobs and tracing](jobs-and-tracing.md#running-a-job-class)); `SqliteDatabase(":memory:")` and `jobs.job_version` ([persistence](persistence.md)).
+  ([jobs](jobs.md#running-a-job-class)); `SqliteDatabase(":memory:")` and `jobs.job_version` ([persistence](persistence.md)).
 - **Not changed:** the run log's tables for attempts, the result store, resuming, the job events, SSE.
 
 ## Decisions
@@ -232,7 +232,7 @@ dependency only).
 ## The work
 
 Tracked in [epic #90](https://github.com/aadhithya/featherweight/issues/90). One issue and one pull request each, in this order. The first,
-[#91](https://github.com/aadhithya/featherweight/issues/91), is specified in [jobs and tracing](jobs-and-tracing.md#running-a-job-class), and the others depend on it:
+[#91](https://github.com/aadhithya/featherweight/issues/91), is specified in [jobs](jobs.md#running-a-job-class), and the others depend on it:
 
 1. [#91](https://github.com/aadhithya/featherweight/issues/91) **`run_job` runs a job class** (built; specified in the jobs spec, as above).
 2. [#92](https://github.com/aadhithya/featherweight/issues/92) **The `Observer` class,** its records, `check_observer`, the runner's calls, the callback handler for model and tool calls, and the content switch.

@@ -82,7 +82,7 @@ SUCCESS ['Checkout was down', 'Sign-in trouble', 'Search was slow', 'Batch was l
   a store you choose; resume after a failure; and the same job on a worker, with no rewrite.
 
 > **Why a class.** A declared job has a name, a version and typed models, so the same job can be run here (`run_job`) or on a worker (Part 5), and be told
-> apart when it changes. See [the philosophy](../00-start-here/03-philosophy.md), [the job](../../specs/submitted-jobs.md#the-job), [running a job class](../../specs/jobs-and-tracing.md#running-a-job-class) and [the guide](../../submitted-jobs.md).
+> apart when it changes. See [the philosophy](../00-start-here/03-philosophy.md), [the job](../../specs/submitted-jobs.md#the-job), [running a job class](../../specs/jobs.md#running-a-job-class) and [the guide](../../submitted-jobs.md).
 
 Next: what the run recorded.
 

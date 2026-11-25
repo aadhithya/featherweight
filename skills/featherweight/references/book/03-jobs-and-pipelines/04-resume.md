@@ -90,6 +90,6 @@ second run
 - **The crash is simulated** with a flag in the input. In real life it is a process that dies or a step that raises.
 
 > **Why a new job.** A resume is you running a job that ended again, so it is its own job with its own trace. See
-> [resuming a job](https://github.com/aadhithya/featherweight/blob/main/docs/specs/jobs-and-tracing.md#resuming-a-job) and [the resume example](https://github.com/aadhithya/featherweight/blob/main/examples/resume/README.md).
+> [resuming a job](https://github.com/aadhithya/featherweight/blob/main/docs/specs/jobs.md#resuming-a-job) and [the resume example](https://github.com/aadhithya/featherweight/blob/main/examples/resume/README.md).
 
 Next: the assistant talks. Part 4 makes it a chat.

@@ -1,5 +1,5 @@
-/* The look of the documentation site (mkdocs.yml). Material for MkDocs, restyled: the palette comes from the banner (a deep
-   navy with white serif lettering), the fonts are the system's own (nothing is loaded from a third party), and the page
+/* The look of the documentation site (mkdocs.yml). Material for MkDocs, restyled: the palette is a deep blue (hue 219, from #3b5998; the banner is still the older navy,
+   with white serif lettering), the fonts are the system's own (nothing is loaded from a third party), and the page
    is quieter than the stock theme: no coloured header bar, thin borders, rounded corners. Dark is the default. */
 
 :root {
@@ -7,50 +7,50 @@
   --ftw-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Charter", "Book Antiqua", Georgia, serif;
   --ftw-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --ftw-radius: 10px;
-  --ftw-brand: #2b315d; /* the navy of the banner (docs/assets/banner.png): every accent is this colour or a tint of it */
+  --ftw-brand: #2c4374; /* a deeper #3b5998: every accent is this colour or a tint of it (the hue is 219 throughout) */
 }
 
 /* ---- palette ---- */
 
 [data-md-color-scheme="slate"] {
-  --md-hue: 232;
-  --md-default-bg-color: #0c0e1b;
-  --md-default-bg-color--light: #0c0e1bb3;
-  --md-default-fg-color: #e6e8f4e6;
-  --md-default-fg-color--light: #aeb3cc;
-  --md-default-fg-color--lighter: #6f7595;
-  --md-default-fg-color--lightest: #262a44;
-  --md-primary-fg-color: #0c0e1b;
-  --md-primary-bg-color: #e6e8f4;
+  --md-hue: 219;
+  --md-default-bg-color: #0c111b;
+  --md-default-bg-color--light: #0c111bb3;
+  --md-default-fg-color: #e6ebf4e6;
+  --md-default-fg-color--light: #aeb9cc;
+  --md-default-fg-color--lighter: #6f7c95;
+  --md-default-fg-color--lightest: #263044;
+  --md-primary-fg-color: #0c111b;
+  --md-primary-bg-color: #e6ebf4;
   /* The navy itself is too dark to read as text on this background, so text accents are a lighter tint of the same hue. */
-  --md-accent-fg-color: #aab1e8;
-  --md-typeset-color: #d7daeb;
-  --md-typeset-a-color: #aab1e8;
+  --md-accent-fg-color: #aac0e8;
+  --md-typeset-color: #d7deeb;
+  --md-typeset-a-color: #aac0e8;
   --ftw-accent-fill: var(--ftw-brand);
   --ftw-accent-on-fill: #ffffff;
-  --ftw-accent-line: #4b5497;
-  --md-code-bg-color: #131630;
-  --md-code-fg-color: #d7daeb;
-  --md-footer-bg-color: #0c0e1b;
-  --md-footer-bg-color--dark: #090b16;
-  --ftw-border: #232850;
-  --ftw-card: #101330;
-  --md-typeset-table-color: #232850;
+  --ftw-accent-line: #3b5998;
+  --md-code-bg-color: #131d30;
+  --md-code-fg-color: #d7deeb;
+  --md-footer-bg-color: #0c111b;
+  --md-footer-bg-color--dark: #090e16;
+  --ftw-border: #233350;
+  --ftw-card: #101b30;
+  --md-typeset-table-color: #233350;
 }
 
 [data-md-color-scheme="default"] {
-  --md-default-bg-color: #fbfbfe;
-  --md-default-fg-color: #1b1e33e6;
-  --md-primary-fg-color: #fbfbfe;
-  --md-primary-bg-color: #1b1e33;
+  --md-default-bg-color: #fbfcfe;
+  --md-default-fg-color: #1b2333e6;
+  --md-primary-fg-color: #fbfcfe;
+  --md-primary-bg-color: #1b2333;
   --md-accent-fg-color: var(--ftw-brand);
   --md-typeset-a-color: var(--ftw-brand);
   --ftw-accent-fill: var(--ftw-brand);
   --ftw-accent-on-fill: #ffffff;
   --ftw-accent-line: var(--ftw-brand);
-  --md-code-bg-color: #f0f1f9;
-  --md-code-fg-color: #25294a;
-  --ftw-border: #dfe1ee;
+  --md-code-bg-color: #f0f3f9;
+  --md-code-fg-color: #25324a;
+  --ftw-border: #dfe4ee;
   --ftw-card: #ffffff;
 }
 
@@ -322,19 +322,6 @@ body,
   border-color: var(--ftw-accent-line);
   background: var(--ftw-card);
   color: var(--md-accent-fg-color);
-}
-
-.md-typeset .md-button--primary {
-  background: var(--ftw-accent-fill);
-  border-color: var(--ftw-accent-line);
-  color: var(--ftw-accent-on-fill);
-}
-
-.md-typeset .md-button--primary:hover {
-  background: var(--ftw-accent-fill);
-  border-color: var(--md-accent-fg-color);
-  color: var(--ftw-accent-on-fill);
-  filter: brightness(1.15);
 }
 
 .md-typeset .admonition,

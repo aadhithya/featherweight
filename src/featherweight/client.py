@@ -104,6 +104,7 @@ class JobClient:
                     input=input.model_dump(mode="json") if self._observers.wants_content else None,
                 )
             )
+        identity_data, identity_kind = self._identity.dump(identity)
         try:
             await self.queue.enqueue(
                 JobMessage(
@@ -111,7 +112,8 @@ class JobClient:
                     job_name=declared.name,
                     input=input.model_dump(mode="json"),
                     trace_context=trace_context,
-                    identity=self._identity.dump(identity),
+                    identity=identity_data,
+                    identity_kind=identity_kind,
                 )
             )
         except Exception as exc:

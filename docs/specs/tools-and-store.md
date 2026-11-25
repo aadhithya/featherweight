@@ -1,4 +1,4 @@
-# Spec: tools and the tool registry
+# Tools and the tool registry
 
 Status: implemented. How to use them is in [agents.md](../agents.md#tools). The code is [tools.py](../../src/featherweight/tools.py),
 [registry.py](../../src/featherweight/registry.py) and [context.py](../../src/featherweight/context.py). (The file keeps its old name, `tools-and-store.md`, so that links to it still work: there is no store any more.)

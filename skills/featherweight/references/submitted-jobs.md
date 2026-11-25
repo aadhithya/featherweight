@@ -29,12 +29,12 @@ JobClient --submit--> database (job row, "queued" event) + JobQueue --> JobWorke
 ```
 
 The client and the worker never talk to each other. The queue and the database are their only connection, so they can be two
-processes, or two machines. A job is the same thing as in [Agents](agents.md): a row with a status. Submitting only adds
+processes, or two machines. A job is the same thing as in [Jobs](jobs.md): a row with a status. Submitting only adds
 `queued` to it; the worker is what runs it.
 
 ## Defining a job
 
-A job has a name, an input model, an output model and a `run`. The decorator is the short way:
+The example of this page, declared with the decorator ([jobs](jobs.md#declaring-a-job) says more):
 
 ```python
 from featherweight import job, JobContext
@@ -54,10 +54,7 @@ async def shout(ctx: JobContext, input: Text) -> Shouted:
     return Shouted(shouted=input.text.upper())
 ```
 
-The name is the function name, and the models are read from the annotations. For more control, subclass `Job` and set
-`name`, `version`, `input_model` and `output_model` yourself. An agent is a job too: pass an agent class to `submit` and the
-worker runs it. A job may run for `timeout` seconds (default 600, `None` for no limit): set `timeout = 120` on the class, or `@job(timeout=120)`.
-A job that runs longer is cancelled and fails with error type `JobTimeout`, in a worker and in `run_job` alike. Inside a job, `await ctx.run(SomeAgent, input)` and `ctx.run_many(...)` run agents in the same job.
+How to declare a job (`@job`, a `Job` class, the version, the timeout, `ctx.run`) is in [jobs](jobs.md#declaring-a-job). An agent is a job too: pass an agent class to `submit` and the worker runs it.
 
 ## Submitting and following
 
@@ -78,7 +75,7 @@ a script or a test, but a web handler should return the job id and let the calle
 ## Who the job is for: the identity
 
 A tool on a worker can act for the user who started the job, as a tool in your process can ([who is asking](agents.md#who-is-asking-the-identity-of-a-run)).
-`submit` takes `identity=`, the message carries it as JSON, and the worker rebuilds it with its own `identity_type`:
+`submit` takes `identity=`, the message carries it as JSON together with its kind (the name of its class), and the worker rebuilds it as the model that the kind names, from its own `identity_type`:
 
 ```python
 runner = AgentRunner(db, identity_type=Teacher)
@@ -89,7 +86,11 @@ job_id = await client.submit(shout, Text(text="hello"), identity=Teacher(user_id
 ```
 
 - **The worker's type is the authority.** A message without an identity, when the worker's type does not allow `None`, fails its job (`InvalidJobIdentity`),
-  and so does an identity that does not fit the type, or one when the worker declares no type. The job is not run, and it is not retried. The error names the fields, never the values.
+  and so does an identity that does not fit the type, one whose kind the type does not have (a `Student`'s message for a worker that declares only `Teacher`), or one when the worker declares no type.
+  The job is not run, and it is not retried. The error names the fields, never the values.
+- **A worker can serve several kinds of people:** declare a union (`identity_type=Teacher | Student`) and the worker rebuilds each message as the model it was sent as, even when the models have the same fields.
+  The kind is the name of the class, so a rename of an identity class while a job is queued fails that job, as a renamed job does. Two models of one union cannot have the same name.
+- **The runner must accept the worker's type.** `JobWorker` raises `TypeError` when it is built if the runner's `identity_type` does not accept every type the worker rebuilds (and `None`, if the worker allows no identity): otherwise every job that runs an agent would fail. A worker may be stricter than its runner.
 - **Fields marked `exclude=True` are not sent,** so a value that exists only in your process stays there. The worker's copy is equal to the original without them.
 - **A job that an agent starts in the background on a worker** (a runner with `background=JobClient`) is submitted with the identity of its parent.
 - **It is data in the queue message,** until the message is acknowledged: the queue is trusted, so keep the identity small and keep secrets out of it, and secure the queue the way you secure the
@@ -107,21 +108,7 @@ a queued job, and exactly one of them wins: a job is never both cancelled and ru
 
 ## Events and SSE
 
-Every status change writes an event in the same transaction, so the stored events are the history and cannot disagree with the
-status. `events(job_id, after=n)` yields the stored events after `n`, then each new one, and ends at the final one.
-
-SSE is the only streaming protocol. featherweight runs no server: you return the stream from your own handler.
-
-```python
-@app.get("/jobs/{job_id}/events")
-async def events(job_id: str, request: Request):
-    after = int(request.headers.get("last-event-id", 0))  # a browser that reconnects resumes where it was
-    stream = sse.encode(client.events(job_id, after=after))
-    return StreamingResponse(stream, headers=sse.HEADERS)
-```
-
-Each event is `id: <seq>`, `event: <type>` and `data: <json>`, with a keep-alive comment every 15 seconds. `examples/jobs/api.py`
-is this behind FastAPI.
+`client.events(job_id, after=n)` is the stream of the job's events that [jobs](jobs.md#following-a-job-events-and-sse) describes (`job_events`): the stored ones after `n`, then each new one, ending at the final one. A worker writes the same events as `run_job` does. To send them to a browser, `sse.encode(client.events(job_id, after=after))` with `sse.HEADERS`, as in that section; `examples/jobs/api.py` is this behind FastAPI.
 
 ## Running a worker
 
@@ -177,7 +164,7 @@ several, share one database (`PostgresDatabase` ships in the package) and use a 
   which sees that the job's lease expired and **takes it over**: the same job, with `executions` one higher and a `lost` event in its
   events (queued, running, lost, running, succeeded). A message that arrives while the job's lease is still alive is a duplicate: it is acknowledged and the job is left alone.
 - **What the new worker reuses.** If the job is `resumable`, the steps that finished before the worker died are reused, as in a
-  [resume](persistence.md#resuming-a-job); otherwise the job runs again from the start. A resume is you running a job that *ended* again, as a new
+  [resume](jobs.md#resuming-a-job); otherwise the job runs again from the start. A resume is you running a job that *ended* again, as a new
   job; a takeover is the system running a job that *did not end* again, as the same job.
 - **A worker that only stalled.** If a worker was paused (not dead) and wakes up after a takeover, its writes are refused, because every write of a running
   job checks that the worker still owns it. It stops the job at once and writes nothing more. Only featherweight's writes are checked: **a job must be safe
@@ -207,8 +194,8 @@ delivered again to another receiver, and its `Delivery.delivery_count` is higher
 How many times a message may be delivered is your broker's policy, with its own dead-letter queue. The kit asks that a message can be delivered at
 least three times. `SqliteQueue(db, lease=60, max_deliveries=3)` is the one we ship: after `max_deliveries` it marks the message `dead`.
 
-A message also carries a `trace_context` (a small mapping of strings, empty unless the client has an observer that gives one) and an `identity` (a JSON mapping, or `None`: [who the job is for](#who-the-job-is-for-the-identity)): carry both
-unchanged, and the kit checks that you do. A queue that drops the identity fails the kit.
+A message also carries a `trace_context` (a small mapping of strings, empty unless the client has an observer that gives one) and an `identity` (a JSON mapping, or `None`) and its `identity_kind` (a string, or `None`: [who the job is for](#who-the-job-is-for-the-identity)): carry them
+unchanged, and the kit checks that you do. A queue that drops the identity or its kind fails the kit.
 
 A dead-letter queue is yours to configure on your queue: a message that is `nack`ed without `requeue` is yours to keep or drop.
 

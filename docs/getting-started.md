@@ -12,8 +12,7 @@ pip install 'featherweight[anthropic]'    # or mcp, openai, postgres, otel
 pip install 'featherweight[all]'          # all of them
 ```
 
-Python 3.12 or later. Import what you use: `from featherweight import AgentBase, AgentRunner`. (`import featherweight as ftw`
-works too, as a joke.)
+Python 3.12 or later. Import what you use: `from featherweight import AgentBase, AgentRunner`. (`import featherweight as ftw` works too.)
 
 ## With a coding agent
 
@@ -92,7 +91,7 @@ The `job_id` is the job the run belongs to; each run has a `run_id` and each of 
 
 ## Where next
 
-- [Agents](agents.md): results, retries, tools, jobs and tracing, resuming a job.
+- [Agents](agents.md): results, retries, tools, who is asking. Then [jobs](jobs.md): running, following and resuming a job.
 - [Launching agents](launching-agents.md), [MCP tools](mcp.md), [skills](skills.md), [models](models.md).
 - [Streaming agents](streaming.md) for chat, and [submitted jobs](submitted-jobs.md) for work that runs in the background.
 

@@ -1,10 +1,10 @@
-# Spec: models and providers
+# Models and providers
 
 Status: implemented. How to use it is in [models.md](../models.md). The code is [model_settings.py](../../src/featherweight/model_settings.py).
 
 It was designed in [issue #2](https://github.com/aadhithya/featherweight/issues/2). It changes
 [agents](agents.md) (the `model_name` and `reasoning` fields), [the runner](runner.md#configuration) (the model factory is removed)
-and [jobs and tracing](jobs-and-tracing.md) (two columns).
+and [jobs](jobs.md) (two columns).
 
 - [Goal](#goal)
 - [The model](#the-model)

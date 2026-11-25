@@ -691,13 +691,17 @@ async def check_queue(make_queue: Callable[[float], JobQueue | Awaitable[JobQueu
     await queue.ack(got)
 
     identity = {"user_id": "u-1", "tenant": "é", "roles": ["a", "b"], "nested": {"n": [1, 2]}}
-    await queue.enqueue(JobMessage(job_id="job-i", job_name="shout", input={"n": 1}, identity=identity))
+    await queue.enqueue(
+        JobMessage(job_id="job-i", job_name="shout", input={"n": 1}, identity=identity, identity_kind="Teacher")
+    )
     got = await queue.receive(1.0)
     assert got is not None and got.message.identity == identity, "the identity must come back unchanged"
+    assert got.message.identity_kind == "Teacher", "the kind of the identity must come back unchanged"
     await queue.ack(got)
     await queue.enqueue(message(0))
     got = await queue.receive(1.0)
     assert got is not None and got.message.identity is None, "a message without an identity has none"
+    assert got.message.identity_kind is None, "a message without an identity has no kind"
     await queue.ack(got)
 
     queue = await fresh()

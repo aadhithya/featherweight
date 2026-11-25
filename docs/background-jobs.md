@@ -20,7 +20,7 @@ Spec: [Background jobs](specs/background-jobs.md). Example: `examples/background
 ## How it works
 
 A background job is **a job that is exposed to an agent as a tool**. It has a job id, events, a result in your store, and it can be cancelled,
-as any [job](submitted-jobs.md). featherweight wakes nothing: it emits events, and your application decides what to do with them. The model
+as any [job](jobs.md). featherweight wakes nothing: it emits events, and your application decides what to do with them. The model
 never polls.
 
 ## Declaring it

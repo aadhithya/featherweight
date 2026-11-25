@@ -39,6 +39,9 @@ class JobMessage(BaseModel):
     identity: dict[str, Any] | None = (
         None  # the identity of the run as JSON, if it has one (docs/specs/identity.md); never a secret
     )
+    identity_kind: str | None = (
+        None  # which model the identity is: the name of its class. Set whenever there is an identity
+    )
 
 
 class Delivery(BaseModel):
@@ -116,14 +119,15 @@ class SqliteQueue(JobQueue):
     async def enqueue(self, message: JobMessage) -> None:
         async with self.db.transaction() as conn:
             await conn.execute(
-                "INSERT INTO job_queue (job_id, job_name, input, trace_context, identity, state, enqueued_at) "
-                "VALUES (?, ?, ?, ?, ?, 'ready', ?)",
+                "INSERT INTO job_queue (job_id, job_name, input, trace_context, identity, identity_kind, state, enqueued_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, 'ready', ?)",
                 (
                     message.job_id,
                     message.job_name,
                     json.dumps(message.input),
                     json.dumps(message.trace_context),
                     json.dumps(message.identity) if message.identity is not None else None,
+                    message.identity_kind,
                     _stamp(now()),
                 ),
             )
@@ -149,7 +153,7 @@ class SqliteQueue(JobQueue):
                    WHERE seq = (SELECT seq FROM job_queue
                                 WHERE state = 'ready' OR (state = 'claimed' AND lease_expires_at <= ?)
                                 ORDER BY seq LIMIT 1)
-                   RETURNING seq, job_id, job_name, input, trace_context, identity, delivery_count""",
+                   RETURNING seq, job_id, job_name, input, trace_context, identity, identity_kind, delivery_count""",
                 (_stamp(moment), _stamp(moment + timedelta(seconds=self.lease)), _stamp(moment)),
             ) as cur:
                 row = await cur.fetchone()
@@ -165,6 +169,7 @@ class SqliteQueue(JobQueue):
             input=json.loads(row["input"]),
             trace_context=json.loads(row["trace_context"]),
             identity=json.loads(row["identity"]) if row["identity"] is not None else None,
+            identity_kind=row["identity_kind"],
         )
         return Delivery(
             message=message, token=f"{row['seq']}:{row['delivery_count']}", delivery_count=row["delivery_count"]

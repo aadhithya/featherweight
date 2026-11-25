@@ -140,7 +140,7 @@ class BucketSkill(Skill):
 - The `name` and the `description` are plain fields, because they are in the prompt. Only the instructions and the files are read late.
 - **Give the subclass a field that changes when the text does** (an `etag`, a `version`). The agent's hash is made from the fields of its
   skills, and a fetched text is not one of them: without it, an edit in the store leaves the hash as it was, and
-  [resuming a job](agents.md#resuming-a-job) reuses results made with the old text.
+  [resuming a job](jobs.md#resuming-a-job) reuses results made with the old text.
 - A read that fails does not fail the run. The agent is told `The skill 'x' could not be read: <the type of the error>`, and the error
   goes to the log as `skill_read_failed`, because its message can name a bucket or a key.
 - featherweight ships no store and no client. Where the skills live, who may edit them and which ones an agent gets is your application's.

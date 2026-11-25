@@ -28,10 +28,11 @@ GUIDES = [
     "streaming.md",
     "attachments-providers.md",
     "persistence.md",
+    "jobs.md",
     "submitted-jobs.md",
     "background-jobs.md",
-    "production-stack.md",
     "observability.md",
+    "production-stack.md",
     "example-pipeline.md",
     "migration.md",
 ]

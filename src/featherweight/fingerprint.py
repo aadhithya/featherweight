@@ -89,9 +89,17 @@ def input_hash(agent_input: BaseModel) -> str:
 
 def identity_hash(identity: BaseModel | None) -> str | None:
     """SHA-256 of the identity of a run as canonical JSON, as `input_hash` is of the input: it is what a resume compares, so that a step is reused
-    only for the same identity, and no identity is stored. The fields marked `exclude=True` are not in it, so it is the same in a process and on a
-    worker. `None` when the run has no identity."""
-    return None if identity is None else input_hash(identity)
+    only for the same identity, and no identity is stored. The text that is hashed is the kind (the name of the identity's class) and its fields,
+    because two models can have the same fields. The fields marked `exclude=True` are not in it, so it is the same in a process and on a worker, where
+    the identity is rebuilt as the model that the kind names. `None` when the run has no identity."""
+    if identity is None:
+        return None
+    text = json.dumps(
+        {"kind": type(identity).__name__, "data": identity.model_dump(mode="json")},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(text.encode()).hexdigest()
 
 
 def _digest(value: Any) -> str:

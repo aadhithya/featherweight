@@ -61,4 +61,4 @@ came from.
 
 [`agent.py`](agent.py) has the two agents and the job (about 100 lines). The rules, the limits and what is not
 supported (a run launched by a model is never reused, and the code between agents must be deterministic) are in
-[Resuming a job](../../docs/agents.md#resuming-a-job) and the [runner spec](../../docs/specs/runner.md).
+[Resuming a job](../../docs/jobs.md#resuming-a-job) and the [runner spec](../../docs/specs/runner.md).

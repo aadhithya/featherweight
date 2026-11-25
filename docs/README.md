@@ -53,22 +53,23 @@ or finding out why it behaves as it does.
 
 | Guide | Covers | Its spec |
 |---|---|---|
-| [Agents](agents.md) | Defining and running an agent, results, retries, output checks, tools, jobs and tracing, configuration | [Agents](specs/agents.md), [the runner](specs/runner.md), [jobs and tracing](specs/jobs-and-tracing.md), [tools and the store](specs/tools-and-store.md) |
-| [Migrating from 0.1](migration.md) | What breaks between 0.1 and the next release, what to search for, what to write instead, and the same for a coding agent | [The units of work](specs/units.md) |
+| [Getting started](getting-started.md) | Installing it, a first agent, running it, the examples | |
+| [Agents](agents.md) | Defining and running an agent, results, retries, output checks, tools, who is asking, configuration | [Agents](specs/agents.md), [the runner](specs/runner.md), [tools and the store](specs/tools-and-store.md) |
 | [Models and providers](models.md) | `Gemini`, `Gemma`, `Claude`, `OpenAI`, what is checked, adding a model or a provider | [Models](specs/models.md) |
 | [Launching agents](launching-agents.md) | The `subagents` allow-list, the two tools, depth and breadth, concurrency, tracing | [The runner](specs/runner.md#launching-agents) |
 | [MCP tools](mcp.md) | Declaring servers, connections, what the model gets, failures, finding tools by search | [MCP tools](specs/mcp-tools.md), [tool discovery](specs/tool-discovery.md) |
-| [Background jobs](background-jobs.md) | `background_jobs`, `start_background`, here or on a worker, the result message, the events, a chat in the browser, how long a child lives | [Background jobs](specs/background-jobs.md) |
+| [Skills](skills.md) | The skill model, how an agent reads its skills, loading, what the specification covers | [Skills](specs/skills.md) |
 | [Streaming agents](streaming.md) | `StreamingAgent`, `runner.stream()`, the events, thoughts, the AG-UI and Vercel adapters, stopping a response, keeping the conversation, the example | [Streaming agents](specs/streaming.md) |
 | [What the providers accept as attachments](attachments-providers.md) | A dated snapshot of what Anthropic, Google, OpenAI and Ollama accept: types, how, sizes, counts, with links | [Attachments](specs/attachments.md) |
-| [Getting started](getting-started.md) | Installing it, a first agent, running it, the examples | |
-| [Development](development.md) | The make commands, the layout of the repository, contributing | |
-| [Persistence](persistence.md) | What is kept and what is not, resuming a job, result stores, choosing a database, tenants | [Persistence](specs/persistence.md) |
-| [Submitted jobs](submitted-jobs.md) | A job as a class or a decorator, `JobClient`, `JobWorker`, `JobQueue`, cancelling, job events and SSE, the example | [Submitted jobs](specs/submitted-jobs.md) |
-| [A production stack](production-stack.md) | What to use where: Postgres, your queue, your result store, the API, workers, traces; the wiring | [Persistence](specs/persistence.md), [submitted jobs](specs/submitted-jobs.md) |
+| [Persistence](persistence.md) | What the run log holds and what it never does, result stores, choosing a database, migrations, tenants | [Persistence](specs/persistence.md) |
+| [Jobs](jobs.md) | Declaring a job as a class or with `@job`, `run_job`, following it with events and SSE, resuming a failed job | [Jobs](specs/jobs.md) |
+| [Submitted jobs](submitted-jobs.md) | `JobClient`, `JobWorker` and `JobQueue`: submitting a job, cancelling, several workers and takeover, your own queue, the example | [Submitted jobs](specs/submitted-jobs.md) |
+| [Background jobs](background-jobs.md) | `background_jobs`, `start_background`, here or on a worker, the result message, the events, a chat in the browser, how long a child lives | [Background jobs](specs/background-jobs.md) |
 | [Observability](observability.md) | Observers, `OTelObserver`, what is on the spans, content, your own spans, evaluation, the convention versions | [Observers and OpenTelemetry](specs/observability.md) |
-| [Skills](skills.md) | The skill model, how an agent reads its skills, loading, what the specification covers | [Skills](specs/skills.md) |
+| [A production stack](production-stack.md) | What to use where: Postgres, your queue, your result store, the API, workers, traces; the wiring | [Persistence](specs/persistence.md), [submitted jobs](specs/submitted-jobs.md) |
 | [Example pipeline](example-pipeline.md) | `doclearn`: what it does, its agents, how it handles failures, and its limits | |
+| [Migrating from 0.1](migration.md) | What breaks between 0.1 and the next release, what to search for, what to write instead, and the same for a coding agent | [The units of work](specs/units.md) |
+| [Development](development.md) | The make commands, the layout of the repository, contributing | |
 
 ## Specs
 
@@ -82,7 +83,7 @@ runner ──────────── runs agents: attempts, retries, conc
   │   │
   │   ├── models ──────── which model and provider, and how hard it thinks
   │   │
-  │   └── jobs and tracing ── what is recorded, and how
+  │   └── jobs ────────── a pipeline: its status, events and resuming
   │
   ├── tools ───────────── the tools of an attempt, the registry
   │       │

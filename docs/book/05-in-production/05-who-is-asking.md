@@ -79,9 +79,9 @@ returns `Not allowed.`, and the model says it could not open it.
 
 - **The identity is a model you define,** declared once on the runner (`AgentRunner(db, identity_type=Responder)`) and passed with `identity=`. A declared type makes `identity=` required, so one code path
   that forgets it cannot run a tool as nobody; `Responder | None` allows runs without one.
-- **A tool reads it from its `RunContext`.** The model never sees the parameter and cannot set it. A launched agent and an agent started in the background have the identity of their parent.
+- **A tool reads it from its `RunContext`.** The model never sees the parameter and cannot set it. If one agent serves different kinds of people (`identity_type=Teacher | Student`), the tool checks which kind it got before it acts. A launched agent and an agent started in the background have the identity of their parent.
 - **featherweight carries it; you decide.** Checking what the identity may do is the tool's job, and a refusal is text, as any failure of a tool is.
-- **On a worker it is the same.** `client.submit(job, input, identity=...)` puts it in the message, and `JobWorker(..., identity_type=Responder)` rebuilds it ([the guide](../../submitted-jobs.md#who-the-job-is-for-the-identity)).
+- **On a worker it is the same.** `client.submit(job, input, identity=...)` puts it in the message with its kind, the name of its class, and `JobWorker(..., identity_type=Responder)` rebuilds it as that model ([the guide](../../submitted-jobs.md#who-the-job-is-for-the-identity)). The runner must accept the worker's type, and a rename of the class while a job is queued fails that job.
 - **It is a snapshot,** taken when the job was submitted. A queued job can run later, after a role changed or a token expired: for a sensitive action, the tool re-checks with your application by user id.
   A tool gets a credential from the identity with your own code, at each call. The identity is small and has no secrets in it: it sits in the queue message.
 - **Resuming** reuses a step only for the same identity, and whether someone may resume a job at all is your check.
