@@ -13,10 +13,10 @@
   </style>
   <rect class="card" x="0.5" y="0.5" width="959" height="445" rx="8"/>
   <text class="head" x="24" y="34">What the tests cover</text>
-  <text class="muted" x="24" y="56">1,615 tests without a real model · 96% of lines and branches covered</text>
+  <text class="muted" x="24" y="56">1,624 tests without a real model · 96% of lines and branches covered</text>
   <line class="rule" x1="24" y1="76" x2="936" y2="76"/>
   <text class="suite" x="24" y="104">Core</text>
-  <text class="muted" x="24" y="123">575 tests · 98% covered</text>
+  <text class="muted" x="24" y="123">584 tests · 98% covered</text>
   <rect class="chip" x="214" y="90" width="222" height="20" rx="4"/>
   <text class="area" x="223" y="104">Runner and agents</text>
   <text class="count" x="427" y="104">96</text>
@@ -34,7 +34,7 @@
   <text class="count" x="665" y="128">49</text>
   <rect class="chip" x="690" y="114" width="222" height="20" rx="4"/>
   <text class="area" x="699" y="128">Package and release</text>
-  <text class="count" x="903" y="128">120</text>
+  <text class="count" x="903" y="128">129</text>
   <line class="rule" x1="24" y1="148" x2="936" y2="148"/>
   <text class="suite" x="24" y="176">Tools</text>
   <text class="muted" x="24" y="195">243 tests · 94% covered</text>

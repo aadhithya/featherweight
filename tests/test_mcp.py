@@ -247,7 +247,7 @@ async def test_a_tool_error_reaches_the_model_as_text_and_the_run_goes_on(db):
 async def test_calls_in_one_turn_run_at_the_same_time_on_one_process(db):
     message = AIMessage(
         content="",
-        tool_calls=[{"name": "fake_pid", "args": {"delay_s": 0.5}, "id": f"c{i}"} for i in range(4)],
+        tool_calls=[{"name": "fake_pid", "args": {"delay_s": 3}, "id": f"c{i}"} for i in range(4)],
     )
     model = Scripted(script=[message, done()])
     async with runner_with(db, model) as runner:
@@ -259,7 +259,8 @@ async def test_calls_in_one_turn_run_at_the_same_time_on_one_process(db):
     assert result.status == Status.SUCCESS
     pids = set(texts(model))
     assert len(pids) == 1  # one process served all four
-    assert elapsed < 1.9  # four calls of 0.5s one after another would take 2s and more
+    # one after another the four calls take 12s and more; together, 3s and the start of the server, however slow the machine
+    assert elapsed < 9
 
 
 @pytest.mark.parametrize(

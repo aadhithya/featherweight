@@ -20,5 +20,3 @@ Closes #
 ## AI assistance
 
 <!-- Which tools, if any, and for what (writing code, tests, docs, review)? Autocomplete needs no mention. -->
-
-- [ ] I have read every line of this change and can explain it

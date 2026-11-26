@@ -18,9 +18,9 @@ A fact lives in one place: the spec that owns it. Other pages link to it.
 - **The code**, small and focused: one change per pull request, no drive-by refactors or reformatting of what you did not need to touch.
 - **Tests** that fail without the change. Use a fake model ([how](docs/recipes/testing-with-a-fake-model.md)). Never call a paid model API in a test. The tests under `tests/e2e` are run by a maintainer.
 - **The docs**: the guide, the book chapter and the recipe that mention the behaviour, and the skill (`python3 scripts/build_skill.py`; `python3 scripts/build_book.py` for the book). The tests check that they are in step.
-- **A commit history in [Conventional Commits](https://www.conventionalcommits.org)** (`feat(runner): ...`, `fix: ...`), and a description that says why.
+- **A title and commits in [Conventional Commits](https://www.conventionalcommits.org)** (`feat(runner): ...`, `fix: ...`), and a description that says why. Pull requests are squash merged, so the title is what the changelog reads.
 
-Run `make hooks` once per clone. Then `make check` (ruff and ty), `make test` (the unit tests, with Postgres) and `make docs-build` (strict: a broken link fails) must pass on your machine before you open the pull request. They run in Docker, so you install nothing. [Development](docs/development.md) lists the commands.
+Run `make hooks` once per clone. Then `make check` (ruff and ty), `make test` (the unit tests, with Postgres) and `make docs-build` (strict: a broken link fails) must pass on your machine before you open the pull request. They run in Docker, so you install nothing. A pull request also runs `make coverage` ([the rules](TESTING.md)): run it too, and commit the badges and the test map it writes. [Development](docs/development.md) lists the commands.
 
 ## AI-assisted contributions
 
