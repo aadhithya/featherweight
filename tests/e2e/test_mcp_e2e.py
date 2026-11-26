@@ -1,6 +1,6 @@
 """End-to-end test of an agent with MCP tools, with the real model: it calls a tool over MCP, reads a picture a tool
-returns, and reads a PDF a tool returns. The server is the fake one of the unit tests. About four model calls. Run with
-`make e2e ARGS="-k mcp"` (needs GOOGLE_API_KEY in .env). Not part of `make test`.
+returns, and reads a PDF a tool returns. The server is the fake one of the unit tests. About four model calls for each test and provider. Run with
+`make e2e ARGS="-k mcp"`. Not part of `make test`.
 """
 
 import logging
@@ -10,9 +10,7 @@ from pathlib import Path
 from typing import ClassVar
 
 from featherweight.mcp import StdioMCPServer
-from featherweight.model_settings import Gemini, ModelSettings
 from featherweight.models import AgentBase, AgentInput, AgentOutput, Status
-from featherweight.runner import AgentRunner
 
 SERVER = StdioMCPServer(
     name="fake",
@@ -47,7 +45,6 @@ class Helper(AgentBase):
     description: str = "Answers with the help of its tools"
     version: str = "0.1.0"
     prompt: str = "Do what the task says, using your tools, and report the results."
-    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
     mcp_servers: list[StdioMCPServer] = [SERVER]
     input_model: ClassVar[type[AgentInput]] = TaskInput
     output_model: ClassVar[type[AgentOutput]] = TaskOutput
@@ -58,11 +55,11 @@ class Seeker(Helper):
     mcp_servers: list[StdioMCPServer] = [FOUND]
 
 
-async def test_an_agent_finds_mcp_tools_by_search_and_calls_them(db, caplog):
+async def test_an_agent_finds_mcp_tools_by_search_and_calls_them(db, runner, provider, caplog):
     caplog.set_level(logging.INFO, logger="featherweight")
     task = "Add 17 and 25. Read the document from the access note tool and report the access code."
     job_id = await db.create_job("mcp-discovery-e2e")
-    result = await AgentRunner(db).run(Seeker, TaskInput(task=task), job_id=job_id)
+    result = await runner.run(provider.on(Seeker), TaskInput(task=task), job_id=job_id)
 
     assert result.status == Status.SUCCESS, result.error
     out = result.output
@@ -71,14 +68,15 @@ async def test_an_agent_finds_mcp_tools_by_search_and_calls_them(db, caplog):
     assert tools_given_to_the_model(caplog) == ["call_tool", "search_tools"]  # the server's tools were never bound
 
 
-async def test_an_agent_uses_mcp_tools_and_reads_what_they_return(db, caplog):
+async def test_an_agent_uses_mcp_tools_and_reads_what_they_return(db, runner, provider, caplog):
     caplog.set_level(logging.INFO, logger="featherweight")
     task = (
         "Add 17 and 25 with the add tool. Look at the picture from the picture tool and name its single colour. "
         "Read the document from the access_note tool and report the access code."
     )
     job_id = await db.create_job("mcp-e2e")
-    result = await AgentRunner(db).run(Helper, TaskInput(task=task), job_id=job_id)  # no `async with`: it is optional
+    # no `async with`: it is optional
+    result = await runner.run(provider.on(Helper), TaskInput(task=task), job_id=job_id)
 
     assert result.status == Status.SUCCESS, result.error
     out = result.output

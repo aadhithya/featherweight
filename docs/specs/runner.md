@@ -98,11 +98,29 @@ and it does not hold a concurrency slot.
 
 - A retry **resamples with the same input**. The error is recorded in the log but is not sent back to the model. If a
   retry should know what went wrong, the pipeline does that: it builds a new input.
-- Failed attempts: an API error, a reply that does not validate, no structured reply, a rejection by `check_output`, the
-  recursion limit, and any other exception.
+- Failed attempts: an API error, a reply that does not validate, no structured reply, a rejection by `check_output`, an
+  [early answer](#an-early-answer), the recursion limit, and any other exception.
 - **Not retried** (the run fails at once): a `SetupError` (no API key, an unknown model, an MCP server that cannot start,
   two tools with one name), and any 4xx response except 408, 409 and 429, found on the exception or its causes.
 - A `FAILED` result carries the last attempt's error, with its type, at most 2,000 characters.
+
+### An early answer
+
+Where the output is asked for as a tool call (LangChain's `ToolStrategy`: Claude Haiku 5.5 today), the model is given the
+output as one more tool, and it can call it **in the same reply** as other tools. LangChain then takes the answer, runs the
+other tools and ends: the model never sees what they returned, and the answer is empty or made up.
+
+**The runner refuses a run whose last reply holds the output's call and other calls,** with `EarlyAnswerError` (a
+`ValueError`), before `check_output`. The attempt fails and is retried like any other. By then the other tools have run, and
+a retry runs them again, which is the rule for every failed attempt: a tool must be safe to run twice. A streaming agent has
+no typed output, and is not checked.
+
+**It is the runner's, and not the model settings'** (decided 2026-11-26). It is about how a run ended, it is the same
+pattern whatever model made it, and no provider needs another rule. A hook on the settings would be a way to switch the check
+off that nothing needs; if a provider ever needs a rule of its own for a reply, the hook can come with it. Rejected:
+middleware that sends the answer back to the model ([models](models.md#provider-limits)). Seen once on the real API (Claude
+Haiku 5.5, thinking on): one model call, the tool ran, and every field was empty. The reply was not kept; the case was
+reproduced with a fake model.
 
 ## Concurrency
 

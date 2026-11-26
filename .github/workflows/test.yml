@@ -40,6 +40,9 @@ jobs:
       - name: Build the test image
         if: github.event_name == 'pull_request'
         run: make build
+      - name: Package builds, installs and imports
+        if: github.event_name == 'pull_request'
+        run: make package-check
       - name: Tests and coverage
         if: github.event_name == 'pull_request'
         run: make coverage

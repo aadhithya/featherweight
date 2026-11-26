@@ -1,14 +1,11 @@
 """End-to-end test of an agent that launches an agent, with the real model: the parent has to ask for the child's input
-schema, launch it with the input as a JSON string and use what comes back. About four model calls. Run with
-`make e2e ARGS="-k subagents"` (needs GOOGLE_API_KEY in .env). Not part of `make test`.
+schema, launch it with the input as a JSON string and use what comes back. About three model calls for each provider. Run with
+`make e2e ARGS="-k launches"`. Not part of `make test`.
 """
 
 from typing import ClassVar
 
-from featherweight.model_settings import Gemini, ModelSettings
 from featherweight.models import AgentBase, AgentInput, AgentOutput, Status
-from featherweight.runner import AgentRunner
-from featherweight.testing import RecordingContentObserver
 
 ARTICLE = (
     "The harbour authority has approved a new cold-storage warehouse at Pier 4. Construction starts in March and "
@@ -30,7 +27,6 @@ class Summariser(AgentBase):
     description: str = "Summarises a text in at most the given number of words"
     version: str = "0.1.0"
     prompt: str = "Summarise the text in at most `max_words` words. Keep the figures."
-    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
     input_model: ClassVar[type[AgentInput]] = SummariserInput
     output_model: ClassVar[type[AgentOutput]] = SummariserOutput
 
@@ -52,18 +48,16 @@ class Reporter(AgentBase):
         "Write a headline and a summary for the article. Get the summary from the summariser agent (at most 20 words), "
         "and return it unchanged as `summary`. Write the headline yourself."
     )
-    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
     subagents: list[type] = [Summariser]
     input_model: ClassVar[type[AgentInput]] = ReporterInput
     output_model: ClassVar[type[AgentOutput]] = ReporterOutput
 
 
-async def test_an_agent_launches_another_agent_with_the_real_model(db):
+async def test_an_agent_launches_another_agent_with_the_real_model(db, runner, provider, observer):
     job_id = await db.create_job("e2e-subagents")
 
-    observer = RecordingContentObserver()  # the run log keeps no outputs: this keeps them in memory, for the test
-    runner = AgentRunner(db, observers=[observer])
-    result = await runner.run(Reporter, ReporterInput(article=ARTICLE), job_id=job_id)
+    reporter = provider.on(Reporter, subagents=[provider.on(Summariser)])  # the child is on the same provider
+    result = await runner.run(reporter, ReporterInput(article=ARTICLE), job_id=job_id)
 
     assert result.status == Status.SUCCESS, result.error
     print(f"\n[reporter] {result.output.headline!r}\n[summary] {result.output.summary!r}")

@@ -20,7 +20,8 @@ How featherweight is tested, and the rules a change follows. This page owns thes
 | `make test-patterns` | Recipes, book, examples, the skill and the docs rules |
 | `make test` | Everything without a real model |
 | `make coverage` | The same with coverage, the gate, the badges and the map |
-| `make e2e` | Real models. It costs money, and is run by hand |
+| `make package-check` | Builds the package, installs it and imports it |
+| `make e2e` | Real models, on every provider. It costs money, and is run by hand |
 
 All but `make e2e` run with every API key and token blanked. `ARGS` is passed to pytest.
 
@@ -60,11 +61,33 @@ Coverage says that a line ran, not that a test checked what it did. The rules be
 
 ## Real models
 
-`make e2e` has four tests, all on Gemini: MCP tools bound and found by search, a skill, and a sub-agent. Nothing runs on
-Claude or OpenAI, and streaming, attachments, jobs and resume have no real-model test.
+One set of tests ([`tests/e2e`](tests/e2e)) runs on every provider, each on its smallest model
+([the list](tests/e2e/e2e_providers.py)): Gemini, Claude and OpenAI. Only the model settings differ.
 
-Proposed, not decided: a few more scenarios for what depends on the provider (structured output with tools, streaming,
-attachments, thinking), on small models, run by hand before a release. Not one for each recipe.
+| Test | What it checks with the real provider |
+|---|---|
+| Tool and typed output, thinking off and low | The model calls a tool, and its typed output holds what the tool returned |
+| Streamed chat | A tool call, and a second turn that sends back what the provider produced in the first |
+| PDF attachment | The model reads a code that is only in the file |
+| MCP, bound | It calls the tools of a server, and reads the picture and the document they return |
+| MCP, found by search | It finds the tools and calls them, and they are never bound |
+| Skill | It reads the skill, and the file that the skill points to |
+| Sub-agent | It launches the child, and returns the child's summary unchanged |
+
+- **Run by hand, before a release:** `make e2e`, with the keys in `.env`. It costs money. One provider:
+  `make e2e ARGS="-k claude"`. A provider without a key is skipped, so read the summary for skips.
+- **Bounded:** one attempt for each run, so that nothing is paid twice and a first failure shows; 2,000 output tokens for
+  each model call; 20 steps for each agent. Each test prints what it used.
+- **Assert what the framework did,** and values that the model can only have from a tool or a file, not its wording.
+- **Offline too.** [`tests/test_e2e_offline.py`](tests/test_e2e_offline.py) runs the same tests on fake models in CI, with the
+  network closed, and checks that each one fails on a wrong answer. A new real-model test needs a script in
+  [`tests/e2e/e2e_fake.py`](tests/e2e/e2e_fake.py). This keeps the tests working; it says nothing about a provider.
+- **Not covered by a real model:** jobs, resume, workers and background jobs, which depend little on the provider.
+
+## The package
+
+`make package-check` builds the package, installs it into new environments, without extras and with all of them, and imports
+it, with the newest dependencies that it allows. Every pull request runs it.
 
 ## Audit of the pattern tests, 2026-11-26
 

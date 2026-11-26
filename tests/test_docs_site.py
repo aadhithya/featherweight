@@ -3,6 +3,7 @@
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -83,3 +84,28 @@ def test_the_site_is_built_strict_on_every_pull_request():
     assert yaml.safe_load((ROOT / "mkdocs.yml").read_text().replace("!!python", ""))["site_url"] == (
         "https://ftw.asankar.de/"
     )
+
+
+def test_a_github_alert_is_a_highlighted_box_on_the_site(monkeypatch):
+    monkeypatch.syspath_prepend(str(ROOT / "scripts"))
+    from docs_hooks import admonitions
+
+    page = "before\n\n> [!WARNING]\n> **Careful.** See [it](x.md).\n>\n> - one\n\n> a quote stays a quote\n"
+    assert admonitions(page) == (
+        "before\n\n!!! warning\n\n    **Careful.** See [it](x.md).\n\n    - one\n\n> a quote stays a quote\n"
+    )
+
+
+@pytest.mark.parametrize(
+    "page",
+    [
+        "models.md",
+        "agents.md",
+        "migration.md",
+        "book/01-your-first-agent/06-choosing-a-model.md",
+        "recipes/a-different-provider.md",
+    ],
+)
+def test_the_pages_where_one_chooses_a_model_warn_of_the_providers_limits(page):
+    text = (ROOT / "docs" / page).read_text()
+    assert "> [!WARNING]" in text and "#provider-limits" in text or page == "models.md" and "## Provider limits" in text

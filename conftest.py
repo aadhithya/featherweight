@@ -50,11 +50,9 @@ def no_real_llm_calls(request, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def e2e_setup(request):
-    """The e2e tests need the API key (they are skipped without it) and log to stdout."""
+    """The e2e tests log to stdout. Which keys they need is up to the provider (tests/e2e/conftest.py)."""
     if not is_e2e(request.node):
         return
-    if not (os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")):
-        pytest.skip("needs GOOGLE_API_KEY in .env")
     setup_logging()
 
 

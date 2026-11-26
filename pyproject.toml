@@ -100,7 +100,7 @@ pythonpath = ["src", "tests", "examples/doclearn"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-markers = ["e2e: real Gemini calls on the small fixtures and the examples; run with `make e2e`, excluded from `make test`"]
+markers = ["e2e: real model calls, one set of tests on every provider; run with `make e2e`, excluded from `make test`"]
 addopts = "-m 'not e2e'"
 
 [tool.ruff]
@@ -116,7 +116,7 @@ ignore = [
 ]
 
 [tool.ty.environment]
-extra-paths = ["src", "tests", "scripts", "examples/doclearn", "examples/chat"]
+extra-paths = ["src", "tests", "tests/e2e", "scripts", "examples/doclearn", "examples/chat"]
 
 # `ty` is strict on the harness (src/) and the small examples. The tests and the doclearn example read `result.output`
 # after checking `result.status`, which `ty` cannot narrow (they are separate fields), and doclearn's agents override

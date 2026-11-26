@@ -71,6 +71,7 @@ When the agent is defined:
 - `Claude(thinking="off")` is accepted only for a model that allows it (`claude-haiku-5-5`), and only at `high` effort or
   below;
 - `show_thoughts` needs a model that thinks (see above);
+- the output model must be one the model can fill ([provider limits](#provider-limits));
 - a field the class does not have is an error.
 
 ```python
@@ -212,11 +213,59 @@ The run log has one row for each attempt. For the model it keeps:
 
 Rows written before these columns have `NULL` in `provider` and `settings`.
 
+## Provider limits
+
+How a provider is asked for typed output differs by model, and each way has limits. They come from **Anthropic's API and
+SDK, and from LangChain**, which featherweight builds on. featherweight does not work around them. It refuses what would go
+wrong, and says why.
+
+> [!WARNING]
+> **Claude Opus, Sonnet and Fable do not take every output model.** An agent with one of these is refused when it is built:
+>
+> - **No dictionaries.** A `dict` of any kind (also in a list, or optional), and a model with `extra="allow"`. Anthropic's SDK
+>   sends it as an object that may hold nothing: the field would **always come back empty, and the run would succeed**.
+> - **No recursive models**, such as a tree whose nodes hold nodes. The API refuses the request.
+> - **At most 24 optional fields**, counted over the model and the models inside it. `open_questions` is one of them, so a
+>   flat output has room for **23 of your own**. A field with a default is optional.
+>
+> Use a list of a small model in place of a dictionary:
+>
+> ```python
+> class Entry(BaseModel):
+>     key: str
+>     value: str
+>
+>
+> class Out(AgentOutput):
+>     entries: list[Entry] = []  # not `dict[str, str]`
+> ```
+
+> [!WARNING]
+> **A model can answer before it has seen what its tools returned.** For Claude Haiku 5.5, the default Claude model, the typed
+> output is one more tool. The model can call it in the same reply as your tools. LangChain then takes that answer, runs your
+> tools and ends, so the answer is empty or made up.
+>
+> featherweight **fails that attempt** (`EarlyAnswerError`) and retries it, like any failed attempt. Your tools have run by
+> then, and **run again on the retry**: a tool that sends or writes something must be
+> [safe to run twice](agents.md#failures-and-retries). With `max_attempts=1`, the run is `FAILED`.
+
+> [!WARNING]
+> **A reply that does not fit the schema is not always sent back to the model.** Where the output is a tool call (Haiku),
+> LangChain returns the error to the model within the same attempt. With a provider's structured output (Claude Opus, Sonnet
+> and Fable, and OpenAI), **the attempt fails** and is retried. Claude is not given numeric or length limits (`ge`,
+> `max_length`) as rules, only as text in a description, so a reply can break them.
+
+The schema is checked by a method of the model settings, `check_model_output_schema`, so a settings class of your own can
+add its provider's limits. The early answer is checked by the runner, for every model. The decisions, and what was seen on
+the real APIs, are in the specs of [models](https://github.com/aadhithya/featherweight/blob/main/docs/specs/models.md#provider-limits) and
+[the runner](https://github.com/aadhithya/featherweight/blob/main/docs/specs/runner.md#an-early-answer).
+
 ## Limits
 
 - **Gemma and tools.** With tools and an output model in one agent, both hosted Gemma models answered in JSON at once and
   did not call the tool, where Gemini did. Prefer Gemma for agents without tools.
 - **Claude's bounds.** The API does not enforce numeric bounds in an output model (`ge`, `le`), so use `check_output`.
+- **Typed output differs by model:** see [provider limits](#provider-limits) before you choose a Claude model.
 - **OpenAI.** Tested with `gpt-6-luna` only. Every OpenAI model here uses the Responses API.
 - **Older models** (Gemini 2.x, Claude 4, GPT-5) are not built in. Add them as above.
 - **Not available:** token budgets (`thinking_budget`, `budget_tokens`), `verbosity`, `reasoning.mode: pro`, a different

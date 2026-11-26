@@ -27,6 +27,9 @@ class ModelInfo(BaseModel):
     efforts: tuple[str, ...]  # the values of the class's effort (or thinking) field that this model accepts
     default: str | None = None  # what the provider uses when none is sent; for the docs, not used
     can_disable_thinking: bool = False  # Claude: whether `thinking="off"` is accepted
+    # Claude: whether the output is requested as the provider's own structured output. That takes only some schemas
+    # (`Claude.check_model_output_schema`). Without it, the output is requested as a tool call.
+    native_output: bool = False
 
 
 def require(module: str, extra: str) -> Any:
@@ -80,6 +83,11 @@ class ModelSettings(BaseModel):
                     f"{self.model} does not accept {self.effort_field}={value!r}. It accepts: {', '.join(info.efforts)}"
                 )
         return self
+
+    def check_model_output_schema(self, output_model: type[BaseModel]) -> None:
+        """Refuse an output model that this model cannot fill. Raise `ValueError`. It is called when an agent is built, so
+        such an agent never reaches the model. A provider's limits are checked by its settings class; the default accepts
+        everything."""
 
     def label(self) -> str:
         """A short text for the run log: the effort or thinking level."""
@@ -135,6 +143,55 @@ class Gemma(_Google):
     thinking: Literal["minimal", "high"] = "minimal"
 
 
+MAX_OPTIONAL_FIELDS = 24  # what Anthropic's structured output takes, over all the objects of a schema
+
+
+def _schema_problems(output_model: type[BaseModel]) -> tuple[list[str], list[str], int]:
+    """From the JSON schema of a model: the fields that are free-form objects (dictionaries, or models that take extra
+    fields), the fields that make the schema recursive, and how many fields are optional. A definition that is used twice
+    is counted once, so the count is never higher than the provider's."""
+    schema = output_model.model_json_schema()
+    definitions = schema.get("$defs", {})
+    free: list[str] = []
+    recursive: list[str] = []
+    done: set[str] = set()
+    optional = 0
+
+    def walk(node: Any, path: str, inside: tuple[str, ...]) -> None:
+        nonlocal optional
+        if isinstance(node, list):
+            for item in node:
+                walk(item, path, inside)
+        if not isinstance(node, dict):
+            return
+        if "$ref" in node:
+            name = node["$ref"].rsplit("/", 1)[-1]
+            if name in inside:
+                recursive.append(path)
+            elif name not in done:
+                walk(definitions[name], path, (*inside, name))
+                done.add(name)
+            return
+        if node.get("additionalProperties") not in (None, False):
+            free.append(path or output_model.__name__)
+            walk(node["additionalProperties"], f"{path}[...]", inside)
+        properties = node.get("properties", {})
+        optional += len(set(properties) - set(node.get("required", [])))
+        for name, child in properties.items():
+            walk(child, f"{path}.{name}" if path else name, inside)
+        for key in ("items", "prefixItems"):
+            walk(node.get(key), f"{path}[]", inside)
+        for key in ("anyOf", "oneOf", "allOf"):
+            walk(node.get(key), path, inside)
+
+    root = schema
+    if "$ref" in root:  # a model that refers to itself is a reference at the root
+        walk(root, "", ())
+    else:
+        walk({k: v for k, v in root.items() if k != "$defs"}, "", (output_model.__name__,))
+    return free, recursive, optional
+
+
 _CLAUDE_EFFORTS = ("low", "medium", "high", "xhigh", "max")
 _CLAUDE_OFF_EFFORTS = ("low", "medium", "high")  # thinking can only be off at these
 
@@ -149,10 +206,10 @@ class Claude(ModelSettings):
     provider: ClassVar[str] = "anthropic"
     effort_field: ClassVar[str | None] = "effort"
     models: ClassVar[dict[str, ModelInfo]] = {
-        "claude-opus-5-5": ModelInfo(efforts=_CLAUDE_EFFORTS, default="medium"),
-        "claude-sonnet-5-5": ModelInfo(efforts=_CLAUDE_EFFORTS, default="high"),
+        "claude-opus-5-5": ModelInfo(efforts=_CLAUDE_EFFORTS, default="medium", native_output=True),
+        "claude-sonnet-5-5": ModelInfo(efforts=_CLAUDE_EFFORTS, default="high", native_output=True),
         "claude-haiku-5-5": ModelInfo(efforts=_CLAUDE_EFFORTS, default="medium", can_disable_thinking=True),
-        "claude-fable-5-2": ModelInfo(efforts=_CLAUDE_EFFORTS, default="high"),
+        "claude-fable-5-2": ModelInfo(efforts=_CLAUDE_EFFORTS, default="high", native_output=True),
     }
 
     model: str = "claude-haiku-5-5"
@@ -171,6 +228,33 @@ class Claude(ModelSettings):
             if self.effort not in _CLAUDE_OFF_EFFORTS:
                 raise ValueError(f"thinking can only be off at {', '.join(_CLAUDE_OFF_EFFORTS)}, not {self.effort!r}")
         return self
+
+    def check_model_output_schema(self, output_model: type[BaseModel]) -> None:
+        """The models with `native_output` get the output as Anthropic's structured output, which does not take every
+        schema. A dictionary would be sent as an object that may hold nothing, and the run would succeed with it empty.
+        A recursive schema, and more than 24 optional fields, are refused by the API."""
+        info = self.models.get(self.model)
+        if info is None or not info.native_output:
+            return
+        free, recursive, optional = _schema_problems(output_model)
+        problems = []
+        if free:
+            problems.append(
+                f"free-form objects ({', '.join(free)}): a `dict`, or a model that takes extra fields, would always come "
+                "back empty. Use a list of a small model, for example one with `key` and `value`"
+            )
+        if recursive:
+            problems.append(f"a recursive model ({', '.join(recursive)}), which the API refuses")
+        if optional > MAX_OPTIONAL_FIELDS:
+            problems.append(
+                f"{optional} optional fields, and the API takes {MAX_OPTIONAL_FIELDS} (those of nested models count, and "
+                "so does `open_questions`)"
+            )
+        if problems:
+            raise ValueError(
+                f"{self.model} cannot fill {output_model.__name__}: {'; '.join(problems)}. This is a limit of Anthropic's "
+                "structured output (docs/models.md#provider-limits)"
+            )
 
     def label(self) -> str:
         return "off" if self.thinking == "off" else self.effort

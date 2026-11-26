@@ -249,8 +249,9 @@ async def test_a_reply_that_breaks_the_schema_is_fixed_inside_the_attempt(tmp_pa
     assert result.status == Status.SUCCESS and result.attempts == 1 and fake.total == 2
 ```
 
-A schema violation (a wrong type, a value outside a `Literal`) is sent back to the model, which gets a second chance in
-the same attempt. A rejection by `check_output` fails the attempt, and the runner retries it, up to `max_attempts`. Use
+With this fake, the output is a tool call: a schema violation (a wrong type, a value outside a `Literal`) is sent back to
+the model, which gets a second chance in the same attempt. A real model that is asked for its provider's structured output
+gets no second chance: the attempt fails ([provider limits](models.md#provider-limits)). A rejection by `check_output` fails the attempt, and the runner retries it, up to `max_attempts`. Use
 a `Literal` or a validator for rules on the output alone, and `check_output` for rules between the input and the output.
 
 [The full recipe](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/testing-with-a-fake-model.md)
@@ -775,6 +776,11 @@ async def main() -> None:
 if __name__ == "__main__":
     asyncio.run(main())
 ```
+
+> [!WARNING]
+> **Check the output model when you change provider.** Claude Opus, Sonnet and Fable take no dictionaries, no recursive
+> models and at most 24 optional fields, and Claude Haiku can answer before it has seen its tools' results (the attempt then
+> fails and is retried). See [provider limits](models.md#provider-limits).
 
 `pip install "featherweight[anthropic]"` and set `ANTHROPIC_API_KEY` (`openai` and `GOOGLE_API_KEY` for the others). A model that is not in a class's list, or a provider that has no class, is a few lines: [add a model or a provider](models.md#add-a-model-gpt-5x).
 

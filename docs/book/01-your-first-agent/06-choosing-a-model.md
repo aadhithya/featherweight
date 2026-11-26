@@ -83,8 +83,15 @@ The models of a provider are in its class: `docker compose run --rm --no-deps bo
 - **The settings are part of the run log**, so two runs can be told apart by the model that made them.
 - **This file is the project's base.** Later chapters keep `Report`, `Summary` and `IncidentSummariser`, and add one thing at a time.
 - **The providers are `Gemini`, `Gemma`, `Claude` and `OpenAI`:** each is a class with the controls of its provider ([the providers](../../models.md#the-providers)).
+- **Not every output works on every model.** Read the box below before you change the model.
 - **Your own provider is a subclass.** Any provider that LangChain has a chat model for works: subclass `ModelSettings` and write `build()`.
   [Add a provider](../../models.md#add-a-provider-ollama) shows it for Ollama.
+
+> [!WARNING]
+> **The providers differ in what they do with typed output.** Claude Opus, Sonnet and Fable take **no dictionaries**, no
+> recursive models and at most 24 optional fields: such an agent is refused when it is built. Claude Haiku can answer in the
+> same reply in which it calls a tool, before it has seen the result: that attempt fails and is retried, and the tools run
+> again. These come from Anthropic and LangChain. See [provider limits](../../models.md#provider-limits).
 
 > **Why a setting.** The model is part of what the agent is, so it is declared and checked like the rest. See [the model spec](../../specs/models.md).
 

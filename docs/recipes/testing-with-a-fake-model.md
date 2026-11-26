@@ -88,6 +88,7 @@ async def test_a_reply_that_breaks_the_schema_is_fixed_inside_the_attempt(tmp_pa
     assert result.status == Status.SUCCESS and result.attempts == 1 and fake.total == 2
 ```
 
-A schema violation (a wrong type, a value outside a `Literal`) is sent back to the model, which gets a second chance in
-the same attempt. A rejection by `check_output` fails the attempt, and the runner retries it, up to `max_attempts`. Use
+With this fake, the output is a tool call: a schema violation (a wrong type, a value outside a `Literal`) is sent back to
+the model, which gets a second chance in the same attempt. A real model that is asked for its provider's structured output
+gets no second chance: the attempt fails ([provider limits](../models.md#provider-limits)). A rejection by `check_output` fails the attempt, and the runner retries it, up to `max_attempts`. Use
 a `Literal` or a validator for rules on the output alone, and `check_output` for rules between the input and the output.

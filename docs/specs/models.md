@@ -44,9 +44,31 @@ class Triager(AgentBase):
 | `show_thoughts` | `False` by default. Asks the provider to return the model's thoughts (see [streaming agents](streaming.md#the-models-thoughts)). Gemini and Gemma send `include_thoughts`, Claude `thinking.display = "summarized"`, OpenAI `reasoning.summary = "auto"`. Refused for `Claude(thinking="off")` and `OpenAI(effort="none")` |
 | `build()` | Returns the LangChain chat model. Imports the provider's package when called. **Required: the only method a new class must write.** The base class raises `NotImplementedError("<Class> must write build()")`, when the model is built for a run, not when the class is defined |
 | `label()` | A short text for the log, such as `medium`, `off` or `high`. By default the effort or thinking field |
+| `check_model_output_schema(output_model)` | Refuses an output model that this model cannot fill ([provider limits](#provider-limits)). The default accepts everything |
 
 `ModelInfo` is frozen: `efforts` (the allowed values, in order), `default` (what the provider uses when none is sent,
-for the docs), and for Claude `can_disable_thinking`.
+for the docs), and for Claude `can_disable_thinking` and `native_output` ([provider limits](#provider-limits)).
+
+### The model settings validate what an agent asks of its model
+
+**The model settings are in charge of validating everything that depends on the provider or the model:** which model and
+options an agent names, and which output it asks the model to fill. What a provider takes differs by provider and by
+model, so the class that knows the model holds the rule, and the runner and `AgentBase` know no provider: `AgentBase` calls
+the hook. A settings class that a user writes states its own provider's rules in the same place. This does not change who
+validates data: the data of a run is validated against the agent's `input_model` and `output_model`, and by
+`check_output`. Nor is a reply the settings' to judge: the runner refuses an [early answer](runner.md#an-early-answer),
+whatever the model.
+
+| What is validated | By | When |
+|---|---|---|
+| The model and its options | The setting's own validators | When the setting is built |
+| The agent's output model | `check_model_output_schema` | When the agent is built |
+
+**Why: Anthropic is the example, and the reason this was added** (2026-11-26). Claude Opus, Sonnet and Fable take only
+some output schemas, and one of the others, a dictionary, is not refused by anyone: Anthropic's SDK empties it, and the run
+succeeds without the data. The rule is not true of every provider, nor of every Claude model (Haiku takes those schemas),
+so it belongs neither in the agent nor in the runner
+([provider limits](#provider-limits)).
 
 **Validation, when the setting is built:**
 
@@ -104,7 +126,7 @@ not retried, as before. A package that is not installed says which extra to inst
 | Key | `GOOGLE_API_KEY` | same | `ANTHROPIC_API_KEY` | `OPENAI_API_KEY` |
 | Sent as | `thinking_level` | `thinking_level` | `reasoning_effort`, and `thinking={"type": "adaptive"}` or `{"type": "disabled"}` | Responses API, `reasoning={"effort": ...}` |
 | Can thinking be off? | No (`minimal` is nearly off) | `minimal` | Opus 5.5, Sonnet 5.5, Fable: no. Haiku 5.5: yes, at `high` or below | `none`, on `gpt-6.1-terra` and `gpt-6-luna` only |
-| Tools and the reply schema | Native | **Caveat below** | Native; forced `tool_choice` is rejected on Opus 5.5, Sonnet 5.5 and Fable, which LangChain does not use | Responses API; Chat Completions only at effort `none` on Luna |
+| Tools and the reply schema | Native | **Caveat below** | Opus, Sonnet, Fable: native. Haiku: the reply is a tool call ([limits](#provider-limits)). Forced `tool_choice` is rejected on Opus 5.5, Sonnet 5.5 and Fable, which LangChain does not use | Responses API; Chat Completions only at effort `none` on Luna |
 
 Efforts per model:
 
@@ -133,8 +155,55 @@ with `gpt-6-luna` at `none` and `low`: a tool call and our reply schema, with a 
 worked.
 
 **Claude.** `Claude(thinking="off")` sends `{"type": "disabled"}`, and is refused for a model that cannot ([info](#the-model))
-or at `xhigh` or `max`. Tested with `claude-haiku-5-5` at `low`, `claude-sonnet-5-5` and `claude-opus-5-5`: native structured
-output, a defaulted field and a bounded integer worked. The API does not enforce the bound, so `check_output` is the guard.
+or at `xhigh` or `max`. How the output is asked for differs by model, and so do the limits ([provider limits](#provider-limits)):
+Opus, Sonnet and Fable get Anthropic's structured output, and Haiku gets a tool call. The API does not enforce a numeric
+bound, so `check_output` is the guard.
+
+## Provider limits
+
+An output schema that a provider cannot fill is refused by **the model settings**, because that differs by provider and
+by model. featherweight passes the output model to LangChain as it is: LangChain chooses how to ask for it, and the
+provider's own SDK converts the schema. We add no converter and no middleware. We only refuse.
+
+`ModelSettings.check_model_output_schema(output_model)` is called when an agent is built (not for a streaming agent: it
+has no typed output), and by default accepts everything.
+
+**Schemas that Claude's structured output does not take.** `Claude.check_model_output_schema` applies to the models whose
+`ModelInfo.native_output` is true (Opus 5.5, Sonnet 5.5, Fable 5.2), which is where LangChain asks for Anthropic's structured
+output. It raises `ValueError`, so the agent is not built, and the message names every problem:
+
+| Output model has | Without the check |
+|---|---|
+| A free-form object: a `dict` of any kind, also in a list or optional, or a model with `extra="allow"` | Anthropic's SDK (`transform_schema`) sends an object with no properties that allows no others. **The field comes back empty, and the run succeeds** |
+| A recursive model | The API refuses the request (400) |
+| More than 24 optional fields, those of nested models and `open_questions` included | The API refuses the request (400) |
+
+The optional fields are counted from the model's JSON schema, with a definition that is used twice counted once, so the count
+is never higher than the provider's, and an output that the API takes is not refused for it. A model that a user adds to the
+catalog says `native_output=True` itself. `Claude(model="claude-haiku-5-5")` is not held to these limits: LangChain asks it
+for the output as a tool call, which sends the schema as it is. Types without a JSON schema type (`Any`, a bare `list`,
+`object`) are not checked: the SDK raises for them before anything is sent.
+
+**An early answer** is the other limit seen with Claude Haiku, which gets its output as a tool call: it can give the answer
+before it has seen its tools' results. The runner refuses that, whatever the model ([an early answer](runner.md#an-early-answer)).
+
+**When the answer does not validate.** With the output as a tool call, LangChain sends a validation error back to the model
+within the attempt. With a provider's structured output (Claude's native models, and OpenAI), a reply that does not validate
+fails the attempt.
+
+**Decided (2026-11-26).** Refuse, and document. Rejected:
+
+- **Middleware that sends an early answer back to the model.** It works in a prototype, with one call more, but it makes
+  featherweight own the agent loop's edge cases, one middleware after another.
+- **A schema converter of our own.** The conversion is the provider's, and a second one would drift from it.
+- **Asking Haiku for native output** (by changing what LangChain knows about it). In an offline prototype it removes the
+  early answer, and brings all three schema limits to the default Claude model. It was not run against the real API.
+- **Only documenting the dictionary.** The data is lost while the run succeeds, so a warning that is missed costs data.
+
+Seen on the real API on 2026-11-26: Haiku 5.5, with thinking on, gave an empty answer in one reply with a tool call
+(inferred: one model call, the tool ran, every field empty; the reply itself was not kept, and the case was reproduced with a
+fake). Sonnet 5.5 returned `{}` for a `dict[str, str]` it was asked to fill, and refused a recursive schema and one with 31
+optional fields. Opus 5.5 and Fable 5.2 were not run: LangChain asks them the same way.
 
 ## Extending it
 
@@ -214,6 +283,8 @@ the settings.
 
 ## Decisions
 
+- **What depends on the model is validated by its settings** ([above](#the-model-settings-validate-what-an-agent-asks-of-its-model)),
+  not by the runner or by `AgentBase`, which would need to know each provider and each model (2026-11-26).
 - **One class per provider, with its own fields.** The controls differ in kind, so a shared `reasoning: Literal[...]` would
   be wrong for one of them. The label in the log is what is shared.
 - **A catalog per class, checked when the setting is built.** A typo, or an effort a model refuses, fails at definition time.
@@ -234,7 +305,7 @@ the settings.
   Claude's `task_budget`. A user class can add each.
 - Choosing a model by a string alone (`model="claude-sonnet-5-5"`).
 - Different settings per attempt (a stronger model on a retry).
-- Checking the output schema against a provider's schema subset. All three accepted our schemas in the tests.
+- Checking an output schema against a provider's whole schema subset. Only what is in [provider limits](#provider-limits) is checked.
 - Cost, or storing cached-token counts.
 - Provider-side features: built-in tools, web search, prompt caching.
 
@@ -263,5 +334,8 @@ Offline, and with no key. For each class: the catalog (a model not in it, an eff
 have, `temperature` with its message), `label()`, and `build()` with a fake key, which checks what the LangChain object
 holds (`reasoning_effort`, `thinking`, `max_tokens`, `use_responses_api`, `reasoning`, `thinking_level`). A missing package is a
 `ModelSetupError` that names the extra. A user class (GPT-5 and Ollama as in the examples above), the log columns and the
-migration, and an agent with a Claude and one with a Gemini setting. One real-model test per provider, `claude-haiku-5-5`,
+migration, and an agent with a Claude and one with a Gemini setting. [Provider limits](#provider-limits): each refused
+schema, the boundary of the optional fields, the models and providers that are not held to them, the early answer and its
+retry ([the runner](runner.md#an-early-answer)), and two facts of the dependencies that the checks rest on (which Claude models LangChain asks for native output,
+and that Anthropic's SDK still empties a dictionary). One real-model test per provider, `claude-haiku-5-5`,
 `gpt-6-luna` and a small Gemma, run only on request.

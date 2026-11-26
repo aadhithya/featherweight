@@ -74,7 +74,9 @@ attempt 2: SUCCESS
 - **A rejected attempt is retried**, up to `max_attempts` (3). The retry samples again with the same input: the error is in the log
   (`error_type`) and is not sent back to the model.
 - **If every attempt fails, you get a `FAILED` result**, with the last error, and not an exception. Your code decides what that means.
-- A reply that breaks the schema (a wrong type, a value outside a `Literal`) is corrected within the same attempt.
+- A reply that breaks the schema (a wrong type, a value outside a `Literal`) goes back to the model within the same attempt
+  **where the output is a tool call**. With a provider's own structured output it fails the attempt, which is retried
+  ([provider limits](../../models.md#provider-limits)). The book's Gemini agent was not checked for which it is.
 
 > **Why it works this way.** Each attempt is a row, so a failure can be diagnosed from the log. See
 > [attempts and retries](../../specs/runner.md#attempts-and-retries) and [checking the output](../../agents.md#checking-the-output).

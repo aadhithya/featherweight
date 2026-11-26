@@ -1,15 +1,13 @@
 """End-to-end test of an agent with a skill, with the real model: it has to read the skill, and then the file the skill
-points to, because the tags it must use are only in that file. About four model calls. Run with
-`make e2e ARGS="-k skills"` (needs GOOGLE_API_KEY in .env). Not part of `make test`.
+points to, because the tags it must use are only in that file. About three model calls for each provider. Run with
+`make e2e ARGS="-k skill"`. Not part of `make test`.
 """
 
 import re
 from pathlib import Path
 from typing import ClassVar
 
-from featherweight.model_settings import Gemini, ModelSettings
 from featherweight.models import AgentBase, AgentInput, AgentOutput, Status
-from featherweight.runner import AgentRunner
 from featherweight.skills import Skill
 
 SKILL = Skill.from_directory(Path(__file__).parent.parent.parent / "examples" / "skills" / "meeting-notes")
@@ -35,14 +33,13 @@ class NoteWriter(AgentBase):
     description: str = "Writes notes for a meeting"
     version: str = "0.1.0"
     prompt: str = "Write the notes for the meeting in the text."
-    model: ModelSettings = Gemini(model="gemini-3.5-flash-lite", thinking="low")
     skills: list[Skill] = [SKILL]
     input_model: ClassVar[type[AgentInput]] = NotesInput
     output_model: ClassVar[type[AgentOutput]] = NotesOutput
 
 
-async def test_an_agent_reads_its_skill_and_the_file_it_points_to(db):
-    result = await AgentRunner(db).run(NoteWriter, NotesInput(text=MEETING))
+async def test_an_agent_reads_its_skill_and_the_file_it_points_to(runner, provider):
+    result = await runner.run(provider.on(NoteWriter), NotesInput(text=MEETING))
 
     assert result.status == Status.SUCCESS, result.error
     notes = result.output.notes

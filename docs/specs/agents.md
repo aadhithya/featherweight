@@ -44,6 +44,9 @@ A subclass re-annotates a field it overrides (`name: str = "x"`), because Pydant
 
 Each of these raises a `ValidationError` (a programming error, not a failed run):
 
+- the output model: one that the agent's model cannot fill is refused by **its model settings**, which are in charge of
+  everything that depends on the provider or the model ([model settings](models.md#the-model-settings-validate-what-an-agent-asks-of-its-model)). Claude is the example: some of its models take no dictionary.
+
 - `subagents`: every entry is an `AgentBase` subclass; none is the agent's own class; the names of the sub-agents are
   distinct.
 - `background_jobs`: every entry is a non-streaming agent class or a `Job` class; none is the agent's own class; the names are
