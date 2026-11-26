@@ -27,11 +27,11 @@ Everything runs in Docker, so you install none of the project's tools or depende
 - **On commit.** Run `make hooks` once per clone. The hooks are quick: lint, formatting, types, the book's navigation, the docs build and the commit message. **They run no tests.**
 - **While you work.** `make test` runs all the tests with fake models, with Postgres. One area is quicker: `make test-core`, `test-tools`, `test-jobs`, `test-chat` or `test-patterns` (recipes, book, examples).
 - **Before you open the pull request.** `make check`, `make coverage` and `make docs-build` (strict: a broken link fails) must pass on your machine. `make coverage` runs all the tests and needs 95% coverage overall and 90% for each suite that has source. It also writes the coverage badges and the test map in `docs/assets`: commit what it writes.
-- **On the pull request.** The `test` check runs lint, formatting, types, the book and docs builds, and `make coverage`. It fails when the badges or the map are out of date. The `pr-title` check tests the title. Neither is given a key, and no test calls a real model.
+- **On the pull request.** CI runs its checks, and **all of them must pass.** It also fails when the badges or the map are out of date. It is given no keys, and no test calls a real model.
 
 ## Merging
 
-- `main` takes changes through pull requests only. The `test` check must pass and every conversation must be resolved.
+- `main` takes changes through pull requests only. All CI checks must pass and every conversation must be resolved.
 - A contribution needs a maintainer's approval.
 - Pull requests are **squash merged**, so the title becomes the commit on `main`, and the version and the changelog are made from it. Give it the type that matches what a user gets: a change with a fix in it is a `fix:`, even when most of it is tests ([releasing](docs/releasing.md#merging-into-main)).
 
