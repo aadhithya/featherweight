@@ -4,6 +4,8 @@
 #   uv run pre-commit run --all-files
 default_install_hook_types: [pre-commit, commit-msg]
 
+# The hooks are quick checks. The tests and the coverage gate run on every pull request (.github/workflows/test.yml,
+# TESTING.md): run `make test`, one suite with `make test-<suite>`, or `make coverage` yourself while you work.
 repos:
   # Commit messages follow Conventional Commits: `type(scope): subject`, e.g. `feat(runner): launch agents`.
   - repo: https://github.com/compilerla/conventional-pre-commit
@@ -45,21 +47,6 @@ repos:
         entry: python3 scripts/build_book.py --check
         language: system
         files: ^(docs/book/|scripts/build_book\.py$)
-        pass_filenames: false
-
-  # All the tests with coverage, in the Docker container (`make coverage`). They never call a real model: the e2e tests are
-  # excluded and the container gets blank API keys and tokens. It fails under 95% overall or 90% in a suite, and when the
-  # badges or the test map were out of date (it writes them: add them and commit again). The `test` check of a pull request
-  # runs the same (.github/workflows/test.yml). The recipes, the book and the skill are tested too, so a change to a page
-  # runs them.
-  # Needs Docker running and the image built (`make build`; rebuild after a dependency change).
-  - repo: local
-    hooks:
-      - id: coverage
-        name: tests and coverage (docker)
-        entry: make coverage
-        language: system
-        files: ^(src|tests|examples|docs|skills|scripts|\.github|\.claude-plugin)/|^(conftest\.py|pyproject\.toml|uv\.lock|Makefile|\.pre-commit-config\.yaml|mkdocs\.yml|release-please-config\.json|\.release-please-manifest\.json|README\.md|AGENTS\.md|CONTRIBUTING\.md)$
         pass_filenames: false
 
   # The documentation site (mkdocs.yml) must build, strict: a broken link, a missing page or a bad docstring fails the commit.

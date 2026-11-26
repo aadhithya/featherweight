@@ -39,10 +39,10 @@ Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before you change anything. For an age
 ## Working on this repository
 
 ```
-make hooks      # once: conventional commit messages, ruff, ty, and the tests with the coverage gate, on commit
+make hooks      # once: conventional commit messages, ruff, ty and the docs build, on commit (no tests: pull requests run them)
 make check      # ruff, format check and ty
 make test       # the unit tests, with Postgres for the PostgresDatabase tests
-make coverage   # the same, with the coverage gate; writes the badges and the test map
+make coverage   # the same, with the coverage gate; run it before pushing, and commit the badges and test map it writes
 ```
 
 - [`TESTING.md`](TESTING.md) has the rules for tests: the suites, the coverage gate, and what a test of a recipe, a chapter or an example must check.

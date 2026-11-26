@@ -1,4 +1,4 @@
-"""The test suites, the coverage gate and the commit hook that runs them (`scripts/test_report.py`, TESTING.md)."""
+"""The test suites, the coverage gate and where it runs (`scripts/test_report.py`, TESTING.md)."""
 
 import colorsys
 import importlib.util
@@ -98,25 +98,10 @@ def test_the_map_has_the_colours_of_the_documentation_sites_dark_theme():
     assert "prefers-color-scheme" not in drawn  # dark for everyone
 
 
-@pytest.mark.parametrize(
-    "changed",
-    [
-        "docs/recipes/a-pipeline-of-two-agents.md",
-        "docs/book/code/5-3/app.py",
-        "docs/getting-started.md",
-        "skills/featherweight/SKILL.md",
-        "scripts/test_report.py",
-        "examples/skills/agent.py",
-        "src/featherweight/runner.py",
-        "conftest.py",
-        "Makefile",
-    ],
-)
-def test_the_commit_hook_runs_the_tests_for_a_change_to(changed):
-    """The pattern tests run the recipes and the book, so a change to a page must run them."""
+def test_the_commit_hooks_are_quick_and_leave_the_tests_to_the_pull_request():
     config = yaml.safe_load((ROOT / ".pre-commit-config.yaml").read_text())
-    [hook] = [h for repo in config["repos"] for h in repo["hooks"] if h["id"] == "coverage"]
-    assert hook["entry"] == "make coverage" and re.search(hook["files"], changed)
+    entries = [hook.get("entry", "") for repo in config["repos"] for hook in repo["hooks"]]
+    assert not any(re.search(r"pytest|make (test|coverage)", entry) for entry in entries)
 
 
 def test_the_tests_and_the_coverage_run_with_every_key_blanked():
@@ -139,5 +124,8 @@ def test_a_pull_request_runs_the_gate_in_the_check_that_main_requires():
     by_run = {step.get("run", "").strip(): step for step in steps}
     assert by_run["make coverage"]["if"] == "github.event_name == 'pull_request'"
     assert any("git status --porcelain docs/assets" in run and "exit 1" in run for run in by_run)  # stale files fail
+    triggers = workflow[True]  # YAML reads the key `on` as the boolean
+    # no path filter: a change to a page of the docs runs them too
+    assert "pull_request" in triggers and not triggers["pull_request"]
     assert workflow["permissions"] == {"contents": "read"}
     assert "secrets." not in (ROOT / ".github" / "workflows" / "test.yml").read_text()
