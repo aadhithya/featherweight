@@ -33,7 +33,7 @@ Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before you change anything. For an age
 - **A person sends it.** Do not open an issue or a pull request, or answer a review, on your own. Prepare the change, and let the person read it and decide.
 - **Spec first.** A change to behaviour starts as a change to the spec that owns it in [`docs/specs/`](docs/specs/README.md), with the decision and the reason. Then the code, the tests, the guides, the book and the skill. Do not invent behaviour, names or options: check them in the code.
 - **Small and focused.** One change, no drive-by refactors.
-- **Evidence.** Run `make check`, `make test` and `make docs-build`, and report what they printed. Tests use a fake model.
+- **Evidence.** Run `make check`, `make coverage` and `make docs-build`, report what they printed, and commit the files that `make coverage` writes. Tests use a fake model.
 - **Say it.** The pull request template asks for the AI assistance used. Fill it in truthfully.
 
 ## Working on this repository

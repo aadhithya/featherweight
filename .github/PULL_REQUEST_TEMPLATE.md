@@ -12,11 +12,11 @@ Closes #
 
 ## Checked locally
 
-- [ ] `make check`, `make test` and `make docs-build` pass on my machine
+- [ ] `make check`, `make coverage` and `make docs-build` pass on my machine, and the files that `make coverage` wrote are committed
 - [ ] The tests fail without this change, and use a fake model
 - [ ] The guide, the book and the skill are updated (`python3 scripts/build_skill.py`, `python3 scripts/build_book.py`)
 - [ ] The commits are conventional commits
 
 ## AI assistance
 
-<!-- Which tools, if any, and for what (writing code, tests, docs, review)? Autocomplete needs no mention. -->
+<!-- If AI tools helped, write: Built with the help of AI. Autocomplete needs no mention. -->

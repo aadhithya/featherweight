@@ -16,18 +16,31 @@ A fact lives in one place: the spec that owns it. Other pages link to it.
 
 - **The spec**, when behaviour changes (see above), written so that a reader who has not seen your code can tell what the change is for.
 - **The code**, small and focused: one change per pull request, no drive-by refactors or reformatting of what you did not need to touch.
-- **Tests** that fail without the change. Use a fake model ([how](docs/recipes/testing-with-a-fake-model.md)). Never call a paid model API in a test. The tests under `tests/e2e` are run by a maintainer.
+- **Tests** that fail without the change. Use a fake model ([how](docs/recipes/testing-with-a-fake-model.md)). Never call a paid model API in a test. The tests under `tests/e2e` are run by a maintainer. [The testing rules](TESTING.md#what-a-test-must-check) say what a test must check: above all, what the model was given, and not only what the fake was told to answer.
 - **The docs**: the guide, the book chapter and the recipe that mention the behaviour, and the skill (`python3 scripts/build_skill.py`; `python3 scripts/build_book.py` for the book). The tests check that they are in step.
 - **A title and commits in [Conventional Commits](https://www.conventionalcommits.org)** (`feat(runner): ...`, `fix: ...`), and a description that says why. Pull requests are squash merged, so the title is what the changelog reads.
 
-Run `make hooks` once per clone. Then `make check` (ruff and ty), `make test` (the unit tests, with Postgres) and `make docs-build` (strict: a broken link fails) must pass on your machine before you open the pull request. They run in Docker, so you install nothing. A pull request also runs `make coverage` ([the rules](TESTING.md)): run it too, and commit the badges and the test map it writes. [Development](docs/development.md) lists the commands.
+## Checks
+
+Everything runs in Docker, so you install none of the project's tools or dependencies. [Development](docs/development.md) lists the commands.
+
+- **On commit.** Run `make hooks` once per clone. The hooks are quick: lint, formatting, types, the book's navigation, the docs build and the commit message. **They run no tests.**
+- **While you work.** `make test` runs all the tests with fake models, with Postgres. One area is quicker: `make test-core`, `test-tools`, `test-jobs`, `test-chat` or `test-patterns` (recipes, book, examples).
+- **Before you open the pull request.** `make check`, `make coverage` and `make docs-build` (strict: a broken link fails) must pass on your machine. `make coverage` runs all the tests and needs 95% coverage overall and 90% for each suite that has source. It also writes the coverage badges and the test map in `docs/assets`: commit what it writes.
+- **On the pull request.** The `test` check runs lint, formatting, types, the book and docs builds, and `make coverage`. It fails when the badges or the map are out of date. The `pr-title` check tests the title. Neither is given a key, and no test calls a real model.
+
+## Merging
+
+- `main` takes changes through pull requests only. The `test` check must pass and every conversation must be resolved.
+- A contribution needs a maintainer's approval.
+- Pull requests are **squash merged**, so the title becomes the commit on `main`, and the version and the changelog are made from it. Give it the type that matches what a user gets: a change with a fix in it is a `fix:`, even when most of it is tests ([releasing](docs/releasing.md#merging-into-main)).
 
 ## AI-assisted contributions
 
 Use whatever tools you like. These rules apply to the person who opens the pull request or the issue:
 
 - **You are the author.** You have read every line, you can explain it, and you can change it when a reviewer asks. "The agent wrote it" is not an answer to a review comment.
-- **Say so.** The pull request template asks whether AI tools were used, which, and for what. A line is enough. Autocomplete does not need a mention. Nobody is turned away for using a tool, and a change that hid it is treated as a more serious problem than the use.
+- **Say so.** If AI tools helped, write `Built with the help of AI.` under "AI assistance" in the pull request. That line is enough. Autocomplete does not need a mention. Nobody is turned away for using a tool, and a change that hid it is treated as a more serious problem than the use.
 - **Run it yourself.** Run the checks and the tests on your machine, and run the code. Output that an agent reports is not evidence.
 - **No fabrication.** Do not cite APIs, options, issue numbers, benchmarks or behaviour you have not checked in this repository. A bug report states what you saw: the version, the steps, and the output.
 - **No unattended agents.** Do not point an agent at the repository to open issues or pull requests, to reply to review comments, or to mass-produce changes. A person decides each time to send something, after reading it.
@@ -54,6 +67,6 @@ A bug report needs the version (`pip show featherweight`), a minimal example tha
 
 ## Reviews and releases
 
-A maintainer decides whether a change fits, and may ask for it to be smaller, to move into the spec, or to be dropped. Releases are made from the conventional commits ([Releasing](docs/releasing.md)), so the message of a commit is read by someone later: write it for them.
+A maintainer decides whether a change fits, and may ask for it to be smaller, to move into the spec, or to be dropped. Releases are made from the conventional commits ([Releasing](docs/releasing.md)), so the title of a pull request is read by someone later: write it for them.
 
 By contributing you agree that your contribution is licensed under the [Apache License 2.0](LICENSE).
