@@ -1,5 +1,112 @@
 # Changelog
 
+## [0.2.0](https://github.com/aadhithya/featherweight/compare/v0.1.0...v0.2.0) (2026-11-26)
+
+
+### Before you upgrade
+
+**Read the [migration guide](https://github.com/aadhithya/featherweight/blob/v0.2.0/docs/migration.md).** Several changes raise no error:
+
+* **Chats now accept files, and send them to the model's provider.** Attachments are on by default. `max_attachments = 0` refuses them ([attachments](https://github.com/aadhithya/featherweight/blob/v0.2.0/docs/migration.md#attachments-in-a-chat)).
+* **The Vercel adapter no longer ignores file parts.** A `data:` URL goes to the model, and any other URL rejects the request.
+* **Old environment variable names are ignored.** `MAX_CONCURRENT_AGENT_RUNS`, `MAX_AGENT_DEPTH` and `MAX_AGENT_LAUNCHES` now start with `FTW_`, so a limit you lowered is back at its default ([settings](https://github.com/aadhithya/featherweight/blob/v0.2.0/docs/migration.md#settings-logs-and-spans)).
+* **A run can now fail with `EarlyAnswerError`:** a model (seen with Claude Haiku) gave its answer in the same reply as a tool call. The attempt is retried, and the tools run again.
+* **Claude Opus, Sonnet and Fable refuse some output models** when the agent is built: dictionaries, recursive models, and more than 24 optional fields ([typed output](https://github.com/aadhithya/featherweight/blob/v0.2.0/docs/migration.md#typed-output-what-is-now-refused)).
+
+
+### ⚠ BREAKING CHANGES
+
+* **models:** refuse what Claude cannot do with typed output, and test every provider ([#279](https://github.com/aadhithya/featherweight/issues/279))
+* **config:** every environment variable starts with FTW_, and tuning settings are environment-only
+* one word for each unit: run, attempt and execution
+* rename background_agents to background_jobs
+* RunStore, the store argument of AgentRunner, RunContext.store and the store_get and store_set tools are gone. Keep state in your own store, or in a dict keyed by job id when it lives in one process.
+
+### Features
+
+* **config:** every environment variable starts with FTW_, and tuning settings are environment-only ([7152232](https://github.com/aadhithya/featherweight/commit/715223235f3e9c3adc8f2e0573ed65f9775a9dde))
+* **examples:** ask about an attached file ([29f98cc](https://github.com/aadhithya/featherweight/commit/29f98cc5151ea5cbbf7f6b3007737d21a31635f2))
+* **identity:** an identity for a run, for the runner and the tools ([cb6230a](https://github.com/aadhithya/featherweight/commit/cb6230a79eae8cf000d6eddb1996f5de7cbfe475))
+* **identity:** carry the identity of a run across the queue, and rebuild it on the worker ([46e8b7f](https://github.com/aadhithya/featherweight/commit/46e8b7f8174b9925b1fbc58d69611aab38065c41))
+* **identity:** record the hash of a run's identity, and reuse a step only for the same one ([92419d7](https://github.com/aadhithya/featherweight/commit/92419d70b8ae37c6686260d4e16752e02733dbd5))
+* **skills:** Skill.aread, so a skill's text can be read late and without blocking ([5c0b3ee](https://github.com/aadhithya/featherweight/commit/5c0b3ee8c27320c61256f19a25d9dcab47f262c2))
+* **streaming:** attachments in a chat message: converters, and what ChatInput refuses ([939c83c](https://github.com/aadhithya/featherweight/commit/939c83c8ebc6323e48a5042bd323de49cf68df18))
+* **streaming:** limits on the attachments of a conversation (max_attachments, max_bytes) ([a720a4b](https://github.com/aadhithya/featherweight/commit/a720a4bd6b563bd72a9b78acce6bb17463b34dd8))
+* **vercel:** file parts of a user message become attachments ([f3cb6ce](https://github.com/aadhithya/featherweight/commit/f3cb6ce6983c8daae5b0f64028d643eed6505746))
+* **worker:** jobs_lookup, a fallback for jobs that are not declared in code ([4f7a321](https://github.com/aadhithya/featherweight/commit/4f7a3210eed3f0f8d1221d66f3843b5511cad797))
+
+
+### Bug Fixes
+
+* a leftover background_agents field is refused, the hash key is pinned, and the tools spec has its name ([4fae949](https://github.com/aadhithya/featherweight/commit/4fae949866658a5dc60d910d02ebbd66496429ce)), closes [#269](https://github.com/aadhithya/featherweight/issues/269)
+* **adapters:** both adapters word a refusal alike, and the guide says what the Vercel adapter reads and where the body limit sits ([9976d11](https://github.com/aadhithya/featherweight/commit/9976d11120c1c5e6415ce2440db511d46bf150d7))
+* **attachments:** ChatInput validates base64 in chunks, refuses an empty attachment and names the likely mistake ([9ad1849](https://github.com/aadhithya/featherweight/commit/9ad1849dce9d0b6b0452c493326978bee3333221))
+* **attachments:** the limit error is an AttachmentLimitError (a BadRequest), and the limits' docs are corrected ([ccc9828](https://github.com/aadhithya/featherweight/commit/ccc9828df9bf9df03a62bcdfa9ea0d751c2c7c67))
+* **examples:** do not tell a chat twice about a background result ([a6fb31c](https://github.com/aadhithya/featherweight/commit/a6fb31c88ac890473032f4ab17ece68b0f6e1ed6))
+* **examples:** the attach example explains itself when FILE or Q is missing ([6933c6f](https://github.com/aadhithya/featherweight/commit/6933c6f2ab20421048e27e406089ea5347124871))
+* **identity:** a job is for one identity, and four small fixes beside it ([0c047a3](https://github.com/aadhithya/featherweight/commit/0c047a37fd24bc0764cf0d704205e3d368c341f8))
+* **identity:** carry the kind of the identity in the queue message and the hash ([f12a28c](https://github.com/aadhithya/featherweight/commit/f12a28c8a309441fe06f188696a19bcc93a7f51f))
+* **log:** an empty FTW_LOG_LEVEL means INFO, and repair the real-model tests ([#278](https://github.com/aadhithya/featherweight/issues/278)) ([dd42b1c](https://github.com/aadhithya/featherweight/commit/dd42b1c346403b4f13b3a92dfdce5c8bae54aeac))
+* **make:** make docs serves on one port and says so ([5dee570](https://github.com/aadhithya/featherweight/commit/5dee57068a6c76f58138bae723130b1ee01a93db)), closes [#265](https://github.com/aadhithya/featherweight/issues/265)
+* **migrations:** sqlite applies them under a lock, and Postgres constraints are renamed ([fbe26ba](https://github.com/aadhithya/featherweight/commit/fbe26ba586d89926f25874c0c8ea8ff8ecc4e374))
+* **models:** refuse what Claude cannot do with typed output, and test every provider ([#279](https://github.com/aadhithya/featherweight/issues/279)) ([ca6bfbd](https://github.com/aadhithya/featherweight/commit/ca6bfbda084b0bc488ae0684c75c500cc7d95a4d))
+* **skills:** get_skill checks the path the model chose, and aread returns text within a timeout ([62ff501](https://github.com/aadhithya/featherweight/commit/62ff501b65d3020fe6b6a2707a7e2240777d3735))
+* **worker:** jobs_lookup has a timeout, and the worker checks the job name before it asks ([9deed56](https://github.com/aadhithya/featherweight/commit/9deed56f973b35cd3fff8833bc80a864f7aa7d06))
+
+
+### Refactoring
+
+* one word for each unit: run, attempt and execution ([33d136b](https://github.com/aadhithya/featherweight/commit/33d136bdbf05a51082693a628b245d24f1d72fca))
+* remove the run store ([c24d1d7](https://github.com/aadhithya/featherweight/commit/c24d1d7e08b94295abf5ffd23cf1082fc4a63970)), closes [#12](https://github.com/aadhithya/featherweight/issues/12)
+* rename background_agents to background_jobs ([d78d599](https://github.com/aadhithya/featherweight/commit/d78d5995d8c6eead4fff512f8cf20b657d0fd3bb))
+
+
+### Documentation
+
+* a banner at the top of the README ([90dfd77](https://github.com/aadhithya/featherweight/commit/90dfd77ab64d00eacc6510289069e2c05b94943f))
+* a blue palette (hue of [#3](https://github.com/aadhithya/featherweight/issues/3)b5998) in place of the indigo one ([390f184](https://github.com/aadhithya/featherweight/commit/390f184285c523ed60f927e071fac602ca8629a7))
+* a showcase of fw-concierge in the README ([#166](https://github.com/aadhithya/featherweight/issues/166)) ([de1e865](https://github.com/aadhithya/featherweight/commit/de1e865f5a3e52946c9aefaff903a49c5679dd40))
+* add "Seams, not solutions" to the philosophy chapter ([abee50a](https://github.com/aadhithya/featherweight/commit/abee50a8c4533b8f01609f8a083e25aa1f9bc6fe))
+* add a recipes section, with an abridged copy of it in the skill ([7f1da7e](https://github.com/aadhithya/featherweight/commit/7f1da7e1616fd888a336091adc886056c88ea5d0))
+* add a versioned documentation site, published with each release ([21d0961](https://github.com/aadhithya/featherweight/commit/21d0961e830f2e7091ff9daad4af756b1b9a54a7))
+* add fw-qna to the README showcase ([#168](https://github.com/aadhithya/featherweight/issues/168)) ([028ddd9](https://github.com/aadhithya/featherweight/commit/028ddd9131734137443dda78240aa5fbff333706))
+* **approvals:** agents propose, code executes, with a spec, two recipes and a chapter ([528c19d](https://github.com/aadhithya/featherweight/commit/528c19d58210d54c98c7f19bd084b887ff08a471)), closes [#271](https://github.com/aadhithya/featherweight/issues/271)
+* attachments in a chat: the guide, the provider snapshot, the skill and the release step ([753f157](https://github.com/aadhithya/featherweight/commit/753f15741553db2c668d329446b3ea287b7b44e2))
+* **attachments:** agents and jobs pass references and not files, with a recipe, and what is verified about a file returned by a tool ([9ad0add](https://github.com/aadhithya/featherweight/commit/9ad0add259de1deb7172c9ed727f28aa92520a83))
+* **book:** attaching a file, a new chapter in Part 4 ([af5bb47](https://github.com/aadhithya/featherweight/commit/af5bb47ca729bb360bcb035c66bffc74642c3a3b))
+* **book:** the book says that more is possible and where to look, and small wording fixes ([a04f3c9](https://github.com/aadhithya/featherweight/commit/a04f3c9e4722a6b52abb34f752dbf981b42b9a39))
+* credit AI agents in the footer, and set the attribution for this project ([019b773](https://github.com/aadhithya/featherweight/commit/019b773e264be5277400047efe4b0d5ee8cd8f0d))
+* designed by humans ([6fa6714](https://github.com/aadhithya/featherweight/commit/6fa67142d7c848f2130cc200e9691c83a2a167e4))
+* drop the credit line from the README ([4d0b940](https://github.com/aadhithya/featherweight/commit/4d0b94034b308318474da15a1c1456e822529462))
+* drop the joke about import featherweight as ftw ([e897f37](https://github.com/aadhithya/featherweight/commit/e897f37b68af9c0387b051eb0eabd71924296144))
+* finish the migration guide and add it to the skill ([fefbf43](https://github.com/aadhithya/featherweight/commit/fefbf43893b98b91e0e28ed15ffb9d9f7a18a121))
+* finish the words of the units rename ([765ec4a](https://github.com/aadhithya/featherweight/commit/765ec4a0d502c6f9d2ac549e177fe8f7d347ab92))
+* give the three buttons of the home page one style ([3e267dd](https://github.com/aadhithya/featherweight/commit/3e267dd1d30ff8b5f79429977eb28bc2d48346ad))
+* keep only the fw-concierge showcase quote in the README ([#167](https://github.com/aadhithya/featherweight/issues/167)) ([cb0593e](https://github.com/aadhithya/featherweight/commit/cb0593e1be24ac76954660f5144321546b42642a))
+* make the README the home page, restyle the site in the banner's navy, serve on port 8001 ([911d701](https://github.com/aadhithya/featherweight/commit/911d701ae86199629a0ba53d427d123f36e2fa97))
+* **migration:** the guide's tables are tested, and it says a streamed run's id changed ([b2ca2c6](https://github.com/aadhithya/featherweight/commit/b2ca2c66ef7cecedbf52a4fdfa0d3f314e6c99a6))
+* **migration:** the stricter checks, the attachments changes and the new settings of the audits ([390d314](https://github.com/aadhithya/featherweight/commit/390d3146997a7cd8eba04b404d6c1adf0125b006)), closes [#263](https://github.com/aadhithya/featherweight/issues/263)
+* **migration:** warn of the changes that raise no error when you upgrade ([#282](https://github.com/aadhithya/featherweight/issues/282)) ([5d7b578](https://github.com/aadhithya/featherweight/commit/5d7b5787d59b7627e282b12ad960ad4d54d162e0))
+* one name for each thing, an extended glossary, and a test that keeps it so ([f15e053](https://github.com/aadhithya/featherweight/commit/f15e05328cbe43a511dc432b8a2bbd869480fc4b))
+* one owner for each topic, a logical order for the guides, and mermaid diagrams ([95c6d91](https://github.com/aadhithya/featherweight/commit/95c6d91dedf10662b5271ec46a38517e32c54ac7))
+* plain spec titles, a jobs spec, the specs in a logical order, and units marked implemented ([eccb4e8](https://github.com/aadhithya/featherweight/commit/eccb4e8bacb724362384ab7667a4dd33cfb67d63))
+* **recipes:** every recipe is a complete program with an opening, and the tests run all 18 ([537c553](https://github.com/aadhithya/featherweight/commit/537c5533f51f5bd6da2bfd0c075408fabe84e502))
+* **recipes:** giving a sub-agent or a background job the context it needs ([da5c592](https://github.com/aadhithya/featherweight/commit/da5c59268988a4cccecda9c17e86fa8e1d4f5e92)), closes [#267](https://github.com/aadhithya/featherweight/issues/267)
+* rename the background agents files to background jobs ([62ac37a](https://github.com/aadhithya/featherweight/commit/62ac37aed76cee599ac488aabd885eabbb9d9a89))
+* say that a running agent is complete, not that nothing is decided at run time ([a13ad92](https://github.com/aadhithya/featherweight/commit/a13ad926d654339adcb7e91c9c570faf1058b583))
+* say that the ftw alias works, without the joke ([97421d5](https://github.com/aadhithya/featherweight/commit/97421d5bd2836f691438a3a255a1288be6d2f37d))
+* serve the site at ftw.asankar.de ([1a8fe36](https://github.com/aadhithya/featherweight/commit/1a8fe3638287f5f9bdc50dc5c4be304ec535e4f1))
+* shorten the streaming guide ([6a9dd4e](https://github.com/aadhithya/featherweight/commit/6a9dd4e0f25a2c13db5811df5a2f0b56b776d7c8))
+* spec for attachments and a provider reference ([06f150c](https://github.com/aadhithya/featherweight/commit/06f150cb2818851b90f6e0871e0d92eb6af7e26c))
+* **specs:** fix the union row of the identity table and a merged paragraph ([b91c8c9](https://github.com/aadhithya/featherweight/commit/b91c8c97bac45152ca91efa405ef4b53eea401ba))
+* **specs:** record the owner's decisions, and propose three more names ([e4e81fe](https://github.com/aadhithya/featherweight/commit/e4e81feaf5f36f248336027ada9a4561b50ea15f))
+* **specs:** specify Skill.aread, an async read for skills ([0a8987c](https://github.com/aadhithya/featherweight/commit/0a8987c3b4b32cde1603174fe6cece3c8cd4f6c7))
+* **specs:** specify the identity of a run, and the jobs_lookup fallback ([bfe276f](https://github.com/aadhithya/featherweight/commit/bfe276ff7b488c2dba47f805bff712a2c25df43f))
+* **specs:** specify the units of work, and draft the migration document ([834e273](https://github.com/aadhithya/featherweight/commit/834e273f7b9087f1227a7a6425efa31fac89dcfd))
+* split the jobs out of the agents guide ([d72a29b](https://github.com/aadhithya/featherweight/commit/d72a29b15616a9815a007f4a0d2099f3d1c33f49))
+* the developer's responsibilities and recipes for platform builders ([590defc](https://github.com/aadhithya/featherweight/commit/590defc4b8e33724f02ecdeeab1fd7b5bb14376b))
+* use run, attempt and execution for one unit each ([e6b6937](https://github.com/aadhithya/featherweight/commit/e6b69374a81ac1e1cf2ed87012e315ef3d356c9e))
+
 ## 0.1.0 (2026-11-20)
 
 

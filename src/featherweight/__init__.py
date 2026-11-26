@@ -12,7 +12,7 @@ light and imports no model provider. The modules are there too (`featherweight.m
 import importlib
 from typing import TYPE_CHECKING, Any
 
-__version__ = "0.1.0"  # x-release-please-version
+__version__ = "0.2.0"  # x-release-please-version
 
 # The public API: name -> the module that defines it.
 _EXPORTS = {

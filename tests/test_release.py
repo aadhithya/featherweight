@@ -3,6 +3,7 @@
 import json
 import re
 import tomllib
+from collections import Counter
 from pathlib import Path
 
 import yaml
@@ -24,13 +25,17 @@ def test_the_release_config_and_the_manifest_are_valid_and_agree():
     assert extra == [
         "src/featherweight/__init__.py",
         {"type": "json", "path": ".claude-plugin/plugin.json", "jsonpath": "$.version"},
+        # `.value`: release-please's TOML reader wraps each value, and without it the filter matches nothing, with no error
+        {"type": "toml", "path": "uv.lock", "jsonpath": "$.package[?(@.name.value=='featherweight')].version"},
     ]
     assert "x-release-please-version" in (ROOT / "src" / "featherweight" / "__init__.py").read_text()
     # Every place that holds the version is bumped by the release, so they must agree (a new place goes in extra-files too).
     init = re.search(r'__version__ = "([^"]+)"', (ROOT / "src" / "featherweight" / "__init__.py").read_text())
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
     plugin = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text())["version"]
-    assert init and init[1] == pyproject == plugin
+    locked = tomllib.loads((ROOT / "uv.lock").read_text())["package"]
+    [own] = [package["version"] for package in locked if package["name"] == "featherweight"]
+    assert init and init[1] == pyproject == plugin == own
     assert config["bump-minor-pre-major"] is True  # below 1.0, a breaking change bumps the minor version
     title = config[
         "pull-request-title-pattern"
@@ -38,6 +43,37 @@ def test_the_release_config_and_the_manifest_are_valid_and_agree():
     assert title == "chore(release): bump version to ${version}"
     hidden = {section["type"] for section in config["changelog-sections"] if section.get("hidden")}
     assert "chore" in hidden  # so the bump commit itself is not a line of the changelog
+
+
+def entries_listed_twice(changelog: str) -> list[str]:
+    """The entries that a release lists more than once. The list of breaking changes is left out: it repeats, by design, what
+    is under Features or Bug Fixes. 0.1.0 is out, from the time of merge commits, and stays as it was published."""
+    repeated = []
+    for release in re.split(r"^## ", changelog, flags=re.M)[1:]:
+        if release.startswith(("0.1.0 ", "Changelog")):
+            continue
+        parts = [part for part in re.split(r"^### ", release, flags=re.M)[1:] if "BREAKING CHANGES" not in part]
+        # an entry without its links: the same title from two commits is one change said twice
+        entries = [
+            re.sub(r" \(\[.*$", "", line) for part in parts for line in part.splitlines() if line.startswith("* ")
+        ]
+        repeated += sorted(entry for entry, times in Counter(entries).items() if times > 1)
+    return repeated
+
+
+def test_no_release_lists_a_change_twice():
+    """It runs on the release pull request too, so one that lists a change twice cannot be merged (docs/releasing.md)."""
+    assert not entries_listed_twice((ROOT / "CHANGELOG.md").read_text())
+
+
+def test_the_check_finds_a_change_listed_twice_and_allows_a_breaking_one():
+    link = "([abc1234](https://example.com/commit/abc1234))"
+    page = (
+        "# Changelog\n\n## [0.2.0](x) (2026-11-26)\n\n### \u26a0 BREAKING CHANGES\n\n* **a:** one\n\n"
+        f"### Features\n\n* **a:** one {link}\n* **b:** two {link}\n* **b:** two ([#7](y)) {link}\n\n"
+        f"## 0.1.0 (2026-11-20)\n\n### Features\n\n* old {link}\n* old {link}\n"
+    )
+    assert entries_listed_twice(page) == ["* **b:** two"]
 
 
 def test_only_the_release_pull_request_is_manual_and_the_tag_is_made_when_it_is_merged():
