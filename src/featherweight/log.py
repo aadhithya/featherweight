@@ -11,10 +11,10 @@ _HANDLER_FLAG = "_featherweight_handler"
 def setup_logging(level: str | int | None = None) -> logging.Logger:
     """Send `featherweight.*` logs to stdout as plain text. Safe to call more than once.
 
-    Level comes from the argument, else `FTW_LOG_LEVEL`, else INFO.
+    Level comes from the argument, else `FTW_LOG_LEVEL` (empty counts as not set), else INFO.
     """
     logger = logging.getLogger("featherweight")
-    logger.setLevel(level or os.environ.get("FTW_LOG_LEVEL", "INFO"))
+    logger.setLevel(level or os.environ.get("FTW_LOG_LEVEL", "").strip() or "INFO")
     if not any(getattr(h, _HANDLER_FLAG, False) for h in logger.handlers):
         handler = logging.StreamHandler(sys.stdout)
         handler.setFormatter(logging.Formatter(FORMAT))

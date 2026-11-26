@@ -8,6 +8,7 @@ from typing import ClassVar
 from featherweight.model_settings import Gemini, ModelSettings
 from featherweight.models import AgentBase, AgentInput, AgentOutput, Status
 from featherweight.runner import AgentRunner
+from featherweight.testing import RecordingContentObserver
 
 ARTICLE = (
     "The harbour authority has approved a new cold-storage warehouse at Pier 4. Construction starts in March and "
@@ -60,7 +61,9 @@ class Reporter(AgentBase):
 async def test_an_agent_launches_another_agent_with_the_real_model(db):
     job_id = await db.create_job("e2e-subagents")
 
-    result = await AgentRunner(db).run(Reporter, ReporterInput(article=ARTICLE), job_id=job_id)
+    observer = RecordingContentObserver()  # the run log keeps no outputs: this keeps them in memory, for the test
+    runner = AgentRunner(db, observers=[observer])
+    result = await runner.run(Reporter, ReporterInput(article=ARTICLE), job_id=job_id)
 
     assert result.status == Status.SUCCESS, result.error
     print(f"\n[reporter] {result.output.headline!r}\n[summary] {result.output.summary!r}")
@@ -71,4 +74,6 @@ async def test_an_agent_launches_another_agent_with_the_real_model(db):
     assert children, "the reporter never launched the summariser"
     assert children[0].parent_attempt_id == parent.attempt_id and children[0].depth == 2
     assert result.output.summary and result.output.headline
-    assert children[0].output["summary"].strip() == result.output.summary.strip(), "the summary was not the child's"
+    outputs = [end.output for end in observer.records("attempt.finish") if end.output]
+    from_the_children = {o["summary"].strip() for o in outputs if "headline" not in o}  # the reporter's has a headline
+    assert result.output.summary.strip() in from_the_children, "the summary was not the child's"
