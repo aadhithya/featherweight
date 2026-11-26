@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="446" viewBox="0 0 960 446" role="img" aria-label="What featherweight's tests cover">
+  <title>What featherweight's tests cover</title>
+  <style>
+    text { font-family: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", "Segoe UI", "Helvetica Neue", Arial, sans-serif; fill: #d7deeb; }
+    .card { fill: #0c111b; stroke: #233350; }
+    .rule { stroke: #233350; }
+    .chip { fill: #101b30; stroke: #233350; }
+    .head { font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Charter, "Book Antiqua", Georgia, serif; font-size: 21px; font-weight: 600; }
+    .suite { font-size: 15px; font-weight: 650; fill: #aac0e8; }
+    .area { font-size: 12px; }
+    .muted { font-size: 12px; fill: #aeb9cc; }
+    .count { font-size: 12px; fill: #aeb9cc; text-anchor: end; }
+  </style>
+  <rect class="card" x="0.5" y="0.5" width="959" height="445" rx="8"/>
+  <text class="head" x="24" y="34">What the tests cover</text>
+  <text class="muted" x="24" y="56">1,685 tests without a real model · 96% of lines and branches covered</text>
+  <line class="rule" x1="24" y1="76" x2="936" y2="76"/>
+  <text class="suite" x="24" y="104">Core</text>
+  <text class="muted" x="24" y="123">628 tests · 98% covered</text>
+  <rect class="chip" x="214" y="90" width="222" height="20" rx="4"/>
+  <text class="area" x="223" y="104">Runner and agents</text>
+  <text class="count" x="427" y="104">96</text>
+  <rect class="chip" x="452" y="90" width="222" height="20" rx="4"/>
+  <text class="area" x="461" y="104">Settings</text>
+  <text class="count" x="665" y="104">162</text>
+  <rect class="chip" x="690" y="90" width="222" height="20" rx="4"/>
+  <text class="area" x="699" y="104">Identity</text>
+  <text class="count" x="903" y="104">129</text>
+  <rect class="chip" x="214" y="114" width="222" height="20" rx="4"/>
+  <text class="area" x="223" y="128">Persistence</text>
+  <text class="count" x="427" y="128">58</text>
+  <rect class="chip" x="452" y="114" width="222" height="20" rx="4"/>
+  <text class="area" x="461" y="128">Observability</text>
+  <text class="count" x="665" y="128">51</text>
+  <rect class="chip" x="690" y="114" width="222" height="20" rx="4"/>
+  <text class="area" x="699" y="128">Package and release</text>
+  <text class="count" x="903" y="128">132</text>
+  <line class="rule" x1="24" y1="148" x2="936" y2="148"/>
+  <text class="suite" x="24" y="176">Tools</text>
+  <text class="muted" x="24" y="195">243 tests · 94% covered</text>
+  <rect class="chip" x="214" y="162" width="222" height="20" rx="4"/>
+  <text class="area" x="223" y="176">Tools and registry</text>
+  <text class="count" x="427" y="176">64</text>
+  <rect class="chip" x="452" y="162" width="222" height="20" rx="4"/>
+  <text class="area" x="461" y="176">MCP and discovery</text>
+  <text class="count" x="665" y="176">69</text>
+  <rect class="chip" x="690" y="162" width="222" height="20" rx="4"/>
+  <text class="area" x="699" y="176">Skills</text>
+  <text class="count" x="903" y="176">89</text>
+  <rect class="chip" x="214" y="186" width="222" height="20" rx="4"/>
+  <text class="area" x="223" y="200">Sub-agents</text>
+  <text class="count" x="427" y="200">21</text>
+  <line class="rule" x1="24" y1="220" x2="936" y2="220"/>
+  <text class="suite" x="24" y="248">Jobs</text>
+  <text class="muted" x="24" y="267">373 tests · 95% covered</text>
+  <rect class="chip" x="214" y="234" width="222" height="20" rx="4"/>
+  <text class="area" x="223" y="248">Jobs and results</text>
+  <text class="count" x="427" y="248">118</text>
+  <rect class="chip" x="452" y="234" width="222" height="20" rx="4"/>
+  <text class="area" x="461" y="248">Workers and queues</text>
+  <text class="count" x="665" y="248">127</text>
+  <rect class="chip" x="690" y="234" width="222" height="20" rx="4"/>
+  <text class="area" x="699" y="248">Client and events</text>
+  <text class="count" x="903" y="248">78</text>
+  <rect class="chip" x="214" y="258" width="222" height="20" rx="4"/>
+  <text class="area" x="223" y="272">Background jobs</text>
+  <text class="count" x="427" y="272">50</text>
+  <line class="rule" x1="24" y1="292" x2="936" y2="292"/>
+  <text class="suite" x="24" y="320">Chat</text>
+  <text class="muted" x="24" y="339">235 tests · 95% covered</text>
+  <rect class="chip" x="214" y="306" width="222" height="20" rx="4"/>
+  <text class="area" x="223" y="320">Streaming</text>
+  <text class="count" x="427" y="320">74</text>
+  <rect class="chip" x="452" y="306" width="222" height="20" rx="4"/>
+  <text class="area" x="461" y="320">Adapters</text>
+  <text class="count" x="665" y="320">38</text>
+  <rect class="chip" x="690" y="306" width="222" height="20" rx="4"/>
+  <text class="area" x="699" y="320">Attachments</text>
+  <text class="count" x="903" y="320">123</text>
+  <line class="rule" x1="24" y1="362" x2="936" y2="362"/>
+  <text class="suite" x="24" y="390">Patterns</text>
+  <text class="muted" x="24" y="409">206 tests · judged by assertions</text>
+  <rect class="chip" x="214" y="376" width="222" height="20" rx="4"/>
+  <text class="area" x="223" y="390">Recipes</text>
+  <text class="count" x="427" y="390">46</text>
+  <rect class="chip" x="452" y="376" width="222" height="20" rx="4"/>
+  <text class="area" x="461" y="390">Book</text>
+  <text class="count" x="665" y="390">49</text>
+  <rect class="chip" x="690" y="376" width="222" height="20" rx="4"/>
+  <text class="area" x="699" y="390">Examples</text>
+  <text class="count" x="903" y="390">29</text>
+  <rect class="chip" x="214" y="400" width="222" height="20" rx="4"/>
+  <text class="area" x="223" y="414">Skill and docs rules</text>
+  <text class="count" x="427" y="414">77</text>
+  <rect class="chip" x="452" y="400" width="222" height="20" rx="4"/>
+  <text class="area" x="461" y="414">Real-model tests, offline</text>
+  <text class="count" x="665" y="414">5</text>
+</svg>

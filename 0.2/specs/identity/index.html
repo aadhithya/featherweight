@@ -1,0 +1,5817 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="An opinionated Python agent harness. An agent is a typed class, a runner runs it with retries and limits, and jobs run in your process or on workers.">
+      
+      
+      
+        <link rel="canonical" href="https://ftw.asankar.de/0.2/specs/identity/">
+      
+      
+        <link rel="prev" href="../skills/">
+      
+      
+        <link rel="next" href="../approvals/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Identity - featherweight</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../assets/site.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#identity" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="featherweight" class="md-header__button md-logo" aria-label="featherweight" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            featherweight
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Identity
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/aadhithya/featherweight" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    aadhithya/featherweight
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../book/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Book
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../recipes/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Recipes
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../documentation/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Specs
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  API reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="featherweight" class="md-nav__button md-logo" aria-label="featherweight" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    featherweight
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/aadhithya/featherweight" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    aadhithya/featherweight
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../book/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Book
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Book
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_2" id="__nav_2_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 0: Start here
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 0: Start here
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/00-start-here/01-what-it-is/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What featherweight is
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/00-start-here/02-the-map/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/00-start-here/03-philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The philosophy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/00-start-here/04-how-to-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How to read this book
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 1: Your first agent
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 1: Your first agent
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/01-your-first-agent/01-install-and-set-up/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install and set up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/01-your-first-agent/02-a-typed-agent/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A typed agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/01-your-first-agent/03-running-it/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running it
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/01-your-first-agent/04-what-happened/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What happened
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/01-your-first-agent/05-failures-and-check-output/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Failures and check_output
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/01-your-first-agent/06-choosing-a-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing a model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 2: Abilities
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 2: Abilities
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/02-abilities/01-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/02-abilities/02-mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/02-abilities/03-skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/02-abilities/04-sub-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sub-agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_5" id="__nav_2_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 3: Jobs and pipelines
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 3: Jobs and pipelines
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/03-jobs-and-pipelines/01-what-a-job-is/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What a job is
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/03-jobs-and-pipelines/02-status-and-events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Status and events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/03-jobs-and-pipelines/03-results-and-the-result-store/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Results and the result store
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/03-jobs-and-pipelines/04-resume/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resume
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_6" id="__nav_2_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 4: Chat
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 4: Chat
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/04-chat/01-a-streaming-agent/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A streaming agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/04-chat/02-in-the-browser/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    In the browser
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/04-chat/03-stopping-and-the-conversation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stopping and the conversation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/04-chat/04-attaching-a-file/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attaching a file
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_7" id="__nav_2_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 5: In production
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 5: In production
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/05-in-production/01-submit-and-a-worker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Submit and a worker
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/05-in-production/02-several-workers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Several workers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/05-in-production/03-background-jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Background jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/05-in-production/04-observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/05-in-production/05-who-is-asking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Who is asking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/05-in-production/06-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Approvals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_8" id="__nav_2_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 6: Bring your own storage
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 6: Bring your own storage
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/06-bring-your-own-storage/01-postgres/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Postgres
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/06-bring-your-own-storage/02-a-result-store/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A result store
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/06-bring-your-own-storage/03-a-job-queue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A job queue
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/06-bring-your-own-storage/04-a-database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A database
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/06-bring-your-own-storage/05-an-observer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    An observer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_9" id="__nav_2_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 7: Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 7: Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/07-reference/01-the-guides/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The guides
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/07-reference/02-the-specs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The specs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/07-reference/03-the-glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/07-reference/04-the-finished-project/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The finished project
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../recipes/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipes
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Recipes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-pipeline-of-two-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A pipeline of two agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/resuming-a-failed-job/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resuming a failed job
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/telling-a-retry-what-went-wrong/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Telling a retry what went wrong
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/testing-with-a-fake-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing with a fake model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/an-agent-with-an-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    An agent with an MCP server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/an-agent-that-launches-another/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    An agent that launches another
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/giving-a-sub-agent-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Giving a sub-agent the context it needs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/approving-what-an-agent-proposes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Approving what an agent proposes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/asking-the-user-in-the-middle-of-a-job/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Asking the user in the middle of a job
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-chat-agent-that-streams/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A streaming agent for chat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-result-store-of-your-own/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A result store of your own
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-job-that-a-worker-runs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A job that a worker runs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/traces-for-jobs-and-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Traces for jobs and agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/an-agent-that-starts-another-and-goes-on/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    An agent that starts another and goes on
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-different-provider/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A different provider
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-skill-from-a-database-or-s3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A skill from a database or S3
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-skill-for-each-department/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A skill for each department
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/agents-built-from-json/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents built from JSON, with your own rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-queue-that-signs-its-messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A queue that signs its messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-tool-that-gets-a-token-for-its-identity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A tool that gets a token for its identity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/files-for-an-agent-or-a-job/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Files for an agent or a job: pass a reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models and providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../launching-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents that launch agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Streaming agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../attachments-providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What the providers accept as attachments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistence: what is kept, and what is not
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../submitted-jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Submitted jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../background-jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Background jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../production-stack/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A production stack
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../example-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example pipeline: doclearn
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating from 0.1
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../releasing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releasing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Specs
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Specs
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../units/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Units of work
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../runner/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent runner
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models and providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools and the tool registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tool-discovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool discovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Identity
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Identity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#goal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Goal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The identity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#declaring-and-passing-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Declaring and passing it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-tools-read-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How tools read it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#who-inherits-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Who inherits it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#across-the-queue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Across the queue
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resuming-a-job" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resuming a job
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-featherweight-never-does-with-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What featherweight never does with it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-developers-responsibilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The developer's responsibilities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decisions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#not-supported" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Not supported
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tests
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The work
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Approvals: agents propose, code executes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Streaming agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attachments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attachments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run log and persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../submitted-jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Submitted jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../background-jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Background jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observers and OpenTelemetry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/adapters-agui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.adapters.agui
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/adapters-errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.adapters.errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/adapters-vercel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.adapters.vercel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/client/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.client
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.context
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/db/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.db
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/identity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.identity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/log/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.log
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.mcp
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/model_settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.model_settings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/observers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.observers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/otel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.otel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/postgres/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.postgres
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/queue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.queue
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/runner/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.runner
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/sqlite/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.sqlite
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/sse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.sse
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.streaming
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/worker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.worker
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#goal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Goal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-identity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The identity
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#declaring-and-passing-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Declaring and passing it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-tools-read-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How tools read it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#who-inherits-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Who inherits it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#across-the-queue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Across the queue
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#resuming-a-job" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resuming a job
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-featherweight-never-does-with-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What featherweight never does with it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-developers-responsibilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The developer's responsibilities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decisions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#not-supported" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Not supported
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tests
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The work
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/aadhithya/featherweight/edit/main/docs/specs/identity.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="identity">Identity<a class="headerlink" href="#identity" title="Permanent link">&para;</a></h1>
+<p>Status: implemented, in <a href="https://github.com/aadhithya/featherweight/issues/190">epic #190</a>: the runner and the tools (<a href="https://github.com/aadhithya/featherweight/issues/195">#195</a>: <code>identity_type</code>, <code>identity=</code>, <code>RunContext.identity</code>, <code>CURRENT_IDENTITY</code>, <code>JobContext.identity</code> and the inheritance), the identity hash (<a href="https://github.com/aadhithya/featherweight/issues/197">#197</a>: the <code>identity_hash</code> column, <code>fingerprint.identity_hash</code> and the reuse check) the queue and the worker (<a href="https://github.com/aadhithya/featherweight/issues/196">#196</a>: the <code>identity</code> field of the message, <code>JobClient(identity_type=)</code> and <code>submit(identity=)</code>, <code>JobWorker(identity_type=)</code>, <code>InvalidJobIdentity</code>, the migration of the sqlite queue table, and the kit's check), <code>Skill.aread</code> (<a href="https://github.com/aadhithya/featherweight/issues/198">#198</a>) and <code>jobs_lookup</code> (<a href="https://github.com/aadhithya/featherweight/issues/199">#199</a>), which <a href="../skills/">skills</a> and <a href="../submitted-jobs/">submitted jobs</a> own. The guides are <a href="../../agents/#who-is-asking-the-identity-of-a-run">who is asking</a> and <a href="../../submitted-jobs/#who-the-job-is-for-the-identity">the identity across the queue</a>.</p>
+<p>It builds on <a href="../runner/">the runner</a>, <a href="../tools/">tools and the registry</a>, <a href="../submitted-jobs/">submitted jobs</a> and <a href="../persistence/">persistence</a>,
+and adds a few lines to each. What it owns is the identity itself.</p>
+<ul>
+<li><a href="#goal">Goal</a></li>
+<li><a href="#the-identity">The identity</a></li>
+<li><a href="#declaring-and-passing-it">Declaring and passing it</a></li>
+<li><a href="#how-tools-read-it">How tools read it</a></li>
+<li><a href="#who-inherits-it">Who inherits it</a></li>
+<li><a href="#across-the-queue">Across the queue</a></li>
+<li><a href="#resuming-a-job">Resuming a job</a></li>
+<li><a href="#what-featherweight-never-does-with-it">What featherweight never does with it</a></li>
+<li><a href="#the-developers-responsibilities">The developer's responsibilities</a></li>
+<li><a href="#decisions">Decisions</a></li>
+<li><a href="#not-supported">Not supported</a></li>
+<li><a href="#tests">Tests</a></li>
+<li><a href="#the-work">The work</a></li>
+</ul>
+<h2 id="goal">Goal<a class="headerlink" href="#goal" title="Permanent link">&para;</a></h2>
+<p>A tool often has to act for someone: read this user's files, send this user's mail, count against this tenant's quota. <strong>The model must not choose who</strong>, and
+the answer cannot come from the model's input. An identity is what the application tells a run about who it is for. It is a typed value that reaches the tools
+and nothing else, and it is the same value, apart from the fields marked <code>exclude=True</code>, whether the run happens in your process or on a worker ("one concept, two places": a tool that works in a process
+must not silently get nothing on a worker).</p>
+<p>featherweight <strong>carries</strong> the identity. It does not authenticate anyone, decide what they may do, get a credential for them or keep them: those are the
+application's (<a href="#the-developers-responsibilities">the developer's responsibilities</a>). This is the principle of the framework applied once more: a typed seam,
+checked at the boundary and closed when misused, and no solution built behind it (<a href="../../book/00-start-here/03-philosophy/">the philosophy</a>).</p>
+<h2 id="the-identity">The identity<a class="headerlink" href="#the-identity" title="Permanent link">&para;</a></h2>
+<p>An identity is a Pydantic model that the application defines:</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Teacher</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+    <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">tenant</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">roles</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">language</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"en"</span>
+</code></pre></div>
+<ul>
+<li>It holds what the tools need to know about who the run is for: ids, a tenant, roles, a language. Whatever it holds is the application's: featherweight does
+  not read its fields.</li>
+<li><strong>Small.</strong> It travels in the queue message of a submitted job, so it holds ids, not names or addresses.</li>
+<li><strong>No secrets.</strong> A token in it would sit in the queue until the message is acknowledged, and a queued job can outlive a token. A tool gets a credential from the
+  identity with the application's own code (<a href="#the-developers-responsibilities">the responsibilities</a>). A field marked <code>exclude=True</code> is the one exception: it is
+  not serialised, so it is dropped when a job is submitted, and it is not part of the <a href="#resuming-a-job">hash</a>. It is there for a value that exists only in your process (a token that
+  the tool would otherwise ask the vault for). <strong>It needs a default</strong> (<code>jwt: str | None = Field(None, exclude=True)</code>): the worker rebuilds the identity without it, and a model whose excluded field
+  has none would fail every job on the worker, late, after <code>submit</code> had made and queued it. So <code>identity_type</code> is refused when the runner, the worker or the client is built if a model has an excluded
+  field with no default. The pattern for a tool: in a process it may find the value; on a worker it is the default, and the tool falls back to the vault by user id.</li>
+<li><strong>One job, one identity.</strong> A job is for one identity: every run that carries its <code>job_id</code> has the same identity, or none. To run something for another identity, use another job (a resume is a new job, so a
+  support person can resume a user's job under their own identity). <code>run_job</code> and <code>submit</code> give the whole job one identity by construction; only a developer who passes the same <code>job_id</code> to <code>run</code>,
+  <code>run_many</code> or <code>stream</code> with different identities can break it, and the runner <a href="#declaring-and-passing-it">refuses it</a>.</li>
+<li>
+<p><strong>Read-only, by recommendation.</strong> An identity is a value the application hands over: do not change it after a run has it. The hash is computed from the object at each run, so a tool that changes it
+  changes what later runs record. featherweight does not enforce this (a frozen model is the application's choice).</p>
+</li>
+<li>
+<p><strong>It is a model, not a field of an agent.</strong> An agent is a static definition and is not changed by who runs it: the same agent class runs for every user, and the
+  identity is not in <code>agent_hash</code>.</p>
+</li>
+</ul>
+<h2 id="declaring-and-passing-it">Declaring and passing it<a class="headerlink" href="#declaring-and-passing-it" title="Permanent link">&para;</a></h2>
+<p>The application declares the type once, where the framework needs it to check and to rebuild the identity:</p>
+<div class="highlight"><pre><span></span><code><span class="n">runner</span> <span class="o">=</span> <span class="n">AgentRunner</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">identity_type</span><span class="o">=</span><span class="n">Teacher</span><span class="p">)</span>
+<span class="n">worker</span> <span class="o">=</span> <span class="n">JobWorker</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">queue</span><span class="p">,</span> <span class="n">runner</span><span class="p">,</span> <span class="n">jobs</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">],</span> <span class="n">identity_type</span><span class="o">=</span><span class="n">Teacher</span><span class="p">)</span>
+<span class="n">client</span> <span class="o">=</span> <span class="n">JobClient</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">queue</span><span class="p">,</span> <span class="n">results</span><span class="p">,</span> <span class="n">identity_type</span><span class="o">=</span><span class="n">Teacher</span><span class="p">)</span>  <span class="c1"># optional</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">runner</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">Summarise</span><span class="p">,</span> <span class="n">summarise_input</span><span class="p">,</span> <span class="n">identity</span><span class="o">=</span><span class="n">teacher</span><span class="p">)</span>
+</code></pre></div>
+<p><strong><code>identity=</code> is an argument of <code>run</code>, <code>run_many</code>, <code>stream</code>, <code>run_job</code> and <code>JobClient.submit</code>.</strong> The declared type says what it must be:</p>
+<table>
+<thead>
+<tr>
+<th>Declared as</th>
+<th>A run without <code>identity=</code></th>
+<th>A run with <code>identity=</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>nothing</td>
+<td>fine: no identity</td>
+<td><code>TypeError</code>: the framework could not rebuild it on a worker</td>
+</tr>
+<tr>
+<td><code>Teacher</code></td>
+<td><code>TypeError</code></td>
+<td>checked: it must be a <code>Teacher</code></td>
+</tr>
+<tr>
+<td><code>Teacher</code> or <code>None</code> (a union)</td>
+<td>fine: no identity</td>
+<td>checked: it must be a <code>Teacher</code></td>
+</tr>
+<tr>
+<td><code>Teacher</code> or <code>Student</code> (a union of models)</td>
+<td><code>TypeError</code></td>
+<td>checked: it must be one of them</td>
+</tr>
+<tr>
+<td><code>Teacher</code>, <code>Student</code> or <code>None</code></td>
+<td>fine: no identity</td>
+<td>checked: it must be one of them</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong><code>identity_type</code> is a Pydantic model class, or a union of model classes, with or without <code>None</code>.</strong> Anything else, and a union that has two classes with the same <code>__name__</code> (two <code>Teacher</code> classes in two
+  modules), raises <code>TypeError</code> when the runner, the worker or the client is built, not at the first run. A union is for one agent or job that serves different kinds of people, a teacher or a student: the
+  application says which kinds, and the identity says which one this run is for (<a href="#across-the-queue">the kind</a>).</li>
+<li><strong>A missing identity is a programming error and raises</strong>, like an input of the wrong type, and before anything runs. The case it prevents: one code path of
+  an application forgets <code>identity=</code>, and a tool runs as nobody. A union of the type and <code>None</code> (<code>identity_type=Teacher | None</code>) is how an application says that some runs (a nightly job) have none.</li>
+<li><code>run_many</code> gives every input the same identity, and checks it <strong>once, at the call, whatever the number of inputs</strong> (also none). <code>run_job</code> and <code>submit</code> give it to the job: every agent the job runs with <code>ctx.run</code> has it.</li>
+<li><strong>A run refuses an identity that is not its job's.</strong> When a run has a <code>job_id</code> and the job already has a run with another identity (or with none, and this one has one, or the reverse), the runner raises
+  <code>ValueError</code> ("a job is for one identity") before anything is written, naming no identity value. <code>run</code> and <code>run_many</code> check at the call; <code>stream</code> is not <code>async</code>, so it checks when the loop starts, where it also
+  raises for a <code>job_id</code> that does not exist. A run with no <code>job_id</code> is not checked. It is a guard against a mistake, not a security boundary: two first runs of one job with different identities at the same instant can both pass.</li>
+<li><strong>The worker's type must be one its runner accepts.</strong> The worker rebuilds the identity from the message with its type and gives it to the run, so every model of the worker's type must be a model of
+  the runner's (or a subclass of one), and if the worker allows no identity, so must the runner. <code>JobWorker</code> raises <code>TypeError</code> when it is built, naming both types, if not: otherwise every job that runs an
+  agent would fail at its first <code>ctx.run</code>. The two types need not be equal: a worker for <code>Teacher</code> over a runner of <code>Teacher | None</code> is fine (the runner also serves runs in the process that have none),
+  and a job can be a pipeline of several agents, because they all run with the job's one identity on the one runner. <strong>The client's declaration is
+  optional:</strong> with it, <code>submit</code> checks the identity before it creates a job (<code>TypeError</code>); without it, <code>submit</code> accepts any Pydantic model and serialises it, and
+  the worker is where the declared type is the authority.</li>
+</ul>
+<h2 id="how-tools-read-it">How tools read it<a class="headerlink" href="#how-tools-read-it" title="Permanent link">&para;</a></h2>
+<p><code>RunContext</code> becomes generic and gets a field:</p>
+<div class="highlight"><pre><span></span><code><span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RunContext</span><span class="p">(</span><span class="n">Generic</span><span class="p">[</span><span class="n">IdentityT</span><span class="p">]):</span>
+    <span class="n">job_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">run_id</span><span class="p">:</span> <span class="nb">str</span>  <span class="c1"># the run that the tool is called in</span>
+    <span class="n">attempt_id</span><span class="p">:</span> <span class="nb">str</span>  <span class="c1"># the attempt that is running now</span>
+    <span class="n">identity</span><span class="p">:</span> <span class="n">IdentityT</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+<p><code>run_id</code> and <code>attempt_id</code> are the units of <a href="../units/">the units spec</a>: a run is one call of an agent, and an attempt is one try of it.</p>
+<p>A tool declares <code>runtime: ToolRuntime[RunContext[Teacher]]</code> and reads <code>runtime.context.identity</code>. LangChain fills the parameter in and hides it from the model, so
+the model never passes it and cannot see it (<a href="../tools/#the-run-context">tools and the registry</a>). A tool that does not declare <code>runtime</code> cannot see it.</p>
+<ul>
+<li><strong>The shared (MCP) tools</strong> cannot take a <code>RunContext</code>, because one tool object serves many attempts. The runner sets a context variable around each attempt,
+  as it does for the attempt's id, and code that cannot take <code>runtime</code> reads it: <code>CURRENT_IDENTITY</code>.</li>
+<li><strong>A tool on a runner that declares a union</strong> annotates <code>RunContext[Teacher | Student]</code> and checks the kind (<code>isinstance</code>) before it acts. Nothing links the annotation to the runner's <code>identity_type</code>: a mismatch
+  fails at run time, not in the editor.</li>
+<li><strong>Pipeline code</strong> reads the identity of its job with <code>ctx.identity</code> on the <code>JobContext</code>, for a job that has to behave differently for a tenant.</li>
+<li>The identity is the <strong>same object</strong> that was passed, in a process. On a worker it is a new object, rebuilt from the message, and equal to it apart from the fields marked <code>exclude=True</code>, which have their default.</li>
+</ul>
+<h2 id="who-inherits-it">Who inherits it<a class="headerlink" href="#who-inherits-it" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>A launched agent</strong> (<code>launch_agent</code>) runs with the identity of its parent, and so does an agent started in the background in the same process.</li>
+<li><strong>A background job on a worker</strong> (a runner with <code>background=JobClient</code>) is submitted with the identity of its parent.</li>
+<li><strong>Both read it from the attempt that started them</strong> (its <code>RunContext</code>): how a background job runs, here or on a worker, does not change where its identity comes from.</li>
+<li><strong>The model cannot set, change or drop it.</strong> <code>launch_agent</code> and <code>start_background</code> take no identity argument.</li>
+</ul>
+<p><strong>Why identity is inherited and capabilities are not.</strong> A launched agent does not get its parent's tools, skills or sub-agents: each agent has the allow-lists its own
+definition gives it, and that is least privilege. An identity is not a capability. It is <em>who the whole run acts for</em>, and a child that ran as nobody, or as
+someone else, would make its tools act for the wrong person or for no one. So a child can never have more, or less, than its parent's identity: it is the
+same one. What the child <strong>can do</strong> with it stays limited by its own allow-lists.</p>
+<h2 id="across-the-queue">Across the queue<a class="headerlink" href="#across-the-queue" title="Permanent link">&para;</a></h2>
+<p>A submitted job is the one place where a run leaves the process, so it is the one place where the identity is serialised, and the only place where it could be read or changed
+by anything but the application.</p>
+<ul>
+<li><code>JobMessage</code> gets two fields: <code>identity: dict[str, Any] | None</code>, the identity as JSON, from <code>model_dump(mode="json")</code>, without the fields marked <code>exclude=True</code>, and <strong><code>identity_kind: str | None</code></strong>, which model it is:
+  the name of its class (<code>type(identity).__name__</code>). Both are <code>None</code> when the run has no identity, and the kind is sent <strong>always</strong>, also when the declared type is a single model.
+  Two fields, and not one that holds both, so that a queue carries the same flat message as before.</li>
+<li><strong>The worker rebuilds it</strong> with its declared type, and gives it to the run, so a tool sees on a worker what it sees in a process. It <strong>chooses the model by the kind</strong>, and validates the data against that one model:
+  pydantic's own choice among the members of a union is the first one that fits, which is the wrong model when a teacher and a student have the same fields. A kind that no member of the worker's type has
+  fails the job, so a message of a <code>Student</code> never passes as a <code>Teacher</code>, also when the worker declares a single <code>Teacher</code>.</li>
+<li><strong>It fails closed.</strong> A message whose identity does not validate against the worker's type, one whose kind the worker's type does not have, one that has an identity and no kind, and a message without an identity when the worker's type does not allow <code>None</code>,
+  make the job <code>FAILED</code> with <code>InvalidJobIdentity</code> (the way an input that does not validate does): the job is not run, and the worker does not retry it.</li>
+<li><strong>Every queue carries it,</strong> and <code>testing.check_queue</code> checks that a queue returns the identity and its kind unchanged, so that a queue that drops a field fails the kit. <code>SqliteQueue</code>
+  stores them in the <code>job_queue</code> table (two migrations: the identity, then its kind) until the message is acknowledged, on the same terms as the input.</li>
+<li><strong>The queue is trusted.</strong> featherweight does not sign or encrypt a message: a deployment secures its queue (access control, TLS, encryption at rest) as it does for the
+  input. An application that wants a signature or encryption of its own writes or wraps a queue: <code>JobQueue</code> is the seam, and a wrapper that signs the message on
+  <code>enqueue</code> and checks it on <code>receive</code> is a <a href="../../recipes/a-queue-that-signs-its-messages/">recipe</a>, run through <code>check_queue</code> like any queue.</li>
+</ul>
+<h2 id="resuming-a-job">Resuming a job<a class="headerlink" href="#resuming-a-job" title="Permanent link">&para;</a></h2>
+<p><a href="../runner/#resuming">Resuming</a> reuses a step of an old job when the agent hash and the input hash match. That assumes a step depends only on its agent and its input. A tool that
+reads the identity makes it depend on who ran it, and if the identity has changed, so may the permissions, so the old result cannot be relied on. So the identity takes part, as a hash:</p>
+<ul>
+<li>Each run records <strong><code>identity_hash</code></strong>: the SHA-256 of the identity as canonical JSON (keys sorted, no spaces: the form <code>input_hash</code> uses) of <code>{"kind": &lt;the class name&gt;, "data": &lt;its fields&gt;}</code>, without the fields
+  marked <code>exclude=True</code>, so that it is the same in a process and on a worker. <strong><code>NULL</code> when the run had no identity.</strong> The framework stores no identity.
+  The kind is in it because two models can have the same fields: a <code>Teacher</code> and a <code>Student</code> with the same data are two identities, and a step of one is not a step of the other.</li>
+<li><strong>The hash is of the identity, never of the message.</strong> It is computed from the identity object (its class and its fields): in a process from the object that was passed, on a worker from the object the worker
+  rebuilt by the kind and the data. Because the worker chooses the model by the kind, both give the same class name and the same fields, and so the same hash. The two fields of the message are how
+  the object travels; the <code>{"kind", "data"}</code> text is what is hashed, and it is never sent.</li>
+<li>A step is reused only when the old run's <code>identity_hash</code> <strong>equals</strong> the new run's. <code>NULL</code> equals only <code>NULL</code>: a step that ran with no identity is not reused by a run
+  with one, and the other way round.</li>
+<li>This is a rule about <strong>which steps are the same step.</strong> Whether a person may resume a job at all, or see its result, is the application's check (<a href="#the-developers-responsibilities">the
+  responsibilities</a>).</li>
+<li>A support person who resumes a user's job under their own identity reruns every step. An application that wants the job to keep acting as the user passes the user's
+  identity, once it has decided that it may. Identity should therefore stay small and stable: a roles list that changes between two runs stops the reuse.</li>
+</ul>
+<h2 id="what-featherweight-never-does-with-it">What featherweight never does with it<a class="headerlink" href="#what-featherweight-never-does-with-it" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>It is never shown to the model:</strong> not in the prompt, not in a tool's arguments, not in a tool's result that the runner writes, and not in the events of a stream.</li>
+<li><strong>It is never in <code>agent_hash</code>,</strong> <code>system_prompt_hash</code> or <code>tools_hash</code>: only its hash is recorded, on the run.</li>
+<li><strong>It is never stored.</strong> No table holds it. The queue message holds it until it is acknowledged, as it holds the input.</li>
+<li><strong>It is never logged,</strong> and <strong>never in a span or an observer record</strong> (observers hear metadata): <code>OTelObserver</code> does not put it on a span. An application that wants a tenant
+  on its traces adds it itself, in its own observer.</li>
+</ul>
+<h2 id="the-developers-responsibilities">The developer's responsibilities<a class="headerlink" href="#the-developers-responsibilities" title="Permanent link">&para;</a></h2>
+<p>These stay the application's, on purpose, and the guides, the book and the recipes say so:</p>
+<ul>
+<li><strong>A tool checks authorization itself.</strong> Carrying an identity does not make a tool safe: a tool that ignores it acts for everyone. A tool should check what the identity may do
+  before it acts, and refuse in text, as the ready-made tools do.</li>
+<li><strong>An identity is a snapshot taken when the job was submitted.</strong> A queued job can run minutes or hours later: roles may have changed, a user may have left, and a token
+  will have expired. For a sensitive action, a tool re-checks with the application by user id, and does not trust a list of roles in the identity.</li>
+<li><strong>A tool gets credentials from the identity with its own code,</strong> at each call (a long job outlives a token). The usual ways: a stored refresh token in a vault keyed by
+  the user id, a service credential plus the user id (the service decides), a token exchange or impersonation, or a grant made at submit time and looked up by the job id.</li>
+<li><strong>Check who owns a job before <code>resume_from</code>.</strong> The identity hash makes a resume reuse only steps of the same identity, and does not decide who may resume a job or read
+  its result: that is a check the application makes with its own records of who started which job.</li>
+<li><strong>If you pass a <code>job_id</code> to <code>run</code>, <code>run_many</code> or <code>stream</code> yourself,</strong> pass the same identity every time: a job is for one identity.</li>
+<li><strong>An identity says who, not what.</strong> A file or a record that a run works on is a <strong>reference</strong> in the input, and the tool checks that the identity may read it
+  (<a href="../attachments/#files-for-agents-and-jobs">files for agents and jobs</a>). A resource in the identity would make "a job for this identity" differ per file.</li>
+<li><strong>Keep it small,</strong> and keep secrets out of it. Do not change an identity after a run has it.</li>
+<li><strong>Do not let users declare stdio MCP servers.</strong> A <code>StdioMCPServer</code> runs a command on your server. An application that builds agents from what users write allows only
+  <code>HttpMCPServer</code>, or servers from a list it controls.</li>
+<li><strong>The name of an identity class is a name in the queue.</strong> The kind is the class name, so a rename of an identity class between <code>submit</code> and the worker running the job fails that job (<code>InvalidJobIdentity</code>),
+  as a renamed job fails a queued job, and changes the <code>identity_hash</code> of the runs after it, so a resume reruns their steps once. Rename when the queue is empty, or keep the old name.</li>
+<li><strong>Names are the application's.</strong> A job's name is a plain string it chooses, unique in what its <a href="../submitted-jobs/#jobs-that-are-not-declared-in-code"><code>jobs_lookup</code></a>
+  searches, and stable: a rename breaks the jobs queued under the old name. The pattern is <code>^[A-Za-z][A-Za-z0-9_.-]*$</code>: a letter first, then letters, digits, <code>_</code>, <code>.</code> and <code>-</code>.</li>
+</ul>
+<h2 id="decisions">Decisions<a class="headerlink" href="#decisions" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>An identity is an argument of the run, not a field of the agent,</strong> so the same agent runs for every user, and the hash of an agent says what it is, not who ran it.</li>
+<li><strong>Typed, declared, and required when declared:</strong> the type says what a run must pass, and a union with <code>None</code> is how an application allows none. A missing identity raises,
+  instead of letting a tool run as nobody.</li>
+<li><strong>It crosses the queue as a field of the message, rebuilt with the declared type,</strong> and a message that does not fit fails the job. It is the one place where a run leaves the process.</li>
+<li><strong>The kind of an identity is the name of its class, sent in its own field, always.</strong> A union of models is wanted (one agent serves a teacher or a student), and a plain JSON of the fields does not say which
+  model it was: pydantic would rebuild a student as the first model that fits. The class name is the simplest kind that works; the cost, a rename of the class while a job is queued, is documented, not engineered
+  around (the application names its jobs the same way). It is sent always, so there is one rule, and a worker that declared a single type does not accept the data of another model with the same fields.
+  The hash includes it for the same reason.</li>
+<li><strong>The worker keeps its own type, and it must be compatible with its runner's.</strong> The worker's type is what it accepts from the queue, the runner's what a run accepts; a worker may be stricter than its runner,
+  never looser.</li>
+<li><strong>Inherited by what a run launches, and the model cannot touch it.</strong> It is who the run is for, not a capability.</li>
+<li><strong>A job is for one identity, and the runner refuses a run that is not.</strong> The design does not support several identities in one job (the key of a result is the job, the agent and the input), so the rule is stated and
+  checked at run time, rather than the key changed. It is checked on each run that names a job: one indexed lookup of the run log.</li>
+<li><strong>An excluded field has a default,</strong> because the worker rebuilds the identity without it, and a failure that shows only on a worker is found when the type is declared instead.</li>
+<li><strong>Identity, not credentials.</strong> The framework has no credential provider and no protocol for one: where tokens live and how they are exchanged is the application's.</li>
+<li><strong>A hash on the run, so that resume reuses only the same step.</strong> The framework keeps a hash, as it keeps <code>input_hash</code>, and never the identity.</li>
+<li><strong>No codec, no signing and no encryption in the framework.</strong> The queue is the seam; a deployment secures it, and a wrapper queue is a recipe.</li>
+<li><strong>Plain strings for names, no key.</strong> How an application names and keys what it defines is its own; the framework runs a job by the name it is given.</li>
+</ul>
+<h2 id="not-supported">Not supported<a class="headerlink" href="#not-supported" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Authenticating a user,</strong> deciding what they may do, and getting a credential for them.</li>
+<li><strong>An identity per tool call,</strong> or a tool that changes it: a run has one.</li>
+<li><strong>Several identities in one job:</strong> a job is for one identity. The result store's key does not carry the identity, and a resume finds a step by the job and the identity: a job that held two would hand one identity's
+  output to the other.</li>
+<li><strong>Per-identity MCP servers</strong> (a connection and headers for each identity). Deferred: the connection of a server is shared by every run of a runner today, and a server that
+  acts for a user needs its own connection and a token issued for that server. It is its own piece of work.</li>
+<li><strong>Signing or encrypting a message,</strong> and an identity that is a secret.</li>
+<li><strong>Storing identities,</strong> a tenant column, and attributing runs to a user in the run log: the application keeps its own record of who started which job (see <a href="../persistence/#tenants">tenants</a>).</li>
+<li><strong>A <code>key</code> on agents and jobs,</strong> and an agent builder: how an application stores and names what its users define is its own.</li>
+</ul>
+<h2 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">&para;</a></h2>
+<p>No live model call. Fake models, <code>MemoryQueue</code>.</p>
+<p>The identity cases of <code>Skill.aread</code> are in <a href="../skills/#tests">skills</a>, and those of <code>jobs_lookup</code> in <a href="../submitted-jobs/#tests">submitted jobs</a>: each spec owns its own.</p>
+<ul>
+<li><strong>Declaring and passing:</strong> a missing, a wrong and an extra identity, for each of the three declarations; <code>Teacher | None</code>; each entry point (<code>run</code>, <code>run_many</code>,
+  <code>stream</code>, <code>run_job</code>, <code>submit</code>).</li>
+<li><strong>Tools:</strong> a tool of the parent, a tool of a launched agent and a sync tool (which runs in a thread) see the identity; the shared tools read <code>CURRENT_IDENTITY</code>; two runs
+  with two identities on one runner at once do not mix; <code>ctx.identity</code> in a job.</li>
+<li><strong>Never:</strong> the hash of an agent does not change with it; it is not in the prompt, the log, the run log or a span.</li>
+<li><strong>Inheritance:</strong> a launched agent and an in-process background job have it; a background job submitted to a worker carries it.</li>
+<li><strong>A job is for one identity:</strong> a second run of a job for another identity raises before the model is called and writes nothing, for <code>run</code>, <code>run_many</code> (also with no inputs) and <code>stream</code>; the same identity twice is fine; none then an identity
+  and the reverse are refused; a run with no <code>job_id</code> is not checked; a resume under another identity is a new job and works; the <code>Database</code> kit on sqlite and Postgres.</li>
+<li><strong>Excluded fields:</strong> one with no default is refused when the runner, the worker and the client are built (for a model, and for a member of a union); a tool sees the value in a process and the default on a worker.</li>
+<li><strong>The kind:</strong> a union of two models with the same fields is rebuilt as the model that was sent, in both orders of the union; a single declared type refuses the data of another model; a kind that the type does not have, and an
+  identity with no kind, fail the job; two members with one class name are refused when built; the worker's type is checked against its runner's (accepted and refused cases).</li>
+<li><strong>The queue:</strong> <code>check_queue</code> against <code>SqliteQueue</code> and <code>MemoryQueue</code> (a queue that drops a field fails it); a job submitted with an identity whose tool reads it on a worker; a
+  message without an identity for a worker that requires one, and a message that does not validate, fail the job and are not run.</li>
+<li><strong>Resume:</strong> the same identity reuses, another one reruns, <code>NULL</code> matches only <code>NULL</code>; a job that failed on a worker and is resumed on a worker, and a takeover, reuse a step of the same identity only; the hash is the same in a process and on a worker, two models with the same data have two hashes, and a field marked <code>exclude=True</code> is not in it; the <code>Database</code>
+  kit on sqlite and Postgres.</li>
+</ul>
+<h2 id="the-work">The work<a class="headerlink" href="#the-work" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Issue</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/190">#190</a></td>
+<td>The epic</td>
+</tr>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/194">#194</a></td>
+<td>This spec</td>
+</tr>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/195">#195</a></td>
+<td>Identity in the runner and in tools</td>
+</tr>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/196">#196</a></td>
+<td>Identity across the queue and the worker</td>
+</tr>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/197">#197</a></td>
+<td>The identity hash: reuse on resume</td>
+</tr>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/198">#198</a></td>
+<td><code>Skill.aread</code></td>
+</tr>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/199">#199</a></td>
+<td><code>jobs_lookup</code></td>
+</tr>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/200">#200</a></td>
+<td>The developer's responsibilities, and recipes for platform builders</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../skills/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Skills">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Skills
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../approvals/" class="md-footer__link md-footer__link--next" aria-label="Next: Approvals: agents propose, code executes">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Approvals: agents propose, code executes
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Designed by humans. Implemented by AI agents.
+    </div>
+  
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.instant", "navigation.tabs", "navigation.sections", "navigation.indexes", "navigation.top", "navigation.footer", "toc.follow", "search.highlight", "search.suggest", "content.code.copy", "content.action.edit"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

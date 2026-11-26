@@ -1,0 +1,5986 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="An opinionated Python agent harness. An agent is a typed class, a runner runs it with retries and limits, and jobs run in your process or on workers.">
+      
+      
+      
+        <link rel="canonical" href="https://ftw.asankar.de/0.2/specs/submitted-jobs/">
+      
+      
+        <link rel="prev" href="../jobs/">
+      
+      
+        <link rel="next" href="../background-jobs/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Submitted jobs - featherweight</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../assets/site.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#submitted-jobs" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="featherweight" class="md-header__button md-logo" aria-label="featherweight" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            featherweight
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Submitted jobs
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/aadhithya/featherweight" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    aadhithya/featherweight
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../book/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Book
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../recipes/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Recipes
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../documentation/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Specs
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  API reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="featherweight" class="md-nav__button md-logo" aria-label="featherweight" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    featherweight
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/aadhithya/featherweight" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    aadhithya/featherweight
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../book/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Book
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Book
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_2" id="__nav_2_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 0: Start here
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 0: Start here
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/00-start-here/01-what-it-is/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What featherweight is
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/00-start-here/02-the-map/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/00-start-here/03-philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The philosophy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/00-start-here/04-how-to-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How to read this book
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 1: Your first agent
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 1: Your first agent
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/01-your-first-agent/01-install-and-set-up/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install and set up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/01-your-first-agent/02-a-typed-agent/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A typed agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/01-your-first-agent/03-running-it/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running it
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/01-your-first-agent/04-what-happened/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What happened
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/01-your-first-agent/05-failures-and-check-output/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Failures and check_output
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/01-your-first-agent/06-choosing-a-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing a model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 2: Abilities
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 2: Abilities
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/02-abilities/01-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/02-abilities/02-mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/02-abilities/03-skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/02-abilities/04-sub-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sub-agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_5" id="__nav_2_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 3: Jobs and pipelines
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 3: Jobs and pipelines
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/03-jobs-and-pipelines/01-what-a-job-is/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What a job is
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/03-jobs-and-pipelines/02-status-and-events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Status and events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/03-jobs-and-pipelines/03-results-and-the-result-store/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Results and the result store
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/03-jobs-and-pipelines/04-resume/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resume
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_6" id="__nav_2_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 4: Chat
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 4: Chat
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/04-chat/01-a-streaming-agent/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A streaming agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/04-chat/02-in-the-browser/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    In the browser
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/04-chat/03-stopping-and-the-conversation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stopping and the conversation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/04-chat/04-attaching-a-file/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attaching a file
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_7" id="__nav_2_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 5: In production
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 5: In production
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/05-in-production/01-submit-and-a-worker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Submit and a worker
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/05-in-production/02-several-workers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Several workers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/05-in-production/03-background-jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Background jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/05-in-production/04-observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/05-in-production/05-who-is-asking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Who is asking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/05-in-production/06-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Approvals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_8" id="__nav_2_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 6: Bring your own storage
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 6: Bring your own storage
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/06-bring-your-own-storage/01-postgres/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Postgres
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/06-bring-your-own-storage/02-a-result-store/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A result store
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/06-bring-your-own-storage/03-a-job-queue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A job queue
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/06-bring-your-own-storage/04-a-database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A database
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/06-bring-your-own-storage/05-an-observer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    An observer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_9" id="__nav_2_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 7: Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 7: Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/07-reference/01-the-guides/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The guides
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/07-reference/02-the-specs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The specs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/07-reference/03-the-glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/07-reference/04-the-finished-project/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The finished project
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../recipes/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipes
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Recipes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-pipeline-of-two-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A pipeline of two agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/resuming-a-failed-job/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resuming a failed job
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/telling-a-retry-what-went-wrong/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Telling a retry what went wrong
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/testing-with-a-fake-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing with a fake model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/an-agent-with-an-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    An agent with an MCP server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/an-agent-that-launches-another/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    An agent that launches another
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/giving-a-sub-agent-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Giving a sub-agent the context it needs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/approving-what-an-agent-proposes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Approving what an agent proposes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/asking-the-user-in-the-middle-of-a-job/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Asking the user in the middle of a job
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-chat-agent-that-streams/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A streaming agent for chat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-result-store-of-your-own/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A result store of your own
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-job-that-a-worker-runs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A job that a worker runs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/traces-for-jobs-and-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Traces for jobs and agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/an-agent-that-starts-another-and-goes-on/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    An agent that starts another and goes on
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-different-provider/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A different provider
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-skill-from-a-database-or-s3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A skill from a database or S3
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-skill-for-each-department/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A skill for each department
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/agents-built-from-json/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents built from JSON, with your own rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-queue-that-signs-its-messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A queue that signs its messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-tool-that-gets-a-token-for-its-identity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A tool that gets a token for its identity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/files-for-an-agent-or-a-job/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Files for an agent or a job: pass a reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models and providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../launching-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents that launch agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Streaming agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../attachments-providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What the providers accept as attachments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistence: what is kept, and what is not
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../submitted-jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Submitted jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../background-jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Background jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../production-stack/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A production stack
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../example-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example pipeline: doclearn
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating from 0.1
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../releasing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releasing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Specs
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Specs
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../units/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Units of work
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../runner/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent runner
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models and providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools and the tool registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tool-discovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool discovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../identity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Identity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Approvals: agents propose, code executes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Streaming agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attachments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attachments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run log and persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Submitted jobs
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Submitted jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#goal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Goal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-principle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The principle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-job" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The job
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-queue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The queue
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The client
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-worker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The worker
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#jobs-that-are-not-declared-in-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Jobs that are not declared in code
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#several-workers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Several workers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cancelling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cancelling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#job-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Job events
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decisions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#later" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Later
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#not-supported" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Not supported
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tests
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The work
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../background-jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Background jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observers and OpenTelemetry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/adapters-agui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.adapters.agui
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/adapters-errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.adapters.errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/adapters-vercel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.adapters.vercel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/client/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.client
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.context
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/db/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.db
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/identity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.identity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/log/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.log
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.mcp
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/model_settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.model_settings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/observers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.observers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/otel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.otel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/postgres/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.postgres
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/queue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.queue
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/runner/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.runner
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/sqlite/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.sqlite
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/sse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.sse
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.streaming
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/worker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.worker
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#goal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Goal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-principle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The principle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-job" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The job
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-queue" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The queue
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The client
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-worker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The worker
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#jobs-that-are-not-declared-in-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Jobs that are not declared in code
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#several-workers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Several workers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cancelling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cancelling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#job-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Job events
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decisions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#later" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Later
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#not-supported" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Not supported
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tests
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The work
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/aadhithya/featherweight/edit/main/docs/specs/submitted-jobs.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="submitted-jobs">Submitted jobs<a class="headerlink" href="#submitted-jobs" title="Permanent link">&para;</a></h1>
+<p>Status: implemented, including <a href="#several-workers">several workers</a> (<a href="https://github.com/aadhithya/featherweight/issues/103">epic #103</a>): the queue's lease (#104), the job lease, the heartbeat and the owner check (#105), takeover (#106), the job timeout (#107), and the guide, the example and the skill reference (#108). #72 (the <code>Job</code> class, <code>JobContext</code>, the job columns and <code>CANCELLED</code>), #73 (the queue), #74 (job events and SSE), #75 (the client), #76 (the worker, with the compare-and-set steps for taking and cancelling a job), #77 (the <code>@job</code> decorator) and #78 (the guide, the example and the skill reference) are done. It is tracked in <a href="https://github.com/aadhithya/featherweight/issues/71">epic #71</a>, and each part has
+its own issue (listed <a href="#the-work">at the end</a>). When a part is built, this page says so, and the guide <code>docs/submitted-jobs.md</code>
+shows how to use it. The <a href="#jobs-that-are-not-declared-in-code"><code>jobs_lookup</code> fallback</a> is implemented too (<a href="https://github.com/aadhithya/featherweight/issues/199">#199</a>, in epic <a href="https://github.com/aadhithya/featherweight/issues/190">#190</a>).</p>
+<p>It builds on <a href="../persistence/">the persistence spec</a> (the <code>Database</code>, the result store, the rule that featherweight keeps no
+data). It changes <a href="../jobs/">jobs</a> (the job columns, the <code>CANCELLED</code> status, the job events),
+<a href="../runner/">the runner</a> (a job context runs agents in the job) and <a href="../agents/">agents</a> (jobs).</p>
+<ul>
+<li><a href="#goal">Goal</a></li>
+<li><a href="#the-principle">The principle</a></li>
+<li><a href="#the-job">The job</a></li>
+<li><a href="#the-queue">The queue</a></li>
+<li><a href="#the-client">The client</a></li>
+<li><a href="#the-worker">The worker</a></li>
+<li><a href="#jobs-that-are-not-declared-in-code">Jobs that are not declared in code</a></li>
+<li><a href="#several-workers">Several workers</a></li>
+<li><a href="#cancelling">Cancelling</a></li>
+<li><a href="#job-events">Job events</a></li>
+<li><a href="#decisions">Decisions</a></li>
+<li><a href="#later">Later</a></li>
+<li><a href="#not-supported">Not supported</a></li>
+<li><a href="#tests">Tests</a></li>
+<li><a href="#the-work">The work</a></li>
+</ul>
+<h2 id="goal">Goal<a class="headerlink" href="#goal" title="Permanent link">&para;</a></h2>
+<p>A job is a declared class that runs in your process (<code>run_job</code>) or on a worker, by the same code. It should be something a client can
+<strong>submit</strong>, from anywhere, that a <strong>separate worker</strong> picks up and runs, with the client able to follow it, cancel it, and read
+its result. The client and the worker are independent: <strong>the queue and the database are their only connection</strong>, so they can live
+in different processes, or on different machines. It covers the queue, the client and the worker, and <strong>several workers</strong> on one queue
+(leases, a dead worker: <a href="#several-workers">several workers</a>). Background jobs have <a href="../background-jobs/">their own spec</a>.</p>
+<h2 id="the-principle">The principle<a class="headerlink" href="#the-principle" title="Permanent link">&para;</a></h2>
+<p>featherweight passes what the user gives to the job's agents, and writes the result into the user's result store. It stores <strong>no
+inputs and no results</strong> of its own (<a href="../persistence/#the-rule">the rule</a>):</p>
+<ul>
+<li><strong>The input</strong> travels in the queue message, as JSON. It can also be a reference (an id, a URL) that the job looks up itself.</li>
+<li><strong>The result</strong> goes to the user's <code>ResultStore</code>, and the client reads it from there. Our tables hold the job's status, its
+  timing, hashes and its events, and nothing of the content.</li>
+</ul>
+<h2 id="the-job">The job<a class="headerlink" href="#the-job" title="Permanent link">&para;</a></h2>
+<p>A job is a <strong>declared class</strong>, like an agent:</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Summarise</span><span class="p">(</span><span class="n">Job</span><span class="p">):</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="s2">"summarise"</span>
+    <span class="n">version</span> <span class="o">=</span> <span class="s2">"1"</span>
+    <span class="n">input_model</span> <span class="o">=</span> <span class="n">SummariseInput</span>  <span class="c1"># Pydantic</span>
+    <span class="n">output_model</span> <span class="o">=</span> <span class="n">SummariseOutput</span>  <span class="c1"># Pydantic</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">JobContext</span><span class="p">,</span> <span class="nb">input</span><span class="p">:</span> <span class="n">SummariseInput</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SummariseOutput</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">ctx</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">Summariser</span><span class="p">,</span> <span class="n">SummaryInput</span><span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="nb">input</span><span class="o">.</span><span class="n">url</span><span class="p">))</span>  <span class="c1"># an agent of this job</span>
+        <span class="o">...</span>
+</code></pre></div>
+<ul>
+<li><code>Job</code> is an abstract class: one that misses <code>run</code> cannot be built, and <code>name</code>, <code>version</code> and the two models are checked when
+  the class is defined.</li>
+<li><strong><code>JobContext</code></strong> gives <code>runner</code>, <code>job_id</code>, and <code>run(...)</code> and <code>run_many(...)</code>, which are <code>runner.run</code> and <code>runner.run_many</code>
+  with the job's id, so the agents of a job share it (and its trace, and its resume).</li>
+<li><strong><code>job_hash</code></strong> is the SHA-256 of the name, the version, and the JSON schemas of both models: it says that the job changed.</li>
+<li><strong>A worker knows its jobs by name:</strong> <code>JobWorker(..., jobs=[Summarise, ...])</code>. There is no global registry.</li>
+<li><strong>A plain agent can be a job:</strong> a non-streaming agent class can be submitted directly. Its name is the job name, its input model
+  the input, its output model the output, and <code>agent_hash</code> stands in for the job hash. A streaming agent cannot be a job (it
+  streams to a person).</li>
+<li><strong><code>timeout</code></strong>: how long one execution of the job may run, in seconds. The default is 600 (ten minutes), and <code>None</code> means no limit. It is
+  checked when the class is defined (a positive number, or <code>None</code>), it is not part of <code>job_hash</code>, and <code>@job(timeout=...)</code> sets it. An agent used
+  as a job has the default. See <a href="#several-workers">the timeout</a>.</li>
+<li><strong><code>@job</code></strong> is sugar: it builds a <code>Job</code> class from an async function, taking the name from the function (or <code>name=</code>), the
+  version <code>"1"</code> (or <code>version=</code>), and the models from the annotations of <code>input</code> and the return type.</li>
+<li><strong><code>run_job</code></strong> runs a <code>Job</code> class in your process, with the same code as the worker (<a href="../jobs/#running-a-job-class">running a job
+  class</a>). A job whose task is cancelled is <code>CANCELLED</code>.</li>
+</ul>
+<h2 id="the-queue">The queue<a class="headerlink" href="#the-queue" title="Permanent link">&para;</a></h2>
+<p><code>JobQueue</code> is an <strong>abstract class</strong> that connects a client to a worker:</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">JobMessage</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>            <span class="c1"># frozen</span>
+    <span class="n">job_id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">job_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="nb">input</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>               <span class="c1"># JSON, or references inside it</span>
+    <span class="n">trace_context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># the W3C trace context of the submitter, if an observer gave one (see below)</span>
+    <span class="n">identity</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># the identity of the run as JSON, if it has one ([identity](identity.md#across-the-queue))</span>
+    <span class="n">identity_kind</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># which model the identity is: the name of its class; set whenever there is an identity</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Delivery</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>              <span class="c1"># frozen</span>
+    <span class="n">message</span><span class="p">:</span> <span class="n">JobMessage</span>
+    <span class="n">token</span><span class="p">:</span> <span class="nb">str</span>                          <span class="c1"># opaque: the implementation's own</span>
+    <span class="n">delivery_count</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>             <span class="c1"># how many times this message has been delivered, this one included</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">JobQueue</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">enqueue</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="n">JobMessage</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">receive</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Delivery</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">ack</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">delivery</span><span class="p">:</span> <span class="n">Delivery</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">nack</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">delivery</span><span class="p">:</span> <span class="n">Delivery</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">requeue</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">extend</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">delivery</span><span class="p">:</span> <span class="n">Delivery</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>   <span class="c1"># renew the lease of a received message</span>
+</code></pre></div>
+<p><strong>The contract:</strong> delivery is at-least-once. A received message is invisible to other receivers until it is acknowledged or
+nacked. <code>nack(requeue=True)</code> makes it available again; <code>nack(requeue=False)</code> drops it, and a broker may dead-letter it. Messages
+come out in the order they went in where the implementation can. <code>receive</code> returns <code>None</code> after the timeout. Calls can be
+concurrent. <strong>A lease</strong> (built: <a href="https://github.com/aadhithya/featherweight/issues/104">#104</a>): a received message is invisible to other receivers for a limited
+time, and not for ever. If it is neither acknowledged, nacked nor <code>extend</code>ed before the lease ends, it becomes available again,
+with a higher <code>delivery_count</code>, so that a worker that died does not hold a message for ever. <code>extend</code> renews the lease, and a stale delivery (one whose message was delivered again since) changes nothing. These are
+what real brokers already have (SQS's visibility timeout, <code>ChangeMessageVisibility</code> and receive count; a Redis stream's pending list), so an implementation
+over one is thin. How many redeliveries are allowed is the queue's business. <code>featherweight.testing.check_queue(make_queue)</code> runs the contract against any queue; <code>make_queue(lease)</code> makes a fresh queue with that lease in seconds, and the kit uses a short one to see a message come back.</p>
+<p><strong>What we ship:</strong>
+- <strong><code>SqliteQueue(db)</code></strong>: a <code>job_queue</code> table in the run log's sqlite file, for local development, and our only product
+  implementation. A message is claimed atomically, <code>ack</code> deletes the row, <code>nack</code> requeues or deletes it. With the lease (<code>FTW_QUEUE_LEASE</code>, 60 seconds, and <code>FTW_QUEUE_MAX_DELIVERIES</code>, 3: <a href="../configuration/">configuration</a>): <code>SqliteQueue(db)</code>; a message whose lease ends is delivered again (<code>ready</code> or <code>claimed</code> with an expired lease, in the order it went in), and one that was delivered <code>FTW_QUEUE_MAX_DELIVERIES</code> times and whose lease ends again is marked <code>dead</code>, kept in the table for inspection, and logged (<code>queue_message_dead</code>). Failing its job (<code>DeadLettered</code>) is part of <a href="https://github.com/aadhithya/featherweight/issues/106">#106</a>, which is not built yet. A delivery's token names its claim (<code>&lt;seq&gt;:&lt;delivery count&gt;</code>), so that a stale <code>ack</code>, <code>nack</code> or <code>extend</code> cannot touch a message that was delivered again. A <code>nack(requeue=True)</code> is a deliberate return, and does not count against <code>max_deliveries</code>. The payload is in the table
+  until it is acknowledged, on the same terms as the sqlite result store: sqlite is for local development.
+- <strong><code>MemoryQueue(lease=60)</code></strong>, in <code>featherweight.testing</code>, for tests: the same lease semantics (pass a very short lease in a test), and no limit on redeliveries.</p>
+<p>There is no Redis, SQS or Postgres queue: how jobs travel in a deployment is the user's decision, and the abstract class and its
+kit are how they check theirs. Dead-lettering is the user's broker's business.</p>
+<p>The <strong>trace context</strong> (<a href="https://github.com/aadhithya/featherweight/issues/93">#93</a>, built) is how a worker's span joins the trace of
+the client that submitted the job (<a href="../observability/#opentelemetry">observers and OpenTelemetry</a>). It is empty unless the client has an observer
+that gives one, and it travels in the message only: it is stored in no table. Every queue carries it, and <code>check_queue</code> checks that it does.</p>
+<p>The <strong>identity</strong> (<a href="../identity/">identity</a>) is how a tool on a worker knows who the run is for. It is the identity as JSON and its kind (the name of its class), and it too travels in the message only. Every queue
+carries both, and <code>check_queue</code> checks that a queue returns them unchanged, so a queue that drops a field fails the kit. <code>SqliteQueue</code> keeps them in its <code>job_queue</code> table until
+the message is acknowledged, on the same terms as the input. The queue is trusted: how to secure it (and a queue that signs its messages) is the deployment's, see <a href="../identity/#across-the-queue">identity</a>.</p>
+<h2 id="the-client">The client<a class="headerlink" href="#the-client" title="Permanent link">&para;</a></h2>
+<p><code>JobClient(db, queue, results, observers=[...], identity_type=None)</code> submits and follows jobs, from any process. The observers are heard on <code>submit</code> only: each can return a
+carrier (the trace context) that travels in the message (<a href="#the-queue">the queue</a>), and an observer that raises changes nothing.</p>
+<div class="highlight"><pre><span></span><code><span class="n">client</span> <span class="o">=</span> <span class="n">JobClient</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">queue</span><span class="p">,</span> <span class="n">results</span><span class="p">)</span>
+<span class="n">job_id</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">Summarise</span><span class="p">,</span> <span class="n">SummariseInput</span><span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="s2">"https://..."</span><span class="p">))</span>
+<span class="k">async</span> <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">client</span><span class="o">.</span><span class="n">events</span><span class="p">(</span><span class="n">job_id</span><span class="p">):</span>
+    <span class="o">...</span>  <span class="c1"># queued, running, succeeded</span>
+<span class="n">row</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">wait</span><span class="p">(</span><span class="n">job_id</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">60</span><span class="p">)</span>  <span class="c1"># the same stream, until a final status</span>
+<span class="n">output</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">result</span><span class="p">(</span><span class="n">Summarise</span><span class="p">,</span> <span class="n">job_id</span><span class="p">)</span>  <span class="c1"># read from YOUR result store</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>submit(job, input, *, resumable=False, resume_from=None, job_id=None, identity=None)</code></td>
+<td>Validates the input against the job's model, creates the job row (name, <code>job_hash</code>, <code>input_hash</code>, <code>resumable</code>, <code>resumed_from</code>, and a <code>queued</code> event), then puts a <code>JobMessage</code> on the queue. If the enqueue fails the job is marked <code>FAILED</code> and the error is raised</td>
+</tr>
+<tr>
+<td><code>status(job_id)</code></td>
+<td>The <code>JobRow</code></td>
+</tr>
+<tr>
+<td><code>cancel(job_id)</code></td>
+<td>See <a href="#cancelling">cancelling</a>. Returns whether there was anything to cancel</td>
+</tr>
+<tr>
+<td><code>result(job, job_id)</code></td>
+<td>The output, read from the user's <code>ResultStore</code> under <code>ResultKey(job_id, job_hash, input_hash)</code> and parsed into the job's output model, or <code>None</code> while there is none. It never reads our tables, which hold no results</td>
+</tr>
+<tr>
+<td><code>events(job_id, after=0)</code></td>
+<td>The <a href="#job-events">events</a> of the job</td>
+</tr>
+<tr>
+<td><code>wait(job_id, timeout=None)</code></td>
+<td>The <code>JobRow</code> once the job is final (<code>SUCCESS</code>, <code>FAILED</code> or <code>CANCELLED</code>); <code>TimeoutError</code> otherwise. A convenience for scripts and tests: a web handler should return the job id, not wait</td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>identity=</code></strong> is the identity of the run (<a href="../identity/#declaring-and-passing-it">identity</a>). With <code>identity_type</code> the client checks it before it creates a job; the message carries it and its kind, and the worker
+rebuilds it as the model the kind names.</p>
+<p><strong>Resuming</strong> is <code>submit(job, input, resume_from=failed_job_id)</code>: a new job points to the old one, and the worker's runner reuses the
+finished steps exactly as <code>run_job(..., resume_from=...)</code> does. Nothing resumes a failed job by itself.</p>
+<h2 id="the-worker">The worker<a class="headerlink" href="#the-worker" title="Permanent link">&para;</a></h2>
+<p><code>JobWorker(db, queue, runner, jobs, results, concurrency, jobs_lookup=None, identity_type=None)</code> is the process that runs jobs. It holds no state of its own: it is the
+database, the queue and the user's store. <code>jobs</code> are the jobs declared in code; <code>jobs_lookup</code> is an optional fallback for jobs that are not
+(<a href="#jobs-that-are-not-declared-in-code">below</a>).</p>
+<p><code>await worker.run()</code> loops:</p>
+<ol>
+<li><strong>Receive</strong> a message. If the job is already <code>CANCELLED</code>, acknowledge and skip it. If the job name is unknown (not in <code>jobs</code>, and
+   <code>jobs_lookup</code>, if there is one, found nothing), or the input does not validate, or the identity does not (it is missing and the worker's <code>identity_type</code> does not allow <code>None</code>, or it does not fit the type, or its kind is not one the type has, or there is no kind: <code>InvalidJobIdentity</code>), mark the job
+   <code>FAILED</code> (<code>error_type</code>, <code>error_hash</code>) and acknowledge. A job that fails for this is not run, and is not retried.</li>
+<li><strong>Start:</strong> take the job (<code>start_job</code>: <code>RUNNING</code>, <code>started_at</code>, a <code>running</code> event) and run it as an asyncio task, up to <code>concurrency</code> at a time. What the
+   task does is <code>execute_job</code>, the function that also runs a job for <code>run_job</code> (<a href="../jobs/#running-a-job-class">running a job class</a>): the worker adds the queue.</li>
+<li><strong>Success:</strong> write the output through the user's <code>ResultStore</code> under <code>ResultKey(job_id, job_hash, input_hash)</code>, mark the job
+   <code>SUCCESS</code>, acknowledge. <strong>If the store fails to keep the result, the job is <code>FAILED</code></strong>, because the result is its product (a lost
+   step result only reruns the step; a lost job result is the deliverable). <code>results=None</code> keeps nothing, and <code>client.result</code> has
+   nothing to read.</li>
+<li><strong>Failure:</strong> mark the job <code>FAILED</code> with the error's type and hash, and acknowledge. <strong>A failed job is never retried by the
+   worker</strong>: the user resumes it. The failure is a recorded outcome, not a delivery failure, so there is nothing to dead-letter.</li>
+</ol>
+<p><strong>Shutdown.</strong> <code>await worker.stop(grace)</code> takes no new messages, waits the grace period for running jobs, then cancels the rest and
+<code>nack</code>s their messages with <code>requeue=True</code>: those jobs return to <code>INIT</code> (a <code>queued</code> event), the interrupted attempts are <code>CANCELLED</code>,
+and a worker (this one, later, or another) runs them again, as a takeover does (<a href="#several-workers">several workers</a>): the steps that finished
+before the interruption are reused if the job is <code>resumable</code>.</p>
+<h2 id="jobs-that-are-not-declared-in-code">Jobs that are not declared in code<a class="headerlink" href="#jobs-that-are-not-declared-in-code" title="Permanent link">&para;</a></h2>
+<p>A worker is given its jobs when it starts. A platform where users define their own agents, stored in the platform's own database and
+built into classes when they are needed, has jobs that a worker could not have been given. <code>jobs_lookup</code> is how the worker finds them.</p>
+<div class="highlight"><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">jobs_lookup</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">job_hash</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">identity</span><span class="p">:</span> <span class="n">Any</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">[</span><span class="n">Job</span><span class="p">]</span> <span class="o">|</span> <span class="nb">type</span><span class="p">[</span><span class="n">AgentBase</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span>
+
+
+<span class="n">worker</span> <span class="o">=</span> <span class="n">JobWorker</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">queue</span><span class="p">,</span> <span class="n">runner</span><span class="p">,</span> <span class="n">jobs</span><span class="o">=</span><span class="p">[</span><span class="n">Summarise</span><span class="p">],</span> <span class="n">jobs_lookup</span><span class="o">=</span><span class="n">jobs_lookup</span><span class="p">)</span>
+</code></pre></div>
+<ul>
+<li><strong>It is a fallback.</strong> The worker looks the job name up in <code>jobs</code> first. If <code>jobs</code> has the name, <code>jobs_lookup</code> is <strong>not called</strong>, so
+  declaring jobs in code behaves exactly as without it. Only for a name <code>jobs</code> does not have does the worker call <code>jobs_lookup(name, job_hash, identity)</code>.
+  <code>jobs</code> may be empty.</li>
+<li><strong>What it gets:</strong> the name from the message, the <code>job_hash</code> recorded at submit, and <strong>the identity</strong> the worker rebuilt from the message (<code>None</code> if there is none). A lookup that
+  does not need the identity ignores it; one that does can scope what it searches (by tenant, say).</li>
+<li><strong>What it returns:</strong> a <code>Job</code> class, a plain (non-streaming) agent class, which is made a job as in <code>jobs</code> (<code>as_job</code>), or <code>None</code>. <code>None</code> is
+  an unknown job, as before: the job is <code>FAILED</code> with <code>UnknownJob</code>, and the message is acknowledged.</li>
+<li><strong>What the worker checks</strong> about a class it got from <code>jobs_lookup</code>, before it runs anything:</li>
+<li>its name is the name that was asked for (a lookup that returns another job is a bug, and a job is run by its name);</li>
+<li>its <code>job_hash()</code> is the hash recorded on the job row when the job was submitted. If the definition changed while the job was queued
+    (a user edited their agent), the job is <strong>not</strong> run as the new definition: it is <code>FAILED</code>, and the user can resubmit.</li>
+<li>A job whose row has no recorded hash (one that a client did not make) is not checked against one, and the lookup gets <code>None</code> for it.</li>
+<li>A job that fails either check, or whose <code>jobs_lookup</code> raises, or that returns something that is not a job, is <code>FAILED</code> with the error type <code>JobLookupError</code> (the message
+    says which), and the message is acknowledged. The worker <strong>rebuilds the identity first</strong>, because the lookup receives it, so a message whose identity does not fit fails
+    before the lookup is asked. <strong>A failed job is not retried by the worker</strong> (as always), so a lookup that can fail for a transient reason
+    (a database that is briefly away) retries inside itself.</li>
+<li><strong>A lookup that takes too long fails the job.</strong> The lookup runs inline in the worker's receive loop, so a lookup that hangs (a database or an object store that does not answer) would stop the worker
+    from taking any message. It has a timeout, <code>FTW_JOBS_LOOKUP_TIMEOUT</code> seconds (15 by default; <a href="../configuration/">configuration</a>), read when the worker is built and with no argument and no way to switch it off.
+    When it passes, the lookup is cancelled and the job is <code>FAILED</code> with <code>JobLookupError</code> ("jobs_lookup took longer than N seconds"), the message is acknowledged and the worker goes on to the next one. So a lookup must be safe to cancel,
+    and a message behind a slow lookup waits at most the timeout. A lookup that raises a <code>TimeoutError</code> of its own is reported as one that raised, not as one that was too slow.</li>
+<li><strong>The name is checked first.</strong> A message whose job name does not match the pattern below is not a job: it is <code>FAILED</code> with <code>UnknownJob</code> (the text names the rule, not the value), the message is acknowledged, and neither <code>jobs</code> nor
+    <code>jobs_lookup</code> is asked. The pattern is only checked when a <code>Job</code> class is made, so a message that did not come from <code>submit</code> (a forged one, a client of another version or language) could otherwise hand the application's lookup any string, such
+    as <code>../../other-tenant/agent</code>, before the application has had a chance to validate it. The queue is trusted, so this is a safeguard and not a boundary.</li>
+<li><strong><code>job_hash</code></strong> is the hash of the job's declaration: for an agent, the whole of its declaration (its prompt, model settings, tools,
+  sub-agents, skills, MCP servers, the system prompt and the schemas of its input and output); for a <code>Job</code> class, its name, its version and
+  the schemas of its input and output (not the code of <code>run</code>: bump <code>version</code> when that changes). A lookup may ignore it, and then a job queued
+  before an edit fails, which is safe. A lookup that keeps saved versions of a definition uses it to load the exact one. It is made from the
+  content, so a lookup may cache what it built by <code>(name, job_hash)</code> without it going stale. The worker caches nothing.</li>
+<li><strong>Names are the application's.</strong> The name is the job's key: a worker runs a job by it, and the worker refuses a name that does not (see above). A name must match, whole, <code>^[A-Za-z][A-Za-z0-9_.-]*$</code> (a newline at the end does not) (a letter first, then letters, digits, <code>_</code>, <code>.</code> and
+  <code>-</code>). It is a plain string that the application chooses: unique in what its lookup searches (with the identity, unique within a tenant is enough), and stable, because a rename breaks the jobs
+  queued under the old name and changes the agent's hash. An agent's <code>name</code> is also what a model sees when it launches the agent as a sub-agent and what the run log shows, so a readable name
+  and a unique one pull apart: an application that needs ids in the name can use them (<code>agent-7f3a...</code>), and one that wants readable names keeps them unique per tenant. featherweight
+  has no <code>key</code> and does not decide which.</li>
+<li><strong>The client needs nothing.</strong> <code>submit</code> takes a class: the platform builds it from its definition, the same way, and sends it.</li>
+<li><strong>Not for classes that are known.</strong> It is a fallback for what the code cannot name. It does not scan for jobs, and it is not a registry.</li>
+</ul>
+<h2 id="several-workers">Several workers<a class="headerlink" href="#several-workers" title="Permanent link">&para;</a></h2>
+<p><strong>Built</strong> (<a href="https://github.com/aadhithya/featherweight/issues/103">epic #103</a>, with one issue for each part: <a href="https://github.com/aadhithya/featherweight/issues/104">#104</a> the queue, <a href="https://github.com/aadhithya/featherweight/issues/105">#105</a> the job lease and the owner check, <a href="https://github.com/aadhithya/featherweight/issues/106">#106</a> takeover, <a href="https://github.com/aadhithya/featherweight/issues/107">#107</a> the timeout, <a href="https://github.com/aadhithya/featherweight/issues/108">#108</a> the guide). Several workers on one queue already work today: a message is claimed by one receiver, <code>start_job</code> is a
+compare-and-set that exactly one worker wins, a cancel is checked by the worker that owns the job, the events have one reader per
+process, and a shutdown requeues. What does not work is a worker that <strong>dies</strong>: its message stays claimed, and its job stays <code>RUNNING</code>
+for ever. This section is the recovery from that, and it is all that it is: we do not build a broker, a scheduler or a registry of workers.</p>
+<ul>
+<li><strong>Two leases, with one job each</strong> (built, <a href="https://github.com/aadhithya/featherweight/issues/105">#105</a>). The queue's lease keeps a <em>message</em> from other receivers, and it comes back by itself when the worker
+  stops renewing it. The job's lease is on the job row (<code>jobs.worker_id</code>, <code>jobs.lease_expires_at</code>), and is what makes it <em>exclusive</em>:
+  at-least-once delivery can deliver a message twice even without a lease running out, so the job needs a lock of its own. The default
+  lease is 60 seconds (<code>FTW_JOB_LEASE</code>). A job that runs in your process (<code>run_job</code>) has an owner and no lease: nothing renews one and
+  nobody takes it over, so it has none to lose.</li>
+<li><strong>The heartbeat</strong> (built, #105). One task per worker renews, every third of the lease (20 seconds; <code>FTW_HEARTBEAT</code>), the job lease of every job it runs
+  (<strong>one <code>UPDATE</code>, in place, no new rows</strong>) and the queue lease of each of their messages (<code>extend</code>). It proves that the worker is alive,
+  and not that a job makes progress: that is the timeout.</li>
+<li><strong>Takeover</strong> (built, <a href="https://github.com/aadhithya/featherweight/issues/106">#106</a>). A message comes back after its lease ended and reaches a worker. If the job is <code>RUNNING</code> and its lease has expired, the
+  worker takes it over with one compare-and-set (<code>Database.take_over_job</code>): the job goes back to <code>INIT</code> (a <code>lost</code> event), and at once
+  to <code>RUNNING</code> with the new owner and <code>executions</code> higher by one (a <code>running</code> event), in one transaction. If the lease has not
+  expired (a duplicate delivery of a job that is alive), the worker acknowledges the message and leaves the job alone; so it does for a
+  message for a job that <strong>this worker</strong> is running (its heartbeat can still renew a lease that merely expired, because renewing needs only the
+  ownership). A job whose message never comes back is not found: the queue's redelivery is the only trigger, and there is no sweeper.</li>
+<li><strong>Executions.</strong> <code>jobs.executions</code> counts how many times a worker started the job: 1 for the first, and one more each time it is started again (built,
+  #105: a job that a shutdown put back in the queue is started again as execution 2; a takeover, #106, does the same). (It is not <code>attempt</code>, which is the
+  retry of one agent call.) Each run records the execution that made it (<code>attempts.job_execution</code>, built, #106), and the job's span
+  has <code>ftw.job.execution</code>. The execution comes from the task that runs the job (<code>execute_job</code> sets it, as it sets who the owner is), and not from the
+  job's row, so that a worker that lost the job and has not noticed yet still records the execution it was.</li>
+<li><strong>A takeover reuses the steps that finished</strong> (built, #106), if the job is <code>resumable</code>, with the same mechanism as a resume (<a href="../runner/#resuming">the runner</a>): the
+  source of the reuse is <strong>this same job, executions before the current one</strong>, and not another job. The results are already under this job's key, so
+  nothing is copied forward. A job that is not resumable kept no results, and a takeover reruns it from the start.</li>
+<li><strong>The owner is checked on every write</strong> (built, #105). The writes of a running job (renewing the lease, the final status and its event) are conditional on
+  <code>worker_id</code> and <code>executions</code> being the worker's own, and on the job being <code>RUNNING</code>, in the same statement (<code>set_job_status(..., owner=JobOwner(...))</code>;
+  <code>Database.owns_job</code> is the cheap read for the check before a result is written). A worker that was stalled and wakes up after a takeover finds
+  that its write changes no row, which is how it learns that it lost the job. There is no token and no timer in it: the database
+  decides, and the stalled worker's clock does not matter.</li>
+<li><strong>A lost job</strong> (built, #105) is dropped quietly: the worker cancels the task at once (so that it stops spending), writes nothing to the job,
+  does not acknowledge the message (the delivery is stale), logs <code>job_lost job_id=... execution=...</code>, and tells its observers (the job's span
+  ends with error type <code>JobLost</code>, for tracing only: nothing is written to the job; its attempts end <code>CANCELLED</code>, as for any cancelled task). It keeps running its other jobs. Before the worker writes a result it checks that it still owns the
+  job; that is not atomic, so in a very small window a stalled worker can write a result under the same key as the new owner, for the same
+  input, and the last write wins. The effects that the job's own code already had (a mail sent, an API called) are not undone: <strong>a job must be safe to run twice</strong>.</li>
+<li><strong>The timeout</strong> (built: <a href="https://github.com/aadhithya/featherweight/issues/107">#107</a>). One execution of a job may run for <code>Job.timeout</code> seconds (default 600, <code>None</code> for no limit). When it is exceeded the
+  task is cancelled and the job is <code>FAILED</code> with error type <code>JobTimeout</code>; it is not retried (the user resumes it). It applies to a job run
+  by <code>run_job</code> too, because it is in the shared <code>execute_job</code>. Only the limit's own expiry counts: a <code>TimeoutError</code> that the job raises itself, and a
+  cancellation from outside, do not (the job ends <code>FAILED</code> with that error, and <code>CANCELLED</code>). The runs that it interrupts end <code>CANCELLED</code>. A heartbeat cannot do this, because a hung job in a healthy worker still
+  heartbeats.</li>
+<li><strong>Delivery count.</strong> <code>Delivery.delivery_count</code> says how many times a message has been delivered. <strong>How many redeliveries are allowed is the
+  queue's business</strong>: a broker has its own policy and dead-letter queue. Ours, <code>SqliteQueue</code>, allows 3 by default (<code>FTW_QUEUE_MAX_DELIVERIES</code>), then marks
+  the message <code>dead</code> and fails the job with error type <code>DeadLettered</code>. A user's queue that dead-letters a message ends its
+  job with <strong><code>client.fail(job_id)</code></strong> (built, #106), from its dead-letter handler: a compare-and-set that moves a job that is not running to <code>FAILED</code>
+  with error type <code>DeadLettered</code> (a <code>failed</code> event): one that is still <code>INIT</code>, or <code>RUNNING</code> with an expired lease (its worker was lost). It returns
+  <code>False</code> for a job that runs with a live lease, is final, or does not exist. Until it is called, the job stays as it was. <code>SqliteQueue</code> calls it itself.</li>
+</ul>
+<h2 id="cancelling">Cancelling<a class="headerlink" href="#cancelling" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>A queued job</strong> (<code>INIT</code>): <code>cancel</code> marks it <code>CANCELLED</code> (a <code>cancelled</code> event), in <strong>one atomic step that succeeds only if the job is still <code>INIT</code></strong> (<code>Database.cancel_queued_job</code>). The worker takes a job with the matching step (<code>Database.start_job</code>: <code>RUNNING</code> only if still <code>INIT</code> and no one asked to cancel it). The two cannot both succeed, so a job is never cancelled and run at once. A cancel that loses falls through to a running job's flag. Its message stays on the queue, because brokers
+  cannot remove by id; the worker sees the status when the message arrives, acknowledges it and skips it.</li>
+<li><strong>A running job:</strong> <code>cancel</code> sets <code>cancel_requested</code> (a <code>cancel_requested</code> event). Inside the worker each running job is an asyncio
+  task, so cancelling it is <code>task.cancel()</code>, which is event-driven. <strong>In the same process</strong>, <code>worker.cancel(job_id)</code> does it at once.
+  <strong>From another process</strong>, one background task of the worker checks, about every second, which of <strong>its own</strong> running jobs have the
+  flag, in one query, and cancels them. The job is then <code>CANCELLED</code> and its interrupted attempts are <code>CANCELLED</code>.</li>
+<li><strong>A final job:</strong> <code>cancel</code> returns <code>False</code> and changes nothing.</li>
+</ul>
+<h2 id="job-events">Job events<a class="headerlink" href="#job-events" title="Permanent link">&para;</a></h2>
+<p>The worker, the client and <code>run_job</code> all change a job's status, and every change is an <strong>event</strong>, for anyone who wants to follow
+a job. Events are metadata only: no content (content goes out only through <a href="../observability/">an observer</a>).</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">JobEvent</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>  <span class="c1"># frozen</span>
+    <span class="n">seq</span><span class="p">:</span> <span class="nb">int</span>  <span class="c1"># monotonic</span>
+    <span class="n">job_id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="nb">type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span>
+        <span class="s2">"queued"</span><span class="p">,</span> <span class="s2">"running"</span><span class="p">,</span> <span class="s2">"succeeded"</span><span class="p">,</span> <span class="s2">"failed"</span><span class="p">,</span> <span class="s2">"cancelled"</span><span class="p">,</span> <span class="s2">"cancel_requested"</span><span class="p">,</span> <span class="s2">"lost"</span>
+    <span class="p">]</span>  <span class="c1"># "lost": a takeover, see several workers</span>
+    <span class="n">status</span><span class="p">:</span> <span class="n">Status</span>
+    <span class="n">error_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">error_hash</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">at</span><span class="p">:</span> <span class="n">datetime</span>
+</code></pre></div>
+<p><strong>The database writes the event in the same transaction as the status change</strong> (the outbox pattern), not the worker after it: a crash
+cannot leave a change without its event, and every change makes exactly one event whoever makes it. <code>insert_job</code> writes <code>queued</code>,
+<code>set_job_status</code> writes the event of the new status, and <code>request_job_cancel(job_id)</code> sets the flag and writes <code>cancel_requested</code>.
+<code>list_job_events(job_id, after, limit)</code> reads them, and <code>poll_job_events(job_ids, after)</code> reads those of several jobs in one query (what the one reader asks for). These are methods of the <code>Database</code> abstract class, and its conformance kit covers them. <code>insert_job</code> writes <code>queued</code>, and a job going back to <code>INIT</code> writes <code>queued</code> again. After the commit the database <strong>publishes</strong> the event to the listeners in its own process.</p>
+<p><strong><code>client.events(job_id, after=0)</code></strong> is an async stream: it replays the stored events after a sequence number, then goes live, and
+ends after a final event. A listener that starts late misses nothing, and one that reconnects resumes from its last <code>seq</code>.
+<code>wait</code> reads the status and, if the job is not final, consumes the stream, so there is no gap between checking and listening.</p>
+<p><strong>How it is delivered.</strong> In the same process the database wakes the listeners when the transaction commits: instantly, with no
+polling. Across processes the events table must be read, so <strong>one reader task per process</strong> polls it with a growing delay (one
+query for every open stream) and fans out to them: a hundred open connections cost one query. The polling is inside the library,
+in one place.</p>
+<p><strong>SSE is the only streaming protocol.</strong> <code>sse.encode(events)</code> turns the stream into server-sent events and <code>sse.HEADERS</code>
+has the headers:</p>
+<div class="highlight"><pre><span></span><code>id: 12
+event: running
+data: {"seq":12,"job_id":"…","status":"RUNNING","at":"2026-11-20T10:00:01Z"}
+</code></pre></div>
+<p><code>id</code> is the sequence number, so a browser that reconnects sends <code>Last-Event-ID</code> and the stream resumes after it. A comment line goes
+out every 15 seconds to keep the connection open, and the stream ends after a final event. featherweight runs <strong>no server</strong>: the
+user's API sends the response (a <code>StreamingResponse</code> in FastAPI, about a dozen lines, in the example). No WebSockets, one job per
+stream, no stream of all jobs.</p>
+<h2 id="decisions">Decisions<a class="headerlink" href="#decisions" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Everything is passed, nothing is kept:</strong> inputs in the message, results in the user's store, and the metadata in ours.</li>
+<li><strong>A job is a declared class,</strong> registered with the worker by name, with a decorator as sugar. An agent can be a job.</li>
+<li><strong><code>jobs_lookup</code> is a fallback, not a registry:</strong> <code>jobs</code> is tried first, and the lookup is called only for a name <code>jobs</code> does not have. The worker
+  checks the name and the hash of what it returns, and caches nothing. Finding a user's definition and building its class is the platform's
+  code, because where definitions live is its decision, as with the result store and the queue.</li>
+<li><strong><code>JobQueue</code> is an abstract class</strong> with sqlite as our only product implementation and a conformance kit; the user brings Redis,
+  SQS or anything else.</li>
+<li><strong>Client and worker are independent:</strong> the queue and the database are their only connection.</li>
+<li><strong>A failed job is not retried by the worker;</strong> the user resumes it. A failed job is an outcome, not a delivery failure.</li>
+<li><strong>A lost job result fails the job;</strong> a lost step result only reruns the step.</li>
+<li><strong>Events are written by the database, in the transaction of the status change,</strong> and streamed with SSE only.</li>
+<li><strong>Polling is centralised, not removed:</strong> one reader per process, behind <code>events()</code>.</li>
+<li><strong>Cancel:</strong> a queued job is marked and skipped; a running job's flag is checked by the worker about every second.</li>
+<li><strong>Shutdown:</strong> a grace period, then cancel and requeue.</li>
+<li><strong>A lease on the queue (built, #104) and one on the job (built, #105):</strong> the queue's keeps the message, the job's keeps the job exclusive. Heartbeats are
+  in-place updates. A lost lease puts the job back to <code>INIT</code>, and <code>FAILED</code> comes only when the user's policy runs out.</li>
+<li><strong>A takeover is the same job with <code>executions</code> + 1,</strong> not a new job: the client holds the id, and its events, its cancel and its result
+  are all keyed by it. A resume is a new job; a takeover is not, and both reuse finished steps with one mechanism.</li>
+<li><strong>The write is checked against the owner,</strong> not against a clock.</li>
+<li><strong>Job timeout, default ten minutes.</strong> Redelivery limits are the queue's, except for ours.</li>
+</ul>
+<h2 id="later">Later<a class="headerlink" href="#later" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>An event channel as an abstract class,</strong> like <code>Database</code>: Postgres <code>LISTEN/NOTIFY</code>, Redis pub/sub or a cloud broker would remove
+  the polling across processes. Pub/sub is vendor-specific and not available everywhere, so we do not write one per vendor now.
+  If it is wanted, it is one abstract class behind the same <code>events()</code>, with a conformance kit.</li>
+<li><strong>A worker-level limit on redeliveries:</strong> the queue's business, so there is none.</li>
+<li><strong>Background jobs:</strong> <a href="../background-jobs/">their own spec</a>, built on jobs and the job events.</li>
+</ul>
+<h2 id="not-supported">Not supported<a class="headerlink" href="#not-supported" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>A durable queue we ship</strong> beyond sqlite, and a pub/sub channel.</li>
+<li><strong>Automatic retry of a failed job.</strong></li>
+<li><strong>A sweeper</strong> for a job whose message never comes back.</li>
+<li><strong>A worker that finds jobs by itself.</strong> <code>jobs_lookup</code> is the platform's code, and the worker scans nothing.</li>
+<li><strong>A worker registry, scheduling, priorities, autoscaling,</strong> and a broker of our own.</li>
+<li><strong>Fencing the user's stores and the effects of their code:</strong> only our own writes are checked.</li>
+<li><strong>Progress with content</strong> in events, and a stream of all jobs.</li>
+<li><strong>A server, a router or WebSockets.</strong> The example shows an SSE endpoint.</li>
+<li><strong>Pruning events:</strong> the table grows, and pruning is the user's for now.</li>
+</ul>
+<h2 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">&para;</a></h2>
+<p>No live model call. Fake models, <code>MemoryQueue</code>, the dict result store.</p>
+<ul>
+<li><strong>The job class:</strong> the contract, the hash, an agent as a job, a streaming agent refused, <code>@job</code>.</li>
+<li><strong>The queue:</strong> <code>check_queue</code> against <code>SqliteQueue</code> and <code>MemoryQueue</code>, two receivers on one queue.</li>
+<li><strong>Events:</strong> every status change makes exactly one event, whoever makes it; a late listener replays; the same-process wake-up; a
+  writer and a reader on one file in two processes; one reader serving many streams; the stream ends at a final event; the SSE
+  format and <code>Last-Event-ID</code>; the <code>Database</code> conformance kit on sqlite and Postgres.</li>
+<li><strong>Several workers:</strong> <code>check_queue</code> with a short lease (built, #104: a message comes back with a higher count, <code>extend</code> keeps it, an acknowledged one
+  does not, a stale delivery changes nothing); <code>SqliteQueue</code> with <code>FTW_QUEUE_MAX_DELIVERIES</code> (dead, and its job <code>FAILED</code>); two workers, one killed mid-job: the other takes the job over,
+  <code>executions</code> is 2 and the events read queued, running, lost, running, succeeded; a duplicate delivery of a live job is skipped; a stalled
+  worker that wakes up loses its job quietly and writes nothing; the heartbeat keeps a long job alive; a takeover of a resumable job reuses its finished steps (and one that is not resumable reruns them), and
+  never its own execution's; <code>client.fail</code> on an <code>INIT</code> job, and on a final one; the timeout fails a hung job (in the worker and in <code>run_job</code>).</li>
+<li><strong><code>jobs_lookup</code>:</strong> it is not called for a name <code>jobs</code> has; a name <code>jobs</code> lacks is looked up, and the class it returns runs (an agent class too);
+  <code>None</code> is <code>UnknownJob</code>; a lookup that returns another name, a job whose hash is not the one recorded at submit, and a lookup that raises each
+  fail the job with <code>JobLookupError</code> and do not run it; a lookup that ignores the hash runs a job whose definition did not change; an empty <code>jobs</code>; the identity reaches the lookup.</li>
+<li><strong>The timeout and the name:</strong> a lookup that sleeps past a short timeout fails the job with <code>JobLookupError</code>, is not asked again, its message is acknowledged and the next job runs (also one that is in <code>jobs</code>); a lookup that raises its
+  own <code>TimeoutError</code> is a lookup that raised; unset, the timeout is 15 seconds, and a bad value is a <code>ValueError</code> that names the variable; a name with <code>/</code>, with <code>..</code>, empty or starting with a digit fails with <code>UnknownJob</code>
+  without the lookup being asked, and the text does not hold the name.</li>
+<li><strong>The identity</strong> (<a href="../identity/#tests">the spec</a>): a job submitted with an identity whose tool reads it on a worker; a message without one for a worker whose type does not allow <code>None</code>, and one
+  that does not validate, one whose kind the type does not have, and one with no kind, fail the job without running it; a worker whose type its runner does not accept is refused when it is built; <code>check_queue</code> and the identity and its kind.</li>
+<li><strong>The client and the worker:</strong> submit, status, wait, result; a failing enqueue; every cancel case, in the same process and from
+  another; success, failure, an unknown job, an invalid input, a failing result store, a skipped cancelled job; shutdown with the
+  grace period and the requeue; concurrency; resuming through <code>submit</code>; and a client in one process with a worker in another.</li>
+</ul>
+<h2 id="the-work">The work<a class="headerlink" href="#the-work" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Issue</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/71">#71</a></td>
+<td>The epic</td>
+</tr>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/72">#72</a></td>
+<td>The <code>Job</code> class, <code>JobContext</code>, the job columns and <code>CANCELLED</code></td>
+</tr>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/73">#73</a></td>
+<td>The <code>JobQueue</code> abstract class, <code>SqliteQueue</code>, <code>MemoryQueue</code> and the kit</td>
+</tr>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/74">#74</a></td>
+<td>Job events and SSE</td>
+</tr>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/75">#75</a></td>
+<td><code>JobClient</code></td>
+</tr>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/76">#76</a></td>
+<td><code>JobWorker</code></td>
+</tr>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/77">#77</a></td>
+<td>The <code>@job</code> decorator</td>
+</tr>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/78">#78</a></td>
+<td>The guide, an example and the skill reference</td>
+</tr>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/103">#103</a></td>
+<td>The epic for several workers (see <a href="#several-workers">several workers</a>), with #104 to #108</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../jobs/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Jobs">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Jobs
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../background-jobs/" class="md-footer__link md-footer__link--next" aria-label="Next: Background jobs">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Background jobs
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Designed by humans. Implemented by AI agents.
+    </div>
+  
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.instant", "navigation.tabs", "navigation.sections", "navigation.indexes", "navigation.top", "navigation.footer", "toc.follow", "search.highlight", "search.suggest", "content.code.copy", "content.action.edit"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

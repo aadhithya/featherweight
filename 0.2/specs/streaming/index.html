@@ -1,0 +1,6012 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="An opinionated Python agent harness. An agent is a typed class, a runner runs it with retries and limits, and jobs run in your process or on workers.">
+      
+      
+      
+        <link rel="canonical" href="https://ftw.asankar.de/0.2/specs/streaming/">
+      
+      
+        <link rel="prev" href="../approvals/">
+      
+      
+        <link rel="next" href="../attachments/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Streaming agents - featherweight</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../assets/site.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#streaming-agents" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="featherweight" class="md-header__button md-logo" aria-label="featherweight" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            featherweight
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Streaming agents
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/aadhithya/featherweight" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    aadhithya/featherweight
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../book/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Book
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../recipes/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Recipes
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../documentation/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Specs
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  API reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="featherweight" class="md-nav__button md-logo" aria-label="featherweight" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    featherweight
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/aadhithya/featherweight" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    aadhithya/featherweight
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../book/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Book
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Book
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_2" id="__nav_2_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 0: Start here
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 0: Start here
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/00-start-here/01-what-it-is/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What featherweight is
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/00-start-here/02-the-map/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The map
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/00-start-here/03-philosophy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The philosophy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/00-start-here/04-how-to-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How to read this book
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 1: Your first agent
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 1: Your first agent
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/01-your-first-agent/01-install-and-set-up/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install and set up
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/01-your-first-agent/02-a-typed-agent/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A typed agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/01-your-first-agent/03-running-it/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Running it
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/01-your-first-agent/04-what-happened/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What happened
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/01-your-first-agent/05-failures-and-check-output/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Failures and check_output
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/01-your-first-agent/06-choosing-a-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing a model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_4" id="__nav_2_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 2: Abilities
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 2: Abilities
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/02-abilities/01-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/02-abilities/02-mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/02-abilities/03-skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/02-abilities/04-sub-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sub-agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_5" id="__nav_2_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 3: Jobs and pipelines
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 3: Jobs and pipelines
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/03-jobs-and-pipelines/01-what-a-job-is/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What a job is
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/03-jobs-and-pipelines/02-status-and-events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Status and events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/03-jobs-and-pipelines/03-results-and-the-result-store/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Results and the result store
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/03-jobs-and-pipelines/04-resume/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resume
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_6" id="__nav_2_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 4: Chat
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 4: Chat
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/04-chat/01-a-streaming-agent/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A streaming agent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/04-chat/02-in-the-browser/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    In the browser
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/04-chat/03-stopping-and-the-conversation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stopping and the conversation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/04-chat/04-attaching-a-file/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attaching a file
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_7" id="__nav_2_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 5: In production
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 5: In production
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/05-in-production/01-submit-and-a-worker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Submit and a worker
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/05-in-production/02-several-workers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Several workers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/05-in-production/03-background-jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Background jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/05-in-production/04-observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/05-in-production/05-who-is-asking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Who is asking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/05-in-production/06-approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Approvals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_8" id="__nav_2_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 6: Bring your own storage
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 6: Bring your own storage
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/06-bring-your-own-storage/01-postgres/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Postgres
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/06-bring-your-own-storage/02-a-result-store/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A result store
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/06-bring-your-own-storage/03-a-job-queue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A job queue
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/06-bring-your-own-storage/04-a-database/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A database
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/06-bring-your-own-storage/05-an-observer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    An observer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_9" id="__nav_2_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Part 7: Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Part 7: Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/07-reference/01-the-guides/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The guides
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/07-reference/02-the-specs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The specs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/07-reference/03-the-glossary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The glossary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../book/07-reference/04-the-finished-project/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The finished project
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../recipes/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipes
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Recipes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-pipeline-of-two-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A pipeline of two agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/resuming-a-failed-job/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resuming a failed job
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/telling-a-retry-what-went-wrong/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Telling a retry what went wrong
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/testing-with-a-fake-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing with a fake model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/an-agent-with-an-mcp-server/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    An agent with an MCP server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/an-agent-that-launches-another/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    An agent that launches another
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/giving-a-sub-agent-context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Giving a sub-agent the context it needs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/approving-what-an-agent-proposes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Approving what an agent proposes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/asking-the-user-in-the-middle-of-a-job/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Asking the user in the middle of a job
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-chat-agent-that-streams/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A streaming agent for chat
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-result-store-of-your-own/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A result store of your own
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-job-that-a-worker-runs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A job that a worker runs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/traces-for-jobs-and-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Traces for jobs and agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/an-agent-that-starts-another-and-goes-on/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    An agent that starts another and goes on
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-different-provider/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A different provider
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-skill-from-a-database-or-s3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A skill from a database or S3
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-skill-for-each-department/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A skill for each department
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/agents-built-from-json/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents built from JSON, with your own rules
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-queue-that-signs-its-messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A queue that signs its messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/a-tool-that-gets-a-token-for-its-identity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A tool that gets a token for its identity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../recipes/files-for-an-agent-or-a-job/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Files for an agent or a job: pass a reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models and providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../launching-agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents that launch agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Streaming agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../attachments-providers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What the providers accept as attachments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistence: what is kept, and what is not
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../submitted-jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Submitted jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../background-jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Background jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observability
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../production-stack/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A production stack
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../example-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Example pipeline: doclearn
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migrating from 0.1
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../releasing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releasing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Specs
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Specs
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../units/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Units of work
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../agents/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../runner/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Agent runner
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models and providers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools and the tool registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tool-discovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool discovery
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../identity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Identity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../approvals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Approvals: agents propose, code executes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Streaming agents
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Streaming agents
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#goal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Goal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-agent-and-its-input" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The agent and its input
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#streaming-a-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Streaming a run
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The events
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-models-thoughts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The model's thoughts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#messages-and-keeping-the-conversation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Messages and keeping the conversation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stopping-a-response" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stopping a response
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-run-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The run log
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-adapters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The adapters
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decisions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#not-supported" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Not supported
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#findings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Findings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tests
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The work
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attachments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attachments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run log and persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../submitted-jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Submitted jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../background-jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Background jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../observability/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Observers and OpenTelemetry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/adapters-agui/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.adapters.agui
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/adapters-errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.adapters.errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/adapters-vercel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.adapters.vercel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/client/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.client
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.context
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/db/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.db
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/errors/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.errors
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/identity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.identity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/log/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.log
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.mcp
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/messages/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.messages
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/model_settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.model_settings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.models
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/observers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.observers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/otel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.otel
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/postgres/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.postgres
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/queue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.queue
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/runner/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.runner
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/skills/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.skills
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/sqlite/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.sqlite
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/sse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.sse
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/streaming/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.streaming
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/worker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    featherweight.worker
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#goal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Goal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-agent-and-its-input" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The agent and its input
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#streaming-a-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Streaming a run
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The events
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-models-thoughts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The model's thoughts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#messages-and-keeping-the-conversation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Messages and keeping the conversation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stopping-a-response" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stopping a response
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-run-log" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The run log
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-adapters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The adapters
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decisions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#not-supported" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Not supported
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#findings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Findings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tests
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The work
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/aadhithya/featherweight/edit/main/docs/specs/streaming.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="streaming-agents">Streaming agents<a class="headerlink" href="#streaming-agents" title="Permanent link">&para;</a></h1>
+<p>Status: implemented (epic #29 is done). #33 (stopping a response) and #36 (the example and the guide) are done too. #30 (the class, <code>ChatInput</code>, <code>runner.stream()</code>, the run log), #31 (the events: text, tool calls, thoughts, steps; <code>show_thoughts</code>), #32 (messages in and out: the converters, <code>from_langchain</code>, <code>from_agui</code>, <code>new_messages</code>), #34 (the AG-UI adapter) and #35 (the Vercel adapter) are done; the other issues are not. It is tracked in <a href="https://github.com/aadhithya/featherweight/issues/29">epic #29</a>, and each part has its own
+issue (listed <a href="#the-work">at the end</a>). When a part is built, this page says so and the guide <code>docs/streaming.md</code> shows how to use it.</p>
+<p>It changes <a href="../agents/">agents</a> (a new kind of agent), <a href="../runner/">the runner</a> (<code>stream()</code>, and <code>run()</code> refuses a streaming
+agent), <a href="../models/">models</a> (<code>show_thoughts</code>) and <a href="../jobs/">jobs</a> (a <code>thread_id</code> column and a
+<code>CANCELLED</code> status).</p>
+<ul>
+<li><a href="#goal">Goal</a></li>
+<li><a href="#the-agent-and-its-input">The agent and its input</a></li>
+<li><a href="#streaming-a-run">Streaming a run</a></li>
+<li><a href="#the-events">The events</a></li>
+<li><a href="#the-models-thoughts">The model's thoughts</a></li>
+<li><a href="#messages-and-keeping-the-conversation">Messages and keeping the conversation</a></li>
+<li><a href="#stopping-a-response">Stopping a response</a></li>
+<li><a href="#the-run-log">The run log</a></li>
+<li><a href="#the-adapters">The adapters</a></li>
+<li><a href="#decisions">Decisions</a></li>
+<li><a href="#not-supported">Not supported</a></li>
+<li><a href="#findings">Findings</a></li>
+<li><a href="#tests">Tests</a></li>
+<li><a href="#the-work">The work</a></li>
+</ul>
+<h2 id="goal">Goal<a class="headerlink" href="#goal" title="Permanent link">&para;</a></h2>
+<p>Some agents talk to a person: a chat, or a task that a person watches. They must show the answer <strong>while it is written</strong>,
+show what the agent is doing (the tools it calls, and its thoughts), let the person <strong>stop</strong> it and correct it, and not wait
+for a finished, validated output. <code>featherweight</code> adds this without a second runtime: a streaming agent is an agent, run by the same
+runner, with the same tools, skills, MCP servers, limits and run log.</p>
+<p>We build abstractions, not a solution. The events are an open protocol's, the HTTP and the storage are the application's.</p>
+<h2 id="the-agent-and-its-input">The agent and its input<a class="headerlink" href="#the-agent-and-its-input" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Support</span><span class="p">(</span><span class="n">StreamingAgent</span><span class="p">):</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"support"</span>
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"Answers questions about the product"</span>
+    <span class="n">version</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"1"</span>
+    <span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"You help customers. Be short."</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">ModelSettings</span> <span class="o">=</span> <span class="n">Claude</span><span class="p">(</span><span class="n">model</span><span class="o">=</span><span class="s2">"claude-sonnet-5-5"</span><span class="p">,</span> <span class="n">effort</span><span class="o">=</span><span class="s2">"low"</span><span class="p">,</span> <span class="n">show_thoughts</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">tools</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">BaseTool</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">lookup_order</span><span class="p">]</span>
+</code></pre></div>
+<p><code>StreamingAgent</code> extends <code>AgentBase</code>. What changes:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><code>AgentBase</code></th>
+<th><code>StreamingAgent</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>input_model</code></td>
+<td>the agent's own</td>
+<td><code>ChatInput</code> (fixed)</td>
+</tr>
+<tr>
+<td><code>output_model</code>, <code>check_output</code></td>
+<td>yes</td>
+<td><strong>none</strong>: nothing is validated, the output is text</td>
+</tr>
+<tr>
+<td>Retries</td>
+<td><code>max_attempts</code></td>
+<td><strong>none</strong>: once a token is out, it cannot be taken back</td>
+</tr>
+<tr>
+<td>Run with</td>
+<td><code>runner.run()</code></td>
+<td><code>runner.stream()</code></td>
+</tr>
+</tbody>
+</table>
+<p>Passing a <code>StreamingAgent</code> to <code>run()</code> raises <code>TypeError</code>, and so does passing any other agent to <code>stream()</code>, naming the other
+method. Tools, <code>subagents</code>, <code>skills</code>, <code>mcp_servers</code> and discovery are declared and checked as they are for any agent.</p>
+<p><strong><code>ChatInput</code></strong> is the conversation so far, sent by the client:</p>
+<div class="highlight"><pre><span></span><code><span class="n">ChatInput</span><span class="p">(</span><span class="n">messages</span><span class="o">=</span><span class="p">[</span><span class="o">...</span><span class="p">],</span> <span class="n">thread_id</span><span class="o">=</span><span class="s2">"t-17"</span><span class="p">)</span>  <span class="c1"># messages: AG-UI Message types</span>
+</code></pre></div>
+<p>It is checked when built:</p>
+<ul>
+<li>The <strong>last message is from the user.</strong></li>
+<li><strong><code>system</code> and <code>developer</code> messages are rejected.</strong> The agent has its own prompt, and a client must not be able to replace
+  it. (The AG-UI request has these roles; a client that sends one gets an error, not silence.)</li>
+<li><code>thread_id</code> is optional. It identifies the conversation for the run log; it does not load anything.</li>
+</ul>
+<h2 id="streaming-a-run">Streaming a run<a class="headerlink" href="#streaming-a-run" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="n">run</span> <span class="o">=</span> <span class="n">runner</span><span class="o">.</span><span class="n">stream</span><span class="p">(</span><span class="n">Support</span><span class="p">,</span> <span class="n">chat_input</span><span class="p">,</span> <span class="n">job_id</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>  <span class="c1"># nothing happens yet</span>
+<span class="k">async</span> <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">run</span><span class="p">:</span>  <span class="c1"># AG-UI events, as the model writes</span>
+    <span class="n">send</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+<span class="n">run</span><span class="o">.</span><span class="n">new_messages</span>  <span class="c1"># LangChain messages of this turn (after the loop)</span>
+</code></pre></div>
+<p><code>StreamingRun</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Member</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>async for event in run</code></td>
+<td>The events, once. A second loop is an error</td>
+</tr>
+<tr>
+<td><code>run_id</code></td>
+<td>The id in <code>RUN_STARTED</code>, and what <code>runner.cancel()</code> takes</td>
+</tr>
+<tr>
+<td><code>new_messages</code></td>
+<td>The LangChain messages this turn produced. Complete when the stream ends, <a href="#stopping-a-response">even on cancel</a></td>
+</tr>
+<tr>
+<td><code>usage</code></td>
+<td>Input and output tokens, when known</td>
+</tr>
+<tr>
+<td><code>status</code>, <code>error</code></td>
+<td><code>RUNNING</code>, then <code>SUCCESS</code>, <code>FAILED</code> or <code>CANCELLED</code>, and the error text</td>
+</tr>
+<tr>
+<td><code>cancel()</code></td>
+<td><a href="#stopping-a-response">Stops the run</a></td>
+</tr>
+</tbody>
+</table>
+<p>Under it, the runner builds the agent as it does for <code>run()</code> (tools, MCP lease, skills, discovery, the system prompt) and
+streams the LangChain agent with <code>astream</code>. The run waits for a concurrency slot (the row stays <code>INIT</code>), <strong>holds the slot until
+the stream ends</strong>, and gives it back on success, failure and cancel.</p>
+<p>A launched sub-agent is a tool call that blocks until it returns: it shows as a tool call with a result, and its own tokens are
+not streamed. (The depth and launch rules are the same as in <a href="../runner/#launching-agents">launching agents</a>.)</p>
+<h2 id="the-events">The events<a class="headerlink" href="#the-events" title="Permanent link">&para;</a></h2>
+<p>The events are <strong>AG-UI's</strong>, from the official <code>ag-ui-protocol</code> package (1.0, Pydantic models). <code>featherweight</code> defines none. The
+runner produces them in the order the protocol requires, and the adapters send them.</p>
+<table>
+<thead>
+<tr>
+<th>What happened</th>
+<th>Events</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>The run starts</td>
+<td><code>RUN_STARTED</code> (thread id, run id)</td>
+</tr>
+<tr>
+<td>A model turn starts, ends</td>
+<td><code>STEP_STARTED</code>, <code>STEP_FINISHED</code> (the step name is <code>model</code>)</td>
+</tr>
+<tr>
+<td>The model writes text</td>
+<td><code>TEXT_MESSAGE_START</code>, <code>TEXT_MESSAGE_CONTENT</code> (one per chunk), <code>TEXT_MESSAGE_END</code></td>
+</tr>
+<tr>
+<td>The model thinks (<code>show_thoughts</code>)</td>
+<td><code>REASONING_START</code>, <code>REASONING_MESSAGE_START</code>, <code>REASONING_MESSAGE_CONTENT</code>, <code>REASONING_MESSAGE_END</code>, <code>REASONING_END</code></td>
+</tr>
+<tr>
+<td>A provider's opaque reasoning value</td>
+<td><code>REASONING_ENCRYPTED_VALUE</code></td>
+</tr>
+<tr>
+<td>The model calls a tool</td>
+<td><code>TOOL_CALL_START</code>, <code>TOOL_CALL_ARGS</code> (the arguments stream), <code>TOOL_CALL_END</code></td>
+</tr>
+<tr>
+<td>The tool returns</td>
+<td><code>TOOL_CALL_RESULT</code> (with the error text, when the tool failed)</td>
+</tr>
+<tr>
+<td>The run ends well</td>
+<td><code>RUN_FINISHED</code> (success outcome), with the token usage</td>
+</tr>
+<tr>
+<td>The run is stopped</td>
+<td><code>RUN_FINISHED</code> with the <code>cancelled</code> outcome</td>
+</tr>
+<tr>
+<td>The run fails</td>
+<td><code>RUN_ERROR</code> (the open message is closed first)</td>
+</tr>
+</tbody>
+</table>
+<p>Rules the runner keeps: a text message is closed before a tool call opens; ids (message, tool call, reasoning) are made by
+<code>featherweight</code> when the provider gives none; every opened thing is closed, also on error and on cancel; one <code>RUN_STARTED</code> and one
+ending event per run. A test checks every produced sequence against these rules.</p>
+<p>How LangChain's stream maps to this (to be confirmed while building, see <a href="#findings">Findings</a>): <code>astream</code> with the
+<code>messages</code> mode gives the chunks of the model's output (text, reasoning and tool call chunks, as content blocks), and the
+<code>updates</code> mode gives what a tool node returned.</p>
+<p>Events with no source here (state, activity, custom, sub-agent events) are not produced. The custom event is used for two
+events of <a href="../background-jobs/#events">background jobs</a>, <code>background_started</code> and <code>background_finished</code>.</p>
+<h2 id="the-models-thoughts">The model's thoughts<a class="headerlink" href="#the-models-thoughts" title="Permanent link">&para;</a></h2>
+<p><code>ModelSettings</code> gets one field, <code>show_thoughts: bool = False</code>. Each provider class maps it to its own option: Gemini and
+Gemma ask the model to include its thought summaries, OpenAI asks for a reasoning summary, and Claude asks for its thinking
+to be returned. (The settings today only set <strong>how hard</strong> a model thinks.)</p>
+<ul>
+<li>Off (the default): no reasoning events.</li>
+<li>On: the reasoning is streamed as reasoning events and kept in the messages.</li>
+<li>What a thought is differs by provider: Claude returns thinking blocks, OpenAI a <strong>summary</strong> (its raw reasoning is hidden),
+  Gemini a thought summary. The guide says so.</li>
+<li><strong>Kept either way.</strong> A provider's reasoning, and its opaque or signed value (<code>REASONING_ENCRYPTED_VALUE</code>, a signature), is
+  always kept in <code>new_messages</code>, even when it is not shown, because the provider needs it back on the next request when the
+  model thinks between tool calls.</li>
+</ul>
+<p>It is a field of <code>ModelSettings</code>, so it is available to every agent, and it is recorded with the other settings in the run log.</p>
+<h2 id="messages-and-keeping-the-conversation">Messages and keeping the conversation<a class="headerlink" href="#messages-and-keeping-the-conversation" title="Permanent link">&para;</a></h2>
+<p><strong><code>featherweight</code> keeps no conversation.</strong> The client sends the whole history with each request. That is how both protocols work, and
+it means any process can serve any turn. The application keeps messages if it wants to, with the tools LangChain already has.</p>
+<ul>
+<li>Wire format: AG-UI messages. Storage format: <strong>LangChain messages</strong>, because LangChain's chat message histories read and
+  write them, and because they hold what the model needs (tool call ids, usage, reasoning blocks).</li>
+<li>Converters, in both directions, between AG-UI and LangChain messages: user, assistant (text and tool calls), tool results (with
+  their error), and reasoning (with its encrypted value).</li>
+<li><code>ChatInput.from_langchain(messages, thread_id=None)</code>: history loaded from a store.</li>
+<li><code>ChatInput.from_agui(messages_or_request)</code>: what a client sent.</li>
+<li>A LangChain to AG-UI converter: to rebuild what a client shows from stored history.</li>
+<li><code>StreamingRun.new_messages</code>: the LangChain messages of the turn.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="n">history</span> <span class="o">=</span> <span class="n">SQLChatMessageHistory</span><span class="p">(</span><span class="n">session_id</span><span class="o">=</span><span class="n">thread_id</span><span class="p">,</span> <span class="n">connection</span><span class="o">=...</span><span class="p">)</span>  <span class="c1"># or any BaseChatMessageHistory</span>
+<span class="n">run</span> <span class="o">=</span> <span class="n">runner</span><span class="o">.</span><span class="n">stream</span><span class="p">(</span><span class="n">Support</span><span class="p">,</span> <span class="n">ChatInput</span><span class="o">.</span><span class="n">from_langchain</span><span class="p">([</span><span class="o">*</span><span class="n">history</span><span class="o">.</span><span class="n">messages</span><span class="p">,</span> <span class="n">user_message</span><span class="p">],</span> <span class="n">thread_id</span><span class="p">))</span>
+<span class="k">async</span> <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">run</span><span class="p">:</span>
+    <span class="k">yield</span> <span class="n">encoder</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+<span class="n">history</span><span class="o">.</span><span class="n">add_messages</span><span class="p">([</span><span class="n">user_message</span><span class="p">,</span> <span class="o">*</span><span class="n">run</span><span class="o">.</span><span class="n">new_messages</span><span class="p">])</span>
+</code></pre></div>
+<p>The converters keep tool call ids, tool results, and reasoning (with signatures) <strong>exactly</strong>; a round trip is tested. Anything the
+other format cannot hold is listed in the guide.</p>
+<p><strong>No LangGraph checkpointer.</strong> <code>create_agent</code> supports one, and LangChain recommends it for agents, but it stores the whole graph
+state per thread, and it is not how <code>featherweight</code> passes state around. It is not forwarded. A later issue can add it if someone asks.</p>
+<h2 id="stopping-a-response">Stopping a response<a class="headerlink" href="#stopping-a-response" title="Permanent link">&para;</a></h2>
+<p>The person stops the agent while it answers, then corrects it: "no, not that one".</p>
+<p><strong>Two ways to stop</strong></p>
+<ol>
+<li><strong>The client drops the stream</strong> (Vercel's <code>stop()</code> aborts the fetch, and an AG-UI client closes the connection). The consumer
+   closes the iterator, and the run is cancelled.</li>
+<li><strong>An explicit cancel</strong>: <code>run.cancel()</code>, or <code>runner.cancel(run_id)</code> from another request in the same process (the runner keeps
+   its live streaming runs by id). Across processes it belongs to the <a href="#not-supported">jobs epic</a>.</li>
+</ol>
+<p>An explicit cancel ends the stream <strong>cleanly</strong>: the model call is cancelled, <code>RUN_FINISHED</code> with the <code>cancelled</code> outcome is
+sent, and the loop ends, so the application's code after it runs. A disconnect cancels the same way, with no one listening, so
+it saves in a <code>finally</code> (the guide shows it).</p>
+<p><strong>The partial turn is kept.</strong> The next request has to contain what the agent already said and did, and a tool that already ran
+had its effect. So after a cancel, <code>new_messages</code> holds the partial turn, cleaned up so that it is valid to send back:</p>
+<table>
+<thead>
+<tr>
+<th>State when stopped</th>
+<th>What <code>new_messages</code> has</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Text was streaming</td>
+<td>The assistant message with the text so far</td>
+</tr>
+<tr>
+<td>Thoughts were streaming</td>
+<td>The reasoning so far, <strong>only when it has its signature</strong> (or opaque value): a provider rejects a thinking block without one. The text is kept either way</td>
+</tr>
+<tr>
+<td>A tool call's arguments were still streaming</td>
+<td>That tool call is <strong>dropped</strong> (it is not complete: its arguments are not valid JSON yet)</td>
+</tr>
+<tr>
+<td>A tool call was complete, the tool had not returned</td>
+<td>The tool call, <strong>and a tool message with an error: "This tool did not return: cancelled by the user."</strong>, because a provider rejects a tool call that has no result</td>
+</tr>
+<tr>
+<td>A tool had returned</td>
+<td>The call and its real result</td>
+</tr>
+</tbody>
+</table>
+<p><code>new_messages</code> is filled when the run ends, whatever ended it, so it is there after a disconnect too. <strong>A turn that fails</strong> is
+closed the same way (its text so far, no call without a result, with "the run failed" as the reason).</p>
+<p><strong>What a stop does not do</strong></p>
+<ul>
+<li>A synchronous tool running in a thread cannot be interrupted, and an MCP call may finish on the server. <strong>A side effect can
+  still complete after the person pressed stop.</strong> The guide says it.</li>
+<li>A cancelled call's token usage may be unknown. The row records what is known.</li>
+<li>A launched sub-agent is cancelled with its parent, and its row is <code>CANCELLED</code> (this also changes <code>run()</code>: a run whose task is cancelled is marked <code>CANCELLED</code>, not left <code>RUNNING</code>).</li>
+<li>The concurrency slot is released (tested at each point above, and while waiting for the slot).</li>
+</ul>
+<h2 id="the-run-log">The run log<a class="headerlink" href="#the-run-log" title="Permanent link">&para;</a></h2>
+<p>One <code>attempts</code> row per turn, as for any run, with these differences. The run log holds no content for any agent (see the
+<a href="../persistence/">persistence spec</a>): a streaming run has no placeholders for its input and output, only their hashes.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>status</code></td>
+<td><code>INIT</code> while it waits for a slot, <code>RUNNING</code> while it streams, then <code>SUCCESS</code>, <code>FAILED</code> or <strong><code>CANCELLED</code></strong></td>
+</tr>
+<tr>
+<td><code>input_hash</code>, <code>output_hash</code></td>
+<td>SHA-256 of the <code>ChatInput</code>, and of the text when the turn succeeded</td>
+</tr>
+<tr>
+<td><code>thread_id</code></td>
+<td>The conversation the client named. <code>NULL</code> when it named none</td>
+</tr>
+<tr>
+<td><code>error_type</code>, <code>error_hash</code></td>
+<td>For a failed turn: the class of the exception and the hash of its message. The text goes to the client in <code>RUN_ERROR</code></td>
+</tr>
+<tr>
+<td><code>agent_hash</code></td>
+<td>Recorded as for any run</td>
+</tr>
+<tr>
+<td>Reuse</td>
+<td><strong>None.</strong> Resuming a job does not reuse a streaming run</td>
+</tr>
+</tbody>
+</table>
+<p>The run's <code>job_id</code> works as for <code>run()</code>.</p>
+<h2 id="the-adapters">The adapters<a class="headerlink" href="#the-adapters" title="Permanent link">&para;</a></h2>
+<p>An adapter has two parts: <strong>read the request</strong> into a <code>ChatInput</code>, and <strong>encode the events</strong> for the wire. Neither is a server:
+no router, no web framework dependency. A one-line Starlette example goes in the guide.</p>
+<p><strong>AG-UI</strong> (<code>featherweight.adapters.agui</code>, built): the events are already AG-UI's, so this is the thin edge.
+- <code>parse_request(body)</code>: a <code>RunAgentInput</code> (a dict, text or bytes) becomes a <code>ChatInput</code>; a body it cannot read raises <code>BadRequest</code>, a <code>ValueError</code> that a framework turns into a 422. The message of a <code>BadRequest</code> names the part and what is wrong (<code>messages[0].content[1] is image content whose data is not base64: ...</code>, or <code>messages[0].content[0].source.mimeType: Field required</code>), in the same words in both adapters, without pydantic's own path through the unions of the protocol. A conversation over the agent's attachment limits is not known to <code>parse_request</code>: <code>runner.stream()</code> raises <code>AttachmentLimitError</code> (a <code>BadRequest</code>, answered with a 413) (<a href="../attachments/#failures">attachments</a>). The client's <code>tools</code>, <code>state</code> and <code>context</code> are <strong>ignored</strong>
+  (the agent has its own tools), and sending tools logs a warning.
+- <code>encode(run)</code>: SSE strings from the official <code>EventEncoder</code>, plus <code>CONTENT_TYPE</code> and <code>HEADERS</code> for the response. The binary encoding is not supported.</p>
+<p><strong>Vercel AI SDK</strong> (<code>featherweight.adapters.vercel</code>): a translation from AG-UI events to the documented UI message stream, written by us
+because no small official package exists (the one from vercel-labs is a whole agent framework, at 0.x).</p>
+<table>
+<thead>
+<tr>
+<th>AG-UI</th>
+<th>Vercel part</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>RUN_STARTED</code></td>
+<td><code>start</code></td>
+</tr>
+<tr>
+<td><code>STEP_STARTED</code>, <code>STEP_FINISHED</code></td>
+<td><code>start-step</code>, <code>finish-step</code></td>
+</tr>
+<tr>
+<td><code>TEXT_MESSAGE_*</code></td>
+<td><code>text-start</code>, <code>text-delta</code>, <code>text-end</code></td>
+</tr>
+<tr>
+<td><code>REASONING_*</code></td>
+<td><code>reasoning-start</code>, <code>reasoning-delta</code>, <code>reasoning-end</code></td>
+</tr>
+<tr>
+<td><code>TOOL_CALL_START</code>, <code>TOOL_CALL_ARGS</code>, <code>TOOL_CALL_END</code></td>
+<td><code>tool-input-start</code>, <code>tool-input-delta</code>, <code>tool-input-available</code></td>
+</tr>
+<tr>
+<td><code>TOOL_CALL_RESULT</code></td>
+<td><code>tool-output-available</code></td>
+</tr>
+<tr>
+<td><code>RUN_FINISHED</code> (success)</td>
+<td><code>finish</code>, then <code>[DONE]</code></td>
+</tr>
+<tr>
+<td><code>RUN_FINISHED</code> (cancelled)</td>
+<td><code>abort</code>, then <code>[DONE]</code></td>
+</tr>
+<tr>
+<td><code>RUN_ERROR</code></td>
+<td><code>error</code>, then <code>[DONE]</code></td>
+</tr>
+<tr>
+<td><code>CUSTOM</code> (<code>background_started</code>, <code>background_finished</code>)</td>
+<td>a data part <code>data-&lt;name&gt;</code>, with the event's value as <code>data</code>, <strong>transient</strong> (the client gets it with <code>onData</code>, and it is not kept in the message)</td>
+</tr>
+</tbody>
+</table>
+<p>The header is <code>x-vercel-ai-ui-message-stream: v1</code>. The request is Vercel's list of <code>UIMessage</code> (messages made of parts:
+text, reasoning, tool parts with a state, and <code>file</code> parts, which are <a href="../attachments/">attachments</a>), converted to a <code>ChatInput</code> with the same rules as AG-UI. State and activity events
+have no Vercel part and are dropped. The guide names the protocol version we wrote against and the date we checked.</p>
+<p>A third format is a third adapter: the events are the contract.</p>
+<h2 id="decisions">Decisions<a class="headerlink" href="#decisions" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>The events are AG-UI's.</strong> We write only what does not exist: the mapping from LangChain's stream, the converters, and the
+  Vercel translation. It ties us to a spec we do not control; it is open, at 1.0, and the format that Pydantic AI and others
+  already speak.</li>
+<li><strong>No retries.</strong> A failure is an error event and a <code>FAILED</code> row.</li>
+<li><strong>Stateless on our side.</strong> No sessions, no conversation store, no checkpointer. The run log holds <strong>no message content</strong> either, only counts, hashes,
+  tokens, status and timing: <code>featherweight</code> is not a persistence layer. The app keeps the words (with LangChain's stores) and saves the
+  <code>run_id</code> from <code>RUN_STARTED</code> next to each turn, so it can join its messages to the log. Where the log should keep content for
+  all agents is a wider question, parked in the ideas notes (the run log and persistence boundary).</li>
+<li><strong>Client history is untrusted:</strong> no <code>system</code> or <code>developer</code> roles; the application still validates what it stores and sends.</li>
+<li><strong>Cancel keeps the partial turn,</strong> with a synthetic result for a tool call that did not return.</li>
+<li><strong><code>show_thoughts</code> is a <code>ModelSettings</code> field, default off.</strong> (Taken in this spec; to confirm in review: a streaming agent
+  could default it on instead.)</li>
+<li><strong><code>thread_id</code> is a column,</strong> so a conversation is traceable without a conversation store. (Taken in this spec; to confirm.)</li>
+<li><strong>A custom <code>StreamingAgent</code> output is text only.</strong> Structured output from a streaming agent is a different feature, and is not
+  here.</li>
+</ul>
+<h2 id="not-supported">Not supported<a class="headerlink" href="#not-supported" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Background jobs</strong> (a sub-agent that runs while the chat goes on): <a href="../background-jobs/">their own spec</a>. The application can do it today
+  with a job and by starting the next turn itself; the guide shows how.</li>
+<li><strong>Cancelling across processes</strong>, and queued or multi-process jobs: the jobs epic.</li>
+<li><strong>Streaming sub-agents:</strong> a launched sub-agent is a tool call.</li>
+<li><strong>Client-side tools</strong> (AG-UI's <code>tools</code>), shared state, activity, interrupts and resume: ignored.</li>
+<li><strong>Stored conversations, sessions, a LangGraph checkpointer.</strong></li>
+<li><strong>The AG-UI binary encoding</strong>, a router or server.</li>
+<li><strong>Structured or validated output</strong> from a streaming agent.</li>
+</ul>
+<h2 id="findings">Findings<a class="headerlink" href="#findings" title="Permanent link">&para;</a></h2>
+<p>Checked while writing this (2026-11-19):</p>
+<ul>
+<li><code>ag-ui-protocol</code> 1.0.0 on PyPI: depends on Pydantic only, Python &gt;= 3.9. Its models include the text, tool call, reasoning
+  (<code>REASONING_*</code> and <code>REASONING_ENCRYPTED_VALUE</code>), step, run, state and activity events, a <code>cancelled</code> run outcome, <code>TokenUsage</code>, the request
+  <code>RunAgentInput</code> (thread id, run id, messages, tools, state), and messages of the roles developer, system, assistant, user, tool,
+  activity and reasoning. It has an SSE <code>EventEncoder</code>.</li>
+<li>The Vercel UI message stream is documented, with parts for start, text, reasoning, tool input and output, steps, finish, error and
+  <strong>abort</strong>, an <code>[DONE]</code> end and the header <code>x-vercel-ai-ui-message-stream: v1</code>.</li>
+<li>This repository has <code>langchain</code> 1.4.9 and <code>langgraph</code> 1.2.19. A LangGraph graph's <code>astream</code> accepts the <code>messages</code> and
+  <code>updates</code> modes, among others. <code>AIMessage.content_blocks</code> gives provider-independent content blocks. A Claude <code>thinking</code>
+  block comes out as a <code>non_standard</code> block in a test with a hand-made chunk.</li>
+<li>Pydantic AI ships adapters for AG-UI and the Vercel protocol over one internal event stream. We copy the idea, with AG-UI's
+  events as that stream.</li>
+</ul>
+<p><strong>Still to check while building</strong> (it needs the real packages, and some of it a live call, which is asked for first):
+what the three providers return for thoughts through <code>content_blocks</code> and whether <code>show_thoughts</code> maps to the right option
+for each; whether <code>astream</code>'s <code>messages</code> mode gives complete tool call arguments in time for <code>TOOL_CALL_END</code>; and the exact
+<code>UIMessage</code> shape for tool parts in a request.</p>
+<h2 id="tests">Tests<a class="headerlink" href="#tests" title="Permanent link">&para;</a></h2>
+<p>No live model call in the unit tests: a fake streaming chat model in <code>tests/fakes.py</code>, and recorded chunk sequences.</p>
+<ul>
+<li>Mapping: text, thoughts then text, a tool call with streamed arguments, two tool calls, an error halfway, <code>show_thoughts</code> off;
+  every sequence valid against the protocol's ordering.</li>
+<li>Input: system and developer rejected, the last message must be the user's, <code>run()</code> and <code>stream()</code> refuse the wrong agent.</li>
+<li>Messages: round trips both ways with tool calls, results, errors, reasoning with an encrypted value.</li>
+<li>Cancel: during text, a tool call's arguments, a running tool, the wait for a slot, through <code>runner.cancel</code>, and by dropping the
+  iterator; after each, the row is <code>CANCELLED</code>, the slot is free and <code>new_messages</code> is valid to send back.</li>
+<li>Run log: the statuses, <code>thread_id</code>, no reuse, tokens.</li>
+<li>Adapters: a request body from each protocol's docs; the Vercel output equals the protocol page's examples.</li>
+<li>One live smoke check per provider only on request, with the cheapest model.</li>
+</ul>
+<h2 id="the-work">The work<a class="headerlink" href="#the-work" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Issue</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/29">#29</a></td>
+<td>The epic</td>
+</tr>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/30">#30</a></td>
+<td><code>StreamingAgent</code>, <code>ChatInput</code>, <code>runner.stream()</code>, the run log</td>
+</tr>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/31">#31</a></td>
+<td>LangChain's stream to AG-UI events, and <code>show_thoughts</code></td>
+</tr>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/32">#32</a></td>
+<td>Messages in and out, converters, <code>new_messages</code></td>
+</tr>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/33">#33</a></td>
+<td>Stopping a response, and keeping the partial turn</td>
+</tr>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/34">#34</a></td>
+<td>The AG-UI adapter</td>
+</tr>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/35">#35</a></td>
+<td>The Vercel AI SDK adapter</td>
+</tr>
+<tr>
+<td><a href="https://github.com/aadhithya/featherweight/issues/36">#36</a></td>
+<td>An example chat app, the guide and the skill reference</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../approvals/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Approvals: agents propose, code executes">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Approvals: agents propose, code executes
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../attachments/" class="md-footer__link md-footer__link--next" aria-label="Next: Attachments">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Attachments
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Designed by humans. Implemented by AI agents.
+    </div>
+  
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.instant", "navigation.tabs", "navigation.sections", "navigation.indexes", "navigation.top", "navigation.footer", "toc.follow", "search.highlight", "search.suggest", "content.code.copy", "content.action.edit"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>
