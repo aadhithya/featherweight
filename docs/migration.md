@@ -12,6 +12,7 @@ The rename of the units is [specified](specs/units.md), and a test checks the na
 - [A queue you wrote](#a-queue-you-wrote)
 - [Stricter checks: identity, job names and skills](#stricter-checks-identity-job-names-and-skills)
 - [Attachments in a chat](#attachments-in-a-chat)
+- [Typed output: what is now refused](#typed-output-what-is-now-refused)
 - [Settings, logs and spans](#settings-logs-and-spans)
 - [Your database upgrades by itself](#your-database-upgrades-by-itself)
 - [What is new, and does not need a change](#what-is-new)
@@ -29,6 +30,7 @@ The rename of the units is [specified](specs/units.md), and a test checks the na
 | 6 | [Stricter checks: identity, job names and skills](#stricter-checks-identity-job-names-and-skills) | pass one `job_id` to runs for several identities, declare an identity model with an `exclude=True` field and no default, name jobs freely, or write a skill's `aread` |
 | 7 | [Attachments in a chat](#attachments-in-a-chat) | send an empty attachment, match the text of an error, or catch `ValueError` around `runner.stream()` |
 | 8 | [Settings, logs and spans](#settings-logs-and-spans) | set `MAX_CONCURRENT_AGENT_RUNS`, read the logs, or have dashboards or alerts on the spans |
+| 9 | [Typed output: what is now refused](#typed-output-what-is-now-refused) | use Claude for an agent with typed output: a `dict`, a recursive model or many optional fields on Opus, Sonnet or Fable, or tools on Haiku (the default Claude model) |
 
 If you use none of these, upgrade and run your tests.
 
@@ -141,6 +143,94 @@ Check: your tests pass, and a worker starts (it builds its checks when it starts
 
 A file is not carried from one agent to another, or through a queue, on purpose: [pass a reference](recipes/files-for-an-agent-or-a-job.md). The limits (`max_attachments` 10, `max_bytes` 15 MiB) have not changed.
 
+## Typed output: what is now refused
+
+> [!WARNING]
+> **An agent that used to work may now raise, and a run that used to succeed may now fail.** Nothing here is found by a
+> search for an old name, so check it even if nothing else on this page applies to you.
+
+These are limits of **Anthropic's API and SDK, and of LangChain**. 0.1 let them through; the next release refuses them
+([provider limits](models.md#provider-limits)). There is no setting that turns either check off.
+
+### 1. An output model that Claude cannot fill
+
+**Who:** an agent on `claude-opus-5-5`, `claude-sonnet-5-5` or `claude-fable-5-2` (and a model that you added to a `Claude`
+subclass with `native_output=True`). Not `claude-haiku-5-5`, Gemini, Gemma or OpenAI, and not a streaming agent.
+
+| In the output model, or a model inside it | In 0.1 | Now |
+|---|---|---|
+| A `dict` of any kind, also in a list or optional; a model with `extra="allow"` | **The run said `SUCCESS` and the field was empty** | Refused |
+| A recursive model, such as a tree whose nodes hold nodes | Refused by the API, in the run | Refused |
+| More than 24 optional fields (a field with a default is optional; `open_questions` is one) | Refused by the API, in the run | Refused |
+
+> If you stored results from such an agent with a dictionary in its output, **look at them: the data may never have been
+> there.**
+
+**When it raises.** Not when the class is declared: when the agent is **built**, as `MyAgent()`. The runner builds it, so
+`runner.run(MyAgent, ...)` **raises** a Pydantic `ValidationError`, as for any wrong agent. It does not return a `FAILED`
+result, and no attempt is logged. It names the model and the problems:
+
+```
+claude-sonnet-5-5 cannot fill Out: free-form objects (answers): a `dict`, or a model that takes extra fields, would always
+come back empty. Use a list of a small model, for example one with `key` and `value`. ...
+```
+
+**Check, before you run anything:** build every agent once. It calls no model and needs no key. A test does it:
+
+```python
+@pytest.mark.parametrize("agent", [Triager, Reporter])  # every agent of your project
+def test_the_agent_builds(agent):
+    agent()
+```
+
+An agent that is built from data (`create_model`, `jobs_lookup`) is checked when it is built, so build one for each kind
+of definition that you have. If you choose the model at run time, check each model that you can choose.
+
+**Do:**
+
+- **A dictionary** becomes a list of a small model. Change the code that reads it too:
+
+  ```python
+  # before
+  class Out(AgentOutput):
+      answers: dict[str, str] = {}
+
+
+  # after
+  class Entry(BaseModel):
+      key: str
+      value: str
+
+
+  class Out(AgentOutput):
+      answers: list[Entry] = []  # to read it as before: {e.key: e.value for e in output.answers}
+  ```
+
+- **A recursive model** becomes a flat list with ids: each node holds its `id` and its `parent_id`.
+- **Too many optional fields:** make some required (no default), group the fields in fewer models, or split the work over
+  two agents. A required field must be filled even when the model does not know it, so it can be invented.
+- Or choose a model that is not held to these limits. Test it: each provider differs.
+
+A changed output model is a changed agent: its hash differs, so a job that is resumed across the change runs that step
+again. A result that was kept in the old shape is not valid in the new one.
+
+### 2. An answer given before the tools' results were seen
+
+**Who:** an agent with tools (or sub-agents, skills, MCP servers or background jobs) whose output is asked for as a tool
+call. Of the built-in Claude models that is `claude-haiku-5-5`, **the default of `Claude()`**.
+
+The model can give its answer in the same reply in which it calls a tool. In 0.1 the run succeeded, with an answer
+written before the tool's result was seen: empty, or made up. Now **the attempt fails** with `EarlyAnswerError` and is
+retried, up to `max_attempts` (3). If every attempt does it, the result is `FAILED`.
+
+**Do:**
+
+- **A retry runs the tools again,** and by the time the attempt fails they have already run. A tool that sends, writes or
+  pays must be safe to run twice, as for [any failed attempt](agents.md#failures-and-retries).
+- If you run with `max_attempts=1`, handle the `FAILED` result.
+- It depends on what the model does in a run, so no build or search finds it. After the upgrade, look in the run log for
+  attempts whose `error_type` is `EarlyAnswerError`.
+
 ## Settings, logs and spans
 
 | Before | After | Notes |
@@ -157,19 +247,6 @@ A file is not carried from one agent to another, or through a queue, on purpose:
 | the key `reused_from=` in the log lines of a resume | `reused_from_attempt_id=` | The three lines of a resume (`run_reused`, `run_reuse_rejected`, `result_missing`) also carry `run_id=` now. |
 
 The span **names** do not change (`invoke_workflow`, `invoke_agent`, `chat`, `execute_tool`).
-
-## Claude agents are held to their provider's limits
-
-> [!WARNING]
-> **An agent that used to build may now be refused, and a run that used to succeed may now fail.**
-
-- An agent on **Claude Opus, Sonnet or Fable** whose output model has a `dict` (or a model with `extra="allow"`), a
-  recursive model or more than 24 optional fields raises when it is built. A dictionary came back empty while the run said
-  `SUCCESS`; the other two were refused by the API. Use a list of a small model, flatten, or require some fields.
-- A run in which the model **gave its answer in the same reply as a tool call** fails that attempt with `EarlyAnswerError`.
-  Before, the run succeeded with an answer that was written before the tool's result was seen.
-
-See [provider limits](models.md#provider-limits).
 
 ## Your database upgrades by itself
 
@@ -232,6 +309,9 @@ You are changing a project that uses featherweight 0.1 to the next release. Work
    | 15 | the log lines `run_created`, `run_running`, `run_finished` | `attempt_created`, `attempt_running`, `attempt_finished` | log queries and alerts: **before row 16** |
    | 16 | `invocation_started`, `invocation_finished` | `run_started`, `run_finished` | log queries and alerts |
 
-4. **Ask the owner** about: a chat that looks up the row of a stream by the `run_id` of its events (`get_attempt(` or `get_run(` with a stream's id, which is now `None`: use the stream's `attempt_id`, or `list_attempts(run_id=...)`), a `Database` or a queue the project implements (change them as the two sections above say, then run the kits), dashboards, alerts and log queries that are not in the repository, and what [the stricter checks](#stricter-checks-identity-job-names-and-skills) and [the attachments table](#attachments-in-a-chat) list: one `job_id` given to runs for several identities, an identity model with an `exclude=True` field and no default, job names built from user input, a skill whose `aread` can return `None`, an `except ValueError` around `runner.stream()` (answer `AttachmentLimitError` with a 413), and a client that matches the text of an error message.
-5. **Check.** Run the rename search from step 1 again: it must return nothing outside this page. Run the project's tests. If the project has a database that matters, test the upgrade on a copy. Then run `git diff --stat` and read it: every change should be one of the rows above.
-6. **Do not** rename a variable that happens to be called `run_id` or `attempt_id` in the project's own code, and do not touch the OpenTelemetry span names.
+4. **Build every agent, and fix what is refused** ([typed output](#typed-output-what-is-now-refused)). No search finds this: write
+   or run a test that calls `TheAgent()` for every agent class, and every model it can be given. It calls no model. For each
+   agent on Haiku with tools, check that every tool that acts is safe to run twice, and tell the owner which are not.
+5. **Ask the owner** about: a chat that looks up the row of a stream by the `run_id` of its events (`get_attempt(` or `get_run(` with a stream's id, which is now `None`: use the stream's `attempt_id`, or `list_attempts(run_id=...)`), a `Database` or a queue the project implements (change them as the two sections above say, then run the kits), dashboards, alerts and log queries that are not in the repository, and what [the stricter checks](#stricter-checks-identity-job-names-and-skills) and [the attachments table](#attachments-in-a-chat) list: one `job_id` given to runs for several identities, an identity model with an `exclude=True` field and no default, job names built from user input, a skill whose `aread` can return `None`, how to reshape an output model that is refused (it changes the code that reads the output, and results already stored from a dictionary field may be empty), an `except ValueError` around `runner.stream()` (answer `AttachmentLimitError` with a 413), and a client that matches the text of an error message.
+6. **Check.** Run the rename search from step 1 again: it must return nothing outside this page. Run the project's tests. If the project has a database that matters, test the upgrade on a copy. Then run `git diff --stat` and read it: every change should be one of the rows above.
+7. **Do not** rename a variable that happens to be called `run_id` or `attempt_id` in the project's own code, and do not touch the OpenTelemetry span names.
