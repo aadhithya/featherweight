@@ -11,8 +11,9 @@ request**, and merging that pull request is the approval.
   merging a pull request: GitHub does not let anyone approve their own. The checks above are in the branch protection, which
   nobody bypasses.
 - **Squash is the only way to merge.** The title of the pull request becomes the message of the commit on `main`, so **the
-  title must be a Conventional Commit**: the version and the changelog are made from it. No check enforces this, so read the
-  title before you merge. Give a pull request that has a fix or a feature a `fix:` or `feat:` title, or keep it to one change.
+  title must be a Conventional Commit**: the version and the changelog are made from it. The `pr-title` check
+  ([`pr-title.yml`](../.github/workflows/pr-title.yml)) tests its form, and runs again when the title is edited. It cannot
+  tell whether the type is right, so read the title before you merge. Give a pull request that has a fix or a feature a `fix:` or `feat:` title, or keep it to one change.
 
 ## Cut a release
 

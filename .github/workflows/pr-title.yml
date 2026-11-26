@@ -1,0 +1,25 @@
+name: pr-title
+
+# Pull requests are squash merged, so the title becomes the commit on main, and the release reads it (docs/releasing.md).
+# A workflow of its own: it runs again when the title is edited, without running the tests again.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-title:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The title is a Conventional Commit
+        # The title is the author's text. It reaches the script as an environment variable, never as part of a command.
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: python3 scripts/check_pr_title.py

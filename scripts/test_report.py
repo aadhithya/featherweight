@@ -44,7 +44,7 @@ SUITES: dict[str, dict[str, str]] = {
         "Identity": "identity identity_hash identity_queue",
         "Persistence": "db postgres migrations",
         "Observability": "observers otel log log_lines",
-        "Package and release": "package release report",
+        "Package and release": "package release report pr_title",
     },
     "tools": {
         "Tools and registry": "registry calc_date_tools",
