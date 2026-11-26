@@ -20,7 +20,7 @@ Only the release pull request is a manual step. Merging it is how you choose whe
 
 1. **Run the workflow.** In GitHub, Actions, `release`, Run workflow (or `gh workflow run release`). It reads the commit
    messages since the last release and opens, or updates, **one release pull request**. The pull request changes the
-   version in `pyproject.toml`, `__version__` in `src/featherweight/__init__.py`, `version` in `.claude-plugin/plugin.json` and the manifest,
+   version in `pyproject.toml`, `__version__` in `src/featherweight/__init__.py`, `version` in `.claude-plugin/plugin.json`, the project's own version in `uv.lock` and the manifest,
    and adds a new section at the top of [`CHANGELOG.md`](../CHANGELOG.md). The docs and the book show a "docs for" badge that reads the version
    from `pyproject.toml` on `main`, so a release does not edit them. A new place that holds the version goes in `extra-files` of
    `release-please-config.json`. Nothing is tagged or released yet.
@@ -32,6 +32,20 @@ Only the release pull request is a manual step. Merging it is how you choose whe
 
 No pull request is opened unless someone runs the workflow, and nothing is tagged or released until a release pull request
 is merged.
+
+## Entries listed twice
+
+The release tool reads every commit on `main`. A **merge commit** repeats the title of its pull request in its body, so the
+tool listed the change twice: once for the merge and once for the commit it merged. That is why 0.1.0 lists many changes
+twice, and why the first notes of 0.2.0 did before they were edited.
+
+- **Squash is the only way to merge** ([above](#merging-into-main)), so no new merge commit reaches `main`.
+- **A line in a squash commit's body that begins with a type** (`feat: ...`) is read as a change of its own. That is wanted
+  only when you mean it. A bulleted list of the commits, and a `Co-Authored-By` line, add nothing.
+- **A test fails** when a release in `CHANGELOG.md` lists an entry twice, and it runs on the release pull request, so such
+  a pull request cannot be merged. It compares the text, so the same change in other words still needs your eyes. If it
+  fails, edit the section in `CHANGELOG.md` **and** the same text in the description of the release pull request, which the
+  release tool reads when it makes the GitHub release. Do not run the workflow again after that: it writes both anew.
 
 ## The bump commit
 
@@ -75,7 +89,7 @@ run, so the secret is the way to go.
 | `.github/workflows/docs.yml` | Publishes the documentation site for a release (called by `release.yml`), or for any tag, by hand |
 | `mkdocs.yml`, `scripts/docs_hooks.py` | The site: its theme, the navigation, the API reference, the links to GitHub |
 | `.github/workflows/publish-testpypi.yml` | A dry run of publishing, by hand, to TestPyPI |
-| `CHANGELOG.md` | The changelog. Written by the release pull request, not by hand |
+| `CHANGELOG.md` | The changelog. Written by the release pull request; edited by hand only as [above](#entries-listed-twice), or to add what an upgrade needs to know |
 
 ## The documentation site
 
