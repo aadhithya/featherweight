@@ -32,7 +32,10 @@ Decided on 2026-11-26.
 - **Measured on one run of all the tests,** grouped by source file ([`scripts/test_report.py`](scripts/test_report.py)). A suite
   run alone would not count what the tests of another suite run.
 - **The patterns have no percentage.** They have no source of their own: what counts is what their tests assert.
-- **It runs in the commit hook** (`make hooks`). CI does not run the tests, so a commit made with the hooks skipped is not checked.
+- **It runs on every pull request, and in the commit hook** (`make hooks`). In CI it is part of the `test` check, which
+  `main` requires, so a pull request cannot be merged until it passes. It runs again for each new push to the pull request,
+  and not for a push to `main`. It also fails when the badges or the map are out of date. No key is given to it, and the
+  real-model tests are never run there. (Decided on 2026-11-26.)
 - **The badges are files in the repository.** `make coverage` rewrites them and the map when they are out of date, and the hook
   then fails once: add the files and commit again. A badge is red under 90%, and goes from near red at 90% to green at 100%.
   The map has the colours of the documentation site's dark theme.

@@ -131,3 +131,13 @@ def test_the_tests_and_the_coverage_run_with_every_key_blanked():
     assert len(blanked_runs) == 3  # `test`, the suites and `coverage`
     assert all("$(NO_KEYS)" in line or "$(TEST_RUN)" in line for line in blanked_runs)
     assert re.search(r"^TEST_RUN = .*\$\(NO_KEYS\)", makefile, re.M)
+
+
+def test_a_pull_request_runs_the_gate_in_the_check_that_main_requires():
+    workflow = yaml.safe_load((ROOT / ".github" / "workflows" / "test.yml").read_text())
+    steps = workflow["jobs"]["test"]["steps"]  # the job's name is the required check
+    by_run = {step.get("run", "").strip(): step for step in steps}
+    assert by_run["make coverage"]["if"] == "github.event_name == 'pull_request'"
+    assert any("git status --porcelain docs/assets" in run and "exit 1" in run for run in by_run)  # stale files fail
+    assert workflow["permissions"] == {"contents": "read"}
+    assert "secrets." not in (ROOT / ".github" / "workflows" / "test.yml").read_text()

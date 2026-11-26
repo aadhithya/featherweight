@@ -49,8 +49,9 @@ repos:
 
   # All the tests with coverage, in the Docker container (`make coverage`). They never call a real model: the e2e tests are
   # excluded and the container gets blank API keys and tokens. It fails under 95% overall or 90% in a suite, and when the
-  # badges or the test map were out of date (it writes them: add them and commit again). The tests run here and not in CI,
-  # which only lints and type checks. The recipes, the book and the skill are tested too, so a change to a page runs them.
+  # badges or the test map were out of date (it writes them: add them and commit again). The `test` check of a pull request
+  # runs the same (.github/workflows/test.yml). The recipes, the book and the skill are tested too, so a change to a page
+  # runs them.
   # Needs Docker running and the image built (`make build`; rebuild after a dependency change).
   - repo: local
     hooks:

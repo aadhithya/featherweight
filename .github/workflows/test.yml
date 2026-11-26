@@ -5,6 +5,14 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+# A new push to a pull request stops the run of the one before it.
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -25,3 +33,22 @@ jobs:
         run: uv run mkdocs build --strict
       - name: Release setup
         run: uv run pytest tests/test_release.py
+
+      # All the tests with the coverage gate, on a pull request only (TESTING.md). They are in this job because `main`
+      # requires the `test` check, so a pull request cannot be merged until they pass. They use fake models and get no keys:
+      # `make coverage` blanks them, and this workflow passes no secret.
+      - name: Build the test image
+        if: github.event_name == 'pull_request'
+        run: make build
+      - name: Tests and coverage
+        if: github.event_name == 'pull_request'
+        run: make coverage
+      - name: Badges and test map are up to date
+        if: github.event_name == 'pull_request'
+        run: |
+          if [ -n "$(git status --porcelain docs/assets)" ]; then
+            git status --short docs/assets
+            git diff docs/assets
+            echo "Run 'make coverage' and commit the files it writes in docs/assets."
+            exit 1
+          fi
