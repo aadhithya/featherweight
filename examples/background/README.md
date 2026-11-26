@@ -16,9 +16,10 @@ Ask it to research something ("research how kettles work"), then keep chatting. 
 - the streaming agent lists the researcher in `background_jobs`, so it gets a `start_background` tool that returns at once;
 - featherweight emits a `background_started` event on the chat stream, with the id of the child's job;
 - **the `Session` is the part that wakes the chat.** It follows that job's events, and when it ends it starts the next turn with the
-  history plus `await runner.background_message(job_id)`, which is the researcher's note as a user message.
+  history plus `await runner.background_message(job_id)`, which is the researcher's note as a user message. A researcher that finishes while a turn is still running is given to that turn,
+  so the `Session` first looks in its history, and starts no turn for a note that the model already has.
 
-featherweight itself wakes nothing, and keeps no conversation: the `Session` is about 25 lines, and yours to copy and change. Its state is in
+featherweight itself wakes nothing, and keeps no conversation: the `Session` is about 35 lines, and yours to copy and change. Its state is in
 memory, so **a restart loses a result that has not been delivered yet**. Keep it where you need it (the job's result is in your result store;
 here that is the in-memory database).
 

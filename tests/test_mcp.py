@@ -297,12 +297,13 @@ async def test_a_server_that_dies_gives_text_to_the_model_and_the_next_run_gets_
 
 
 async def test_a_call_over_the_timeout_gives_text_to_the_model(db):
-    model = Scripted(script=[tool_reply("fake_pid", {"delay_s": 5}, "c1"), done()])
+    model = Scripted(script=[tool_reply("fake_pid", {"delay_s": 10}, "c1"), done()])
     async with runner_with(db, model) as runner:
-        result = await runner.run(worker(fake(timeout_s=0.5)), INPUT)
+        # `timeout_s` is also the time the server has to start, which takes most of a second on a cold or slow machine
+        result = await runner.run(worker(fake(timeout_s=3)), INPUT)
 
     assert result.status == Status.SUCCESS
-    assert "timed out after 0.5s" in texts(model)[0]
+    assert "timed out after 3s" in texts(model)[0]
 
 
 async def test_a_long_result_is_cut_and_says_so(db):

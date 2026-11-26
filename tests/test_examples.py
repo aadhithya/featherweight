@@ -3,6 +3,7 @@
 import asyncio
 import importlib.util
 import json
+import logging
 import tempfile
 from pathlib import Path
 
@@ -339,8 +340,14 @@ def test_the_observability_example_prints_the_job_span_and_the_users_span_under_
         [sys.executable, str(EXAMPLES / "observability" / "trace.py")], capture_output=True, text=True, timeout=60
     )
     assert run.returncode == 0, run.stderr
-    assert '"name": "invoke_workflow shout"' in run.stdout and '"name": "make it loud"' in run.stdout
     assert "shouted='HELLO'" in run.stdout
+    decoder, spans, at = json.JSONDecoder(), {}, 0
+    while (at := run.stdout.find("{\n", at)) != -1:  # the console exporter prints one JSON object for each span
+        span, at = decoder.raw_decode(run.stdout, at)
+        spans[span["name"]] = span
+    job_span, own_span = spans["invoke_workflow shout"], spans["make it loud"]
+    assert job_span["parent_id"] is None
+    assert own_span["parent_id"] == job_span["context"]["span_id"]
 
 
 def test_the_takeover_example_kills_a_worker_and_another_takes_the_job_over():
@@ -449,3 +456,123 @@ def test_the_attach_example_explains_itself_when_the_file_is_missing_or_the_argu
         with pytest.raises(SystemExit) as exit_:
             runpy.run_path(str(EXAMPLES / "chat" / "attach.py"), run_name="__main__")
         assert "usage: python examples/chat/attach.py" in str(exit_.value)
+
+
+# the examples that call Gemini, run on a fake model: what the script does with the agent's answer
+
+
+def restore_the_runner_log(monkeypatch) -> None:
+    """The skills example adds a handler to the runner's logger and sets its level: put both back after the test."""
+    logger = logging.getLogger("featherweight.runner")
+    monkeypatch.setattr(logger, "handlers", list(logger.handlers))
+    monkeypatch.setattr(logger, "level", logger.level)
+    monkeypatch.setattr(logger, "_cache", {})
+
+
+async def test_the_skills_example_reads_a_skill_and_the_file_it_points_to_and_prints_what_it_read(
+    tmp_path, monkeypatch, capsys
+):
+    from fakes import tool_reply
+
+    from featherweight import Gemini
+
+    monkeypatch.setenv("FTW_DB_PATH", str(tmp_path / "skills.db"))
+    example = load("skills")
+    restore_the_runner_log(monkeypatch)
+    model = Scripted(
+        script=[
+            tool_reply("get_skill", {"name": "meeting-notes"}, "s1"),
+            tool_reply("get_skill", {"name": "meeting-notes", "resource": "references/tags.md"}, "s2"),
+            structured_reply("AssistantOutput", {"answer": "[DECISION] Launch on May 19."}),
+        ]
+    )
+    monkeypatch.setattr(Gemini, "build", lambda self: model)
+
+    assert await example.main(["Write notes for this meeting."]) == 0
+
+    out = capsys.readouterr().out
+    assert "[read] meeting-notes: instructions" in out and "[read] meeting-notes: references/tags.md" in out
+    assert "[DECISION] Launch on May 19." in out
+    told = [str(m.content) for m in model.seen[-1] if m.type == "tool"]
+    assert "[DECISION]" in told[1]  # the tags are only in the referenced file, and the model was given it
+
+
+async def test_the_launching_example_launches_both_agents_and_prints_the_runs_as_a_tree(tmp_path, monkeypatch, capsys):
+    from fakes import tool_reply
+
+    from featherweight import Gemini
+
+    monkeypatch.setenv("FTW_DB_PATH", str(tmp_path / "launching.db"))
+    example = load("launching")
+
+    def launch(name: str, payload: dict, call_id: str):
+        return tool_reply("launch_agent", {"agent_name": name, "input_json": json.dumps(payload)}, call_id)
+
+    model = Scripted(
+        script=[
+            launch("summariser", {"text": "the article", "max_words": 20}, "l1"),
+            structured_reply("SummariserOutput", {"summary": "A warehouse is approved."}),
+            launch("translator", {"text": "A warehouse is approved.", "language": "French"}, "l2"),
+            structured_reply("TranslatorOutput", {"translation": "Un entrepot est approuve."}),
+            structured_reply("EditorOutput", {"headline": "Entrepot", "summary": "Un entrepot est approuve."}),
+        ]
+    )
+    monkeypatch.setattr(Gemini, "build", lambda self: model)
+
+    assert await example.main(["A headline and a summary, in French."]) == 0
+
+    told = [str(m.content) for m in model.seen[-1] if m.type == "tool"]
+    assert "A warehouse is approved." in told[0] and "Un entrepot est approuve." in told[1]
+    tree = capsys.readouterr().out.split("runs of this job:\n")[1].splitlines()
+    assert [(len(line) - len(line.lstrip()), line.split()[0]) for line in tree if line.strip()] == [
+        (2, "editor"),
+        (4, "summariser"),
+        (4, "translator"),
+    ]
+
+
+async def test_the_skills_example_exits_with_a_failure_when_a_run_fails(tmp_path, monkeypatch, capsys):
+    from featherweight import Gemini
+
+    monkeypatch.setenv("FTW_DB_PATH", str(tmp_path / "failed.db"))
+    example = load("skills")
+    restore_the_runner_log(monkeypatch)
+    model = Scripted(script=[RuntimeError("down")] * 3)
+    monkeypatch.setattr(Gemini, "build", lambda self: model)
+
+    assert await example.main(["anything"]) == 1
+    assert "failed:" in capsys.readouterr().out
+
+
+async def test_the_mcp_example_binds_only_its_allow_list_and_prints_the_answer_with_its_sources(
+    tmp_path, monkeypatch, capsys
+):
+    from fakes import tool_reply
+    from mcp_helpers import fake as fake_server
+    from mcp_helpers import use_real_stderr
+
+    from featherweight import Gemini
+
+    use_real_stderr(monkeypatch)
+    monkeypatch.setenv("FTW_DB_PATH", str(tmp_path / "mcp.db"))
+    example = load("mcp")
+
+    class LocalReader(example.RepoReader):  # the same agent, with the tests' server in place of GitHub's
+        mcp_servers: list = [fake_server(name="github", tools=("add",))]
+
+    monkeypatch.setattr(example, "RepoReader", LocalReader)
+    model = Scripted(
+        script=[
+            tool_reply("github_add", {"a": 2, "b": 3}, "t1"),
+            structured_reply("AnswerOutput", {"answer": "Five.", "sources": ["https://github.com/a/b"]}),
+        ]
+    )
+    monkeypatch.setattr(Gemini, "build", lambda self: model)
+
+    assert await example.main(["What is two and three?"]) == 0
+
+    out = capsys.readouterr().out
+    assert "Five." in out and "https://github.com/a/b" in out and "tokens" not in out and "in /" in out
+    assert "github_add" in model.bound[0] and "github_pid" not in model.bound[0]
+    [told] = [str(m.content) for m in model.seen[-1] if m.type == "tool"]
+    assert "5" in told

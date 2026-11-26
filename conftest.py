@@ -15,6 +15,9 @@ from featherweight import config
 from featherweight.log import setup_logging
 from featherweight.sqlite import SqliteDatabase
 
+# Every key and token that `.env.example` names, and the other name of the Google key.
+SECRETS = ("GOOGLE_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GITHUB_TOKEN")
+
 
 def is_e2e(node) -> bool:
     return node.get_closest_marker("e2e") is not None
@@ -30,15 +33,15 @@ def pytest_collection_modifyitems(config, items):
 
 @pytest.fixture(autouse=True)
 def no_real_llm_calls(request, monkeypatch):
-    """Tests use mocks only. With no API key, anything that tries a real model fails at setup.
+    """Tests use mocks only. With no API key or token, anything that tries a real model or service fails at setup.
 
     The e2e tests are the exception: they use the real model.
     """
     if is_e2e(request.node):
         return
     MODELS.clear()  # a test registers its own fake models (tests/fakes.py)
-    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    for name in SECRETS:
+        monkeypatch.delenv(name, raising=False)
     for setting in config.SETTINGS:
         monkeypatch.delenv(setting.name, raising=False)  # tests start from the defaults...
     monkeypatch.setenv(config.WORKER_RECEIVE_TIMEOUT.name, "0.05")  # ...except that a worker in a test looks at once

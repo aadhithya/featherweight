@@ -42,25 +42,35 @@ class Session:
         self.turn = asyncio.Lock()  # one turn at a time
         self.watching: set[asyncio.Task] = set()
 
+    def told(self, job_id: str) -> bool:
+        """Has the conversation already got this child's result? A turn that was running when it finished is given it."""
+        return any(f'job_id="{job_id}"' in str(m.content) for m in self.history)
+
     async def say(self, message: BaseMessage) -> None:
         async with self.turn:
-            # the conversation is yours: the whole history goes in at each turn
-            run = self.runner.stream(IncidentAssistant, ChatInput.from_langchain([*self.history, message]))
-            async for event in run:
-                if isinstance(event, TextMessageContentEvent):
-                    print(event.delta, end="", flush=True)
-                elif isinstance(event, CustomEvent) and event.name == "background_started":
-                    task = asyncio.create_task(self.wake(event.value["job_id"]))  # follow the child
-                    self.watching.add(task)
-                    task.add_done_callback(self.watching.discard)
-            print()
-            self.history += [message, *run.new_messages]
+            await self.run_turn(message)
+
+    async def run_turn(self, message: BaseMessage) -> None:
+        # the conversation is yours: the whole history goes in at each turn
+        run = self.runner.stream(IncidentAssistant, ChatInput.from_langchain([*self.history, message]))
+        async for event in run:
+            if isinstance(event, TextMessageContentEvent):
+                print(event.delta, end="", flush=True)
+            elif isinstance(event, CustomEvent) and event.name == "background_started":
+                task = asyncio.create_task(self.wake(event.value["job_id"]))  # follow the child
+                self.watching.add(task)
+                task.add_done_callback(self.watching.discard)
+        print()
+        self.history += [message, *run.new_messages]
 
     async def wake(self, job_id: str) -> None:
         async for _ in job_events(self.db, job_id):  # until the child's job is final
             pass
         print("\n[the researcher is done]")
-        await self.say(await self.runner.background_message(job_id))  # the next turn, with its result
+        message = await self.runner.background_message(job_id)
+        async with self.turn:  # after a turn that is running: what it was given is in the history by then
+            if not self.told(job_id):
+                await self.run_turn(message)  # the next turn, with its result
 
 
 async def main(path: str = "reports/01-checkout-outage.txt") -> None:
@@ -97,6 +107,8 @@ The researcher says: something like the cause named in the note.
 - **The stream says what happened.** The chat's stream carries `background_started` (with the child's `job_id`), which is how the session knows what to follow, and `background_finished`.
   The child's own job events are the full record: `job_events` follows them until the job is final.
 - **`runner.background_message(job_id)`** builds the user message with the child's result, and the session starts the next turn with it. A chat turn does not wait for its children.
+- **Do not tell the model twice.** A child that finishes while a turn is still running is given to that turn, and its message is in the turn's `new_messages`.
+  So the session looks in its history first (`told`), after the running turn has ended, and starts a turn only for a result that the model has not had.
 - **Here or on a worker** is one line: `AgentRunner(db, background=client)` submits the researcher to a queue, and a worker that lists its job runs it.
 - **Nothing is kept for you.** If the process restarts, the history and the notes that were not stored are lost; this session keeps both in memory.
 

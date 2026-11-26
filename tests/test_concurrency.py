@@ -9,7 +9,7 @@ from featherweight.models import Status
 
 
 async def test_many_concurrent_runs_do_not_interfere(db):
-    model = Reactive(respond=respond)
+    model = Reactive(respond=respond, delay_s=0.2)
     runner = runner_with(db, model)
     job_id = await db.create_job("learn")
     texts = [f"ok-{i}" for i in range(25)]

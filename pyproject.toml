@@ -68,6 +68,7 @@ all = [
 
 [dependency-groups]
 dev = [
+    "coverage>=7.10",
     "fastapi>=0.165.0",
     "httpx>=0.28.1",
     "langchain-anthropic>=1.7",

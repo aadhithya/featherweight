@@ -39,11 +39,13 @@ Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before you change anything. For an age
 ## Working on this repository
 
 ```
-make hooks      # once: conventional commit messages, ruff, ty and the unit tests, on commit
+make hooks      # once: conventional commit messages, ruff, ty, and the tests with the coverage gate, on commit
 make check      # ruff, format check and ty
 make test       # the unit tests, with Postgres for the PostgresDatabase tests
+make coverage   # the same, with the coverage gate; writes the badges and the test map
 ```
 
+- [`TESTING.md`](TESTING.md) has the rules for tests: the suites, the coverage gate, and what a test of a recipe, a chapter or an example must check.
 - Commit messages follow [Conventional Commits](https://www.conventionalcommits.org) (`feat(runner): ...`, `fix: ...`).
 - Each change updates the docs, the specs and the skill with the code: the guides and the book are copied into the skill with
   `python3 scripts/build_skill.py`, and `python3 scripts/build_book.py` writes the book's navigation. The tests check both.

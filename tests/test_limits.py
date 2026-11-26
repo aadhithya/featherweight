@@ -15,7 +15,7 @@ async def run_many(runner, texts):
 
 
 async def test_never_more_than_the_limit_in_flight_and_everything_completes(db):
-    model = Reactive(respond=respond)
+    model = Reactive(respond=respond, delay_s=0.2)  # long enough that calls overlap on a slow run (with coverage)
     texts = [f"ok-{i}" for i in range(12)]
 
     results = await run_many(runner_with(db, model, max_concurrent=3), texts)
@@ -27,7 +27,7 @@ async def test_never_more_than_the_limit_in_flight_and_everything_completes(db):
 
 async def test_limit_comes_from_the_environment(db, monkeypatch):
     monkeypatch.setenv("FTW_MAX_CONCURRENT_ATTEMPTS", "2")
-    model = Reactive(respond=respond)
+    model = Reactive(respond=respond, delay_s=0.2)
     runner = runner_with(db, model)
 
     await run_many(runner, [f"ok-{i}" for i in range(8)])
@@ -81,7 +81,7 @@ async def test_a_retry_delay_does_not_hold_a_slot(db):
 
 
 async def test_run_many_returns_results_in_input_order_and_respects_the_limit(db):
-    model = Reactive(respond=respond)
+    model = Reactive(respond=respond, delay_s=0.2)
     texts = [f"ok-{i}" for i in range(9)]
 
     results = await runner_with(db, model, max_concurrent=3).run_many(Echo, [EchoInput(text=t) for t in texts])

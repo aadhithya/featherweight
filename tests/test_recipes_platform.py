@@ -11,7 +11,7 @@ from types import SimpleNamespace
 from typing import Any, ClassVar
 
 import pytest
-from fakes import Scripted, runner_with, settings, structured_reply, tool_reply
+from fakes import FakeSettings, Scripted, runner_with, settings, structured_reply, tool_reply
 from langchain_core.messages import SystemMessage, ToolMessage
 from pydantic import BaseModel
 from test_worker import In, Out
@@ -21,7 +21,7 @@ from featherweight.client import JobClient
 from featherweight.events import wait_for_job
 from featherweight.fingerprint import agent_hash
 from featherweight.jobs import Job, JobContext
-from featherweight.model_settings import Gemini
+from featherweight.model_settings import Gemini, ModelSettings
 from featherweight.models import Status
 from featherweight.queue import JobMessage, SqliteQueue
 from featherweight.testing import MemoryQueue, MemoryResultStore
@@ -88,6 +88,24 @@ async def test_a_skill_from_rows_and_a_skill_fetched_late_from_a_bucket(db):
         prompt: str = "p"
         skills: list[Skill] = [bucket_skill]
 
+    # an agent that has the skill reads it from the bucket with `get_skill`
+    class Reader(Agent):
+        model: ModelSettings = FakeSettings()
+        input_model = NotesInput
+        output_model = NotesRead
+
+    fake = Scripted(
+        script=[
+            tool_reply("get_skill", {"name": "meeting-notes"}, "s1"),
+            tool_reply("get_skill", {"name": "meeting-notes", "resource": "references/tags.md"}, "s2"),
+            structured_reply("NotesRead", {"notes": "done"}),
+        ]
+    )
+    result = await runner_with(db, fake).run(Reader, NotesInput(transcript="t"))
+    assert result.status == Status.SUCCESS
+    told = [str(m.content) for m in fake.seen[-1] if isinstance(m, ToolMessage)]
+    assert "From the bucket." in told[0] and "#from-bucket" in told[1]
+
     ns["head"].etag = "v2"
     await run_block(bucket_block, ns)
 
@@ -107,6 +125,10 @@ async def test_a_bad_skill_is_refused_before_it_is_saved():
 
 class NotesInput(AgentInput):
     transcript: str
+
+
+class NotesRead(AgentOutput):
+    notes: str = ""
 
 
 async def test_one_agent_with_the_skills_of_each_department(db, monkeypatch):

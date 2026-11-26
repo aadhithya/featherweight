@@ -202,17 +202,18 @@ async def test_an_unknown_name_and_a_bound_name_are_explained(db):
 async def test_a_called_tool_keeps_the_timeout_the_cap_and_the_failure_as_text(db):
     model = Scripted(
         script=[
-            call("fake_pid", {"delay_s": 5}, "c1"),
+            call("fake_pid", {"delay_s": 10}, "c1"),
             call("fake_big_text", {"length": 500}, "c2"),
             call("fake_boom", {}, "c3"),
             done(),
         ]
     )
-    result = await run_with(db, model, worker(finder(timeout_s=0.5, max_result_chars=100)))
+    # `timeout_s` is also the time the server has to start, which takes most of a second on a cold or slow machine
+    result = await run_with(db, model, worker(finder(timeout_s=3, max_result_chars=100)))
 
     assert result.status == Status.SUCCESS
     timeout, big, boom = texts(model)
-    assert "timed out after 0.5s" in timeout
+    assert "timed out after 3s" in timeout
     assert big.startswith("x" * 100) and "[truncated: 500 characters, showing the first 100]" in big
     assert "kaboom" in boom
 
