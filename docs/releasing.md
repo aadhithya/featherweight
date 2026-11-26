@@ -5,14 +5,13 @@ request**, and merging that pull request is the approval.
 
 ## Merging into main
 
-- **A pull request is needed, and the `test` check must pass** on it, with every conversation resolved. This holds for
+- **A pull request is needed, and all its CI checks must pass,** with every conversation resolved. This holds for
   maintainers too.
 - **A contribution needs one approval.** A ruleset asks for it, and a repository admin may bypass that rule alone when
   merging a pull request: GitHub does not let anyone approve their own. The checks above are in the branch protection, which
   nobody bypasses.
 - **Squash is the only way to merge.** The title of the pull request becomes the message of the commit on `main`, so **the
-  title must be a Conventional Commit**: the version and the changelog are made from it. The `pr-title` check
-  ([`pr-title.yml`](../.github/workflows/pr-title.yml)) tests its form, and runs again when the title is edited. It cannot
+  title must be a Conventional Commit**: the version and the changelog are made from it. CI tests its form, and cannot
   tell whether the type is right, so read the title before you merge. Give a pull request that has a fix or a feature a `fix:` or `feat:` title, or keep it to one change.
 
 ## Cut a release
@@ -57,13 +56,13 @@ The first release was `0.1.0`: the manifest started at `0.0.0`, and its changelo
 
 ## The token
 
-A pull request made with the default `GITHUB_TOKEN` does not start other workflows, so the required `test` check would
+A pull request made with the default `GITHUB_TOKEN` does not start other workflows, so the required checks would
 never run on the release pull request, and it could not be merged. The workflow therefore uses the secret `RELEASE_TOKEN`:
 a fine-grained personal access token for this repository, with **Contents** and **Pull requests** read and write. Create it
 once in Settings, Secrets and variables, Actions.
 
 Without the secret the workflow falls back to `GITHUB_TOKEN`. That works only if the setting "Allow GitHub Actions to create
-and approve pull requests" (Settings, Actions, General) is on, and even then the release pull request's check does not
+and approve pull requests" (Settings, Actions, General) is on, and even then the release pull request's checks do not
 run, so the secret is the way to go.
 
 ## Files

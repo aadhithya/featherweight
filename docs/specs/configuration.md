@@ -26,6 +26,7 @@ A setting that applies to a whole deployment is set where a deployment is config
     run at once, how far agents launch agents, how many jobs a worker runs at once.
   - **Environment only:** the variable, else the default. There is no constructor argument. These are the numbers that tune a platform and that nobody sets for one worker: leases, timeouts, polling.
 - **Read when the object is built,** not at import, and kept as an attribute. A test sets the variable, then builds the runner or the worker. A change of the variable later does not reach an object that exists.
+- **A variable that is set but empty counts as not set,** for a number and for `FTW_LOG_LEVEL`. A compose file or a `.env` hands over an empty value when you chose none (`${FTW_LOG_LEVEL:-}`).
 - **A value that is not a positive number raises `ValueError`** that names the variable (or the argument), when the object is built. A count must be an integer. There is **no way to switch a timeout off**: a very large value does it.
 - **The effective values are logged** at `INFO` when a runner or a worker is built (`runner_configured`, `worker_configured`), so that a setting that came from the environment is not invisible.
 

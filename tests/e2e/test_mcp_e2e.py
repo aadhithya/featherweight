@@ -3,6 +3,8 @@ returns, and reads a PDF a tool returns. The server is the fake one of the unit 
 `make e2e ARGS="-k mcp"` (needs GOOGLE_API_KEY in .env). Not part of `make test`.
 """
 
+import logging
+import re
 import sys
 from pathlib import Path
 from typing import ClassVar
@@ -22,6 +24,12 @@ SERVER = StdioMCPServer(
 FOUND = SERVER.model_copy(
     update={"discover": True, "description": "Small tools: add numbers, show a picture, read documents"}
 )  # found by search
+
+
+def tools_given_to_the_model(caplog) -> list[str]:
+    """The tools that were bound for the one attempt, from the runner's `attempt_started` line (the run log keeps a hash)."""
+    [tools] = re.findall(r"attempt_started .* tools=(\S*)", "\n".join(r.getMessage() for r in caplog.records))
+    return sorted(tools.split(","))
 
 
 class TaskInput(AgentInput):
@@ -50,7 +58,8 @@ class Seeker(Helper):
     mcp_servers: list[StdioMCPServer] = [FOUND]
 
 
-async def test_an_agent_finds_mcp_tools_by_search_and_calls_them(db):
+async def test_an_agent_finds_mcp_tools_by_search_and_calls_them(db, caplog):
+    caplog.set_level(logging.INFO, logger="featherweight")
     task = "Add 17 and 25. Read the document from the access note tool and report the access code."
     job_id = await db.create_job("mcp-discovery-e2e")
     result = await AgentRunner(db).run(Seeker, TaskInput(task=task), job_id=job_id)
@@ -59,11 +68,11 @@ async def test_an_agent_finds_mcp_tools_by_search_and_calls_them(db):
     out = result.output
     print(f"\n[output] {out}\n[tokens] in={result.input_tokens} out={result.output_tokens}")
     assert out.sum == 42 and out.access_code and "7421" in out.access_code
-    (row,) = await db.list_attempts(job_id=job_id)
-    assert row.tool_names == ["search_tools", "call_tool"]  # the server's tools were never bound
+    assert tools_given_to_the_model(caplog) == ["call_tool", "search_tools"]  # the server's tools were never bound
 
 
-async def test_an_agent_uses_mcp_tools_and_reads_what_they_return(db):
+async def test_an_agent_uses_mcp_tools_and_reads_what_they_return(db, caplog):
+    caplog.set_level(logging.INFO, logger="featherweight")
     task = (
         "Add 17 and 25 with the add tool. Look at the picture from the picture tool and name its single colour. "
         "Read the document from the access_note tool and report the access code."
@@ -77,5 +86,4 @@ async def test_an_agent_uses_mcp_tools_and_reads_what_they_return(db):
     assert out.sum == 42
     assert out.colour and "red" in out.colour.lower()
     assert out.access_code and "7421" in out.access_code
-    (row,) = await db.list_attempts(job_id=job_id)
-    assert sorted(row.tool_names) == ["fake_access_note", "fake_add", "fake_picture"]
+    assert tools_given_to_the_model(caplog) == ["fake_access_note", "fake_add", "fake_picture"]
