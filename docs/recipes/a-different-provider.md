@@ -46,4 +46,9 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
+> [!WARNING]
+> **Check the output model when you change provider.** Claude Opus, Sonnet and Fable take no dictionaries, no recursive
+> models and at most 24 optional fields, and Claude Haiku can answer before it has seen its tools' results (the attempt then
+> fails and is retried). See [provider limits](../models.md#provider-limits).
+
 `pip install "featherweight[anthropic]"` and set `ANTHROPIC_API_KEY` (`openai` and `GOOGLE_API_KEY` for the others). A model that is not in a class's list, or a provider that has no class, is a few lines: [add a model or a provider](../models.md#add-a-model-gpt-5x).

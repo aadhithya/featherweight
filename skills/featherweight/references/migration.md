@@ -160,6 +160,19 @@ A file is not carried from one agent to another, or through a queue, on purpose:
 
 The span **names** do not change (`invoke_workflow`, `invoke_agent`, `chat`, `execute_tool`).
 
+## Claude agents are held to their provider's limits
+
+> [!WARNING]
+> **An agent that used to build may now be refused, and a run that used to succeed may now fail.**
+
+- An agent on **Claude Opus, Sonnet or Fable** whose output model has a `dict` (or a model with `extra="allow"`), a
+  recursive model or more than 24 optional fields raises when it is built. A dictionary came back empty while the run said
+  `SUCCESS`; the other two were refused by the API. Use a list of a small model, flatten, or require some fields.
+- A run in which the model **gave its answer in the same reply as a tool call** fails that attempt with `EarlyAnswerError`.
+  Before, the run succeeded with an answer that was written before the tool's result was seen.
+
+See [provider limits](models.md#provider-limits).
+
 ## Your database upgrades by itself
 
 `SqliteDatabase` and `PostgresDatabase` apply the migrations they have not applied when they connect, in a transaction each, and keep every row:

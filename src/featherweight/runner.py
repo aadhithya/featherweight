@@ -103,6 +103,26 @@ def _format_error(exc: BaseException) -> str:
     return f"{type(exc).__name__}: {exc}"[:MAX_ERROR_CHARS]
 
 
+class EarlyAnswerError(ValueError):
+    """The model gave its final answer in the same reply as calls to tools, so it had not seen what they returned."""
+
+
+def _refuse_early_answer(messages: list[Any], output_name: str) -> None:
+    """Raise `EarlyAnswerError` when the last reply holds the call that gives the output, and other calls too.
+
+    Where the output is asked for as a tool call, a model can call that tool and others in one reply. LangChain then takes
+    the answer, runs the other tools and ends, so the model never sees what they returned
+    (docs/specs/runner.md#an-early-answer)."""
+    reply = next((m for m in reversed(messages) if getattr(m, "type", None) == "ai"), None)
+    called = [call["name"] for call in getattr(reply, "tool_calls", None) or []]
+    others = sorted({name for name in called if name != output_name})
+    if output_name in called and others:
+        raise EarlyAnswerError(
+            f"the model gave its final answer in the same reply as calls to {', '.join(others)}, so it had not seen "
+            "what they returned (docs/models.md#provider-limits)"
+        )
+
+
 def _usage(messages: list[Any]) -> tuple[int, int, str | None]:
     """Sum token usage over the AI messages of a run; also return the API-reported model name."""
     input_tokens = output_tokens = 0
@@ -1562,6 +1582,7 @@ class AgentRunner:
         structured = result.get("structured_response")
         if structured is None:
             raise RuntimeError("The agent finished without a structured response")
+        _refuse_early_answer(result["messages"], agent.output_model.__name__)  # a failed attempt, retried
         output = agent.output_model.model_validate(
             structured.model_dump() if hasattr(structured, "model_dump") else structured
         )

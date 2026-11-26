@@ -11,7 +11,8 @@ Issues and pull requests are welcome.
 | `make check` | Lint and format check (ruff) and types (ty); `make lint`, `make format`, `make typecheck` run one |
 | `make hooks` | Install the git hooks: conventional commit messages, ruff, ty, the book's navigation and the docs build. They run no tests: every pull request runs them all, with the coverage gate |
 | `make docs` | Serve the documentation site at http://localhost:8001 (`make docs DOCS_PORT=9000` for another port), in the container; `make docs-build` builds it (strict: a broken link fails). The commit hook and the pull request check run the build |
-| `make e2e` | Tests against the real model (costs money) |
+| `make e2e` | The same tests on the smallest model of Gemini, Claude and OpenAI (costs money): [the rules](https://github.com/aadhithya/featherweight/blob/main/TESTING.md#real-models) |
+| `make package-check` | Build the package, install it into new environments and import it |
 | `make pipeline ARGS="..."` | Run the example pipeline |
 | `make example-skills` | Run the skills example agent |
 | `make example-launching` | Run the example agent that launches agents |
@@ -30,7 +31,7 @@ docs/                 the guides; docs/specs has what each part does, and why
 mkdocs.yml            the documentation site, made from docs/ and the docstrings (scripts/docs_hooks.py fills it in)
 docs/recipes/         short patterns for one job each; the skill gets an abridged copy of them
 skills/               the skill that teaches a coding agent to build with featherweight (references are copied from the guides and the book, and built from the recipes)
-tests/                the harness's tests; tests/e2e uses the real model
+tests/                the harness's tests; tests/e2e uses real models
 ```
 
 The docs use the words of [the glossary](book/07-reference/03-the-glossary.md): `tests/test_docs_terms.py` fails when a page uses a name that the glossary rules out (say `sub-agent`, not `subagent`; `background job`, not `background agent`; `worker`, not `job worker`). `python3 scripts/build_skill.py` copies the guides and the book into the skill and builds its abridged recipes from `docs/recipes`, and `python3 scripts/build_book.py` writes the book's navigation and checks its code listings ([the style](book/STYLE.md)). The tests check the skill, and the commit hook and CI check the book.

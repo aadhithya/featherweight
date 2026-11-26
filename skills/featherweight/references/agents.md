@@ -142,6 +142,11 @@ a test, give it fake model settings ([testing your agents](models.md#testing-you
 
 ## Checking the output
 
+> [!WARNING]
+> **Not every output model works with every model.** Claude Opus, Sonnet and Fable take no dictionaries, no recursive
+> models and at most 24 optional fields, and an agent that has them is refused when it is built. See
+> [provider limits](models.md#provider-limits).
+
 Beyond the schema, two places hold the rules the output must satisfy:
 
 ```python

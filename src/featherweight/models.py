@@ -162,6 +162,8 @@ class AgentBase(BaseModel):
         if len(set(names)) != len(names):
             raise ValueError(f"subagents of {self.name} have duplicate names: {names}")
         self._check_background_jobs()
+        if not self.streaming:  # a streaming agent has no typed output
+            self.model.check_model_output_schema(self.output_model)  # what its provider cannot fill is refused here
         skill_names = [skill.name for skill in self.skills]
         if len(set(skill_names)) != len(skill_names):
             raise ValueError(f"skills of {self.name} have duplicate names: {skill_names}")

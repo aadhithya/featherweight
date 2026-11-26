@@ -119,8 +119,9 @@ asyncio.run(main())
   returns `FAILED` and `result.error`. It does not raise. A wrong input type does raise, and that is a bug in your code.
   `run_job(runner, job, input)` runs a job class (`@job` declares one from a function) and returns a `JobOutcome` with `job_id`, `status`, `result` (the job's output model) and `error`.
 - **Two kinds of bad output.** A reply that breaks the schema (a wrong type, a value outside a `Literal`) goes back to the
-  model within the same attempt. A rejection by `check_output` fails the attempt, and the runner retries it, up to 3
-  attempts. Use a `Literal` or validator for rules on the output alone, `check_output` for rules about the input too.
+  model within the same attempt where the output is a tool call (Claude Haiku); with a provider's structured output (Claude
+  Opus, Sonnet, Fable, and OpenAI) it fails the attempt. A rejection by `check_output` always fails the attempt, and the
+  runner retries it, up to 3 attempts. Use a `Literal` or validator for rules on the output alone, `check_output` for rules about the input too.
 - **Resuming a failed job:** `run_job(runner, job, input, resume_from=old_job_id)` makes a new job. Runs that
   already succeeded with the same agent and input are reused (`result.reused`, zero tokens); the rest run. The code
   between agents must be deterministic, state kept in memory is not rebuilt, and only top-level runs are reused
@@ -129,6 +130,12 @@ asyncio.run(main())
   new input in the pipeline that carries the problems.
 - **Output models:** give task fields defaults, and prefer flat lists with ids over nested or `X | None` objects. Gemini
   can truncate a nested schema without an error, so add a `check_output` that compares the output with the input.
+- **WARNING, Claude's limits on typed output** (Anthropic's and LangChain's; `references/models.md#provider-limits`):
+  - On `claude-opus-5-5`, `claude-sonnet-5-5` and `claude-fable-5-2`, **never put a `dict`** (or a model with
+    `extra="allow"`) in an output model: use a list of a small model with `key` and `value`. No recursive models. At most
+    24 optional fields, nested ones and `open_questions` included. The agent is refused when it is built.
+  - On `claude-haiku-5-5` the model can answer in the same reply as a tool call, before it sees the result. The attempt
+    fails (`EarlyAnswerError`) and is retried, and **the tools run again**: make tools that act safe to run twice.
 - **Models are typed classes:** `Gemini`, `Gemma`, `Claude`, `OpenAI` from `featherweight.model_settings`. Each checks its models
   and efforts when the agent is built. **There is no `temperature`, `top_p` or `top_k`**: the current models refuse or
   ignore them, and the classes reject them. For other models or providers, subclass (see `references/models.md`).

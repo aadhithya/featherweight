@@ -1,4 +1,4 @@
-.PHONY: skill all-docs docs docs-build build up down clean clean-all test lint format typecheck check hooks e2e coverage test-core test-tools test-jobs test-chat test-patterns pipeline example-skills example-launching example-resume example-results example-jobs example-takeover example-observability example-chat example-chat-api example-chat-attach example-background example-mcp book-build book-chapter book-run book-chat book-shell shell
+.PHONY: skill all-docs docs docs-build build up down clean clean-all test lint format typecheck check hooks e2e package-check coverage test-core test-tools test-jobs test-chat test-patterns pipeline example-skills example-launching example-resume example-results example-jobs example-takeover example-observability example-chat example-chat-api example-chat-attach example-background example-mcp book-build book-chapter book-run book-chat book-shell shell
 
 build:
 	docker compose build
@@ -79,7 +79,12 @@ all-docs:
 hooks:
 	uv run pre-commit install
 
-# Real Gemini calls (needs GOOGLE_API_KEY in .env). Narrow with e.g. `make e2e ARGS="-k claim"`.
+# Build the package, install it into new environments and import it (scripts/check_package.sh). No keys, no model.
+package-check:
+	docker compose run --rm --no-deps $(NO_KEYS) featherweight sh scripts/check_package.sh
+
+# Real model calls, which cost money: one set of tests on Gemini, Claude and OpenAI (keys in .env; a provider without a key
+# is skipped). One provider: `make e2e ARGS="-k claude"`.
 e2e:
 	docker compose run --rm --no-deps featherweight pytest -m e2e -s -v $(ARGS)
 

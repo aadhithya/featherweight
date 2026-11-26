@@ -40,7 +40,7 @@ SERIF = '"Iowan Old Style", "Palatino Linotype", Palatino, Charter, "Book Antiqu
 SUITES: dict[str, dict[str, str]] = {
     "core": {
         "Runner and agents": "runner models limits concurrency fingerprint",
-        "Settings": "config model_settings",
+        "Settings": "config model_settings provider_limits",
         "Identity": "identity identity_hash identity_queue",
         "Persistence": "db postgres migrations",
         "Observability": "observers otel log log_lines",
@@ -70,6 +70,7 @@ SUITES: dict[str, dict[str, str]] = {
         "Book": "book book_code book_chapters",
         "Examples": "examples",
         "Skill and docs rules": "skill_package docs_site docs_terms migration_doc no_old_names",
+        "Real-model tests, offline": "e2e_offline",
     },
 }
 

@@ -103,3 +103,12 @@ def test_the_readme_has_no_relative_links_because_pypi_shows_it_elsewhere():
     relative = [t for t in re.findall(r"\]\(([^)\s]+)\)", readme) if not t.startswith(("http://", "https://", "#"))]
     assert relative == []
     assert not re.search(r'<img[^>]+src="(?!https?://)', readme)
+
+
+def test_a_pull_request_builds_installs_and_imports_the_package():
+    steps = yaml.safe_load((ROOT / ".github" / "workflows" / "test.yml").read_text())["jobs"]["test"]["steps"]
+    [step] = [step for step in steps if step.get("run") == "make package-check"]
+    assert step["if"] == "github.event_name == 'pull_request'"
+    assert "scripts/check_package.sh" in (ROOT / "Makefile").read_text()
+    script = (ROOT / "scripts" / "check_package.sh").read_text()
+    assert "uv build" in script and "smoke_package.py" in script and "for kind in base all" in script

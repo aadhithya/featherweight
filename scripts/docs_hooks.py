@@ -135,8 +135,23 @@ def github_url(repo_path: str) -> str:
     return f"{REPO}/{kind}/{REF}/{repo_path}"
 
 
+ALERT = re.compile(r"^> \[!(?P<kind>WARNING|NOTE)\][ \t]*\n(?P<body>(?:^>.*(?:\n|$))+)", re.M)
+
+
+def admonitions(markdown: str) -> str:
+    """GitHub's alerts (`> [!WARNING]`) as the site's admonitions, so that a box is highlighted in both places."""
+
+    def box(match: re.Match) -> str:
+        lines = [re.sub(r"^> ?", "", line) for line in match["body"].rstrip("\n").split("\n")]
+        indented = "\n".join(f"    {line}".rstrip() for line in lines)
+        return f"!!! {match['kind'].lower()}\n\n{indented}\n"
+
+    return ALERT.sub(box, markdown)
+
+
 def on_page_markdown(markdown: str, page: Page, config: MkDocsConfig, files: Files) -> str:
-    """Point the links that leave the documentation at GitHub."""
+    """Show GitHub's alerts as boxes, and point the links that leave the documentation at GitHub."""
+    markdown = admonitions(markdown)
     docs_dir = Path(config["docs_dir"]).resolve()
     docs_rel = docs_dir.relative_to(ROOT).as_posix()
     known = {f.src_uri for f in files if f.inclusion.is_included()}  # not the excluded ones: those go to GitHub
