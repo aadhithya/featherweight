@@ -17,6 +17,7 @@ from fakes import (
     Echo,
     EchoInput,
     FakeSettings,
+    Hold,
     Streams,
     runner_with,
     tool_call_chunk,
@@ -233,16 +234,21 @@ async def test_the_output_hash_follows_the_text(db):
 
 
 async def test_the_row_waits_as_init_and_holds_the_slot_while_it_streams(db):
-    model = Streams(turns=[["a"], ["b"]], delay_s=0.05)
+    gate = Hold()  # the first stream stops here, so that nothing depends on how fast the machine is
+    model = Streams(turns=[[gate, "a"], ["b"]])
     runner = runner_with(db, model, max_concurrent=1)
     first = runner.stream(Chat, say("one"))
     second = runner.stream(Chat, say("two"))
     task_a = asyncio.create_task(collect(first))
-    await asyncio.sleep(0.01)
-    task_b = asyncio.create_task(collect(second))
-    await asyncio.sleep(0.02)
+    async with asyncio.timeout(10):
+        await gate.reached.wait()  # the first is streaming, and holds the only slot
+        task_b = asyncio.create_task(collect(second))
+        while await db.get_attempt(second.attempt_id) is None:
+            await asyncio.sleep(0.01)
+    await asyncio.sleep(0.05)  # time in which it would start, if the slot did not hold it back
     assert (await db.get_attempt(first.attempt_id)).status is Status.RUNNING
     assert (await db.get_attempt(second.attempt_id)).status is Status.INIT  # waiting for the slot
+    gate.release.set()
     await asyncio.gather(task_a, task_b)
     assert (await db.get_attempt(second.attempt_id)).status is Status.SUCCESS
 

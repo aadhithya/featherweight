@@ -9,7 +9,7 @@ Issues and pull requests are welcome.
 | `make test-core`, `test-tools`, `test-jobs`, `test-chat`, `test-patterns` | One suite of the tests, e.g. `make test-jobs ARGS="-k lease"` |
 | `make coverage` | All the tests with coverage: fails under 95% overall or 90% in a suite, and writes the badges and the test map ([the rules](https://github.com/aadhithya/featherweight/blob/main/TESTING.md)) |
 | `make check` | Lint and format check (ruff) and types (ty); `make lint`, `make format`, `make typecheck` run one |
-| `make hooks` | Install the git hooks: conventional commit messages, ruff, ty, and the tests with the coverage gate. CI only lints and type checks, so the tests run here, on commit |
+| `make hooks` | Install the git hooks: conventional commit messages, ruff, ty, the book's navigation and the docs build. They run no tests: every pull request runs them all, with the coverage gate |
 | `make docs` | Serve the documentation site at http://localhost:8001 (`make docs DOCS_PORT=9000` for another port), in the container; `make docs-build` builds it (strict: a broken link fails). The commit hook and the pull request check run the build |
 | `make e2e` | Tests against the real model (costs money) |
 | `make pipeline ARGS="..."` | Run the example pipeline |

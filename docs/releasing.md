@@ -3,6 +3,18 @@
 How a release is made. It is for the maintainers. `main` is protected, so a release goes through a **release pull
 request**, and merging that pull request is the approval.
 
+## Merging into main
+
+- **A pull request is needed, and the `test` check must pass** on it, with every conversation resolved. This holds for
+  maintainers too.
+- **A contribution needs one approval.** A ruleset asks for it, and a repository admin may bypass that rule alone when
+  merging a pull request: GitHub does not let anyone approve their own. The checks above are in the branch protection, which
+  nobody bypasses.
+- **Squash is the only way to merge.** The title of the pull request becomes the message of the commit on `main`, so **the
+  title must be a Conventional Commit**: the version and the changelog are made from it. The `pr-title` check
+  ([`pr-title.yml`](../.github/workflows/pr-title.yml)) tests its form, and runs again when the title is edited. It cannot
+  tell whether the type is right, so read the title before you merge. Give a pull request that has a fix or a feature a `fix:` or `feat:` title, or keep it to one change.
+
 ## Cut a release
 
 Only the release pull request is a manual step. Merging it is how you choose when a release is made.
@@ -29,7 +41,7 @@ so it is not a line of the changelog.
 
 ## How the version is chosen
 
-From the commit messages (Conventional Commits, which the commit hook enforces), since the last release:
+From the commit messages on `main` (Conventional Commits), which are the titles of the merged pull requests, since the last release:
 
 | Commit | Bumps |
 |---|---|

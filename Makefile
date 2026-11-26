@@ -34,7 +34,7 @@ test-core test-tools test-jobs test-chat test-patterns:
 	$(TEST_RUN) 'pytest $$(python scripts/test_report.py files $(@:test-%=%)) $(ARGS)'
 
 # All the tests with coverage. It fails under 95% overall or 90% in a suite, and writes the badges and the map of
-# TESTING.md (docs/assets): commit them with your change. The commit hook runs this.
+# TESTING.md (docs/assets): commit them with your change. Every pull request runs this, and fails when they are out of date.
 coverage:
 	docker compose run --rm $(NO_KEYS) -u $$(id -u):$$(id -g) -e HOME=/tmp -e COVERAGE_FILE=/tmp/.coverage -e PYTHONDONTWRITEBYTECODE=1 featherweight sh -c '\
 		coverage run --branch --source=src/featherweight -m pytest -q -p no:cacheprovider && \
