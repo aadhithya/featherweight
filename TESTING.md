@@ -72,7 +72,7 @@ to see whether their tests noticed (`doclearn` was left out).
 - **After:** the 11 recipe tests were strengthened, and they caught all of 14 deliberate breaks. The breaks were chosen knowing
   the tests, so this shows that those gaps are closed, not that nothing can pass. Every chapter folder and every example (but
   `doclearn`) is run.
-- **Found and open:** the session of [chapter 5-3](docs/book/code/5-3/app.py) and of
-  [`examples/background`](examples/background/session.py) starts a new turn for a background result that the running turn was
-  already given, so the model is told twice. [The finished project](docs/book/code/project/chat.py) checks for it. The two tests
-  are marked as expected failures, which fail once the bug is fixed, so that the mark is removed.
+- **Found and fixed:** the session of [chapter 5-3](docs/book/code/5-3/app.py) and of
+  [`examples/background`](examples/background/session.py) started a new turn for a background result that the running turn had
+  already been given, so the model was told twice. Both now check the history first, as
+  [the finished project](docs/book/code/project/chat.py) does.

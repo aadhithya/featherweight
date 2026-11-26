@@ -70,6 +70,9 @@ result arrives as **new information**, a user message:
 A failed child has `status="FAILED"` and its `error_type` (never its error text), and a cancelled one `status="CANCELLED"`. There is no output.
 
 - **While the parent runs,** the message is added before the next model call, after the results of the round's tool calls, once for each child.
+- **A child that finishes while the turn is still running** is given to that turn, and its message is in `new_messages`. Before you start a turn
+  for a finished child, wait for the running turn and look for `job_id="..."` in your history, so that the model is not told twice
+  ([as the example does](https://github.com/aadhithya/featherweight/blob/main/examples/background/session.py)).
 - **After a chat turn has ended,** it is yours: start the next turn with the history and the message. `await runner.background_message(job_id)`
   builds it from the job's status and your result store (a LangChain `HumanMessage`).
 

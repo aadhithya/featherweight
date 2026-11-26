@@ -369,13 +369,6 @@ def test_5_2_another_worker_takes_over_the_job_of_a_killed_one(tmp_path):
 
 # the background chats of the book, the project and the example
 
-# A known bug, kept visible: remove the mark with the fix (a strict xfail fails when the test starts to pass).
-TOLD_TWICE = pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="bug: this session wakes the chat for a result that the running turn was already given",
-)
-
 AGENT_NAMES = {"5-3": "root_cause_researcher", "project": "root_cause_researcher", "background": "researcher"}
 INPUT_FIELDS = {"5-3": "text", "project": "text", "background": "topic"}
 
@@ -445,9 +438,9 @@ async def test_the_chat_is_woken_with_the_note_of_its_background_researcher(chap
 @pytest.mark.parametrize(
     ("folder", "file"),
     [
-        pytest.param("5-3", "app", marks=TOLD_TWICE),
+        ("5-3", "app"),
         ("project", "chat"),
-        pytest.param("background", "session", marks=TOLD_TWICE),
+        ("background", "session"),
     ],
 )
 async def test_a_researcher_that_ends_during_the_turn_is_not_told_twice(chapter, monkeypatch, folder, file):
