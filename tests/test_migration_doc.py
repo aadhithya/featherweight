@@ -1,7 +1,14 @@
 """docs/migration.md says what to write instead of each old name: the old names must be gone from the code, and the new ones must be there."""
 
+import json
 import re
 from pathlib import Path
+from typing import Any
+
+import pytest
+
+from featherweight import AgentRunner, AttachmentLimitError, BadRequest, SqliteDatabase, StreamingAgent
+from featherweight.adapters import vercel
 
 ROOT = Path(__file__).resolve().parent.parent
 PAGE = (ROOT / "docs" / "migration.md").read_text()
@@ -97,7 +104,7 @@ def steps_table() -> list[list[str]]:
         if "**Rename mechanically**" in PAGE
         else PAGE.split("3. **Rename mechanically,**")[1]
     )
-    section = section.split("4. **Ask the owner**")[0]
+    section = section.split("4. **Move what has no one-word replacement")[0]
     return [r for r in rows(section) if r[0] not in ("#",) and len(r) >= 3]
 
 
@@ -154,9 +161,9 @@ def test_the_steps_for_coding_agents_find_names_that_are_gone_and_replace_them_w
     table = steps_table()
     assert len(table) >= 15
     replacements = {t for row in table for t in TOKEN.findall(row[2])}
-    kept = {
-        "background_agents"
-    }  # the key of an agent's hash keeps the old name on purpose, so that no agent's hash changes
+    # `background_agents`: the key of an agent's hash keeps the old name on purpose, so that no agent's hash changes. The two
+    # limits: the old environment variable is gone, and a Python name of `featherweight.config` is spelled like it.
+    kept = {"background_agents", "MAX_AGENT_DEPTH", "MAX_AGENT_LAUNCHES"}
     gone = [
         t
         for row in table
@@ -168,3 +175,76 @@ def test_the_steps_for_coding_agents_find_names_that_are_gone_and_replace_them_w
     assert not gone, f"still in src/: {gone}"
     absent = [t for t in replacements if t not in SRC + OTEL and not t.startswith("`")]
     assert not absent, f"not in src/: {absent}"
+
+
+AGENT_STEPS = PAGE.split("## For coding agents")[1]
+# what 0.1 took and the next release does not: each must be in the search of the steps for coding agents
+GONE_WITHOUT_A_NEW_NAME = (
+    "MAX_AGENT_DEPTH MAX_AGENT_LAUNCHES MAX_CONCURRENT_AGENT_RUNS ENV_MAX_ DEFAULT_MAX_ _from_env NO_JOB "
+    "observer_timeout receive_timeout cancel_poll heartbeat= lease= max_deliveries"
+).split()
+
+
+def test_the_search_for_coding_agents_looks_for_every_removed_name_and_argument():
+    [search] = [line for line in AGENT_STEPS.splitlines() if line.strip().startswith('rg -n "')]
+    looked_for = search.split('"')[1].split("|")
+    assert not [name for name in GONE_WITHOUT_A_NEW_NAME if name not in looked_for]
+    assert all(f"`{old}` | `FTW_{old}`" in AGENT_STEPS for old in ("MAX_AGENT_DEPTH", "MAX_AGENT_LAUNCHES"))
+
+
+def test_an_old_name_of_a_limit_is_ignored_as_the_guide_says(monkeypatch):
+    for name, value in (("MAX_AGENT_DEPTH", "1"), ("MAX_AGENT_LAUNCHES", "2"), ("MAX_CONCURRENT_AGENT_RUNS", "1")):
+        monkeypatch.setenv(name, value)
+    runner = AgentRunner(SqliteDatabase(":memory:"))  # never connected: only the limits are read
+    assert (runner.max_depth, runner.max_launches, runner.max_concurrent) == (3, 10, 10)
+    assert all(f"`{limit}`" in PAGE for limit in ("runner.max_depth", "runner.max_background_jobs"))
+
+
+TEXT = {"type": "text", "text": "hi"}
+INLINE = {"type": "file", "mediaType": "image/png", "url": "data:image/png;base64,iVBORw0KGgo="}
+LINK = {"type": "file", "mediaType": "image/png", "url": "https://example.com/a.png"}
+
+
+def vercel_body(*parts_of_each_message: list) -> bytes:
+    messages = [
+        {"id": str(i), "role": "assistant" if i % 2 else "user", "parts": parts}
+        for i, parts in enumerate(parts_of_each_message)
+    ]
+    return json.dumps({"id": "chat", "messages": messages}).encode()
+
+
+def test_what_the_guide_says_a_file_does_now():
+    content: Any = vercel.parse_request(vercel_body([TEXT, INLINE])).messages[-1].content
+    assert [part.type for part in content] == ["text", "image"]  # it goes to the model
+    with pytest.raises(BadRequest, match="not a data: URL"):
+        vercel.parse_request(vercel_body([TEXT, LINK]))
+
+
+def test_max_attachments_0_refuses_a_file_even_in_an_earlier_message():
+    class NoFiles(StreamingAgent):
+        max_attachments = 0
+
+    with_history = vercel.parse_request(vercel_body([TEXT, INLINE], [TEXT], [TEXT]))
+    with pytest.raises(AttachmentLimitError):
+        NoFiles.check_attachments(with_history)
+    NoFiles.check_attachments(vercel.parse_request(vercel_body([TEXT])))
+
+
+def test_the_guides_way_to_go_on_ignoring_files_does():
+    [snippet] = [b for b in re.findall(r"```python\n(.*?)```", PAGE, re.S) if "def without_files" in b]
+    namespace: dict = {}
+    exec(snippet, namespace)
+
+    chat = vercel.parse_request(namespace["without_files"](vercel_body([TEXT, INLINE], [TEXT], [LINK, TEXT])))
+
+    assert [m.content for m in chat.messages if m.role == "user"] == ["hi", "hi"]
+
+
+def test_the_example_env_file_sets_only_names_that_are_read():
+    """It is what people copy: an old name in it sets nothing, without a word."""
+    from featherweight import config
+
+    set_there = re.findall(r"^([A-Z_]+)=", (ROOT / ".env.example").read_text(), re.M)
+    theirs = {"GOOGLE_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GITHUB_TOKEN"}  # not featherweight's
+    known = {setting.name for setting in config.SETTINGS} | NOT_OURS | theirs
+    assert not set(set_there) - known, f"in .env.example and read by nothing: {sorted(set(set_there) - known)}"

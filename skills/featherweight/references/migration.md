@@ -30,8 +30,8 @@ The rename of the units is [specified](https://github.com/aadhithya/featherweigh
 | 4 | [A `Database` you wrote](#a-database-you-wrote) | implemented `Database` yourself |
 | 5 | [A queue you wrote](#a-queue-you-wrote) | implemented `JobQueue` yourself |
 | 6 | [Stricter checks: identity, job names and skills](#stricter-checks-identity-job-names-and-skills) | pass one `job_id` to runs for several identities, declare an identity model with an `exclude=True` field and no default, name jobs freely, or write a skill's `aread` |
-| 7 | [Attachments in a chat](#attachments-in-a-chat) | send an empty attachment, match the text of an error, or catch `ValueError` around `runner.stream()` |
-| 8 | [Settings, logs and spans](#settings-logs-and-spans) | set `MAX_CONCURRENT_AGENT_RUNS`, read the logs, or have dashboards or alerts on the spans |
+| 7 | [Attachments in a chat](#attachments-in-a-chat) | **serve a chat at all** (files are now accepted by default), use the Vercel adapter with a client that can send files, send an empty attachment, match the text of an error, or catch `ValueError` around `runner.stream()` |
+| 8 | [Settings, logs and spans](#settings-logs-and-spans) | set `MAX_CONCURRENT_AGENT_RUNS`, **`MAX_AGENT_DEPTH` or `MAX_AGENT_LAUNCHES`**, pass a timing or lease argument to a runner, worker or queue, import a runner constant, read the logs, or have dashboards or alerts on the spans |
 | 9 | [Typed output: what is now refused](#typed-output-what-is-now-refused) | use Claude for an agent with typed output: a `dict`, a recursive model or many optional fields on Opus, Sonnet or Fable, or tools on Haiku (the default Claude model) |
 
 If you use none of these, upgrade and run your tests.
@@ -135,6 +135,48 @@ Check: your tests pass, and a worker starts (it builds its checks when it starts
 
 ## Attachments in a chat
 
+> [!WARNING]
+> **A chat now accepts files, and sends them to the model's provider, without any change of yours.** 0.1 took text only.
+> Every streaming agent now takes up to **10 attachments and 15 MiB** of decoded data in a conversation. Files cost tokens,
+> and their contents leave your application for the provider. No error tells you.
+
+| What arrives | In 0.1 | Now |
+|---|---|---|
+| A **file part of a user message, through the Vercel adapter**, with a `data:` URL | **Ignored:** the model got the text | **An attachment: the file goes to the model** |
+| The same with another URL, such as `https:` | **Ignored** | **The whole request is refused** (`BadRequest`) |
+| Content that is not text in an AG-UI request or a `ChatInput`, such as an inline image | Refused | Accepted when the data is inline (a URL is still refused) |
+
+Files in the Vercel messages of the **assistant** are still ignored.
+
+**Decide whether your application takes files.** If it does: check who may send what, and set `max_attachments` and
+`max_bytes` on the agent ([attachments](streaming.md#attachments)). If it does not:
+
+```python
+class Support(StreamingAgent):
+    max_attachments = 0  # no files: a conversation that has one is refused
+```
+
+This **refuses**, it does not ignore: `runner.stream()` raises `AttachmentLimitError` (answer it with a 413), also when the
+file is in an **earlier** message, so a chat whose history holds one fails on every turn.
+
+**To go on ignoring files, as the Vercel adapter did,** take them out of the request before you parse it. This also takes
+out the links that would be refused. A message that had only files is left empty, so decide what your application answers
+to one:
+
+```python
+import json
+
+
+def without_files(body: bytes) -> dict:
+    """The request of `useChat` with no file parts. Then: `vercel.parse_request(without_files(body))`."""
+    request = json.loads(body)
+    for message in request["messages"]:
+        message["parts"] = [part for part in message["parts"] if part.get("type") != "file"]
+    return request
+```
+
+The other changes:
+
 | What | Now | You are affected if you... | Do |
 |---|---|---|---|
 | An **empty attachment** (no bytes) | Refused when a `ChatInput` is built (`ValueError`, a `BadRequest` through an adapter). It used to fail at the provider, in the run | send one, or have a stored conversation that has one | Drop the part before you build the `ChatInput` |
@@ -235,6 +277,12 @@ retried, up to `max_attempts` (3). If every attempt does it, the result is `FAIL
 
 ## Settings, logs and spans
 
+> [!WARNING]
+> **An old variable name is ignored without a word, and the default takes its place.** If you lowered a limit, it is
+> **loose again**: `MAX_AGENT_DEPTH=1` now gives the default of **3**, `MAX_AGENT_LAUNCHES=2` gives **10**, and
+> `MAX_CONCURRENT_AGENT_RUNS` gives **10**. Look in every place that sets them: `.env` files, compose and deployment files,
+> CI, and the settings of your host.
+
 | Before | After | Notes |
 |---|---|---|
 | the environment variable `MAX_CONCURRENT_AGENT_RUNS` | `FTW_MAX_CONCURRENT_ATTEMPTS` | It limits the attempts (the model calls) that run at once. The argument `max_concurrent` is unchanged. |
@@ -247,6 +295,12 @@ retried, up to `max_attempts` (3). If every attempt does it, the result is `FAIL
 | the log lines `run_created`, `run_running`, `run_finished` (the run log's rows) | `attempt_created`, `attempt_running`, `attempt_finished` | One per attempt. Mind the order if you rewrite them by script: `run_finished` is both a before and an after. |
 | the keys `agent_run_id=` and `invocation_id=` in the log lines | `attempt_id=` and `run_id=` | |
 | the key `reused_from=` in the log lines of a resume | `reused_from_attempt_id=` | The three lines of a resume (`run_reused`, `run_reuse_rejected`, `result_missing`) also carry `run_id=` now. |
+
+**Also gone from `featherweight.runner`:** `ENV_MAX_CONCURRENT`, `ENV_MAX_DEPTH`, `ENV_MAX_LAUNCHES`, `DEFAULT_MAX_CONCURRENT`,
+`DEFAULT_MAX_DEPTH`, `DEFAULT_MAX_LAUNCHES`, `DEFAULT_MAX_BACKGROUND`, `max_concurrent_from_env()`, `max_depth_from_env()`
+and `max_launches_from_env()`. To read the limits in force, read `runner.max_concurrent`, `runner.max_depth`,
+`runner.max_launches` and `runner.max_background_jobs`. **Also gone:** `featherweight.tools.NO_JOB`, a message of the
+removed run store. An import of any of these fails with `ImportError`.
 
 The span **names** do not change (`invoke_workflow`, `invoke_agent`, `chat`, `execute_tool`).
 
@@ -271,7 +325,7 @@ None of this needs a change; it is here so that you know it exists.
 - **[Who is asking](agents.md#who-is-asking-the-identity-of-a-run):** a typed identity for a run, for tools, in your process and on workers (`identity_type`, `identity=`).
 - **[Jobs that are not declared in code](submitted-jobs.md#jobs-that-are-not-declared-in-code):** `jobs_lookup` on a worker.
 - **[Reading a skill from somewhere else](skills.md#reading-a-skill-from-somewhere-else):** `Skill.aread`.
-- **[Attachments in a chat](streaming.md#attachments):** images, documents, audio and video, with limits (`max_attachments`, `max_bytes`). A file for an agent or a job is [passed as a reference](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/files-for-an-agent-or-a-job.md), and not carried.
+- **[Attachments in a chat](streaming.md#attachments):** images, documents, audio and video, with limits (`max_attachments`, `max_bytes`). **This one can need a change:** they are on by default ([above](#attachments-in-a-chat)). A file for an agent or a job is [passed as a reference](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/files-for-an-agent-or-a-job.md), and not carried.
 - **[Configuration](agents.md#configuration):** one list of `FTW_` variables. New: `FTW_MAX_BACKGROUND_JOBS` and `FTW_WORKER_CONCURRENCY` (an argument wins over them), `FTW_JOBS_LOOKUP_TIMEOUT` and `FTW_SKILL_READ_TIMEOUT` (15 s each; environment only).
 - **[Approvals](https://github.com/aadhithya/featherweight/blob/main/docs/specs/approvals.md):** agents propose and your code executes (a pattern, with two recipes and a chapter of the book), and what is not supported on purpose.
 - **[Recipes](https://github.com/aadhithya/featherweight/blob/main/docs/recipes/README.md)** and a glossary that says which name to use.
@@ -280,10 +334,11 @@ None of this needs a change; it is here so that you know it exists.
 
 You are changing a project that uses featherweight 0.1 to the next release. Work in this order, and stop to ask the owner where the page says to.
 
-1. **Find the uses.** From the project root, run these and read every hit (`rg` or `git grep -n`):
+1. **Find the uses.** From the project root, run this and read every hit (`rg` or `git grep -n`). Search hidden files too
+   (`rg --hidden -g "!.git"`), where `.env` and CI files are:
 
    ```
-   rg -n "RunStore|store_get|store_set|background_agents|agent_run_id|invocation_id|AgentRunRow|AgentRunFailed|RunStatus|ReusedRun|RunStart|RunEnd|max_background=|list_runs|get_run|create_run|finish_run|mark_run_running|find_reusable_run|agent_runs|MAX_CONCURRENT_AGENT_RUNS|ftw\.run\.id|ftw\.invocation\.id|reused_from_agent_run_id|\binvocation_(started|finished)\b"
+   rg -n "RunStore|store_get|store_set|background_agents|agent_run_id|invocation_id|AgentRunRow|AgentRunFailed|RunStatus|ReusedRun|RunStart|RunEnd|max_background=|MAX_AGENT_DEPTH|MAX_AGENT_LAUNCHES|ENV_MAX_|DEFAULT_MAX_|_from_env|NO_JOB|observer_timeout|receive_timeout|cancel_poll|heartbeat=|lease=|max_deliveries|list_runs|get_run|create_run|finish_run|mark_run_running|find_reusable_run|agent_runs|MAX_CONCURRENT_AGENT_RUNS|ftw\.run\.id|ftw\.invocation\.id|reused_from_agent_run_id|\binvocation_(started|finished)\b"
    ```
 
 2. **Remove what is gone,** by hand: the run store ([the first section](#the-run-store-is-gone)). It has no replacement; ask the owner where the state should live if the code relied on it across agents.
@@ -302,6 +357,8 @@ You are changing a project that uses featherweight 0.1 to the next release. Work
    | 9 | `agent_runs` | `attempts` | SQL |
    | 10 | `background_agents` | `background_jobs` | code, docs and prompts |
    | 11 | `MAX_CONCURRENT_AGENT_RUNS` | `FTW_MAX_CONCURRENT_ATTEMPTS` | deployment files, `.env`, docs |
+   | 11e | `MAX_AGENT_DEPTH` | `FTW_MAX_AGENT_DEPTH` | deployment files, `.env`, docs. Leave a name that already has `FTW_` |
+   | 11f | `MAX_AGENT_LAUNCHES` | `FTW_MAX_AGENT_LAUNCHES` | the same |
    | 11b | `RunStatus` | `Status` | code (the import and every use) |
    | 11c | `ReusedRun` | `RunReused` | code that implements an observer |
    | 11d | `max_background=` | `max_background_jobs=` | `AgentRunner(...)` calls |
@@ -311,9 +368,19 @@ You are changing a project that uses featherweight 0.1 to the next release. Work
    | 15 | the log lines `run_created`, `run_running`, `run_finished` | `attempt_created`, `attempt_running`, `attempt_finished` | log queries and alerts: **before row 16** |
    | 16 | `invocation_started`, `invocation_finished` | `run_started`, `run_finished` | log queries and alerts |
 
-4. **Build every agent, and fix what is refused** ([typed output](#typed-output-what-is-now-refused)). No search finds this: write
+4. **Move what has no one-word replacement,** and tell the owner what you moved:
+   - `AgentRunner(observer_timeout=)`, `JobWorker(lease=, heartbeat=, receive_timeout=, cancel_poll=)` and
+     `SqliteQueue(lease=, max_deliveries=)` become variables ([settings](#settings-logs-and-spans)): put the same values where
+     the deployment sets its environment, and drop the arguments. `testing.MemoryQueue(lease=)` stays as it is.
+   - An import of a removed name of `featherweight.runner`, or of `NO_JOB`
+     ([what is gone](#settings-logs-and-spans)): read the limit from the runner, or drop the use.
+   - **Files** ([attachments](#attachments-in-a-chat)): find every `StreamingAgent` and every use of the Vercel or AG-UI
+     adapter. **No search for an old name finds this.** Ask the owner whether each chat should take files, and do what they
+     choose before the upgrade is deployed.
+5. **Build every agent, and fix what is refused** ([typed output](#typed-output-what-is-now-refused)). No search finds this: write
    or run a test that calls `TheAgent()` for every agent class, and every model it can be given. It calls no model. For each
    agent on Haiku with tools, check that every tool that acts is safe to run twice, and tell the owner which are not.
-5. **Ask the owner** about: a chat that looks up the row of a stream by the `run_id` of its events (`get_attempt(` or `get_run(` with a stream's id, which is now `None`: use the stream's `attempt_id`, or `list_attempts(run_id=...)`), a `Database` or a queue the project implements (change them as the two sections above say, then run the kits), dashboards, alerts and log queries that are not in the repository, and what [the stricter checks](#stricter-checks-identity-job-names-and-skills) and [the attachments table](#attachments-in-a-chat) list: one `job_id` given to runs for several identities, an identity model with an `exclude=True` field and no default, job names built from user input, a skill whose `aread` can return `None`, how to reshape an output model that is refused (it changes the code that reads the output, and results already stored from a dictionary field may be empty), an `except ValueError` around `runner.stream()` (answer `AttachmentLimitError` with a 413), and a client that matches the text of an error message.
-6. **Check.** Run the rename search from step 1 again: it must return nothing outside this page. Run the project's tests. If the project has a database that matters, test the upgrade on a copy. Then run `git diff --stat` and read it: every change should be one of the rows above.
-7. **Do not** rename a variable that happens to be called `run_id` or `attempt_id` in the project's own code, and do not touch the OpenTelemetry span names.
+6. **Ask the owner** about: a chat that looks up the row of a stream by the `run_id` of its events (`get_attempt(` or `get_run(` with a stream's id, which is now `None`: use the stream's `attempt_id`, or `list_attempts(run_id=...)`), a `Database` or a queue the project implements (change them as the two sections above say, then run the kits), dashboards, alerts and log queries that are not in the repository, and what [the stricter checks](#stricter-checks-identity-job-names-and-skills) and [the attachments table](#attachments-in-a-chat) list: one `job_id` given to runs for several identities, an identity model with an `exclude=True` field and no default, job names built from user input, a skill whose `aread` can return `None`, how to reshape an output model that is refused (it changes the code that reads the output, and results already stored from a dictionary field may be empty), an `except ValueError` around `runner.stream()` (answer `AttachmentLimitError` with a 413), and a client that matches the text of an error message.
+7. **Check.** Run the search from step 1 again: outside this page it must return only what you have read and meant to keep, such as
+   `MemoryQueue(lease=)`, a name that already starts with `FTW_`, or a word of the project's own. Run the project's tests. If the project has a database that matters, test the upgrade on a copy. Then run `git diff --stat` and read it: every change should be one of the rows above.
+8. **Do not** rename a variable that happens to be called `run_id` or `attempt_id` in the project's own code, and do not touch the OpenTelemetry span names.

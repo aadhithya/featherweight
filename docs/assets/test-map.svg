@@ -13,7 +13,7 @@
   </style>
   <rect class="card" x="0.5" y="0.5" width="959" height="445" rx="8"/>
   <text class="head" x="24" y="34">What the tests cover</text>
-  <text class="muted" x="24" y="56">1,677 tests without a real model · 96% of lines and branches covered</text>
+  <text class="muted" x="24" y="56">1,683 tests without a real model · 96% of lines and branches covered</text>
   <line class="rule" x1="24" y1="76" x2="936" y2="76"/>
   <text class="suite" x="24" y="104">Core</text>
   <text class="muted" x="24" y="123">626 tests · 98% covered</text>
@@ -79,7 +79,7 @@
   <text class="count" x="903" y="320">123</text>
   <line class="rule" x1="24" y1="362" x2="936" y2="362"/>
   <text class="suite" x="24" y="390">Patterns</text>
-  <text class="muted" x="24" y="409">200 tests · judged by assertions</text>
+  <text class="muted" x="24" y="409">206 tests · judged by assertions</text>
   <rect class="chip" x="214" y="376" width="222" height="20" rx="4"/>
   <text class="area" x="223" y="390">Recipes</text>
   <text class="count" x="427" y="390">46</text>
@@ -91,7 +91,7 @@
   <text class="count" x="903" y="390">29</text>
   <rect class="chip" x="214" y="400" width="222" height="20" rx="4"/>
   <text class="area" x="223" y="414">Skill and docs rules</text>
-  <text class="count" x="427" y="414">71</text>
+  <text class="count" x="427" y="414">77</text>
   <rect class="chip" x="452" y="400" width="222" height="20" rx="4"/>
   <text class="area" x="461" y="414">Real-model tests, offline</text>
   <text class="count" x="665" y="414">5</text>

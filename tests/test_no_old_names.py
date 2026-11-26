@@ -18,6 +18,7 @@ OLD = re.compile(
 OWNERS = {
     "src/featherweight/migrations.py",
     "tests/test_migrations.py",
+    "tests/test_migration_doc.py",  # it checks what the migration guide says about the old names
     "tests/test_postgres.py",
     "tests/test_identity_hash.py",
     "tests/test_docs_terms.py",
