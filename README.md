@@ -8,6 +8,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/featherweight)](https://pypi.org/project/featherweight/)
 [![License](https://img.shields.io/pypi/l/featherweight)](https://github.com/aadhithya/featherweight/blob/main/LICENSE)
 [![tests](https://github.com/aadhithya/featherweight/actions/workflows/test.yml/badge.svg)](https://github.com/aadhithya/featherweight/actions/workflows/test.yml)
+[![coverage](https://raw.githubusercontent.com/aadhithya/featherweight/main/docs/assets/badges/coverage.svg)](https://github.com/aadhithya/featherweight/blob/main/TESTING.md)
 
 **An opinionated agent harness. Pydantic is the spec. Everything else follows.**
 

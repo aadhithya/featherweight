@@ -54,3 +54,12 @@ def texts(model) -> list[str]:
 
 
 INPUT = EchoInput(text="go")
+
+
+def use_real_stderr(monkeypatch) -> None:
+    """For code that runs as a script would, under `capsys`. The MCP library binds the server's error stream to
+    `sys.stderr` as it is when first imported, which under pytest can be a capture file that is closed by now, or one with no
+    file number. A reader's terminal is the real one."""
+    from mcp.client.stdio import stdio_client
+
+    monkeypatch.setattr(stdio_client.__wrapped__, "__defaults__", (sys.__stderr__,))

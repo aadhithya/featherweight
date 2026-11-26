@@ -72,13 +72,8 @@ def test_the_working_app_in_the_skill_runs_on_a_fake_model(monkeypatch, tmp_path
     assert (tmp_path / "featherweight.db").exists()
 
 
-def test_the_recipes_pipeline_defines_and_the_fake_model_test_file_passes_as_written(tmp_path):
-    definition, pipeline, *_ = python_blocks(SKILL / "SKILL.md")
-    namespace: dict = {"__name__": "skill_example"}
-    exec(definition, namespace)
-    exec(pipeline.replace("asyncio.run(main())", ""), namespace)  # the imports and main(), not run
-    exec(python_blocks(RECIPES / "a-pipeline-of-two-agents.md")[0], namespace)  # the pipeline of two agents: defines it
-
+def test_the_fake_model_test_file_of_the_recipe_passes_as_written(tmp_path):
+    definition, *_ = python_blocks(SKILL / "SKILL.md")
     # The recipe's test file, saved next to the agent as `app.py`, as the recipe says, and run by pytest.
     (tmp_path / "app.py").write_text(definition)
     (tmp_path / "test_app.py").write_text(

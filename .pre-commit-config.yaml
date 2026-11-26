@@ -47,17 +47,18 @@ repos:
         files: ^(docs/book/|scripts/build_book\.py$)
         pass_filenames: false
 
-  # Unit tests, in the Docker container. They never call a real model: the e2e tests are excluded and the container gets
-  # blank API keys, so an accidental call fails at once and costs nothing. They run here and not in CI, which only
-  # lints and type checks. Needs Docker running and the image built (`make build`; rebuild after a dependency change).
-  # Skipped when a commit changes only docs.
+  # All the tests with coverage, in the Docker container (`make coverage`). They never call a real model: the e2e tests are
+  # excluded and the container gets blank API keys and tokens. It fails under 95% overall or 90% in a suite, and when the
+  # badges or the test map were out of date (it writes them: add them and commit again). The tests run here and not in CI,
+  # which only lints and type checks. The recipes, the book and the skill are tested too, so a change to a page runs them.
+  # Needs Docker running and the image built (`make build`; rebuild after a dependency change).
   - repo: local
     hooks:
-      - id: pytest
-        name: unit tests (docker)
-        entry: docker compose run --rm -e GOOGLE_API_KEY= -e ANTHROPIC_API_KEY= -e OPENAI_API_KEY= featherweight pytest -q -m "not e2e"
+      - id: coverage
+        name: tests and coverage (docker)
+        entry: make coverage
         language: system
-        files: ^(src|tests|examples)/|^pyproject\.toml$|^uv\.lock$
+        files: ^(src|tests|examples|docs|skills|scripts|\.github|\.claude-plugin)/|^(conftest\.py|pyproject\.toml|uv\.lock|Makefile|\.pre-commit-config\.yaml|mkdocs\.yml|release-please-config\.json|\.release-please-manifest\.json|README\.md|AGENTS\.md|CONTRIBUTING\.md)$
         pass_filenames: false
 
   # The documentation site (mkdocs.yml) must build, strict: a broken link, a missing page or a bad docstring fails the commit.

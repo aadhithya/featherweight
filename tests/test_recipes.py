@@ -3,6 +3,7 @@ application's (a store, a directory, a web handler) is in the recipe itself or i
 uses the agent of Getting started says so in a comment, and the agent is read from that page. The platform recipes with more to say are in
 `test_recipes_platform.py` and `test_skill_package.py`."""
 
+import asyncio
 import inspect
 import json
 import re
@@ -90,6 +91,77 @@ def says_it_uses_the_agent_of_getting_started(page: str) -> bool:
     return "the agent of Getting started" in "\n".join(blocks(page))
 
 
+def outcomes_of_run_job(monkeypatch) -> list:
+    """The outcome of every `run_job` of a recipe, in order: a recipe may not print what it got."""
+    seen: list = []
+    real = featherweight.run_job
+
+    async def spy(*args, **kwargs):
+        outcome = await real(*args, **kwargs)
+        seen.append(outcome)
+        return outcome
+
+    monkeypatch.setattr(featherweight, "run_job", spy)
+    return seen
+
+
+class ByInput(BaseChatModel):
+    """A fake that replies by what the input of the agent contains, so that agents that run together get their own replies.
+    The last reply of a list repeats."""
+
+    answers: dict[str, list]
+    calls: dict[str, int] = {}
+
+    @property
+    def _llm_type(self) -> str:
+        return "by-input"
+
+    def bind_tools(self, tools, **kwargs):
+        return self
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        user = str(next(m.content for m in messages if m.type == "human"))
+        key = next(k for k in self.answers if k in user)
+        number = self.calls.get(key, 0)
+        self.calls[key] = number + 1
+        item = self.answers[key][min(number, len(self.answers[key]) - 1)]
+        if isinstance(item, Exception):
+            raise item
+        return ChatResult(generations=[ChatGeneration(message=item)])
+
+
+def people_reply(*names: str):
+    return structured_reply("ExtractOutput", {"people": list(names)})
+
+
+# a pipeline of two agents
+
+
+async def test_the_pipeline_merges_the_people_of_every_text(recipes, monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)  # the recipe names its database file
+    outcomes = outcomes_of_run_job(monkeypatch)
+    model = recipes(ByInput(answers={"Anna met Tom.": [people_reply("Tom", "Anna")], "Li came.": [people_reply("Li")]}))
+
+    await run_recipe("a-pipeline-of-two-agents.md", getting_started=True)
+
+    [outcome] = outcomes
+    assert outcome.status.value == "SUCCESS" and outcome.result.people == ["Anna", "Li", "Tom"]  # merged and sorted
+    assert model.calls == {"Anna met Tom.": 1, "Li came.": 1}
+
+
+async def test_the_pipeline_goes_on_without_a_text_whose_run_failed(recipes, monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    outcomes = outcomes_of_run_job(monkeypatch)
+    nobody = people_reply("Nobody")  # not in the text: `check_output` of the agent refuses it, at every try
+    model = recipes(ByInput(answers={"Anna met Tom.": [nobody], "Li came.": [people_reply("Li")]}))
+
+    await run_recipe("a-pipeline-of-two-agents.md", getting_started=True)
+
+    [outcome] = outcomes
+    assert outcome.status.value == "SUCCESS" and outcome.result.people == ["Li"]  # the failed run is skipped
+    assert model.calls == {"Anna met Tom.": 3, "Li came.": 1}
+
+
 # an agent that launches another
 
 
@@ -114,6 +186,11 @@ async def test_an_editor_launches_the_summariser_it_may_launch(recipes, capsys):
         "Write a headline": 2,
         "Summarise the topic": 1,
     }  # the editor, the summariser, the editor again
+    assert the_input_of(model, "Summarise the topic") == {"topic": "a new bridge"}
+    [told] = tool_texts(model, "Write a headline")  # what came back to the editor
+    assert json.loads(told)["status"] == "SUCCESS" and "A new bridge opens." in told
+    editor_prompt = " ".join(str(m.content) for m in model.seen[0] if m.type == "system")
+    assert "- summariser: Summarises a topic in one sentence" in editor_prompt  # what it may launch
 
 
 # giving a sub-agent context
@@ -345,7 +422,10 @@ async def test_the_propose_tool_writes_a_proposal_and_books_nothing(recipes):
 # asking the user in the middle of a job
 
 
-async def test_a_job_ends_with_its_questions_and_the_second_job_does_not_pay_for_the_first_stage(recipes, capsys):
+async def test_a_job_ends_with_its_questions_and_the_second_job_does_not_pay_for_the_first_stage(
+    recipes, capsys, monkeypatch
+):
+    outcomes = outcomes_of_run_job(monkeypatch)
     model = recipes(
         PerAgent(
             scripts={
@@ -364,17 +444,29 @@ async def test_a_job_ends_with_its_questions_and_the_second_job_does_not_pay_for
     assert "first job: SUCCESS | done: False | asks: ['How many nights?']" in out  # asking is a result
     assert "second job: SUCCESS | done: True | Four nights in Lisbon." in out
     assert model.calls == {"Plan the trip": 1, "Write the itinerary": 1}  # the planner ran once, across both jobs
+    assert the_input_of(model, "Write the itinerary") == {
+        "plan": {"destination": "Lisbon", "nights": 0},
+        "answers": {"How many nights?": "4 nights"},
+    }  # the finisher gets the plan of the first stage and what the person answered
+    first, second = outcomes
+    assert first.result.questions == ["How many nights?"] and second.job_id != first.job_id
 
 
 # a different provider
 
 
-async def test_an_agent_is_run_on_the_provider_that_its_model_names(recipes, capsys):
+async def test_an_agent_is_run_on_the_provider_that_its_model_names(recipes, capsys, monkeypatch):
+    real_build = Claude.build
     recipes(PerAgent(scripts={"Rate how urgent": [structured_reply("Triage", {"urgency": "high"})]}))
     ns = await run_recipe("a-different-provider.md")
 
     assert "urgency='high'" in capsys.readouterr().out
-    assert isinstance(ns["Triager"]().model, Claude) and ns["Triager"]().model.effort == "low"
+    settings = ns["Triager"]().model
+    assert isinstance(settings, Claude) and settings.effort == "low"
+    # the settings that the page writes build the provider's real chat model (a dummy key: nothing is sent)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "dummy-key")
+    chat = real_build(settings)
+    assert type(chat).__name__ == "ChatAnthropic" and chat.model == "claude-haiku-5-5"
 
 
 # telling a retry what went wrong
@@ -407,8 +499,16 @@ async def test_the_next_try_is_told_what_was_wrong_with_the_last(recipes, capsys
 async def test_an_agent_with_an_mcp_server_uses_its_tools(
     recipes, capfd, monkeypatch
 ):  # capfd: the server is a subprocess
-    # The page names GitHub's server; the test gives it the fake server of the MCP tests, with the same name.
-    monkeypatch.setattr(featherweight, "HttpMCPServer", lambda **kwargs: fake_mcp_server(name=kwargs["name"]))
+    # The page names GitHub's server. What it declares is checked as the real class takes it, and then the agent is given
+    # the fake server of the MCP tests, with the same name.
+    declared: list = []
+    real_server = featherweight.HttpMCPServer
+
+    def stand_in(**kwargs):
+        declared.append(real_server(**kwargs))  # a field that the real class refuses fails here
+        return fake_mcp_server(name=kwargs["name"])
+
+    monkeypatch.setattr(featherweight, "HttpMCPServer", stand_in)
     model = recipes(
         PerAgent(
             scripts={
@@ -423,39 +523,92 @@ async def test_an_agent_with_an_mcp_server_uses_its_tools(
 
     assert "answer='five'" in capfd.readouterr().out and model.calls == {"Answer from the repository": 2}
     assert ns["RepoReader"]().mcp_servers[0].name == "github"
+    [server] = declared
+    assert (server.url, server.bearer_from) == ("https://api.githubcopilot.com/mcp/readonly", "GITHUB_TOKEN")
+    [told] = [m for m in model.seen[-1] if m.type == "tool"]
+    assert "5" in str(told.content) and "not a tool" not in str(
+        told.content
+    )  # the server's own answer reached the model
 
 
 # traces for jobs and agents
 
 
-async def test_a_job_and_its_agents_are_traced(recipes, capsys, monkeypatch):
-    import sys
-
+async def test_a_job_and_its_agents_are_traced(recipes, monkeypatch):
     from opentelemetry.sdk.trace import export
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-    # The console exporter binds `sys.stdout` when its module is first imported, so a test that wants its output points it here.
-    monkeypatch.setattr(
-        export, "ConsoleSpanExporter", lambda original=export.ConsoleSpanExporter: original(out=sys.stdout)
-    )
+    # The page prints to the console; the test keeps the spans, to look at how they nest and what they carry.
+    exporter = InMemorySpanExporter()
+    monkeypatch.setattr(export, "ConsoleSpanExporter", lambda: exporter)
     assert says_it_uses_the_agent_of_getting_started("traces-for-jobs-and-agents.md")
-    recipes(PerAgent(scripts={"List every person": [structured_reply("ExtractOutput", {"people": ["Anna Berger"]})]}))
+    recipes(PerAgent(scripts={"List every person": [people_reply("Anna Berger")]}))
     await run_recipe("traces-for-jobs-and-agents.md", getting_started=True)
 
-    spans = capsys.readouterr().out
-    assert "invoke_workflow" in spans and "invoke_agent" in spans and "chat" in spans
+    spans = exporter.get_finished_spans()
+
+    def the_span(prefix: str):
+        [span] = [x for x in spans if x.name.startswith(prefix)]
+        return span
+
+    workflow, agent, chat = (the_span(prefix) for prefix in ("invoke_workflow", "invoke_agent", "chat"))
+    assert workflow.parent is None
+    assert agent.parent.span_id == workflow.context.span_id  # the agent is under its job
+    assert chat.parent.span_id == agent.context.span_id  # and the model call under the agent
+    # content is off unless asked for: neither the input nor the output is anywhere in the trace
+    everything = " ".join(span.to_json() for span in spans)
+    assert "Anna Berger" not in everything and "Tom Okafor" not in everything
 
 
 # a streaming agent for chat
 
 
 async def test_a_turn_streams_as_server_sent_events_and_the_conversation_is_kept_by_you(recipes, capsys):
-    recipes(Streams(turns=[["Hello", " there"]]))
+    from featherweight import SqliteDatabase, default_db_path
+
+    model = recipes(Streams(turns=[["Hello", " there"], ["It ships today."]]))
     ns = await run_recipe("a-chat-agent-that-streams.md")
 
     out = capsys.readouterr().out
     assert "RUN_STARTED" in out and "Hello" in out and "RUN_FINISHED" in out
     kept = ns["history"]
     assert [type(m).__name__ for m in kept] == ["HumanMessage", "AIMessage"] and kept[1].content == "Hello there"
+
+    # the next turn is sent the whole conversation, and what it produced is kept too
+    async with SqliteDatabase(default_db_path()) as db, AgentRunner(db) as runner:
+        pieces = [piece async for piece in ns["answer"](runner, HumanMessage("When does it ship?"))]
+
+    assert [m.content for m in model.seen[1] if m.type in ("human", "ai")] == [
+        "Where is my order?",
+        "Hello there",
+        "When does it ship?",
+    ]
+    assert "It ships today." in "".join(pieces)
+    assert [m.content for m in kept] == ["Where is my order?", "Hello there", "When does it ship?", "It ships today."]
+
+
+async def test_a_stopped_turn_keeps_what_was_said_for_the_next_one(recipes):
+    from fakes import Hold
+
+    from featherweight import SqliteDatabase, default_db_path
+
+    gate = Hold()
+    recipes(Streams(turns=[["Let me check ", gate, "the whole order."]]))
+    ns = await load_recipe("a-chat-agent-that-streams.md")
+
+    async with SqliteDatabase(default_db_path()) as db, AgentRunner(db) as runner:
+
+        async def consume() -> str:
+            return "".join([piece async for piece in ns["answer"](runner, HumanMessage("Where is my order?"))])
+
+        task = asyncio.create_task(consume())
+        await asyncio.wait_for(gate.reached.wait(), timeout=10)
+        await asyncio.sleep(0.05)
+        [row] = await db.list_attempts()
+        assert runner.cancel(row.run_id) is True  # the one line the page names
+        await asyncio.wait_for(task, timeout=10)
+
+    assert [m.content for m in ns["history"]] == ["Where is my order?", "Let me check "]
 
 
 # a job that a worker runs
@@ -464,8 +617,7 @@ async def test_a_turn_streams_as_server_sent_events_and_the_conversation_is_kept
 async def test_a_worker_runs_the_job_that_was_submitted(recipes, capsys):
     await run_recipe("a-job-that-a-worker-runs.md")
 
-    out = capsys.readouterr().out
-    assert "queued" in out and "succeeded" in out and "shouted='HELLO'" in out
+    assert capsys.readouterr().out.splitlines() == ["queued", "running", "succeeded", "shouted='HELLO'"]
 
 
 # a result store of your own
@@ -481,6 +633,33 @@ async def test_the_store_passes_the_kit_and_is_given_to_the_runner(recipes, caps
     assert await store.get(key) == {"x": 1}
     await store.delete_job("j")
     assert await store.get(key) is None
+
+
+async def test_a_job_is_resumed_from_what_the_store_of_the_page_kept(recipes):
+    from fakes import Echo, EchoInput
+
+    from featherweight import JobContext, SqliteDatabase, job, run_job
+
+    ns = await load_recipe("a-result-store-of-your-own.md")
+    store = ns["MyStore"]()
+    model = recipes(ByInput(answers={"hello": [structured_reply("EchoOutput", {"echoed": "hello"})]}))
+
+    class Said(Echo):
+        model: ModelSettings = Gemini()
+
+    @job
+    async def say(ctx: JobContext, input: EchoInput) -> EchoInput:
+        result = await ctx.run(Said, input)
+        return EchoInput(text=result.output.echoed)
+
+    async with SqliteDatabase(":memory:") as db:
+        runner = AgentRunner(db, results=store)
+        first = await run_job(runner, say, EchoInput(text="hello"), resumable=True)
+        assert first.status.value == "SUCCESS" and [k.job_id for k in store.results].count(first.job_id) >= 1
+        second = await run_job(runner, say, EchoInput(text="hello"), resume_from=first.job_id)
+
+    assert second.status.value == "SUCCESS" and second.result.text == "hello"
+    assert model.calls == {"hello": 1}  # the second job read the step from the store
 
 
 # an agent that starts another and goes on
@@ -521,20 +700,31 @@ async def test_the_researcher_starts_a_search_and_goes_on(recipes, capsys):
 # resuming a failed job
 
 
-async def test_a_failed_job_is_resumed_and_only_the_failed_step_runs_again(recipes, capsys):
+async def test_a_failed_job_is_resumed_and_only_the_failed_step_runs_again(recipes, capsys, monkeypatch):
+    from featherweight import SqliteDatabase, default_db_path
+
     assert says_it_uses_the_agent_of_getting_started("resuming-a-failed-job.md")
-    people = lambda *names: structured_reply("ExtractOutput", {"people": list(names)})  # noqa: E731
+    outcomes = outcomes_of_run_job(monkeypatch)
     down = RuntimeError("the model is down")
     model = recipes(
-        PerAgent(
-            scripts={"List every person": [people("Anna", "Tom"), down, down, down, people("Li")]}
-            # the first job: one text answers, the other fails its three tries; the resume runs only that one, once
+        ByInput(
+            answers={
+                "Anna met Tom.": [people_reply("Anna", "Tom")],
+                "Li came.": [down, down, down, people_reply("Li")],
+            }
         )
     )
     await run_recipe("resuming-a-failed-job.md", getting_started=True)
 
     assert "FAILED then SUCCESS" in capsys.readouterr().out
-    assert model.calls == {"List every person": 5}  # the step that had worked was not paid for again
+    assert model.calls == {"Anna met Tom.": 1, "Li came.": 4}  # the step that had worked was not paid for again
+    first, second = outcomes
+    assert second.result.people == ["Anna", "Li", "Tom"]
+    async with SqliteDatabase(default_db_path()) as db:
+        rows = await db.list_attempts(job_id=second.job_id)
+    [reused] = [row for row in rows if row.reused_from_attempt_id]
+    assert (reused.input_tokens, reused.output_tokens) == (0, 0)
+    assert len(rows) == 2
 
 
 @pytest.mark.parametrize(
@@ -557,9 +747,15 @@ def test_the_pages_that_say_they_use_the_agent_of_getting_started_are_these_and_
 
 
 def test_every_recipe_is_run_by_a_test():
-    """The glossary says that the code of a recipe is run by the tests: a page that no test runs fails here."""
+    """The glossary says that the code of a recipe is run by the tests: a page that no test runs fails here. Only the files
+    of the recipe tests count, so that a test which merely reads a page elsewhere does not. It looks for the call, and
+    cannot tell what the test asserts."""
     tests = Path(__file__).parent
-    text = "\n".join(p.read_text() for p in tests.glob("test_*.py"))
+    text = "\n".join((tests / name).read_text() for name in ("test_recipes.py", "test_recipes_platform.py"))
     for page in sorted(p.name for p in RECIPES.glob("*.md") if p.name != "README.md"):
-        run = rf'(run_recipe|blocks|python_blocks)\(\s*(RECIPES / )?"{re.escape(page)}"'
+        if page == "testing-with-a-fake-model.md":  # it is a test file: test_skill_package.py runs it with pytest
+            skill = (tests / "test_skill_package.py").read_text()
+            assert f'python_blocks(RECIPES / "{page}")' in skill and "4 passed" in skill
+            continue
+        run = rf'(run_recipe|load_recipe|blocks)\(\s*"{re.escape(page)}"'
         assert re.search(run, text), f"no test runs the code of {page}"

@@ -1,4 +1,4 @@
-.PHONY: skill all-docs docs docs-build build up down clean clean-all test lint format typecheck check hooks e2e pipeline example-skills example-launching example-resume example-results example-jobs example-takeover example-observability example-chat example-chat-api example-chat-attach example-background example-mcp book-build book-chapter book-run book-chat book-shell shell
+.PHONY: skill all-docs docs docs-build build up down clean clean-all test lint format typecheck check hooks e2e coverage test-core test-tools test-jobs test-chat test-patterns pipeline example-skills example-launching example-resume example-results example-jobs example-takeover example-observability example-chat example-chat-api example-chat-attach example-background example-mcp book-build book-chapter book-run book-chat book-shell shell
 
 build:
 	docker compose build
@@ -18,10 +18,29 @@ clean-all:
 	docker compose down --rmi local --volumes --remove-orphans
 	rm -f featherweight.db e2e.db
 
+# The tests get blank API keys and tokens, whatever .env or your shell has, so a test can never make a paid or authenticated call.
+NO_KEYS = -e GOOGLE_API_KEY= -e GEMINI_API_KEY= -e ANTHROPIC_API_KEY= -e OPENAI_API_KEY= -e GITHUB_TOKEN=
+
 # Only this target starts the `postgres` service: the tests of PostgresDatabase run against it (FTW_TEST_POSTGRES_URL is set in compose.yaml).
 # The others run with `--no-deps`, because nothing else uses Postgres.
 test:
-	docker compose run --rm featherweight pytest
+	docker compose run --rm $(NO_KEYS) featherweight pytest
+
+# One suite (scripts/test_report.py says which files each one has): quick feedback while you work on one area. E.g.
+# `make test-jobs ARGS="-k lease"`. A suite alone is not held to a coverage minimum: `make coverage` is.
+TEST_RUN = docker compose run --rm $(NO_KEYS) featherweight sh -c
+
+test-core test-tools test-jobs test-chat test-patterns:
+	$(TEST_RUN) 'pytest $$(python scripts/test_report.py files $(@:test-%=%)) $(ARGS)'
+
+# All the tests with coverage. It fails under 95% overall or 90% in a suite, and writes the badges and the map of
+# TESTING.md (docs/assets): commit them with your change. The commit hook runs this.
+coverage:
+	docker compose run --rm $(NO_KEYS) -u $$(id -u):$$(id -g) -e HOME=/tmp -e COVERAGE_FILE=/tmp/.coverage -e PYTHONDONTWRITEBYTECODE=1 featherweight sh -c '\
+		coverage run --branch --source=src/featherweight -m pytest -q -p no:cacheprovider && \
+		coverage json -q -o /tmp/coverage.json && \
+		pytest --collect-only -q -p no:cacheprovider > /tmp/ids.txt && \
+		python scripts/test_report.py report /tmp/coverage.json /tmp/ids.txt'
 
 # Lint, formatting and types (ruff and ty, from uv.lock). `make check` runs all three without changing files.
 lint:
